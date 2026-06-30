@@ -346,3 +346,66 @@ compute descriptive features
 auto-discover 3D–5D slices
 validate honestly
 only later consider signals, portfolios, or options
+
+## Agent workflow / preferred collaboration style
+
+The preferred maintenance workflow is the practical small-patch workflow that allowed earlier repos/systems to be built quickly, but tailored for `Price`.
+
+### Working style
+- Keep changes minimal, safe, and copy-pasteable.
+- Prefer small targeted patches over broad rewrites.
+- Do not create new helper scripts, validators, reports, or docs unless explicitly asked.
+- Do not create placeholder files, placeholder tests, or fake scaffold content just to make the repo look complete. If a file is needed, either leave it absent until justified or add only meaningful minimal real content.
+- Use temporary shell one-liners for diagnostics instead of committing one-off tooling.
+- Explain what each patch is expected to fix before asking the operator to run it.
+- Do not run broad ingestion pulls, expensive API harvests, or load large ignored `localdata` from the agent environment unless the operator explicitly agrees.
+- The operator runs local commands; the agent reads pasted terminal output and provides the next safe step.
+- Never print or request secrets. If secrets appear in chat, tell the operator to revoke them and move keys to ignored `.env` files.
+
+### Patch workflow
+1. Inspect the relevant source narrowly.
+2. Provide an exact bash block the operator can paste.
+3. Include a syntax check, usually:
+   `python3 -m py_compile <changed_python_file>`
+4. Include a narrow sanity test that does not burn API quota or trigger large historical pulls unless necessary.
+5. Review the operator's pasted output before suggesting commit/push.
+6. Only commit after:
+   - syntax check passes,
+   - targeted sanity check passes,
+   - diff is reviewed,
+   - no unrelated files are included.
+7. Use clear, small commit messages describing the actual fix.
+8. After push, verify GitHub remote.
+
+### Remote verification
+- Prefer checking remote state after each important push.
+- If a local clone is stale or dirty, verify GitHub directly with:
+  `git ls-remote https://github.com/6ixtyn9-sudo/Price.git refs/heads/main`
+- Confirm the remote SHA matches the operator's pushed commit.
+- For workflow/config changes, verify remote file contents by inspecting `origin/main` or the GitHub remote, not only local state.
+
+### Sanity-check pattern
+- For source hygiene, use focused JSON/CSV diagnostics against existing ledgers or warehouse samples.
+- For ingestion changes, test a tiny symbol set and one timeframe before expanding.
+- For schema changes, verify expected columns with a narrow local sample instead of rerunning the full build.
+- For discovery/validation claims, separate:
+  - raw data coverage,
+  - feature coverage,
+  - discovered slices,
+  - validation sample size,
+  - cost-adjusted performance,
+  - walk-forward survival.
+- Do not judge the system by a single attractive slice or one short run.
+
+### Decision rules for Price
+- Freeze architecture during monitoring windows unless a concrete defect appears.
+- Patch only for clear issues such as broken ingestion, symbol/timeframe normalization errors, schema drift, duplicated rows, bad forward-label generation, quota burn, or broken report generation.
+- Do not jump into options, broker integration, or live automation because of one promising discovery pass.
+- If a feature/discovery claim is not reproducible from committed code and local data, treat it as unproven.
+
+### Communication preference
+- Be direct and practical.
+- Give the next command to run.
+- Avoid long speculative rewrites.
+- Do not repeatedly restate warnings once acted on.
+- Keep the operator in control of local execution.
