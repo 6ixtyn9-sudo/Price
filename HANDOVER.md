@@ -409,3 +409,121 @@ The preferred maintenance workflow is the practical small-patch workflow that al
 - Avoid long speculative rewrites.
 - Do not repeatedly restate warnings once acted on.
 - Keep the operator in control of local execution.
+
+## V1 to V4 build boundaries
+
+This section exists to stop future agents from drifting into unnecessary complexity too early.
+
+### V1 — data source shortlist + canonical schema
+Scope:
+- finalize the API-first market-data shortlist
+- choose the initial primary and fallback source
+- define the canonical bar-state row schema
+- confirm the initial universe and timeframes
+
+Allowed:
+- source comparison
+- schema design
+- local sample inspection
+- narrow docs updates in this handover / README if needed
+
+Not allowed:
+- options-chain work
+- broker/execution integration
+- live trading logic
+- strategy promotion claims
+- broad architecture expansion
+
+### V2 — minimal scaffold + ingestion
+Scope:
+- create the minimal code structure only once the schema is agreed
+- implement bar capture for a tiny symbol set
+- normalize symbols, timestamps, and timeframes
+- write reproducible local warehouse outputs
+
+Allowed:
+- `src/price/*` minimal modules
+- `scripts/capture_bars.py`
+- `scripts/build_warehouse.py`
+- tiny-sample ingestion checks
+- narrow schema verification
+
+Not allowed:
+- options support
+- broker APIs
+- execution runners
+- cloud persistence sprawl
+- dashboards
+- governance/council systems
+- broad multi-provider complexity before one clean path works
+
+### V3 — feature state + slice discovery
+Scope:
+- compute descriptive price-state features
+- generate candidate 3D–5D slices
+- measure forward-return behavior on historical bars
+- separate raw coverage, feature coverage, and discovered slices
+
+Allowed:
+- feature engineering tied to price state
+- discovery logic
+- sample-size floors
+- small, reproducible research outputs
+
+Not allowed:
+- hand-authored “hero strategy” bundles
+- flashy strategy marketing
+- social-media style profit claims
+- broker/execution work
+- options overlays
+- sprawling orchestration layers
+
+### V4 — validation discipline
+Scope:
+- train/valid separation
+- cost-aware evaluation
+- overlap awareness
+- regime sanity
+- eventual walk-forward validation
+- promotion discipline for only the most stable slices
+
+Allowed:
+- validation logic
+- cost assumptions
+- walk-forward planning
+- rejection of weak or unstable slices
+
+Not allowed:
+- live deployment
+- broker wiring
+- options execution design
+- “AI bot prints money” narratives
+- premature portfolio automation
+- another bloated hybrid architecture like STST
+
+## Anti-drift rules
+Future agents must not bypass the sequence.
+
+Do not jump from V1/V2 straight into:
+- options
+- broker/execution work
+- flashy strategy claims
+- complex governance layers
+- cloud-memory sprawl
+- multi-runtime hybrid architecture
+
+The correct progression is:
+1. source shortlist
+2. schema
+3. ingestion + warehouse
+4. features
+5. discovery
+6. validation
+7. only much later: signals, portfolio logic, and optional execution research
+
+If a future agent proposes:
+- options early,
+- broker/execution work early,
+- aggressive automation early,
+- or a hybrid architecture that resembles STST,
+the default answer should be **no** unless the underlying price-discovery substrate is already proven and the operator explicitly wants that expansion.
