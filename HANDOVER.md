@@ -278,13 +278,61 @@ councils/governance layers
 sprawling cloud persistence
 prompt systems
 strategy-story marketing
-Working style preference carried forward
-Keep changes minimal and practical.
-Prefer small, targeted steps over broad rewrites.
-Do not create extra helper scripts/docs unless explicitly useful.
-Focus on clean substrate first.
-Avoid architectural bloat.
-If a claim is not reproducible in code/data, treat it as unproven.
+Agent workflow / preferred collaboration style
+The preferred maintenance workflow is the same practical workflow that worked well across the earlier repos, but tailored for Price.
+
+Working style
+Keep changes minimal, safe, and copy-pasteable.
+Prefer small targeted patches over broad rewrites.
+Do not create new helper scripts, validators, reports, or docs unless explicitly asked.
+Use temporary shell one-liners for diagnostics instead of committing one-off tooling.
+Explain what each patch is expected to fix before asking the operator to run it.
+Do not run broad ingestion pulls, expensive API harvests, or load large ignored localdata from the agent environment unless the operator explicitly agrees.
+The operator runs local commands; the agent reads pasted terminal output and provides the next safe step.
+Never print or request secrets. If secrets appear in chat, tell the operator to revoke them and move keys to ignored .env files.
+Patch workflow
+Inspect the relevant source narrowly.
+Provide an exact bash block the operator can paste.
+Include a syntax check, usually:
+python3 -m py_compile <changed_python_file>
+Include a narrow sanity test that does not burn API quota or trigger large historical pulls unless necessary.
+Review the operator's pasted output before suggesting commit/push.
+Only commit after:
+syntax check passes,
+targeted sanity check passes,
+diff is reviewed,
+no unrelated files are included.
+Use clear, small commit messages describing the actual fix.
+After push, verify GitHub remote.
+Remote verification
+Prefer checking remote state after each important push.
+If a local clone is stale or dirty, verify GitHub directly with:
+git ls-remote https://github.com/6ixtyn9-sudo/Price.git refs/heads/main
+Confirm the remote SHA matches the operator's pushed commit.
+For workflow/config changes, verify remote file contents by inspecting origin/main or the GitHub remote, not only local state.
+Sanity-check pattern
+For source hygiene, use focused JSON/CSV diagnostics against existing ledgers or warehouse samples.
+For ingestion changes, test a tiny symbol set and one timeframe before expanding.
+For schema changes, verify expected columns with a narrow local sample instead of rerunning the full build.
+For discovery/validation claims, separate:
+raw data coverage,
+feature coverage,
+discovered slices,
+validation sample size,
+cost-adjusted performance,
+walk-forward survival.
+Do not judge the system by a single attractive slice or one short run.
+Decision rules for Price
+Freeze architecture during monitoring windows unless a concrete defect appears.
+Patch only for clear issues such as broken ingestion, symbol/timeframe normalization errors, schema drift, duplicated rows, bad forward-label generation, quota burn, or broken report generation.
+Do not jump into options, broker integration, or live automation because of one promising discovery pass.
+If a feature/discovery claim is not reproducible from committed code and local data, treat it as unproven.
+Communication preference
+Be direct and practical.
+Give the next command to run.
+Avoid long speculative rewrites.
+Do not repeatedly restate warnings once acted on.
+Keep the operator in control of local execution.
 Strategic summary
 Price should become a lean, Python-first, API-fed price-discovery research lab.
 
