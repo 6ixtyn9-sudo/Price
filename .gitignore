@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+
+# Local/env
+.env
+.env.*
+!.env.example
+localdata/*
+!.gitkeep
+
+# Data / generated artifacts
+*.parquet
+*.duckdb
+*.duckdb.wal
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
