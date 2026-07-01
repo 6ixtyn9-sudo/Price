@@ -464,6 +464,8 @@ def run_walk_forward_diagnostics(
     min_samples: int = 15,
     p_threshold: float = 0.05,
     output_path: str = WALK_FORWARD_DIAGNOSTICS_PATH,
+    diagnostic_scope: str = "current-leaders",
+    top_n: int = 5,
 ) -> pd.DataFrame:
     """Run anchored fold-by-fold diagnostics for the leading candidates.
 
@@ -474,11 +476,14 @@ def run_walk_forward_diagnostics(
     It is intentionally targeted at the current candidates recorded in
     HANDOVER.md rather than a broad discovery expansion.
     """
-    targets = [
-        ("SPY", "1h", "state_session=afternoon + state_slope=downtrend"),
-        ("SPY", "1h", "state_session=lunch + state_slope=downtrend"),
-        ("QQQ", "1h", "state_session=lunch + state_slope=downtrend"),
-    ]
+    targets = select_diagnostic_targets(
+        scope=diagnostic_scope,
+        top_n=top_n,
+        slices_path=slices_path,
+        n_folds=n_folds,
+        min_samples=min_samples,
+        p_threshold=p_threshold,
+    )
 
     rows = []
 
@@ -611,6 +616,60 @@ def run_walk_forward_diagnostics(
     return diagnostics_df
 
 
+DEFAULT_DIAGNOSTIC_TARGETS = [
+    ("SPY", "1h", "state_session=afternoon + state_slope=downtrend"),
+    ("SPY", "1h", "state_session=lunch + state_slope=downtrend"),
+    ("QQQ", "1h", "state_session=lunch + state_slope=downtrend"),
+]
+
+
+def select_diagnostic_targets(
+    scope: str = "current-leaders",
+    top_n: int = 5,
+    slices_path: str = DISCOVERED_SLICES_PATH,
+    n_folds: int = 4,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+) -> list[tuple[str, str, str]]:
+    """Select candidate targets for diagnostic commands.
+
+    Scopes:
+      - current-leaders: fixed legacy/current targets from HANDOVER.md
+      - clean-survivors: leaderboard rows with triage_bucket=clean_survivor
+      - late-emerging: leaderboard rows with triage_bucket=late_emerging_valid_supported
+      - leaderboard-top: top-N leaderboard rows regardless of triage bucket
+    """
+    if scope == "current-leaders":
+        return DEFAULT_DIAGNOSTIC_TARGETS
+
+    if scope not in {"clean-survivors", "late-emerging", "leaderboard-top"}:
+        raise ValueError(
+            "diagnostic scope must be one of: current-leaders, clean-survivors, "
+            "late-emerging, leaderboard-top"
+        )
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        leaderboard = run_candidate_leaderboard(
+            slices_path=slices_path,
+            n_folds=n_folds,
+            min_samples=min_samples,
+            p_threshold=p_threshold,
+        )
+
+    if leaderboard.empty:
+        return []
+
+    if scope == "clean-survivors":
+        selected = leaderboard[leaderboard["triage_bucket"] == "clean_survivor"]
+    elif scope == "late-emerging":
+        selected = leaderboard[leaderboard["triage_bucket"] == "late_emerging_valid_supported"]
+    else:
+        selected = leaderboard
+
+    selected = selected.head(top_n)
+    return list(zip(selected["symbol"], selected["timeframe"], selected["slice_combination"]))
+
+
 def _filter_date_window(
     df: pd.DataFrame,
     start: pd.Timestamp | None = None,
@@ -654,6 +713,10 @@ def run_date_range_diagnostics(
     min_samples: int = 15,
     p_threshold: float = 0.05,
     output_path: str = DATE_RANGE_DIAGNOSTICS_PATH,
+    diagnostic_scope: str = "current-leaders",
+    top_n: int = 5,
+    slices_path: str = DISCOVERED_SLICES_PATH,
+    n_folds: int = 4,
 ) -> pd.DataFrame:
     """Run targeted date-range sensitivity diagnostics.
 
@@ -661,11 +724,14 @@ def run_date_range_diagnostics(
     whether their behavior is stable across calendar periods and recent-only
     windows. It is intentionally not a broad discovery expansion.
     """
-    targets = [
-        ("SPY", "1h", "state_session=afternoon + state_slope=downtrend"),
-        ("SPY", "1h", "state_session=lunch + state_slope=downtrend"),
-        ("QQQ", "1h", "state_session=lunch + state_slope=downtrend"),
-    ]
+    targets = select_diagnostic_targets(
+        scope=diagnostic_scope,
+        top_n=top_n,
+        slices_path=slices_path,
+        n_folds=n_folds,
+        min_samples=min_samples,
+        p_threshold=p_threshold,
+    )
 
     rows = []
 
@@ -1202,6 +1268,18 @@ if __name__ == "__main__":
         help="Path for --date-range-diagnostics compact CSV output",
     )
     parser.add_argument(
+        "--diagnostic-scope",
+        default="current-leaders",
+        choices=["current-leaders", "clean-survivors", "late-emerging", "leaderboard-top"],
+        help="Candidate scope for targeted diagnostics",
+    )
+    parser.add_argument(
+        "--top-n",
+        type=int,
+        default=5,
+        help="Maximum number of leaderboard-selected candidates for diagnostic scopes",
+    )
+    parser.add_argument(
         "--candidate-leaderboard",
         action="store_true",
         help="Rank all discovered slices by validation, parent-baseline, and scenario robustness",
@@ -1238,6 +1316,10 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             output_path=args.date_range_diagnostics_output,
+            diagnostic_scope=args.diagnostic_scope,
+            top_n=args.top_n,
+            slices_path=args.slices_path,
+            n_folds=args.n_folds,
         )
     elif args.candidate_leaderboard:
         run_candidate_leaderboard(

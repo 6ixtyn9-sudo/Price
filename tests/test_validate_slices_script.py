@@ -13,6 +13,7 @@ from validate_slices import (  # noqa: E402
     classify_candidate_triage,
     classify_verdict,
     evidence_supports,
+    select_diagnostic_targets,
     run_candidate_leaderboard,
     run_date_range_diagnostics,
     run_scenario_grid,
@@ -392,4 +393,43 @@ def test_classify_candidate_triage_provisional_sample_starved():
         valid_p_value_nw=0.01,
     )
     assert bucket == "provisional_sample_starved"
+
+def test_select_diagnostic_targets_late_emerging_from_leaderboard(monkeypatch):
+    fake_leaderboard = pd.DataFrame(
+        [
+            {
+                "symbol": "SPY",
+                "timeframe": "1h",
+                "slice_combination": "clean",
+                "triage_bucket": "clean_survivor",
+            },
+            {
+                "symbol": "QQQ",
+                "timeframe": "1h",
+                "slice_combination": "late_one",
+                "triage_bucket": "late_emerging_valid_supported",
+            },
+            {
+                "symbol": "QQQ",
+                "timeframe": "1d",
+                "slice_combination": "late_two",
+                "triage_bucket": "late_emerging_valid_supported",
+            },
+        ]
+    )
+
+    monkeypatch.setattr("validate_slices.run_candidate_leaderboard", lambda **kwargs: fake_leaderboard)
+
+    targets = select_diagnostic_targets(scope="late-emerging", top_n=1)
+
+    assert targets == [("QQQ", "1h", "late_one")]
+
+
+def test_select_diagnostic_targets_rejects_unknown_scope():
+    try:
+        select_diagnostic_targets(scope="unknown")
+    except ValueError as exc:
+        assert "diagnostic scope must be one of" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for unknown diagnostic scope")
 
