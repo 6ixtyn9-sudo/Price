@@ -309,6 +309,8 @@ def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
                     "valid_best_parent_filter": "state_slope=downtrend",
                     "valid_excess_vs_best_parent": 0.0005,
                     "valid_p_value_nw": 0.01,
+                    "walk_forward_pass_count": 3,
+                    "walk_forward_pass_pattern": "1110",
                     "walk_forward_survival_rate": 0.75,
                     "verdict": spy_verdict,
                 },
@@ -325,6 +327,8 @@ def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
                     "valid_best_parent_filter": "state_slope=downtrend",
                     "valid_excess_vs_best_parent": 0.001,
                     "valid_p_value_nw": 0.02,
+                    "walk_forward_pass_count": 1,
+                    "walk_forward_pass_pattern": "0001",
                     "walk_forward_survival_rate": 0.25,
                     "verdict": "survived",
                 },
@@ -432,4 +436,31 @@ def test_select_diagnostic_targets_rejects_unknown_scope():
         assert "diagnostic scope must be one of" in str(exc)
     else:
         raise AssertionError("Expected ValueError for unknown diagnostic scope")
+
+def test_classify_candidate_triage_late_emerging_recent_only():
+    bucket = classify_candidate_triage(
+        verdict="rejected",
+        train_pass=False,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+        walk_forward_pass_pattern="0001",
+    )
+    assert bucket == "late_emerging_recent_only"
+
+
+def test_classify_candidate_triage_late_emerging_regime_switching():
+    bucket = classify_candidate_triage(
+        verdict="rejected",
+        train_pass=False,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+        walk_forward_pass_pattern="1001",
+    )
+    assert bucket == "late_emerging_regime_switching"
 

@@ -306,7 +306,9 @@ def run_validation(
             survives(fold["valid"], min_samples=min_samples, p_threshold=p_threshold)
             for fold in wf_folds
         ]
-        wf_survival_rate = (sum(wf_valid_pass) / len(wf_valid_pass)) if wf_valid_pass else float("nan")
+        wf_pass_count = sum(wf_valid_pass)
+        wf_pass_pattern = "".join("1" if passed else "0" for passed in wf_valid_pass)
+        wf_survival_rate = (wf_pass_count / len(wf_valid_pass)) if wf_valid_pass else float("nan")
 
         train_pass = survives(tv["train"], min_samples=min_samples, p_threshold=p_threshold)
         valid_pass = survives(tv["valid"], min_samples=min_samples, p_threshold=p_threshold)
@@ -337,6 +339,8 @@ def run_validation(
                 "valid_p_value_nw": tv["valid"]["p_value"],
                 "valid_pass": valid_pass,
                 "walk_forward_folds": len(wf_folds),
+                "walk_forward_pass_count": wf_pass_count,
+                "walk_forward_pass_pattern": wf_pass_pattern,
                 "walk_forward_survival_rate": wf_survival_rate,
                 "survived": bool(train_pass and valid_pass),
                 "verdict": verdict,
@@ -870,6 +874,7 @@ def classify_candidate_triage(
     valid_p_value_nw: float,
     min_samples: int = 15,
     p_threshold: float = 0.05,
+    walk_forward_pass_pattern: str = "",
 ) -> str:
     """Human-readable triage bucket for candidate leaderboard rows.
 
@@ -894,6 +899,16 @@ def classify_candidate_triage(
         return "sample_starved_unsupported"
 
     if (not train_pass) and valid_pass and positive_baseline and positive_parent:
+        pattern = str(walk_forward_pass_pattern or "")
+        pass_positions = [idx for idx, flag in enumerate(pattern) if flag == "1"]
+
+        if pass_positions:
+            latest_idx = len(pattern) - 1
+            if pass_positions == [latest_idx]:
+                return "late_emerging_recent_only"
+            if latest_idx in pass_positions and any(idx < latest_idx for idx in pass_positions):
+                return "late_emerging_regime_switching"
+
         return "late_emerging_valid_supported"
 
     if valid_pass and not positive_parent:
@@ -1005,6 +1020,8 @@ def run_candidate_leaderboard(
         valid_excess_baseline = row.get("valid_excess_vs_baseline", float("nan"))
         valid_excess_parent = row.get("valid_excess_vs_best_parent", float("nan"))
         valid_p_value = row.get("valid_p_value_nw", float("nan"))
+        wf_pass_count = row.get("walk_forward_pass_count", 0)
+        wf_pass_pattern = str(row.get("walk_forward_pass_pattern", ""))
 
         default_survived = verdict == "survived"
         default_provisional = verdict == "provisional"
@@ -1022,6 +1039,7 @@ def run_candidate_leaderboard(
             valid_p_value_nw=valid_p_value,
             min_samples=min_samples,
             p_threshold=p_threshold,
+            walk_forward_pass_pattern=wf_pass_pattern,
         )
 
         # Heuristic triage score. It is intentionally conservative about
@@ -1058,6 +1076,8 @@ def run_candidate_leaderboard(
                 "valid_best_parent_filter": row.get("valid_best_parent_filter", ""),
                 "valid_excess_vs_best_parent": valid_excess_parent,
                 "valid_p_value_nw": valid_p_value,
+                "walk_forward_pass_count": wf_pass_count,
+                "walk_forward_pass_pattern": wf_pass_pattern,
                 "walk_forward_survival_rate": wf,
                 "scenario_survived_count": scenario_survived_count,
                 "scenario_positive_baseline_excess_count": scenario_positive_baseline_excess_count,
@@ -1113,6 +1133,7 @@ def run_candidate_leaderboard(
         "valid_excess_vs_baseline",
         "valid_excess_vs_best_parent",
         "valid_p_value_nw",
+        "walk_forward_pass_pattern",
         "walk_forward_survival_rate",
         "scenario_survived_count",
         "robustness_score",
