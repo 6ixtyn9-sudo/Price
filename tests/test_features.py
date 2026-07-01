@@ -6,23 +6,18 @@ from price.features import compute_price_features
 
 def test_compute_price_features_basic():
     base_time = datetime(2026, 6, 1, 13, 30, tzinfo=timezone.utc)
-    [base_time + timedelta(minutes=15 * i) for i in range(60)]
-    
+    timestamps = [base_time + timedelta(minutes=15 * i) for i in range(60)]
+
     df = pd.DataFrame({
         'symbol': ['SPY'] * 60,
-        'timeframe': ['15m'] * 4,
-        'bar_ts_utc': [
-            datetime(2026, 6, 1, 13, 30, tzinfo=timezone.utc),
-            datetime(2026, 6, 1, 13, 45, tzinfo=timezone.utc),
-            datetime(2026, 6, 1, 14, 0, tzinfo=timezone.utc),
-            datetime(2026, 6, 1, 14, 15, tzinfo=timezone.utc)
-        ],
-        'source': ['alpaca'] * 4,
-        'ingested_at_utc': [datetime.now(timezone.utc)] * 4,
-        'open_raw': [100.0, 101.0, 102.0, 103.0],
-        'high_raw': [101.0, 102.0, 103.0, 104.0],
-        'low_raw': [99.0, 100.0, 101.0, 102.0],
-        'close_raw': [100.5, 101.5, 102.5, 103.5],
+        'timeframe': ['15m'] * 60,
+        'bar_ts_utc': timestamps,
+        'source': ['alpaca'] * 60,
+        'ingested_at_utc': [datetime.now(timezone.utc)] * 60,
+        'open_raw': np.linspace(100, 110, 60),
+        'high_raw': np.linspace(101, 111, 60),
+        'low_raw': np.linspace(99, 109, 60),
+        'close_raw': np.linspace(100.5, 110.5, 60),
         'volume_raw': [1000] * 60,
         'open_adj': np.linspace(100, 110, 60),
         'high_adj': np.linspace(101, 111, 60),
