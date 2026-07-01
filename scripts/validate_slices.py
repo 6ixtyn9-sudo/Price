@@ -18,8 +18,11 @@ import pandas as pd
 from price.discovery import bin_features
 from price.features import compute_price_features
 from price.validation import (
+    apply_transaction_cost,
+    chronological_train_valid_split,
     evaluate_slice_train_valid,
     parse_slice_combination,
+    summarize_returns,
     walk_forward_validate_slice,
 )
 from price.warehouse import load_from_warehouse
@@ -39,6 +42,43 @@ def build_eligible_frame(symbol: str, timeframe: str) -> pd.DataFrame:
     df_feat = compute_price_features(df_raw)
     df_binned = bin_features(df_feat)
     return df_binned[df_binned["label_eligible"]].reset_index(drop=True)
+
+
+def summarize_baseline_train_valid(
+    df: pd.DataFrame,
+    split: float = 0.7,
+    target_col: str = "fwd_ret_5",
+    cost_bps: float = 0.0,
+    cost_per_share: float = 0.0,
+    price_col: str = "close_adj",
+    min_samples: int = 15,
+) -> dict:
+    """Summarize the unconditional symbol/timeframe baseline over the same
+    chronological train/valid windows used for slice validation.
+
+    This gives each slice a fair local benchmark: did the slice beat the
+    whole eligible population for that same symbol/timeframe and period, or
+    is it only positive because the underlying drifted up?
+    """
+    train_df, valid_df = chronological_train_valid_split(df, split=split)
+
+    def summarize_window(window: pd.DataFrame) -> dict:
+        if window.empty or target_col not in window.columns:
+            return summarize_returns(pd.Series(dtype=float), min_samples=min_samples)
+
+        price = window[price_col] if price_col and price_col in window.columns else None
+        returns = apply_transaction_cost(
+            window[target_col],
+            cost_bps=cost_bps,
+            cost_per_share=cost_per_share,
+            price=price,
+        )
+        return summarize_returns(returns, min_samples=min_samples)
+
+    return {
+        "train": summarize_window(train_df),
+        "valid": summarize_window(valid_df),
+    }
 
 
 def survives(summary: dict, min_samples: int, p_threshold: float) -> bool:
@@ -140,6 +180,14 @@ def run_validation(
             min_samples=min_samples,
         )
 
+        baseline = summarize_baseline_train_valid(
+            eligible_df,
+            split=split,
+            cost_bps=cost_bps,
+            cost_per_share=cost_per_share,
+            min_samples=min_samples,
+        )
+
         try:
             wf_folds = walk_forward_validate_slice(
                 eligible_df,
@@ -169,10 +217,14 @@ def run_validation(
                 "slice_combination": slice_combination,
                 "train_n": tv["train"]["sample_count"],
                 "train_mean_ret_costadj": tv["train"]["mean_return"],
+                "train_baseline_mean_ret_costadj": baseline["train"]["mean_return"],
+                "train_excess_vs_baseline": tv["train"]["mean_return"] - baseline["train"]["mean_return"],
                 "train_t_stat_nw": tv["train"]["t_stat"],
                 "train_pass": train_pass,
                 "valid_n": tv["valid"]["sample_count"],
                 "valid_mean_ret_costadj": tv["valid"]["mean_return"],
+                "valid_baseline_mean_ret_costadj": baseline["valid"]["mean_return"],
+                "valid_excess_vs_baseline": tv["valid"]["mean_return"] - baseline["valid"]["mean_return"],
                 "valid_t_stat_nw": tv["valid"]["t_stat"],
                 "valid_p_value_nw": tv["valid"]["p_value"],
                 "valid_pass": valid_pass,
