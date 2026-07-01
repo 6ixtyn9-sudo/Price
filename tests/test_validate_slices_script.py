@@ -347,7 +347,7 @@ def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
     assert "robustness_score" in result.columns
     assert set(result["symbol"]) == {"SPY", "QQQ"}
 
-def test_classify_candidate_triage_clean_survivor():
+def test_classify_candidate_triage_clean_survivor_without_fold_pattern():
     bucket = classify_candidate_triage(
         verdict="survived",
         train_pass=True,
@@ -463,4 +463,45 @@ def test_classify_candidate_triage_late_emerging_regime_switching():
         walk_forward_pass_pattern="1001",
     )
     assert bucket == "late_emerging_regime_switching"
+
+def test_classify_candidate_triage_clean_survivor_wf_strong():
+    bucket = classify_candidate_triage(
+        verdict="survived",
+        train_pass=True,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+        walk_forward_pass_pattern="1111",
+    )
+    assert bucket == "clean_survivor_wf_strong"
+
+
+def test_classify_candidate_triage_clean_survivor_wf_mixed():
+    bucket = classify_candidate_triage(
+        verdict="survived",
+        train_pass=True,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+        walk_forward_pass_pattern="1001",
+    )
+    assert bucket == "clean_survivor_wf_mixed"
+
+
+def test_classify_candidate_triage_clean_survivor_wf_failed():
+    bucket = classify_candidate_triage(
+        verdict="survived",
+        train_pass=True,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+        walk_forward_pass_pattern="0000",
+    )
+    assert bucket == "clean_survivor_wf_failed"
 
