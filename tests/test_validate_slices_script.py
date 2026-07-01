@@ -12,6 +12,7 @@ from validate_slices import (  # noqa: E402
     _filter_date_window,
     classify_verdict,
     evidence_supports,
+    run_candidate_leaderboard,
     run_date_range_diagnostics,
     run_scenario_grid,
     run_walk_forward_diagnostics,
@@ -276,4 +277,61 @@ def test_run_date_range_diagnostics_writes_target_windows(monkeypatch, tmp_path)
     assert len(result) == 18
     assert "excess_vs_baseline" in result.columns
     assert "excess_vs_best_parent" in result.columns
+
+def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
+    def fake_run_validation(**kwargs):
+        cost_bps = kwargs.get("cost_bps", 1.0)
+        split = kwargs.get("split", 0.7)
+
+        if cost_bps == 5.0:
+            spy_verdict = "rejected"
+        elif split == 0.8:
+            spy_verdict = "rejected"
+        else:
+            spy_verdict = "survived"
+
+        return pd.DataFrame(
+            [
+                {
+                    "symbol": "SPY",
+                    "timeframe": "1h",
+                    "slice_combination": "state_session=afternoon + state_slope=downtrend",
+                    "train_n": 100,
+                    "valid_n": 50,
+                    "valid_mean_ret_costadj": 0.002,
+                    "valid_excess_vs_baseline": 0.001,
+                    "valid_best_parent_filter": "state_slope=downtrend",
+                    "valid_excess_vs_best_parent": 0.0005,
+                    "valid_p_value_nw": 0.01,
+                    "walk_forward_survival_rate": 0.75,
+                    "verdict": spy_verdict,
+                },
+                {
+                    "symbol": "QQQ",
+                    "timeframe": "1h",
+                    "slice_combination": "state_session=lunch + state_slope=downtrend",
+                    "train_n": 100,
+                    "valid_n": 50,
+                    "valid_mean_ret_costadj": 0.003,
+                    "valid_excess_vs_baseline": 0.002,
+                    "valid_best_parent_filter": "state_slope=downtrend",
+                    "valid_excess_vs_best_parent": 0.001,
+                    "valid_p_value_nw": 0.02,
+                    "walk_forward_survival_rate": 0.25,
+                    "verdict": "survived",
+                },
+            ]
+        )
+
+    monkeypatch.setattr("validate_slices.run_validation", fake_run_validation)
+
+    output_path = tmp_path / "candidate_leaderboard.csv"
+    result = run_candidate_leaderboard(output_path=str(output_path))
+
+    assert output_path.exists()
+    assert len(result) == 2
+    assert result["rank"].tolist() == [1, 2]
+    assert "scenario_survived_count" in result.columns
+    assert "robustness_score" in result.columns
+    assert set(result["symbol"]) == {"SPY", "QQQ"}
 
