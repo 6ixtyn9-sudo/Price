@@ -36,6 +36,7 @@ VALIDATED_SLICES_PATH = "localdata/validated_slices.csv"
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
 DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
+CANDIDATE_LEADERBOARD_PATH = "localdata/candidate_leaderboard.csv"
 
 
 def build_eligible_frame(symbol: str, timeframe: str) -> pd.DataFrame:
@@ -793,6 +794,202 @@ def run_date_range_diagnostics(
     return diagnostics_df
 
 
+def run_candidate_leaderboard(
+    slices_path: str = DISCOVERED_SLICES_PATH,
+    n_folds: int = 4,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+    output_path: str = CANDIDATE_LEADERBOARD_PATH,
+) -> pd.DataFrame:
+    """Rank all discovered slices by validation quality and robustness.
+
+    This is a triage tool, not a promotion engine. It compares every slice in
+    the discovered-slices file across:
+      - default validation verdict
+      - excess vs unconditional baseline
+      - excess vs best simpler parent regime
+      - walk-forward survival
+      - survival under common cost/split scenarios
+
+    The goal is to choose the next candidates for deeper diagnostics instead
+    of over-focusing on whichever slice was inspected first.
+    """
+    scenarios = [
+        ("default", {}),
+        ("cost2", {"cost_bps": 2.0}),
+        ("cost5", {"cost_bps": 5.0}),
+        ("split06", {"split": 0.6}),
+        ("split08", {"split": 0.8}),
+    ]
+
+    scenario_frames = {}
+
+    for label, overrides in scenarios:
+        params = {
+            "slices_path": slices_path,
+            "split": 0.7,
+            "cost_bps": 1.0,
+            "cost_per_share": 0.0,
+            "n_folds": n_folds,
+            "min_samples": min_samples,
+            "p_threshold": p_threshold,
+        }
+        params.update(overrides)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            scenario_frames[label] = run_validation(**params)
+
+    default_df = scenario_frames["default"].copy()
+    if default_df.empty:
+        print("No default validation rows available for candidate leaderboard.")
+        return default_df
+
+    key_cols = ["symbol", "timeframe", "slice_combination"]
+
+    rows = []
+    for _, row in default_df.iterrows():
+        key = tuple(row[col] for col in key_cols)
+
+        scenario_verdicts = {}
+        scenario_survived_count = 0
+        scenario_positive_baseline_excess_count = 0
+        scenario_positive_parent_excess_count = 0
+        scenario_significant_count = 0
+
+        for label, frame in scenario_frames.items():
+            hit = frame[
+                (frame["symbol"] == key[0])
+                & (frame["timeframe"] == key[1])
+                & (frame["slice_combination"] == key[2])
+            ]
+
+            if hit.empty:
+                verdict = "missing"
+                baseline_excess = float("nan")
+                parent_excess = float("nan")
+                p_value = float("nan")
+            else:
+                scenario_row = hit.iloc[0]
+                verdict = scenario_row.get("verdict", "missing")
+                baseline_excess = scenario_row.get("valid_excess_vs_baseline", float("nan"))
+                parent_excess = scenario_row.get("valid_excess_vs_best_parent", float("nan"))
+                p_value = scenario_row.get("valid_p_value_nw", float("nan"))
+
+            scenario_verdicts[f"{label}_verdict"] = verdict
+
+            if verdict == "survived":
+                scenario_survived_count += 1
+            if not pd.isna(baseline_excess) and baseline_excess > 0:
+                scenario_positive_baseline_excess_count += 1
+            if not pd.isna(parent_excess) and parent_excess > 0:
+                scenario_positive_parent_excess_count += 1
+            if not pd.isna(p_value) and p_value < p_threshold:
+                scenario_significant_count += 1
+
+        verdict = row["verdict"]
+        valid_n = row["valid_n"]
+        wf = row["walk_forward_survival_rate"]
+        valid_excess_baseline = row.get("valid_excess_vs_baseline", float("nan"))
+        valid_excess_parent = row.get("valid_excess_vs_best_parent", float("nan"))
+        valid_p_value = row.get("valid_p_value_nw", float("nan"))
+
+        default_survived = verdict == "survived"
+        default_provisional = verdict == "provisional"
+        positive_baseline = not pd.isna(valid_excess_baseline) and valid_excess_baseline > 0
+        positive_parent = not pd.isna(valid_excess_parent) and valid_excess_parent > 0
+        significant = not pd.isna(valid_p_value) and valid_p_value < p_threshold
+
+        # Heuristic triage score. It is intentionally conservative about
+        # parent-baseline excess and scenario survival, and it penalizes
+        # sample-starved/provisional cases. Use for ordering, not promotion.
+        robustness_score = 0.0
+        robustness_score += 3.0 if default_survived else 0.0
+        robustness_score += 1.0 if default_provisional else 0.0
+        robustness_score += 1.0 if positive_baseline else 0.0
+        robustness_score += 2.0 if positive_parent else 0.0
+        robustness_score += 1.0 if significant else 0.0
+        robustness_score += float(wf) * 2.0 if not pd.isna(wf) else 0.0
+        robustness_score += scenario_survived_count * 1.0
+        robustness_score += scenario_positive_parent_excess_count * 0.25
+        robustness_score += scenario_significant_count * 0.25
+        if valid_n < min_samples:
+            robustness_score -= 2.0
+        if not positive_parent:
+            robustness_score -= 1.0
+
+        rows.append(
+            {
+                "rank_symbol": row["symbol"],
+                "rank_timeframe": row["timeframe"],
+                "slice_combination": row["slice_combination"],
+                "verdict": verdict,
+                "train_n": row["train_n"],
+                "valid_n": valid_n,
+                "valid_mean_ret_costadj": row["valid_mean_ret_costadj"],
+                "valid_excess_vs_baseline": valid_excess_baseline,
+                "valid_best_parent_filter": row.get("valid_best_parent_filter", ""),
+                "valid_excess_vs_best_parent": valid_excess_parent,
+                "valid_p_value_nw": valid_p_value,
+                "walk_forward_survival_rate": wf,
+                "scenario_survived_count": scenario_survived_count,
+                "scenario_positive_baseline_excess_count": scenario_positive_baseline_excess_count,
+                "scenario_positive_parent_excess_count": scenario_positive_parent_excess_count,
+                "scenario_significant_count": scenario_significant_count,
+                "robustness_score": robustness_score,
+                **scenario_verdicts,
+            }
+        )
+
+    leaderboard = pd.DataFrame(rows)
+    leaderboard = leaderboard.sort_values(
+        [
+            "robustness_score",
+            "scenario_survived_count",
+            "walk_forward_survival_rate",
+            "valid_excess_vs_best_parent",
+            "valid_excess_vs_baseline",
+            "valid_mean_ret_costadj",
+        ],
+        ascending=[False, False, False, False, False, False],
+    ).reset_index(drop=True)
+
+    leaderboard.insert(0, "rank", range(1, len(leaderboard) + 1))
+    leaderboard = leaderboard.rename(columns={"rank_symbol": "symbol", "rank_timeframe": "timeframe"})
+
+    leaderboard.to_csv(output_path, index=False)
+
+    # Restore the default validation CSV after scenario diagnostics.
+    with contextlib.redirect_stdout(io.StringIO()):
+        run_validation(
+            slices_path=slices_path,
+            split=0.7,
+            cost_bps=1.0,
+            cost_per_share=0.0,
+            n_folds=n_folds,
+            min_samples=min_samples,
+            p_threshold=p_threshold,
+        )
+
+    print(f"Saved candidate leaderboard to {output_path}")
+    display_cols = [
+        "rank",
+        "symbol",
+        "timeframe",
+        "slice_combination",
+        "verdict",
+        "valid_n",
+        "valid_mean_ret_costadj",
+        "valid_excess_vs_baseline",
+        "valid_excess_vs_best_parent",
+        "valid_p_value_nw",
+        "walk_forward_survival_rate",
+        "scenario_survived_count",
+        "robustness_score",
+    ]
+    print(leaderboard[display_cols].head(25).to_string(index=False))
+    return leaderboard
+
+
 def run_scenario_grid(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
@@ -939,6 +1136,16 @@ if __name__ == "__main__":
         default=DATE_RANGE_DIAGNOSTICS_PATH,
         help="Path for --date-range-diagnostics compact CSV output",
     )
+    parser.add_argument(
+        "--candidate-leaderboard",
+        action="store_true",
+        help="Rank all discovered slices by validation, parent-baseline, and scenario robustness",
+    )
+    parser.add_argument(
+        "--candidate-leaderboard-output",
+        default=CANDIDATE_LEADERBOARD_PATH,
+        help="Path for --candidate-leaderboard CSV output",
+    )
     args = parser.parse_args()
 
     if args.scenario_grid:
@@ -966,6 +1173,14 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             output_path=args.date_range_diagnostics_output,
+        )
+    elif args.candidate_leaderboard:
+        run_candidate_leaderboard(
+            slices_path=args.slices_path,
+            n_folds=args.n_folds,
+            min_samples=args.min_samples,
+            p_threshold=args.p_threshold,
+            output_path=args.candidate_leaderboard_output,
         )
     else:
         run_validation(
