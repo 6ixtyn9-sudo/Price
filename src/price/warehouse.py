@@ -84,20 +84,25 @@ def propagate_adjustment_factors(symbol: str):
         print(f"No daily bars found to extract adjustments for {symbol}.")
         return
         
-    df_1d['ny_date'] = df_1d['bar_ts_utc'].dt.tz_convert('America/New_York').dt.date
-    
-    adj_map = df_1d.set_index('ny_date')[['adj_factor', 'split_factor', 'dividend_cash']].to_dict('index')
+    # Daily Tiingo bars are stored at midnight UTC, but semantically represent
+    # the market session date. Converting midnight UTC to America/New_York would
+    # shift the date to the prior evening and apply each daily adjustment factor
+    # to the wrong intraday session. Keep daily bars keyed by their UTC date,
+    # while intraday bars below are keyed by their New York market date.
+    df_1d['market_date'] = df_1d['bar_ts_utc'].dt.tz_convert('UTC').dt.date
+
+    adj_map = df_1d.set_index('market_date')[['adj_factor', 'split_factor', 'dividend_cash']].to_dict('index')
     
     for tf in ["15m", "1h"]:
         df_tf = load_from_warehouse(symbol, tf)
         if df_tf.empty:
             continue
             
-        df_tf['ny_date'] = df_tf['bar_ts_utc'].dt.tz_convert('America/New_York').dt.date
-        
+        df_tf['market_date'] = df_tf['bar_ts_utc'].dt.tz_convert('America/New_York').dt.date
+
         def apply_adjustments(row):
-            ny_d = row['ny_date']
-            factor = adj_map.get(ny_d, {'adj_factor': 1.0, 'split_factor': 1.0, 'dividend_cash': 0.0})
+            market_d = row['market_date']
+            factor = adj_map.get(market_d, {'adj_factor': 1.0, 'split_factor': 1.0, 'dividend_cash': 0.0})
             
             open_adj = row['open_raw'] * factor['adj_factor']
             high_adj = row['high_raw'] * factor['adj_factor']
@@ -118,7 +123,7 @@ def propagate_adjustment_factors(symbol: str):
         for col in adjusted_cols.columns:
             df_tf[col] = adjusted_cols[col]
             
-        df_tf = df_tf.drop(columns=['ny_date'])
+        df_tf = df_tf.drop(columns=['market_date'])
         
         df_tf['symbol'] = symbol
         df_tf['timeframe'] = tf

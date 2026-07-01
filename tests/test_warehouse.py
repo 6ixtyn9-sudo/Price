@@ -126,3 +126,62 @@ def test_propagate_adjustment_factors(temp_warehouse):
     row = updated_15m.iloc[0]
     assert row['adj_factor'] == 0.98
     assert row['close_adj'] == 100.5 * 0.98
+
+def test_propagate_adjustment_factors_uses_daily_utc_date_for_market_session(monkeypatch):
+    """Daily bars at midnight UTC must map to the same New York market date,
+    not the prior New York evening.
+
+    Regression guard for the bug where Tiingo 1d bar_ts_utc was converted to
+    America/New_York before extracting the date, shifting daily adjustment
+    factors one session early and creating artificial intraday price jumps.
+    """
+    import pandas as pd
+    import price.warehouse as warehouse
+
+    saved = {}
+
+    daily = pd.DataFrame(
+        {
+            "symbol": ["XYZ"],
+            "timeframe": ["1d"],
+            "bar_ts_utc": pd.to_datetime(["2024-01-03 00:00:00"], utc=True),
+            "adj_factor": [0.5],
+            "split_factor": [1.0],
+            "dividend_cash": [0.0],
+        }
+    )
+
+    intraday = pd.DataFrame(
+        {
+            "symbol": ["XYZ"],
+            "timeframe": ["15m"],
+            "bar_ts_utc": pd.to_datetime(["2024-01-03 14:30:00"], utc=True),
+            "source": ["test"],
+            "ingested_at_utc": pd.to_datetime(["2024-01-03 15:00:00"], utc=True),
+            "open_raw": [100.0],
+            "high_raw": [110.0],
+            "low_raw": [90.0],
+            "close_raw": [104.0],
+            "volume_raw": [1000],
+        }
+    )
+
+    def fake_load(symbol, timeframe):
+        if timeframe == "1d":
+            return daily.copy()
+        if timeframe == "15m":
+            return intraday.copy()
+        return pd.DataFrame()
+
+    def fake_save(df):
+        saved[(df["symbol"].iloc[0], df["timeframe"].iloc[0])] = df.copy()
+
+    monkeypatch.setattr(warehouse, "load_from_warehouse", fake_load)
+    monkeypatch.setattr(warehouse, "save_to_warehouse", fake_save)
+
+    warehouse.propagate_adjustment_factors("XYZ")
+
+    adjusted = saved[("XYZ", "15m")]
+    assert adjusted["adj_factor"].iloc[0] == 0.5
+    assert adjusted["close_adj"].iloc[0] == 52.0
+
