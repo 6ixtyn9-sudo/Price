@@ -12,6 +12,7 @@ from validate_slices import (  # noqa: E402
     classify_verdict,
     evidence_supports,
     run_scenario_grid,
+    run_walk_forward_diagnostics,
     summarize_baseline_train_valid,
     summarize_parent_baselines_train_valid,
     survives,
@@ -195,4 +196,32 @@ def test_run_scenario_grid_collects_target_rows(monkeypatch, tmp_path):
         ]["valid_mean_ret_costadj"].iloc[0]
         == 0.001
     )
+
+def test_run_walk_forward_diagnostics_writes_fold_rows(monkeypatch, tmp_path):
+    def fake_build_eligible_frame(symbol, timeframe):
+        return pd.DataFrame(
+            {
+                "bar_ts_utc": pd.date_range("2024-01-01", periods=30, freq="h", tz="UTC"),
+                "fwd_ret_5": [0.01] * 30,
+                "close_adj": [100.0] * 30,
+                "state_session": ["afternoon", "lunch", "lunch"] * 10,
+                "state_slope": ["downtrend"] * 30,
+            }
+        )
+
+    monkeypatch.setattr("validate_slices.build_eligible_frame", fake_build_eligible_frame)
+
+    output_path = tmp_path / "walk_forward_diagnostics.csv"
+    result = run_walk_forward_diagnostics(
+        n_folds=2,
+        min_samples=1,
+        output_path=str(output_path),
+    )
+
+    assert output_path.exists()
+    assert len(result) == 6
+    assert set(result["fold"]) == {0, 1}
+    assert set(result["diagnostic_status"]) == {"ok"}
+    assert "valid_excess_vs_baseline" in result.columns
+    assert "valid_excess_vs_best_parent" in result.columns
 

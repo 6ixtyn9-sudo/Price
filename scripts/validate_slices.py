@@ -21,6 +21,7 @@ import pandas as pd
 from price.discovery import bin_features
 from price.features import compute_price_features
 from price.validation import (
+    apply_slice_filter,
     apply_transaction_cost,
     chronological_train_valid_split,
     evaluate_slice_train_valid,
@@ -33,6 +34,7 @@ from price.warehouse import load_from_warehouse
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 VALIDATED_SLICES_PATH = "localdata/validated_slices.csv"
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
+WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
 
 
 def build_eligible_frame(symbol: str, timeframe: str) -> pd.DataFrame:
@@ -381,6 +383,232 @@ def run_validation(
     return scorecard_df
 
 
+def summarize_filter_window(
+    window: pd.DataFrame,
+    slice_filter: dict,
+    target_col: str = "fwd_ret_5",
+    cost_bps: float = 0.0,
+    cost_per_share: float = 0.0,
+    price_col: str = "close_adj",
+    min_samples: int = 15,
+) -> dict:
+    """Summarize one slice/filter inside a single chronological window."""
+    if window.empty:
+        return summarize_returns(pd.Series(dtype=float), min_samples=min_samples)
+
+    filtered = apply_slice_filter(window, slice_filter) if slice_filter else window
+    if filtered.empty or target_col not in filtered.columns:
+        return summarize_returns(pd.Series(dtype=float), min_samples=min_samples)
+
+    price = filtered[price_col] if price_col and price_col in filtered.columns else None
+    returns = apply_transaction_cost(
+        filtered[target_col],
+        cost_bps=cost_bps,
+        cost_per_share=cost_per_share,
+        price=price,
+    )
+    return summarize_returns(returns, min_samples=min_samples)
+
+
+def best_parent_filter_window(
+    window: pd.DataFrame,
+    slice_filter: dict,
+    target_col: str = "fwd_ret_5",
+    cost_bps: float = 0.0,
+    cost_per_share: float = 0.0,
+    price_col: str = "close_adj",
+    min_samples: int = 15,
+) -> dict:
+    """Return the strongest simpler parent regime inside one window."""
+    parent_summaries = []
+
+    for parent_filter in iter_parent_slice_filters(slice_filter):
+        summary = summarize_filter_window(
+            window,
+            parent_filter,
+            target_col=target_col,
+            cost_bps=cost_bps,
+            cost_per_share=cost_per_share,
+            price_col=price_col,
+            min_samples=min_samples,
+        )
+        mean_return = summary.get("mean_return", float("nan"))
+        if not pd.isna(mean_return):
+            parent_summaries.append(
+                {
+                    "filter": format_slice_filter(parent_filter),
+                    "sample_count": summary["sample_count"],
+                    "mean_return": mean_return,
+                    "p_value": summary["p_value"],
+                }
+            )
+
+    if not parent_summaries:
+        return {
+            "filter": "",
+            "sample_count": 0,
+            "mean_return": float("nan"),
+            "p_value": float("nan"),
+        }
+
+    return max(parent_summaries, key=lambda item: item["mean_return"])
+
+
+def run_walk_forward_diagnostics(
+    slices_path: str = DISCOVERED_SLICES_PATH,
+    n_folds: int = 4,
+    cost_bps: float = 1.0,
+    cost_per_share: float = 0.0,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+    output_path: str = WALK_FORWARD_DIAGNOSTICS_PATH,
+) -> pd.DataFrame:
+    """Run anchored fold-by-fold diagnostics for the leading candidates.
+
+    This answers: which chronological validation blocks work or fail, and does
+    each block beat both the unconditional baseline and the strongest simpler
+    parent regime?
+
+    It is intentionally targeted at the current candidates recorded in
+    HANDOVER.md rather than a broad discovery expansion.
+    """
+    targets = [
+        ("SPY", "1h", "state_session=afternoon + state_slope=downtrend"),
+        ("SPY", "1h", "state_session=lunch + state_slope=downtrend"),
+        ("QQQ", "1h", "state_session=lunch + state_slope=downtrend"),
+    ]
+
+    rows = []
+
+    for symbol, timeframe, combo in targets:
+        eligible_df = build_eligible_frame(symbol, timeframe)
+        if eligible_df.empty:
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "slice_combination": combo,
+                    "fold": -1,
+                    "diagnostic_status": "missing_eligible_frame",
+                }
+            )
+            continue
+
+        slice_filter = parse_slice_combination(combo)
+        sorted_df = eligible_df.sort_values("bar_ts_utc").reset_index(drop=True)
+
+        n_blocks = n_folds + 1
+        if len(sorted_df) < n_blocks:
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "slice_combination": combo,
+                    "fold": -1,
+                    "diagnostic_status": "not_enough_rows_for_folds",
+                    "eligible_rows": len(sorted_df),
+                }
+            )
+            continue
+
+        edges = [round(i * len(sorted_df) / n_blocks) for i in range(n_blocks + 1)]
+        blocks = [sorted_df.iloc[edges[i] : edges[i + 1]].reset_index(drop=True) for i in range(n_blocks)]
+
+        for fold_idx in range(n_folds):
+            train_df = pd.concat(blocks[: fold_idx + 1], ignore_index=True)
+            valid_df = blocks[fold_idx + 1]
+
+            train_summary = summarize_filter_window(
+                train_df,
+                slice_filter,
+                cost_bps=cost_bps,
+                cost_per_share=cost_per_share,
+                min_samples=min_samples,
+            )
+            valid_summary = summarize_filter_window(
+                valid_df,
+                slice_filter,
+                cost_bps=cost_bps,
+                cost_per_share=cost_per_share,
+                min_samples=min_samples,
+            )
+            valid_baseline = summarize_filter_window(
+                valid_df,
+                {},
+                cost_bps=cost_bps,
+                cost_per_share=cost_per_share,
+                min_samples=min_samples,
+            )
+            valid_parent = best_parent_filter_window(
+                valid_df,
+                slice_filter,
+                cost_bps=cost_bps,
+                cost_per_share=cost_per_share,
+                min_samples=min_samples,
+            )
+
+            train_pass = survives(train_summary, min_samples=min_samples, p_threshold=p_threshold)
+            valid_pass = survives(valid_summary, min_samples=min_samples, p_threshold=p_threshold)
+
+            valid_mean = valid_summary["mean_return"]
+            baseline_mean = valid_baseline["mean_return"]
+            parent_mean = valid_parent["mean_return"]
+
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "slice_combination": combo,
+                    "fold": fold_idx,
+                    "diagnostic_status": "ok",
+                    "train_start_utc": train_df["bar_ts_utc"].min(),
+                    "train_end_utc": train_df["bar_ts_utc"].max(),
+                    "valid_start_utc": valid_df["bar_ts_utc"].min(),
+                    "valid_end_utc": valid_df["bar_ts_utc"].max(),
+                    "train_n": train_summary["sample_count"],
+                    "train_mean_ret_costadj": train_summary["mean_return"],
+                    "train_p_value_nw": train_summary["p_value"],
+                    "train_pass": train_pass,
+                    "valid_n": valid_summary["sample_count"],
+                    "valid_mean_ret_costadj": valid_mean,
+                    "valid_baseline_mean_ret_costadj": baseline_mean,
+                    "valid_excess_vs_baseline": valid_mean - baseline_mean,
+                    "valid_best_parent_filter": valid_parent["filter"],
+                    "valid_best_parent_n": valid_parent["sample_count"],
+                    "valid_best_parent_mean_ret_costadj": parent_mean,
+                    "valid_excess_vs_best_parent": valid_mean - parent_mean,
+                    "valid_p_value_nw": valid_summary["p_value"],
+                    "valid_pass": valid_pass,
+                }
+            )
+
+    diagnostics_df = pd.DataFrame(rows)
+    diagnostics_df.to_csv(output_path, index=False)
+
+    print(f"Saved walk-forward diagnostics to {output_path}")
+    if diagnostics_df.empty:
+        print("No diagnostics produced.")
+    else:
+        display_cols = [
+            "symbol",
+            "timeframe",
+            "slice_combination",
+            "fold",
+            "valid_start_utc",
+            "valid_end_utc",
+            "valid_n",
+            "valid_mean_ret_costadj",
+            "valid_excess_vs_baseline",
+            "valid_excess_vs_best_parent",
+            "valid_p_value_nw",
+            "valid_pass",
+        ]
+        available_cols = [col for col in display_cols if col in diagnostics_df.columns]
+        print(diagnostics_df[available_cols].to_string(index=False))
+
+    return diagnostics_df
+
+
 def run_scenario_grid(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
@@ -507,6 +735,16 @@ if __name__ == "__main__":
         default=SCENARIO_GRID_PATH,
         help="Path for --scenario-grid compact CSV output",
     )
+    parser.add_argument(
+        "--walk-forward-diagnostics",
+        action="store_true",
+        help="Run anchored fold-by-fold diagnostics for the current leading candidates",
+    )
+    parser.add_argument(
+        "--walk-forward-diagnostics-output",
+        default=WALK_FORWARD_DIAGNOSTICS_PATH,
+        help="Path for --walk-forward-diagnostics compact CSV output",
+    )
     args = parser.parse_args()
 
     if args.scenario_grid:
@@ -516,6 +754,16 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             output_path=args.scenario_grid_output,
+        )
+    elif args.walk_forward_diagnostics:
+        run_walk_forward_diagnostics(
+            slices_path=args.slices_path,
+            n_folds=args.n_folds,
+            cost_bps=args.cost_bps,
+            cost_per_share=args.cost_per_share,
+            min_samples=args.min_samples,
+            p_threshold=args.p_threshold,
+            output_path=args.walk_forward_diagnostics_output,
         )
     else:
         run_validation(
