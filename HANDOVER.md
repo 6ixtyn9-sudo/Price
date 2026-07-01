@@ -662,3 +662,45 @@ Practical conclusion:
 - Do not promote it as a tradable edge.
 - Next work should inspect regime context for the 2024 strength versus the
   2025/2026 weakening before any further discovery-grid expansion.
+
+
+V4 Candidate Leaderboard + Triage Buckets (2026-07-01)
+Added `scripts/validate_slices.py --candidate-leaderboard`, which writes
+`localdata/candidate_leaderboard.csv` and ranks all discovered slices using
+default validation, parent-baseline excess, scenario survival, walk-forward
+survival, and sample discipline.
+
+Added `triage_bucket` labels to separate different research cases:
+- `clean_survivor`: strict train+valid survivor with positive excess vs both
+  unconditional and best-parent baselines.
+- `over_specified_survivor`: strict survivor but worse than a simpler parent
+  regime.
+- `late_emerging_valid_supported`: failed training window but passed validation
+  with positive excess vs baseline and parent; interesting as possible regime
+  shift, not as stable historical edge.
+- `provisional_sample_starved`: attractive evidence but validation sample below
+  the floor.
+- `parent_underperformed` / `rejected_unsupported`: lower-priority rejects.
+
+Current leaderboard framing:
+1. Clean survivors:
+   - SPY 1h `state_session=afternoon + state_slope=downtrend`
+   - SPY 1h `state_session=lunch + state_slope=downtrend`
+   - QQQ 1h `state_session=lunch + state_slope=downtrend`
+2. Over-specified survivors:
+   - SPY 1h `state_session=afternoon + state_ext=neutral + state_slope=downtrend`
+   - SPY 1h `state_session=lunch + state_ext=neutral + state_slope=downtrend`
+3. Late-emerging valid-supported candidates worth separate investigation:
+   - QQQ 1h `state_session=lunch + state_ext=neutral + state_slope=downtrend`
+   - QQQ 1h `state_session=afternoon + state_ext=stretched_down`
+   - QQQ 1d `state_ext=stretched_down + state_vol=high_vol`
+   - QQQ 1h `state_ext=stretched_up + state_vol=low_vol`
+   - SPY 1h `state_ext=stretched_down + state_slope=downtrend`
+
+Practical conclusion:
+- SPY afternoon remains the top clean survivor, but the project should not
+  tunnel only on that slice.
+- Next work should inspect the late-emerging bucket to determine whether those
+  are genuine recent-regime candidates or validation-window artifacts.
+- Future diagnostics should support candidate scopes such as clean survivors,
+  late-emerging, and leaderboard top-N.
