@@ -775,3 +775,43 @@ Practical conclusion:
   2. late-emerging = recent-regime candidates
   3. regime-switching = unstable but recurring candidates
 - Do not promote late-emerging candidates without more future data.
+
+
+V4 Fold-Pattern Triage Refinement (2026-07-01)
+Added `walk_forward_pass_count` and `walk_forward_pass_pattern` to validation
+outputs and candidate leaderboard. The pass pattern is a compact 4-character
+fold string where `1` means the validation fold passed and `0` means it failed.
+
+Examples:
+- `1110`: passed folds 0, 1, and 2; failed latest fold
+- `1010`: passed folds 0 and 2 only
+- `0010`: passed fold 2 only
+- `1001`: passed early and latest folds, failed the middle
+- `0001`: only latest fold passed
+- `0000`: no folds passed
+
+Triage buckets were refined:
+- `late_emerging_recent_only`: validation-supported candidate whose only
+  walk-forward pass is the latest fold (`0001`).
+- `late_emerging_regime_switching`: validation-supported candidate that passes
+  the latest fold and at least one earlier fold, but not continuously.
+- `late_emerging_valid_supported`: validation-supported candidate that failed
+  training but does not fit the recent-only/regime-switching fold pattern.
+
+Current interpretation:
+- SPY 1h `state_session=afternoon + state_slope=downtrend` remains the top
+  clean survivor but has pattern `1110`, confirming latest-fold weakness.
+- QQQ 1h `state_session=lunch + state_ext=neutral + state_slope=downtrend`
+  is `late_emerging_regime_switching` with pattern `1001`.
+- QQQ 1h `state_session=afternoon + state_ext=stretched_down`, QQQ 1d
+  `state_ext=stretched_down + state_vol=high_vol`, QQQ 1h
+  `state_ext=stretched_up + state_vol=low_vol`, and SPY 1h
+  `state_ext=stretched_down + state_slope=downtrend` are
+  `late_emerging_recent_only` with pattern `0001`.
+
+Practical conclusion:
+- The leaderboard now separates stable-ish, over-specified, recent-only, and
+  regime-switching cases.
+- This is a triage tool, not a promotion engine.
+- No candidate should be promoted without additional future data and continued
+  fold-pattern survival.
