@@ -17,6 +17,7 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
     
     if timeframe in ["15m", "1h"]:
         combinations.append(["state_session", "state_ext"])
+        combinations.append(["state_session", "state_slope"])
         combinations.append(["state_session", "state_ext", "state_slope"])
         
     all_slices = []
