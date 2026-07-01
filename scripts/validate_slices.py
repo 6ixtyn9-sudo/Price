@@ -35,6 +35,7 @@ DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 VALIDATED_SLICES_PATH = "localdata/validated_slices.csv"
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
+DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
 
 
 def build_eligible_frame(symbol: str, timeframe: str) -> pd.DataFrame:
@@ -609,6 +610,189 @@ def run_walk_forward_diagnostics(
     return diagnostics_df
 
 
+def _filter_date_window(
+    df: pd.DataFrame,
+    start: pd.Timestamp | None = None,
+    end: pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    """Return rows in [start, end), preserving timezone-aware UTC handling."""
+    if df.empty:
+        return df.copy()
+
+    out = df.copy()
+    ts = pd.to_datetime(out["bar_ts_utc"])
+    if getattr(ts.dtype, "tz", None) is None:
+        ts = ts.dt.tz_localize("UTC")
+    else:
+        ts = ts.dt.tz_convert("UTC")
+
+    mask = pd.Series(True, index=out.index)
+
+    if start is not None:
+        start_ts = pd.Timestamp(start)
+        if start_ts.tzinfo is None:
+            start_ts = start_ts.tz_localize("UTC")
+        else:
+            start_ts = start_ts.tz_convert("UTC")
+        mask &= ts >= start_ts
+
+    if end is not None:
+        end_ts = pd.Timestamp(end)
+        if end_ts.tzinfo is None:
+            end_ts = end_ts.tz_localize("UTC")
+        else:
+            end_ts = end_ts.tz_convert("UTC")
+        mask &= ts < end_ts
+
+    return out[mask].reset_index(drop=True)
+
+
+def run_date_range_diagnostics(
+    cost_bps: float = 1.0,
+    cost_per_share: float = 0.0,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+    output_path: str = DATE_RANGE_DIAGNOSTICS_PATH,
+) -> pd.DataFrame:
+    """Run targeted date-range sensitivity diagnostics.
+
+    This focuses on the current leading candidates from HANDOVER.md and asks
+    whether their behavior is stable across calendar periods and recent-only
+    windows. It is intentionally not a broad discovery expansion.
+    """
+    targets = [
+        ("SPY", "1h", "state_session=afternoon + state_slope=downtrend"),
+        ("SPY", "1h", "state_session=lunch + state_slope=downtrend"),
+        ("QQQ", "1h", "state_session=lunch + state_slope=downtrend"),
+    ]
+
+    rows = []
+
+    for symbol, timeframe, combo in targets:
+        eligible_df = build_eligible_frame(symbol, timeframe)
+        if eligible_df.empty:
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "slice_combination": combo,
+                    "window": "all",
+                    "diagnostic_status": "missing_eligible_frame",
+                }
+            )
+            continue
+
+        eligible_df = eligible_df.sort_values("bar_ts_utc").reset_index(drop=True)
+        max_ts = pd.to_datetime(eligible_df["bar_ts_utc"]).max()
+        if max_ts.tzinfo is None:
+            max_ts = max_ts.tz_localize("UTC")
+
+        windows = [
+            ("all", None, None),
+            ("calendar_2024", pd.Timestamp("2024-01-01", tz="UTC"), pd.Timestamp("2025-01-01", tz="UTC")),
+            ("calendar_2025", pd.Timestamp("2025-01-01", tz="UTC"), pd.Timestamp("2026-01-01", tz="UTC")),
+            ("calendar_2026_ytd", pd.Timestamp("2026-01-01", tz="UTC"), None),
+            ("latest_12m", max_ts - pd.DateOffset(months=12), None),
+            ("latest_6m", max_ts - pd.DateOffset(months=6), None),
+        ]
+
+        slice_filter = parse_slice_combination(combo)
+
+        for window_name, start, end in windows:
+            window_df = _filter_date_window(eligible_df, start=start, end=end)
+
+            if window_df.empty:
+                rows.append(
+                    {
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "slice_combination": combo,
+                        "window": window_name,
+                        "diagnostic_status": "empty_window",
+                    }
+                )
+                continue
+
+            slice_summary = summarize_filter_window(
+                window_df,
+                slice_filter,
+                cost_bps=cost_bps,
+                cost_per_share=cost_per_share,
+                min_samples=min_samples,
+            )
+            baseline_summary = summarize_filter_window(
+                window_df,
+                {},
+                cost_bps=cost_bps,
+                cost_per_share=cost_per_share,
+                min_samples=min_samples,
+            )
+            parent_summary = best_parent_filter_window(
+                window_df,
+                slice_filter,
+                cost_bps=cost_bps,
+                cost_per_share=cost_per_share,
+                min_samples=min_samples,
+            )
+
+            slice_mean = slice_summary["mean_return"]
+            baseline_mean = baseline_summary["mean_return"]
+            parent_mean = parent_summary["mean_return"]
+
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "slice_combination": combo,
+                    "window": window_name,
+                    "diagnostic_status": "ok",
+                    "window_start_utc": window_df["bar_ts_utc"].min(),
+                    "window_end_utc": window_df["bar_ts_utc"].max(),
+                    "window_rows": len(window_df),
+                    "slice_n": slice_summary["sample_count"],
+                    "slice_mean_ret_costadj": slice_mean,
+                    "slice_win_rate": slice_summary["win_rate"],
+                    "slice_t_stat_nw": slice_summary["t_stat"],
+                    "slice_p_value_nw": slice_summary["p_value"],
+                    "slice_pass": survives(slice_summary, min_samples=min_samples, p_threshold=p_threshold),
+                    "baseline_n": baseline_summary["sample_count"],
+                    "baseline_mean_ret_costadj": baseline_mean,
+                    "excess_vs_baseline": slice_mean - baseline_mean,
+                    "best_parent_filter": parent_summary["filter"],
+                    "best_parent_n": parent_summary["sample_count"],
+                    "best_parent_mean_ret_costadj": parent_mean,
+                    "excess_vs_best_parent": slice_mean - parent_mean,
+                    "best_parent_p_value_nw": parent_summary["p_value"],
+                }
+            )
+
+    diagnostics_df = pd.DataFrame(rows)
+    diagnostics_df.to_csv(output_path, index=False)
+
+    print(f"Saved date-range diagnostics to {output_path}")
+    if diagnostics_df.empty:
+        print("No diagnostics produced.")
+    else:
+        display_cols = [
+            "symbol",
+            "timeframe",
+            "slice_combination",
+            "window",
+            "window_start_utc",
+            "window_end_utc",
+            "slice_n",
+            "slice_mean_ret_costadj",
+            "excess_vs_baseline",
+            "excess_vs_best_parent",
+            "slice_p_value_nw",
+            "slice_pass",
+        ]
+        available_cols = [col for col in display_cols if col in diagnostics_df.columns]
+        print(diagnostics_df[available_cols].to_string(index=False))
+
+    return diagnostics_df
+
+
 def run_scenario_grid(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
@@ -745,6 +929,16 @@ if __name__ == "__main__":
         default=WALK_FORWARD_DIAGNOSTICS_PATH,
         help="Path for --walk-forward-diagnostics compact CSV output",
     )
+    parser.add_argument(
+        "--date-range-diagnostics",
+        action="store_true",
+        help="Run targeted date-range sensitivity diagnostics for the current leading candidates",
+    )
+    parser.add_argument(
+        "--date-range-diagnostics-output",
+        default=DATE_RANGE_DIAGNOSTICS_PATH,
+        help="Path for --date-range-diagnostics compact CSV output",
+    )
     args = parser.parse_args()
 
     if args.scenario_grid:
@@ -764,6 +958,14 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             output_path=args.walk_forward_diagnostics_output,
+        )
+    elif args.date_range_diagnostics:
+        run_date_range_diagnostics(
+            cost_bps=args.cost_bps,
+            cost_per_share=args.cost_per_share,
+            min_samples=args.min_samples,
+            p_threshold=args.p_threshold,
+            output_path=args.date_range_diagnostics_output,
         )
     else:
         run_validation(
