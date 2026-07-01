@@ -743,3 +743,35 @@ Practical conclusion:
   recent-regime effects or validation-window artifacts.
 - The project should keep separate tracks for clean survivors versus
   late-emerging valid-supported candidates.
+
+
+V4 Late-Emerging Walk-Forward Diagnostics (2026-07-01)
+After adding diagnostic scopes, ran:
+`python3 scripts/validate_slices.py --walk-forward-diagnostics --diagnostic-scope late-emerging --top-n 5`
+
+Findings:
+- QQQ 1h `state_session=lunch + state_ext=neutral + state_slope=downtrend`
+  passes fold 0 and fold 3, but fails fold 1 and fold 2. This is not a simple
+  recent-only pattern; it is regime-switching/unstable.
+- QQQ 1h `state_session=afternoon + state_ext=stretched_down` only passes the
+  latest fold. Earlier folds fail, and one intermediate fold is sample-starved.
+  Treat as a recent-regime candidate only.
+- QQQ 1d `state_ext=stretched_down + state_vol=high_vol` only passes the latest
+  fold and remains sample-constrained, especially because it is daily data.
+- QQQ 1h `state_ext=stretched_up + state_vol=low_vol` only passes the latest
+  fold; earlier folds are weak/negative or have no samples. Treat as likely
+  recent-regime artifact until more evidence accumulates.
+- SPY 1h `state_ext=stretched_down + state_slope=downtrend` only passes the
+  latest fold; earlier folds underperform parent regimes. This is a recent-only
+  candidate, not a stable historical edge.
+
+Practical conclusion:
+- The late-emerging bucket mostly represents fold-3/recent-period behavior,
+  not stable train-to-valid edges.
+- QQQ lunch+neutral+downtrend is the exception: it appears regime-switching
+  rather than purely recent-only.
+- Keep separate labels:
+  1. clean survivors = stable-ish historical candidates
+  2. late-emerging = recent-regime candidates
+  3. regime-switching = unstable but recurring candidates
+- Do not promote late-emerging candidates without more future data.
