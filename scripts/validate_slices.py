@@ -1308,6 +1308,8 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             output_path=args.walk_forward_diagnostics_output,
+            diagnostic_scope=args.diagnostic_scope,
+            top_n=args.top_n,
         )
     elif args.date_range_diagnostics:
         run_date_range_diagnostics(
