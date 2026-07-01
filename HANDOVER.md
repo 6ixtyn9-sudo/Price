@@ -612,3 +612,53 @@ Practical conclusion:
   validated tradable edge.
 - Next work should investigate date-range/regime sensitivity and whether the
   latest-fold weakening is due to market regime, data quirks, or decay.
+
+
+V4 Date-Range Sensitivity Diagnostics (2026-07-01)
+Added `scripts/validate_slices.py --date-range-diagnostics`, which writes
+`localdata/date_range_diagnostics.csv` and prints targeted date-window
+diagnostics for the current leading 2D candidates.
+
+Windows checked:
+- all available data
+- calendar 2024
+- calendar 2025
+- calendar 2026 YTD
+- latest 12 months
+- latest 6 months
+
+SPY 1h `state_session=afternoon + state_slope=downtrend`
+- all: valid mean +0.3467%, p=4.47e-08, pass
+- 2024: valid mean +0.4972%, p=1.05e-06, pass
+- 2025: valid mean +0.1775%, p=0.1155, fail
+- 2026 YTD: valid mean +0.1554%, p=0.1472, fail
+- latest 12m: valid mean +0.1533%, p=0.0226, pass
+- latest 6m: valid mean +0.1554%, p=0.1472, fail
+
+Interpretation:
+- The effect remains positive and continues to beat both unconditional and
+  best-parent baselines across the checked windows.
+- Statistical strength is concentrated in 2024.
+- 2025 and 2026 YTD are positive but individually not significant.
+- Latest 12m passes, but latest 6m fails.
+- This supports the prior anchored-walk-forward conclusion: the candidate is
+  not dead, but it is materially weaker/recently decayed.
+
+SPY 1h `state_session=lunch + state_slope=downtrend`
+- Similar but weaker profile: strong in 2024, weaker/non-significant in 2025
+  and 2026 YTD, latest 12m passes, latest 6m fails.
+- Remains secondary to SPY afternoon.
+
+QQQ 1h `state_session=lunch + state_slope=downtrend`
+- All-period and latest-12m windows pass, but individual calendar windows and
+  latest 6m do not.
+- Remains interesting but unstable; do not promote.
+
+Practical conclusion:
+- The leading candidate remains SPY 1h
+  `state_session=afternoon + state_slope=downtrend`.
+- It should now be described as positive across windows but statistically
+  strongest in 2024 and weaker recently.
+- Do not promote it as a tradable edge.
+- Next work should inspect regime context for the 2024 strength versus the
+  2025/2026 weakening before any further discovery-grid expansion.
