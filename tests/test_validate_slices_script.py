@@ -11,6 +11,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from validate_slices import (  # noqa: E402
     classify_verdict,
     evidence_supports,
+    run_scenario_grid,
     summarize_baseline_train_valid,
     summarize_parent_baselines_train_valid,
     survives,
@@ -141,4 +142,57 @@ def test_summarize_parent_baselines_train_valid_finds_strongest_parent():
     assert parent["valid"]["filter"] == "state_b=y"
     assert parent["valid"]["sample_count"] == 1
     assert parent["valid"]["mean_return"] == 0.06
+
+def test_run_scenario_grid_collects_target_rows(monkeypatch, tmp_path):
+    def fake_run_validation(**kwargs):
+        cost_bps = kwargs.get("cost_bps", 1.0)
+        split = kwargs.get("split", 0.7)
+        if cost_bps == 2.0:
+            label_ret = 0.002
+        elif cost_bps == 5.0:
+            label_ret = 0.005
+        elif split == 0.6:
+            label_ret = 0.006
+        elif split == 0.8:
+            label_ret = 0.008
+        else:
+            label_ret = 0.001
+
+        return pd.DataFrame(
+            [
+                {
+                    "symbol": "SPY",
+                    "timeframe": "1h",
+                    "slice_combination": "state_session=afternoon + state_slope=downtrend",
+                    "train_n": 100,
+                    "valid_n": 50,
+                    "valid_mean_ret_costadj": label_ret,
+                    "valid_baseline_mean_ret_costadj": 0.0,
+                    "valid_excess_vs_baseline": label_ret,
+                    "valid_best_parent_filter": "state_slope=downtrend",
+                    "valid_best_parent_mean_ret_costadj": 0.0,
+                    "valid_excess_vs_best_parent": label_ret,
+                    "valid_p_value_nw": 0.01,
+                    "walk_forward_survival_rate": 0.75,
+                    "verdict": "survived",
+                }
+            ]
+        )
+
+    monkeypatch.setattr("validate_slices.run_validation", fake_run_validation)
+
+    output_path = tmp_path / "scenario_grid.csv"
+    result = run_scenario_grid(output_path=str(output_path))
+
+    assert output_path.exists()
+    assert set(result["scenario"]) == {"default", "cost2", "cost5", "split06", "split08"}
+    assert len(result) == 15
+    assert (
+        result[
+            (result["scenario"] == "default")
+            & (result["symbol"] == "SPY")
+            & (result["slice_combination"] == "state_session=afternoon + state_slope=downtrend")
+        ]["valid_mean_ret_costadj"].iloc[0]
+        == 0.001
+    )
 
