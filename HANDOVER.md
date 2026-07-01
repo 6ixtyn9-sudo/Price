@@ -418,3 +418,73 @@ Forward evaluation placeholders (computed later in V3):
  [ ] Operator has explicitly signed off on this decision record  
 
 Only after the last three boxes are checked should V2 scaffolding begin.
+
+V4 Validation Results (2026-07-01)
+This section records the outcome of running the V4 validation suite
+(`src/price/validation.py`, `scripts/validate_slices.py`) against the
+originally reported V3 discovery highlights, after backfilling SPY and QQQ
+to ~3 years of daily/15m/1h history (up from the original ~1 year).
+
+Method: chronological 70/30 train/valid split, 1 bp round-trip cost drag,
+Newey-West (Bartlett kernel, auto bandwidth) t-stats/p-values on the 5-bar
+forward return, plus a 4-fold expanding-window walk-forward check. A slice
+is promoted only if both the train and valid windows independently clear
+the sample floor (min_samples=15), have a positive cost-adjusted mean
+return, and are Newey-West significant at p < 0.05.
+
+Verdict on the original V3 headline edges: both are retracted. Neither
+survived re-validation on the larger dataset.
+- QQQ 1h "afternoon reversal" (`state_session=afternoon + state_ext=stretched_down
+  [+ state_slope=downtrend]`): originally reported at n=31, 80.65% win rate,
+  +0.814% mean 5h return. On ~3x more history the slice recurs at much
+  larger sample sizes (n=84-92 in-training) but the training-window
+  Newey-West test itself is not significant, despite a consistent positive
+  sign. Verdict: rejected -- the original reading was a small-sample
+  artifact, not a stable edge.
+- SPY 1d "breakout" (`state_ext=stretched_up + state_vol=high_vol`):
+  originally reported at n=24, 75.00% win rate, +0.880% mean 5d return. On
+  the larger dataset this exact combination no longer ranks among the top
+  discovered slices at all (`state_ext=stretched_down + state_vol=high_vol`
+  -- the opposite extension direction -- ranks highest instead for both
+  SPY and QQQ daily), and neither variant clears train+valid significance
+  when tested directly. Verdict: rejected.
+
+Two new slices survived full V4 discipline (train + valid + cost +
+significance + sample floor), both on SPY 1h:
+- `state_session=afternoon + state_ext=neutral + state_slope=downtrend`:
+  train n=462 (+0.437% cost-adj, t=5.22), valid n=163 (+0.155% cost-adj,
+  t=2.15, p=0.031), walk-forward survival 3/4 folds (75%).
+- `state_session=lunch + state_ext=neutral + state_slope=downtrend`:
+  train n=279 (+0.457% cost-adj, t=4.86), valid n=114 (+0.155% cost-adj,
+  t=2.08, p=0.037), walk-forward survival 2/4 folds (50%).
+
+These are smaller in magnitude than the retracted V3 numbers (~0.15-0.16%
+per 5-bar window after cost, vs. the original ~0.8%+ readings), which is
+expected: genuine, survivable edges are almost always smaller than what a
+small-sample discovery pass first suggests. Notably both survivors involve
+`state_ext=neutral` (not a stretched extension) combined with a downtrend
+slope -- a different character from the stretched-extension mean-reversion
+story V3 emphasized.
+
+Everything else discovered in this pass (111 of 116 combinations tested)
+was rejected outright, plus 3 further "provisional" cases (directionally
+correct and significant on the evidence available, but with train or valid
+sample counts below the min_samples floor after the chronological split --
+not falsified, just not yet testable with enough data). This rejection
+rate is expected and correct: a blind combinatorial grid search over
+2D/3D state-space slices will always throw off a large number of spurious
+patterns, and the validation discipline's job is to filter them out.
+
+Operational note: `scripts/discover_slices.py` writes to a single fixed
+output path (`localdata/discovered_slices.csv`) and overwrites it on every
+invocation. Running discovery once per timeframe (e.g. 1h, then 1d) without
+using the `--append` flag will silently discard the earlier timeframe's
+results before validation ever sees them. Use `--append` when discovering
+across more than one timeframe or symbol set in the same research session.
+
+Practical conclusion: do not promote or reference the original V3 QQQ
+afternoon-reversal or SPY daily-breakout numbers going forward -- they did
+not survive validation. The two SPY 1h `state_ext=neutral + downtrend`
+slices above are the first slices in this project to carry a genuine V4
+validation stamp, and are the current state of the art pending further
+walk-forward robustness work and additional history/symbols.
