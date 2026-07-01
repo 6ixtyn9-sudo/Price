@@ -888,6 +888,17 @@ def classify_candidate_triage(
     sample_starved = valid_n < min_samples
 
     if verdict == "survived" and positive_parent:
+        pattern = str(walk_forward_pass_pattern or "")
+        pass_count = pattern.count("1")
+        fold_count = len(pattern)
+
+        if fold_count > 0:
+            if pass_count == fold_count or pass_count >= max(3, int(0.75 * fold_count)):
+                return "clean_survivor_wf_strong"
+            if pass_count == 0:
+                return "clean_survivor_wf_failed"
+            return "clean_survivor_wf_mixed"
+
         return "clean_survivor"
 
     if verdict == "survived" and not positive_parent:
