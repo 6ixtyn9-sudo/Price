@@ -572,3 +572,43 @@ Practical conclusion:
 - Next validation work should focus on rolling/anchored walk-forward,
   date-range sensitivity, and more explicit robustness tables rather than
   expanding the discovery grid.
+
+
+V4 Anchored Walk-Forward Diagnostics (2026-07-01)
+Added `scripts/validate_slices.py --walk-forward-diagnostics`, which writes
+`localdata/walk_forward_diagnostics.csv` and prints fold-level validation
+diagnostics for the current leading 2D candidates.
+
+Default 4-fold anchored diagnostics:
+
+SPY 1h `state_session=afternoon + state_slope=downtrend`
+- fold 0: valid mean +0.4268%, p=0.000839, pass
+- fold 1: valid mean +0.3467%, p=0.027353, pass
+- fold 2: valid mean +0.2150%, p=0.016456, pass
+- fold 3: valid mean +0.1358%, p=0.148389, fail
+Interpretation: positive in every fold and beats both unconditional and
+best-parent baselines in every fold, but the effect decays over time and the
+latest fold is not statistically significant.
+
+SPY 1h `state_session=lunch + state_slope=downtrend`
+- fold 0: pass
+- fold 1: fail
+- fold 2: pass
+- fold 3: fail
+Interpretation: positive but unstable; secondary candidate only.
+
+QQQ 1h `state_session=lunch + state_slope=downtrend`
+- fold 0: fail
+- fold 1: fail
+- fold 2: pass
+- fold 3: fail
+Interpretation: unstable despite attractive full-period validation means; do
+not promote.
+
+Practical conclusion:
+- The best current candidate remains SPY 1h
+  `state_session=afternoon + state_slope=downtrend`.
+- It should be described as promising but recently weaker/decaying, not as a
+  validated tradable edge.
+- Next work should investigate date-range/regime sensitivity and whether the
+  latest-fold weakening is due to market regime, data quirks, or decay.
