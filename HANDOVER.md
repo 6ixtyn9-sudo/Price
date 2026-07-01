@@ -539,3 +539,36 @@ Practical conclusion:
   only 25%.
 - Future promotion should require positive excess vs both the unconditional
   symbol/timeframe baseline and the strongest simpler parent regime.
+
+
+V4 Robustness Caveat (2026-07-01)
+A targeted scenario check was run on the three cleaner 2D intraday candidates:
+- SPY 1h `state_session=afternoon + state_slope=downtrend`
+- SPY 1h `state_session=lunch + state_slope=downtrend`
+- QQQ 1h `state_session=lunch + state_slope=downtrend`
+
+Scenarios tested:
+- default validation settings
+- `--cost-bps 2` (4 bps round trip under the current cost model)
+- `--cost-bps 5` (10 bps round trip)
+- `--split 0.6`
+- `--split 0.8`
+
+Result:
+- SPY afternoon + downtrend survived default, cost2, and split06, but failed
+  cost5 and split08. It stayed positive and beat both the unconditional and
+  best-parent baselines across the scenarios, but significance was not stable
+  under the stricter split/cost settings.
+- SPY lunch + downtrend showed a similar but weaker profile, with lower
+  walk-forward survival.
+- QQQ lunch + downtrend had strong validation-period mean returns but weak
+  walk-forward survival and was rejected in most robustness scenarios.
+
+Practical conclusion:
+- The leading current research candidate is SPY 1h
+  `state_session=afternoon + state_slope=downtrend`.
+- It is promising, not promoted.
+- Future agents should not describe it as a validated tradable edge yet.
+- Next validation work should focus on rolling/anchored walk-forward,
+  date-range sensitivity, and more explicit robustness tables rather than
+  expanding the discovery grid.
