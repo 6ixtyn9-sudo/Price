@@ -704,3 +704,42 @@ Practical conclusion:
   are genuine recent-regime candidates or validation-window artifacts.
 - Future diagnostics should support candidate scopes such as clean survivors,
   late-emerging, and leaderboard top-N.
+
+
+V4 Late-Emerging Candidate Date Diagnostics (2026-07-01)
+Added diagnostic candidate scopes for date-range diagnostics, including:
+- `--diagnostic-scope current-leaders`
+- `--diagnostic-scope clean-survivors`
+- `--diagnostic-scope late-emerging`
+- `--diagnostic-scope leaderboard-top`
+with `--top-n`.
+
+Ran:
+`python3 scripts/validate_slices.py --date-range-diagnostics --diagnostic-scope late-emerging --top-n 5`
+
+Findings:
+- QQQ 1h `state_session=lunch + state_ext=neutral + state_slope=downtrend`
+  passes all, 2024, 2026 YTD, latest 12m, and latest 6m; fails 2025 with
+  negative parent excess. This is not just a tiny 2026 artifact, but it is
+  regime-dependent.
+- QQQ 1h `state_session=afternoon + state_ext=stretched_down` passes all,
+  2026 YTD, latest 12m, and latest 6m; fails 2024 and 2025. This looks like a
+  recent-regime candidate with small sample size.
+- QQQ 1d `state_ext=stretched_down + state_vol=high_vol` remains interesting
+  but sample-starved; latest 12m passes, 2026 YTD/latest 6m are strong but
+  below the sample floor.
+- QQQ 1h `state_ext=stretched_up + state_vol=low_vol` is negative/weak in
+  2024 and 2025 but passes 2026 YTD/latest windows. Treat as recent-regime
+  artifact until more evidence accumulates.
+- SPY 1h `state_ext=stretched_down + state_slope=downtrend` fails all/2024/2025
+  but passes 2026 YTD/latest windows. Parent excess only turns positive
+  recently.
+
+Practical conclusion:
+- The late-emerging bucket contains real candidates for recent-regime
+  investigation, especially QQQ lunch+neutral+downtrend and QQQ
+  afternoon+stretched_down.
+- These are not stable historical edges. They should be studied as possible
+  recent-regime effects or validation-window artifacts.
+- The project should keep separate tracks for clean survivors versus
+  late-emerging valid-supported candidates.
