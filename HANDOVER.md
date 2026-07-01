@@ -488,3 +488,54 @@ not survive validation. The two SPY 1h `state_ext=neutral + downtrend`
 slices above are the first slices in this project to carry a genuine V4
 validation stamp, and are the current state of the art pending further
 walk-forward robustness work and additional history/symbols.
+
+
+V4 Parent-Baseline Update (2026-07-01)
+After adding unconditional baseline and parent-regime baseline diagnostics to
+`scripts/validate_slices.py`, the prior two SPY 1h 3D survivors were found to
+be over-specified. They still pass the original train+valid+cost+significance
+gate and beat the unconditional SPY 1h baseline, but they do not beat their
+strongest simpler parent regimes in validation.
+
+The important discovery improvement was adding the missing intraday 2D
+combination:
+- `state_session + state_slope`
+
+This exposed cleaner 2D candidates:
+
+1. SPY 1h `state_session=afternoon + state_slope=downtrend`
+- train n=542, cost-adjusted mean +0.4014%, Newey-West t=4.98
+- valid n=174, cost-adjusted mean +0.1763%, Newey-West p=0.0148
+- valid unconditional baseline +0.0255%
+- valid excess vs unconditional baseline +0.1508%
+- strongest valid parent: `state_slope=downtrend`, +0.1294%
+- valid excess vs best parent +0.0470%
+- walk-forward survival 3/4 folds (75%)
+
+2. SPY 1h `state_session=lunch + state_slope=downtrend`
+- train n=345, cost-adjusted mean +0.4179%, Newey-West t=5.11
+- valid n=119, cost-adjusted mean +0.1627%, Newey-West p=0.0210
+- valid unconditional baseline +0.0255%
+- valid excess vs unconditional baseline +0.1372%
+- strongest valid parent: `state_slope=downtrend`, +0.1294%
+- valid excess vs best parent +0.0334%
+- walk-forward survival 2/4 folds (50%)
+
+3. QQQ 1h `state_session=lunch + state_slope=downtrend`
+- train n=368, cost-adjusted mean +0.1630%, Newey-West t=2.01
+- valid n=136, cost-adjusted mean +0.2281%, Newey-West p=0.0119
+- valid unconditional baseline +0.0426%
+- valid excess vs unconditional baseline +0.1854%
+- strongest valid parent: `state_slope=downtrend`, +0.1275%
+- valid excess vs best parent +0.1005%
+- walk-forward survival 1/4 folds (25%)
+
+Practical conclusion:
+- Do not promote the old 3D `state_ext=neutral + state_slope=downtrend`
+  slices as the cleanest current finding.
+- The cleaner current state of the art is the 2D intraday
+  `state_session + state_slope=downtrend` structure, especially SPY afternoon.
+- QQQ lunch is interesting but less stable because walk-forward survival is
+  only 25%.
+- Future promotion should require positive excess vs both the unconditional
+  symbol/timeframe baseline and the strongest simpler parent regime.
