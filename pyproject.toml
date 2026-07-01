@@ -3,7 +3,15 @@ name = "price"
 version = "0.1.0"
 description = "Price-first market-state discovery lab"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "alpaca-py",
+  "pandas",
+  "duckdb",
+  "pyarrow",
+  "python-dotenv",
+  "pandas_market_calendars",
+  "requests",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -20,3 +28,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
