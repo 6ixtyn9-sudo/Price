@@ -794,6 +794,51 @@ def run_date_range_diagnostics(
     return diagnostics_df
 
 
+def classify_candidate_triage(
+    verdict: str,
+    train_pass: bool,
+    valid_pass: bool,
+    valid_n: int,
+    valid_excess_vs_baseline: float,
+    valid_excess_vs_best_parent: float,
+    valid_p_value_nw: float,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+) -> str:
+    """Human-readable triage bucket for candidate leaderboard rows.
+
+    This does not replace the strict validation verdict. It explains why a
+    candidate is interesting or not, so research attention goes to the right
+    next question.
+    """
+    positive_baseline = not pd.isna(valid_excess_vs_baseline) and valid_excess_vs_baseline > 0
+    positive_parent = not pd.isna(valid_excess_vs_best_parent) and valid_excess_vs_best_parent > 0
+    valid_significant = not pd.isna(valid_p_value_nw) and valid_p_value_nw < p_threshold
+    sample_starved = valid_n < min_samples
+
+    if verdict == "survived" and positive_parent:
+        return "clean_survivor"
+
+    if verdict == "survived" and not positive_parent:
+        return "over_specified_survivor"
+
+    if verdict == "provisional" or sample_starved:
+        if positive_baseline and positive_parent and valid_significant:
+            return "provisional_sample_starved"
+        return "sample_starved_unsupported"
+
+    if (not train_pass) and valid_pass and positive_baseline and positive_parent:
+        return "late_emerging_valid_supported"
+
+    if valid_pass and not positive_parent:
+        return "parent_underperformed"
+
+    if positive_baseline and positive_parent and valid_significant:
+        return "interesting_but_failed_gate"
+
+    return "rejected_unsupported"
+
+
 def run_candidate_leaderboard(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
@@ -887,6 +932,8 @@ def run_candidate_leaderboard(
                 scenario_significant_count += 1
 
         verdict = row["verdict"]
+        train_pass = bool(row.get("train_pass", False))
+        valid_pass = bool(row.get("valid_pass", False))
         valid_n = row["valid_n"]
         wf = row["walk_forward_survival_rate"]
         valid_excess_baseline = row.get("valid_excess_vs_baseline", float("nan"))
@@ -898,6 +945,18 @@ def run_candidate_leaderboard(
         positive_baseline = not pd.isna(valid_excess_baseline) and valid_excess_baseline > 0
         positive_parent = not pd.isna(valid_excess_parent) and valid_excess_parent > 0
         significant = not pd.isna(valid_p_value) and valid_p_value < p_threshold
+
+        triage_bucket = classify_candidate_triage(
+            verdict=verdict,
+            train_pass=train_pass,
+            valid_pass=valid_pass,
+            valid_n=valid_n,
+            valid_excess_vs_baseline=valid_excess_baseline,
+            valid_excess_vs_best_parent=valid_excess_parent,
+            valid_p_value_nw=valid_p_value,
+            min_samples=min_samples,
+            p_threshold=p_threshold,
+        )
 
         # Heuristic triage score. It is intentionally conservative about
         # parent-baseline excess and scenario survival, and it penalizes
@@ -923,8 +982,11 @@ def run_candidate_leaderboard(
                 "rank_timeframe": row["timeframe"],
                 "slice_combination": row["slice_combination"],
                 "verdict": verdict,
+                "triage_bucket": triage_bucket,
                 "train_n": row["train_n"],
+                "train_pass": train_pass,
                 "valid_n": valid_n,
+                "valid_pass": valid_pass,
                 "valid_mean_ret_costadj": row["valid_mean_ret_costadj"],
                 "valid_excess_vs_baseline": valid_excess_baseline,
                 "valid_best_parent_filter": row.get("valid_best_parent_filter", ""),
@@ -977,6 +1039,9 @@ def run_candidate_leaderboard(
         "timeframe",
         "slice_combination",
         "verdict",
+        "triage_bucket",
+        "train_pass",
+        "valid_pass",
         "valid_n",
         "valid_mean_ret_costadj",
         "valid_excess_vs_baseline",

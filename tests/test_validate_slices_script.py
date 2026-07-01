@@ -10,6 +10,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from validate_slices import (  # noqa: E402
     _filter_date_window,
+    classify_candidate_triage,
     classify_verdict,
     evidence_supports,
     run_candidate_leaderboard,
@@ -169,7 +170,9 @@ def test_run_scenario_grid_collects_target_rows(monkeypatch, tmp_path):
                     "timeframe": "1h",
                     "slice_combination": "state_session=afternoon + state_slope=downtrend",
                     "train_n": 100,
+                    "train_pass": True,
                     "valid_n": 50,
+                    "valid_pass": True,
                     "valid_mean_ret_costadj": label_ret,
                     "valid_baseline_mean_ret_costadj": 0.0,
                     "valid_excess_vs_baseline": label_ret,
@@ -297,7 +300,9 @@ def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
                     "timeframe": "1h",
                     "slice_combination": "state_session=afternoon + state_slope=downtrend",
                     "train_n": 100,
+                    "train_pass": True,
                     "valid_n": 50,
+                    "valid_pass": True,
                     "valid_mean_ret_costadj": 0.002,
                     "valid_excess_vs_baseline": 0.001,
                     "valid_best_parent_filter": "state_slope=downtrend",
@@ -311,7 +316,9 @@ def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
                     "timeframe": "1h",
                     "slice_combination": "state_session=lunch + state_slope=downtrend",
                     "train_n": 100,
+                    "train_pass": True,
                     "valid_n": 50,
+                    "valid_pass": True,
                     "valid_mean_ret_costadj": 0.003,
                     "valid_excess_vs_baseline": 0.002,
                     "valid_best_parent_filter": "state_slope=downtrend",
@@ -334,4 +341,55 @@ def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
     assert "scenario_survived_count" in result.columns
     assert "robustness_score" in result.columns
     assert set(result["symbol"]) == {"SPY", "QQQ"}
+
+def test_classify_candidate_triage_clean_survivor():
+    bucket = classify_candidate_triage(
+        verdict="survived",
+        train_pass=True,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+    )
+    assert bucket == "clean_survivor"
+
+
+def test_classify_candidate_triage_over_specified_survivor():
+    bucket = classify_candidate_triage(
+        verdict="survived",
+        train_pass=True,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=-0.0001,
+        valid_p_value_nw=0.01,
+    )
+    assert bucket == "over_specified_survivor"
+
+
+def test_classify_candidate_triage_late_emerging_valid_supported():
+    bucket = classify_candidate_triage(
+        verdict="rejected",
+        train_pass=False,
+        valid_pass=True,
+        valid_n=100,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+    )
+    assert bucket == "late_emerging_valid_supported"
+
+
+def test_classify_candidate_triage_provisional_sample_starved():
+    bucket = classify_candidate_triage(
+        verdict="provisional",
+        train_pass=True,
+        valid_pass=False,
+        valid_n=6,
+        valid_excess_vs_baseline=0.001,
+        valid_excess_vs_best_parent=0.0005,
+        valid_p_value_nw=0.01,
+    )
+    assert bucket == "provisional_sample_starved"
 
