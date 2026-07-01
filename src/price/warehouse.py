@@ -49,12 +49,13 @@ def save_to_warehouse(df: pd.DataFrame):
             save_df = save_df.drop(columns=["timeframe"])
             
         save_df.to_parquet(output_file, index=False)
-        print(f"Warehouse saved: {symbol} | {timeframe} | {len(final_df)} rows.")
+        print(f"Warehouse saved: {symbol} | {timeframe} | {len(final_df)} total rows.")
 
 def resample_15m_to_1h(symbol: str):
     symbol = symbol.upper()
     df_15m = load_from_warehouse(symbol, "15m")
     if df_15m.empty:
+        print(f"No 15m bars found to resample for {symbol}.")
         return
         
     df_15m = df_15m.sort_values("bar_ts_utc")
@@ -69,6 +70,7 @@ def resample_15m_to_1h(symbol: str):
     }
     
     resampled = df_15m.resample('1h', on='bar_ts_utc').agg(agg_rules).dropna().reset_index()
+    
     resampled['symbol'] = symbol
     resampled['timeframe'] = "1h"
     resampled['ingested_at_utc'] = datetime.now(timezone.utc)
@@ -79,9 +81,11 @@ def propagate_adjustment_factors(symbol: str):
     symbol = symbol.upper()
     df_1d = load_from_warehouse(symbol, "1d")
     if df_1d.empty:
+        print(f"No daily bars found to extract adjustments for {symbol}.")
         return
         
     df_1d['ny_date'] = df_1d['bar_ts_utc'].dt.tz_convert('America/New_York').dt.date
+    
     adj_map = df_1d.set_index('ny_date')[['adj_factor', 'split_factor', 'dividend_cash']].to_dict('index')
     
     for tf in ["15m", "1h"]:
@@ -115,7 +119,9 @@ def propagate_adjustment_factors(symbol: str):
             df_tf[col] = adjusted_cols[col]
             
         df_tf = df_tf.drop(columns=['ny_date'])
+        
         df_tf['symbol'] = symbol
         df_tf['timeframe'] = tf
+        df_tf['ingested_at_utc'] = datetime.now(timezone.utc)  # Force update to current time to ensure overwrite
         
         save_to_warehouse(df_tf)
