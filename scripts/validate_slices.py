@@ -12,6 +12,8 @@ Prints a consolidated scorecard and writes localdata/validated_slices.csv.
 """
 
 import argparse
+import contextlib
+import io
 from itertools import combinations
 
 import pandas as pd
@@ -30,6 +32,7 @@ from price.warehouse import load_from_warehouse
 
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 VALIDATED_SLICES_PATH = "localdata/validated_slices.csv"
+SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 
 
 def build_eligible_frame(symbol: str, timeframe: str) -> pd.DataFrame:
@@ -378,6 +381,113 @@ def run_validation(
     return scorecard_df
 
 
+def run_scenario_grid(
+    slices_path: str = DISCOVERED_SLICES_PATH,
+    n_folds: int = 4,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+    output_path: str = SCENARIO_GRID_PATH,
+) -> pd.DataFrame:
+    """Run a compact robustness grid for the current leading candidates.
+
+    This is intentionally targeted, not a broad new research pass. It checks
+    whether the current 2D intraday candidates survive common stress settings:
+    default, moderate cost, high cost, and split sensitivity.
+
+    The function suppresses the full validation scorecard for each scenario,
+    writes a compact table to `output_path`, and restores the default
+    validation output at the end so localdata/validated_slices.csv is not left
+    on a non-default scenario.
+    """
+    targets = [
+        ("SPY", "1h", "state_session=afternoon + state_slope=downtrend"),
+        ("SPY", "1h", "state_session=lunch + state_slope=downtrend"),
+        ("QQQ", "1h", "state_session=lunch + state_slope=downtrend"),
+    ]
+
+    scenarios = [
+        ("default", {}),
+        ("cost2", {"cost_bps": 2.0}),
+        ("cost5", {"cost_bps": 5.0}),
+        ("split06", {"split": 0.6}),
+        ("split08", {"split": 0.8}),
+    ]
+
+    cols = [
+        "symbol",
+        "timeframe",
+        "slice_combination",
+        "train_n",
+        "valid_n",
+        "valid_mean_ret_costadj",
+        "valid_baseline_mean_ret_costadj",
+        "valid_excess_vs_baseline",
+        "valid_best_parent_filter",
+        "valid_best_parent_mean_ret_costadj",
+        "valid_excess_vs_best_parent",
+        "valid_p_value_nw",
+        "walk_forward_survival_rate",
+        "verdict",
+    ]
+
+    rows = []
+
+    for label, overrides in scenarios:
+        params = {
+            "slices_path": slices_path,
+            "split": 0.7,
+            "cost_bps": 1.0,
+            "cost_per_share": 0.0,
+            "n_folds": n_folds,
+            "min_samples": min_samples,
+            "p_threshold": p_threshold,
+        }
+        params.update(overrides)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            scorecard = run_validation(**params)
+
+        for symbol, timeframe, combo in targets:
+            hit = scorecard[
+                (scorecard["symbol"] == symbol)
+                & (scorecard["timeframe"] == timeframe)
+                & (scorecard["slice_combination"] == combo)
+            ]
+
+            if hit.empty:
+                row = {
+                    "scenario": label,
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "slice_combination": combo,
+                    "verdict": "missing",
+                }
+            else:
+                row = hit.iloc[0][cols].to_dict()
+                row = {"scenario": label, **row}
+
+            rows.append(row)
+
+    scenario_df = pd.DataFrame(rows)
+    scenario_df.to_csv(output_path, index=False)
+
+    # Restore the default validation CSV after scenario diagnostics.
+    with contextlib.redirect_stdout(io.StringIO()):
+        run_validation(
+            slices_path=slices_path,
+            split=0.7,
+            cost_bps=1.0,
+            cost_per_share=0.0,
+            n_folds=n_folds,
+            min_samples=min_samples,
+            p_threshold=p_threshold,
+        )
+
+    print(f"Saved scenario-grid diagnostics to {output_path}")
+    print(scenario_df.to_string(index=False))
+    return scenario_df
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Validate discovered market-state slices (Phase V4).")
     parser.add_argument("--slices-path", default=DISCOVERED_SLICES_PATH, help="Path to discovered_slices.csv")
@@ -387,14 +497,33 @@ if __name__ == "__main__":
     parser.add_argument("--n-folds", type=int, default=4, help="Number of walk-forward folds")
     parser.add_argument("--min-samples", type=int, default=15, help="Minimum sample floor per fold/window")
     parser.add_argument("--p-threshold", type=float, default=0.05, help="Newey-West p-value survival threshold")
+    parser.add_argument(
+        "--scenario-grid",
+        action="store_true",
+        help="Run targeted robustness scenarios for the current leading candidates",
+    )
+    parser.add_argument(
+        "--scenario-grid-output",
+        default=SCENARIO_GRID_PATH,
+        help="Path for --scenario-grid compact CSV output",
+    )
     args = parser.parse_args()
 
-    run_validation(
-        slices_path=args.slices_path,
-        split=args.split,
-        cost_bps=args.cost_bps,
-        cost_per_share=args.cost_per_share,
-        n_folds=args.n_folds,
-        min_samples=args.min_samples,
-        p_threshold=args.p_threshold,
-    )
+    if args.scenario_grid:
+        run_scenario_grid(
+            slices_path=args.slices_path,
+            n_folds=args.n_folds,
+            min_samples=args.min_samples,
+            p_threshold=args.p_threshold,
+            output_path=args.scenario_grid_output,
+        )
+    else:
+        run_validation(
+            slices_path=args.slices_path,
+            split=args.split,
+            cost_bps=args.cost_bps,
+            cost_per_share=args.cost_per_share,
+            n_folds=args.n_folds,
+            min_samples=args.min_samples,
+            p_threshold=args.p_threshold,
+        )
