@@ -815,3 +815,91 @@ Practical conclusion:
 - This is a triage tool, not a promotion engine.
 - No candidate should be promoted without additional future data and continued
   fold-pattern survival.
+
+V4 Expanded-Universe Validation Update (2026-07-01)
+This section supersedes any interim expanded-universe outputs produced before
+the warehouse adjustment-date fix described below.
+
+Expanded universe tested:
+- SPY
+- QQQ
+- IWM
+- DIA
+- XLK
+- XLF
+- XLE
+- GLD
+- TLT
+- USO
+
+The expanded-universe run initially exposed impossible 1h results in XLE and
+XLK, including forward-return magnitudes far too large for normal ETF hourly
+bars. Those outputs are invalid and must not be used.
+
+Root cause: `src/price/warehouse.py` propagated Tiingo daily adjustment factors
+to intraday bars using a New York-converted date for the daily bar timestamp.
+Tiingo daily bars are stored at midnight UTC but semantically represent the
+market session date. Converting midnight UTC to America/New_York shifts the
+date to the prior evening, causing adjustment factors to be applied to the
+wrong intraday session.
+
+Fix committed:
+- daily Tiingo bars are keyed by their UTC date / semantic market date
+- intraday bars are keyed by their New York market date
+- adjustment factors are joined on that corrected market-date key
+- regression coverage was added for the daily-UTC-date mapping case
+
+After rebuilding the warehouse post-fix, XLE and XLK 1h return distributions
+returned to plausible ETF ranges. The previous absurd XLE/XLK expanded-universe
+discoveries are therefore invalidated.
+
+Post-fix validation result:
+- 672 total discovered slice rows tested
+- 5 strict survivors
+- 3 provisional rows, sample-floor-starved rather than promoted
+- 664 rejected rows
+
+The strict survivors after the clean-survivor walk-forward triage split are:
+
+1. XLF 1d `state_ext=stretched_up + state_slope=flat`
+   - triage: `clean_survivor_wf_strong`
+   - walk-forward pattern: `1111`
+   - scenario survival count: 4/5
+   - validation n: 33
+   - current best expanded-universe candidate
+   - not promoted yet because the valid sample is still small, 2025 calendar
+     diagnostics failed, and 2026/latest-6m windows are sample-starved
+
+2. QQQ 1h `state_ext=stretched_up + state_vol=mid_vol`
+   - triage: `clean_survivor_wf_mixed`
+   - walk-forward pattern: `1001`
+   - scenario survival count: 4/5
+   - useful candidate, but regime-switching rather than cleanly stable
+
+3. XLE 1d `state_ext=stretched_down + state_slope=downtrend`
+   - triage: `clean_survivor_wf_mixed`
+   - walk-forward pattern: `0110`
+   - scenario survival count: 4/5
+   - recent date-range diagnostics are weak/failed, so do not promote
+
+4. XLK 1h `state_ext=stretched_up + state_vol=low_vol`
+   - triage: `clean_survivor_wf_mixed`
+   - walk-forward pattern: `0001`
+   - scenario survival count: 4/5
+   - appears recent-only; do not treat as stable yet
+
+5. XLE 1h `state_session=afternoon + state_ext=neutral`
+   - triage: `clean_survivor_wf_failed`
+   - walk-forward pattern: `0000`
+   - scenario survival count: 1/5
+   - strict split survivor but demoted by walk-forward diagnostics
+
+Current practical conclusion:
+- No expanded-universe candidate is promoted yet.
+- The current top candidate to keep watching is XLF 1d
+  `state_ext=stretched_up + state_slope=flat`.
+- Treat it as promising but unpromoted pending continued robustness checks,
+  more future data, and preferably comparable-history backfill for SPY/QQQ
+  versus the newer 5-year ETF universe members.
+- Do not revive or cite the invalid pre-fix XLE/XLK expanded-universe numbers.
+
