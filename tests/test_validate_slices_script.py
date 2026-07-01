@@ -12,6 +12,7 @@ from validate_slices import (  # noqa: E402
     classify_verdict,
     evidence_supports,
     summarize_baseline_train_valid,
+    summarize_parent_baselines_train_valid,
     survives,
 )
 
@@ -117,4 +118,27 @@ def test_summarize_baseline_train_valid_uses_same_chronological_split():
     assert baseline["valid"]["sample_count"] == 3
     assert baseline["train"]["mean_return"] == 0.01
     assert baseline["valid"]["mean_return"] == 0.02
+
+def test_summarize_parent_baselines_train_valid_finds_strongest_parent():
+    df = pd.DataFrame(
+        {
+            "bar_ts_utc": pd.date_range("2024-01-01", periods=10, freq="h", tz="UTC"),
+            "fwd_ret_5": [0.01] * 7 + [0.02, 0.04, 0.06],
+            "close_adj": [100.0] * 10,
+            "state_a": ["x"] * 10,
+            "state_b": ["n"] * 6 + ["y", "n", "n", "y"],
+        }
+    )
+
+    parent = summarize_parent_baselines_train_valid(
+        df,
+        {"state_a": "x", "state_b": "y"},
+        split=0.7,
+        cost_bps=0.0,
+        min_samples=1,
+    )
+
+    assert parent["valid"]["filter"] == "state_b=y"
+    assert parent["valid"]["sample_count"] == 1
+    assert parent["valid"]["mean_return"] == 0.06
 

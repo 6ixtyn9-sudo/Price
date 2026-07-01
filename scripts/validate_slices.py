@@ -12,6 +12,7 @@ Prints a consolidated scorecard and writes localdata/validated_slices.csv.
 """
 
 import argparse
+from itertools import combinations
 
 import pandas as pd
 
@@ -78,6 +79,91 @@ def summarize_baseline_train_valid(
     return {
         "train": summarize_window(train_df),
         "valid": summarize_window(valid_df),
+    }
+
+
+def format_slice_filter(slice_filter: dict) -> str:
+    return " + ".join([f"{field}={value}" for field, value in slice_filter.items()])
+
+
+def iter_parent_slice_filters(slice_filter: dict):
+    """Yield all non-empty proper subset filters for a discovered slice.
+
+    Example:
+      A+B+C -> A, B, C, A+B, A+C, B+C
+
+    These parent regimes are useful as stricter baselines: a 3D slice should
+    ideally beat its simpler 1D/2D explanations, not only the unconditional
+    symbol/timeframe baseline.
+    """
+    items = list(slice_filter.items())
+    for size in range(1, len(items)):
+        for combo in combinations(items, size):
+            yield dict(combo)
+
+
+def summarize_parent_baselines_train_valid(
+    df: pd.DataFrame,
+    slice_filter: dict,
+    split: float = 0.7,
+    target_col: str = "fwd_ret_5",
+    cost_bps: float = 0.0,
+    cost_per_share: float = 0.0,
+    price_col: str = "close_adj",
+    min_samples: int = 15,
+) -> dict:
+    """Find the strongest parent-regime baseline in train and validation.
+
+    The selected parent for each window is the parent filter with the highest
+    cost-adjusted mean return in that same chronological window. This is a
+    deliberately conservative diagnostic: if the child slice cannot beat the
+    strongest simpler parent in validation, the discovered 2D/3D combination
+    may not add much beyond a simpler regime.
+    """
+    parent_results = []
+
+    for parent_filter in iter_parent_slice_filters(slice_filter):
+        tv = evaluate_slice_train_valid(
+            df,
+            parent_filter,
+            split=split,
+            target_col=target_col,
+            cost_bps=cost_bps,
+            cost_per_share=cost_per_share,
+            price_col=price_col,
+            min_samples=min_samples,
+        )
+        parent_results.append(
+            {
+                "filter": format_slice_filter(parent_filter),
+                "train": tv["train"],
+                "valid": tv["valid"],
+            }
+        )
+
+    def best_parent(window: str) -> dict:
+        eligible = [
+            parent
+            for parent in parent_results
+            if not pd.isna(parent[window].get("mean_return", float("nan")))
+        ]
+        if not eligible:
+            return {
+                "filter": "",
+                "sample_count": 0,
+                "mean_return": float("nan"),
+            }
+
+        selected = max(eligible, key=lambda parent: parent[window]["mean_return"])
+        return {
+            "filter": selected["filter"],
+            "sample_count": selected[window]["sample_count"],
+            "mean_return": selected[window]["mean_return"],
+        }
+
+    return {
+        "train": best_parent("train"),
+        "valid": best_parent("valid"),
     }
 
 
@@ -188,6 +274,15 @@ def run_validation(
             min_samples=min_samples,
         )
 
+        parent_baseline = summarize_parent_baselines_train_valid(
+            eligible_df,
+            slice_filter,
+            split=split,
+            cost_bps=cost_bps,
+            cost_per_share=cost_per_share,
+            min_samples=min_samples,
+        )
+
         try:
             wf_folds = walk_forward_validate_slice(
                 eligible_df,
@@ -219,12 +314,18 @@ def run_validation(
                 "train_mean_ret_costadj": tv["train"]["mean_return"],
                 "train_baseline_mean_ret_costadj": baseline["train"]["mean_return"],
                 "train_excess_vs_baseline": tv["train"]["mean_return"] - baseline["train"]["mean_return"],
+                "train_best_parent_filter": parent_baseline["train"]["filter"],
+                "train_best_parent_mean_ret_costadj": parent_baseline["train"]["mean_return"],
+                "train_excess_vs_best_parent": tv["train"]["mean_return"] - parent_baseline["train"]["mean_return"],
                 "train_t_stat_nw": tv["train"]["t_stat"],
                 "train_pass": train_pass,
                 "valid_n": tv["valid"]["sample_count"],
                 "valid_mean_ret_costadj": tv["valid"]["mean_return"],
                 "valid_baseline_mean_ret_costadj": baseline["valid"]["mean_return"],
                 "valid_excess_vs_baseline": tv["valid"]["mean_return"] - baseline["valid"]["mean_return"],
+                "valid_best_parent_filter": parent_baseline["valid"]["filter"],
+                "valid_best_parent_mean_ret_costadj": parent_baseline["valid"]["mean_return"],
+                "valid_excess_vs_best_parent": tv["valid"]["mean_return"] - parent_baseline["valid"]["mean_return"],
                 "valid_t_stat_nw": tv["valid"]["t_stat"],
                 "valid_p_value_nw": tv["valid"]["p_value"],
                 "valid_pass": valid_pass,
