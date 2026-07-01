@@ -9,8 +9,10 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from validate_slices import (  # noqa: E402
+    _filter_date_window,
     classify_verdict,
     evidence_supports,
+    run_date_range_diagnostics,
     run_scenario_grid,
     run_walk_forward_diagnostics,
     summarize_baseline_train_valid,
@@ -224,4 +226,54 @@ def test_run_walk_forward_diagnostics_writes_fold_rows(monkeypatch, tmp_path):
     assert set(result["diagnostic_status"]) == {"ok"}
     assert "valid_excess_vs_baseline" in result.columns
     assert "valid_excess_vs_best_parent" in result.columns
+
+def test_filter_date_window_uses_half_open_utc_window():
+    df = pd.DataFrame(
+        {
+            "bar_ts_utc": pd.date_range("2024-01-01", periods=5, freq="h", tz="UTC"),
+            "value": range(5),
+        }
+    )
+
+    result = _filter_date_window(
+        df,
+        start=pd.Timestamp("2024-01-01 01:00:00", tz="UTC"),
+        end=pd.Timestamp("2024-01-01 04:00:00", tz="UTC"),
+    )
+
+    assert result["value"].tolist() == [1, 2, 3]
+
+
+def test_run_date_range_diagnostics_writes_target_windows(monkeypatch, tmp_path):
+    def fake_build_eligible_frame(symbol, timeframe):
+        return pd.DataFrame(
+            {
+                "bar_ts_utc": pd.date_range("2024-01-01", periods=900, freq="8h", tz="UTC"),
+                "fwd_ret_5": [0.01] * 900,
+                "close_adj": [100.0] * 900,
+                "state_session": ["afternoon", "lunch", "lunch"] * 300,
+                "state_slope": ["downtrend"] * 900,
+            }
+        )
+
+    monkeypatch.setattr("validate_slices.build_eligible_frame", fake_build_eligible_frame)
+
+    output_path = tmp_path / "date_range_diagnostics.csv"
+    result = run_date_range_diagnostics(
+        min_samples=1,
+        output_path=str(output_path),
+    )
+
+    assert output_path.exists()
+    assert set(result["window"]) == {
+        "all",
+        "calendar_2024",
+        "calendar_2025",
+        "calendar_2026_ytd",
+        "latest_12m",
+        "latest_6m",
+    }
+    assert len(result) == 18
+    assert "excess_vs_baseline" in result.columns
+    assert "excess_vs_best_parent" in result.columns
 
