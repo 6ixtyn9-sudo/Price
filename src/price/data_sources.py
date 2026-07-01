@@ -10,6 +10,9 @@ from alpaca.data.enums import DataFeed
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY
 
 def get_date_chunks(start_dt: datetime, end_dt: datetime, chunk_days: int):
+    """
+    Slices a date range into smaller chunks to politely query APIs.
+    """
     current_start = start_dt
     while current_start < end_dt:
         current_end = min(current_start + timedelta(days=chunk_days), end_dt)
@@ -17,11 +20,15 @@ def get_date_chunks(start_dt: datetime, end_dt: datetime, chunk_days: int):
         current_start = current_end + timedelta(seconds=1)
 
 def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """
+    Fetches raw bar data from Alpaca for a single symbol, with rate limit handling and chunking.
+    """
     if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
         raise ValueError("Alpaca API credentials missing in environment.")
     
     client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
     
+    # Map timeframe string to alpaca-py TimeFrame
     if timeframe_str == "15m":
         tf = TimeFrame(15, TimeFrameUnit.Minute)
     elif timeframe_str == "1h":
@@ -33,7 +40,9 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
         
     all_dfs = []
     
+    # Use 90-day chunks to prevent huge queries and easy retry caching
     for chunk_start, chunk_end in get_date_chunks(start_dt, end_dt, 90):
+        # Respect basic rate limit (roughly 3 calls per second is very safe for 200/min cap)
         time.sleep(0.35)
         
         request_params = StockBarsRequest(
@@ -41,7 +50,7 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
             timeframe=tf,
             start=chunk_start,
             end=chunk_end,
-            feed=DataFeed.IEX
+            feed=DataFeed.IEX  # Essential for free/basic keys
         )
         
         retries = 3
@@ -55,18 +64,22 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
             except Exception as e:
                 retries -= 1
                 if "429" in str(e) or "Rate Limit" in str(e):
+                    # Hit rate limit, back off heavily
                     time.sleep(10)
                 else:
                     time.sleep(2)
                 if retries == 0:
+                    print(f"Failed to fetch Alpaca bars for {symbol} ({chunk_start} to {chunk_end}): {e}")
                     raise e
 
     if not all_dfs:
         return pd.DataFrame()
         
     merged_df = pd.concat(all_dfs).sort_index()
+    # Remove duplicate index rows if any chunks overlapped slightly
     merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
     
+    # Normalize DataFrame
     df_clean = merged_df.reset_index()
     df_clean['bar_ts_utc'] = pd.to_datetime(df_clean['timestamp']).dt.tz_convert('UTC')
     df_clean['symbol'] = symbol.upper()
@@ -74,6 +87,7 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
     df_clean['source'] = "alpaca"
     df_clean['ingested_at_utc'] = datetime.now(timezone.utc)
     
+    # Rename columns to raw OHLVC canonical schema
     df_clean = df_clean.rename(columns={
         'open': 'open_raw',
         'high': 'high_raw',
@@ -82,6 +96,7 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
         'volume': 'volume_raw'
     })
     
+    # Select canonical columns
     canonical_cols = [
         'symbol', 'timeframe', 'bar_ts_utc', 'source', 'ingested_at_utc',
         'open_raw', 'high_raw', 'low_raw', 'close_raw', 'volume_raw'
@@ -90,6 +105,9 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
     return df_clean[canonical_cols]
 
 def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """
+    Fetches adjusted and raw daily bars from Tiingo.
+    """
     if not TIINGO_API_KEY:
         raise ValueError("Tiingo API credentials missing in environment.")
         
@@ -115,6 +133,7 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
             retries -= 1
             time.sleep(2)
             if retries == 0:
+                print(f"Failed to fetch Tiingo daily bars for {symbol}: {e}")
                 raise e
                 
     if not data:
@@ -122,16 +141,19 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
         
     df = pd.DataFrame(data)
     
-    if df['date'].dt.tz is None:
-        df['bar_ts_utc'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+    # Normalize DataFrame (Safe conversion fix)
+    parsed_dates = pd.to_datetime(df['date'])
+    if parsed_dates.dt.tz is None:
+        df['bar_ts_utc'] = parsed_dates.dt.tz_localize('UTC')
     else:
-        df['bar_ts_utc'] = pd.to_datetime(df['date']).dt.tz_convert('UTC')
+        df['bar_ts_utc'] = parsed_dates.dt.tz_convert('UTC')
         
     df['symbol'] = symbol.upper()
     df['timeframe'] = "1d"
     df['source'] = "tiingo"
     df['ingested_at_utc'] = datetime.now(timezone.utc)
     
+    # Rename raw close and adjusted close
     df = df.rename(columns={
         'open': 'open_raw',
         'high': 'high_raw',
@@ -146,11 +168,13 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
         'divCash': 'dividend_cash'
     })
     
+    # Compute adj_factor: close_adj / close_raw (ensure no divide by zero)
     df['adj_factor'] = df.apply(
         lambda r: r['close_adj'] / r['close_raw'] if r['close_raw'] > 0 else 1.0,
         axis=1
     )
     
+    # Select canonical columns for daily bar schema
     canonical_cols = [
         'symbol', 'timeframe', 'bar_ts_utc', 'source', 'ingested_at_utc',
         'open_raw', 'high_raw', 'low_raw', 'close_raw', 'volume_raw',
