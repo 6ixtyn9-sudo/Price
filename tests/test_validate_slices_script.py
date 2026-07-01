@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import pandas as pd
 
 # scripts/ is not a package; import it by adding the scripts dir to sys.path,
 # consistent with how validate_slices.py is invoked directly (python scripts/validate_slices.py).
@@ -7,7 +8,12 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from validate_slices import classify_verdict, evidence_supports, survives  # noqa: E402
+from validate_slices import (  # noqa: E402
+    classify_verdict,
+    evidence_supports,
+    summarize_baseline_train_valid,
+    survives,
+)
 
 P_THRESHOLD = 0.05
 
@@ -90,3 +96,25 @@ def test_classify_verdict_rejected_when_starved_and_unsupported():
 
     verdict = classify_verdict(train_pass, valid_pass, train, valid, P_THRESHOLD)
     assert verdict == "rejected"
+
+def test_summarize_baseline_train_valid_uses_same_chronological_split():
+    df = pd.DataFrame(
+        {
+            "bar_ts_utc": pd.date_range("2024-01-01", periods=10, freq="h", tz="UTC"),
+            "fwd_ret_5": [0.01] * 7 + [0.02] * 3,
+            "close_adj": [100.0] * 10,
+        }
+    )
+
+    baseline = summarize_baseline_train_valid(
+        df,
+        split=0.7,
+        cost_bps=0.0,
+        min_samples=1,
+    )
+
+    assert baseline["train"]["sample_count"] == 7
+    assert baseline["valid"]["sample_count"] == 3
+    assert baseline["train"]["mean_return"] == 0.01
+    assert baseline["valid"]["mean_return"] == 0.02
+
