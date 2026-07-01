@@ -53,6 +53,42 @@ def survives(summary: dict, min_samples: int, p_threshold: float) -> bool:
     return mean_return > 0 and p_value < p_threshold
 
 
+def evidence_supports(summary: dict, p_threshold: float) -> bool:
+    """Same directional + significance check as `survives`, but ignores the
+    min_samples floor. Used to distinguish slices that are genuinely
+    unsupported (wrong sign / not significant) from slices that only fail
+    because the chronological split starved them below the sample floor."""
+    if summary["sample_count"] == 0:
+        return False
+    p_value = summary.get("p_value", float("nan"))
+    mean_return = summary.get("mean_return", float("nan"))
+    if pd.isna(p_value) or pd.isna(mean_return):
+        return False
+    return mean_return > 0 and p_value < p_threshold
+
+
+def classify_verdict(train_pass: bool, valid_pass: bool, train_summary: dict, valid_summary: dict, p_threshold: float) -> str:
+    """Three-way verdict per HANDOVER.md V4 discipline:
+      - 'survived': passes train + valid, including the min_samples floor.
+      - 'provisional': directionally correct and significant on the evidence
+        available, but at least one window is starved below the sample
+        floor. Not yet promotable; needs more data, not evidence of failure.
+      - 'rejected': wrong sign, not significant, or no eligible data.
+    """
+    if train_pass and valid_pass:
+        return "survived"
+
+    train_supported = evidence_supports(train_summary, p_threshold)
+    valid_supported = evidence_supports(valid_summary, p_threshold)
+    train_floor_only = train_supported and not train_pass
+    valid_floor_only = valid_supported and not valid_pass
+
+    if (train_pass or train_floor_only) and (valid_pass or valid_floor_only) and (train_floor_only or valid_floor_only):
+        return "provisional"
+
+    return "rejected"
+
+
 def run_validation(
     slices_path: str = DISCOVERED_SLICES_PATH,
     split: float = 0.7,
@@ -124,6 +160,7 @@ def run_validation(
 
         train_pass = survives(tv["train"], min_samples=min_samples, p_threshold=p_threshold)
         valid_pass = survives(tv["valid"], min_samples=min_samples, p_threshold=p_threshold)
+        verdict = classify_verdict(train_pass, valid_pass, tv["train"], tv["valid"], p_threshold)
 
         scorecard.append(
             {
@@ -142,6 +179,7 @@ def run_validation(
                 "walk_forward_folds": len(wf_folds),
                 "walk_forward_survival_rate": wf_survival_rate,
                 "survived": bool(train_pass and valid_pass),
+                "verdict": verdict,
             }
         )
 
@@ -150,19 +188,39 @@ def run_validation(
         print("No slices could be validated (missing warehouse data for all rows).")
         return scorecard_df
 
-    scorecard_df = scorecard_df.sort_values(
-        ["survived", "valid_mean_ret_costadj"], ascending=[False, False]
-    ).reset_index(drop=True)
+    verdict_order = pd.Categorical(
+        scorecard_df["verdict"], categories=["survived", "provisional", "rejected"], ordered=True
+    )
+    scorecard_df = scorecard_df.assign(_verdict_order=verdict_order).sort_values(
+        ["_verdict_order", "valid_mean_ret_costadj"], ascending=[True, False]
+    ).drop(columns="_verdict_order").reset_index(drop=True)
 
     scorecard_df.to_csv(VALIDATED_SLICES_PATH, index=False)
     print(f"\nSaved validation scorecard to {VALIDATED_SLICES_PATH}")
 
-    survivors = scorecard_df[scorecard_df["survived"]]
-    print(f"\nSurviving slices: {len(survivors)} / {len(scorecard_df)}")
+    survivors = scorecard_df[scorecard_df["verdict"] == "survived"]
+    provisional = scorecard_df[scorecard_df["verdict"] == "provisional"]
+    rejected = scorecard_df[scorecard_df["verdict"] == "rejected"]
+
+    print(
+        f"\nVerdicts: {len(survivors)} survived, {len(provisional)} provisional "
+        f"(starved by sample floor, not falsified), {len(rejected)} rejected "
+        f"/ {len(scorecard_df)} total"
+    )
+
     if not survivors.empty:
+        print("\n== SURVIVED (passed train + valid + cost + significance + sample floor) ==")
         print(survivors.to_string(index=False))
     else:
-        print("No slices passed train/valid + cost + significance discipline.")
+        print("\nNo slices fully survived train/valid + cost + significance + sample-floor discipline.")
+
+    if not provisional.empty:
+        print(
+            "\n== PROVISIONAL (correct sign + significant evidence, but below the "
+            f"min_samples={min_samples} floor after the chronological split; "
+            "needs more history before promotion, not rejected on the evidence) =="
+        )
+        print(provisional.to_string(index=False))
 
     return scorecard_df
 
