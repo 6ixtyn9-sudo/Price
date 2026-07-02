@@ -1347,3 +1347,46 @@ What this section does NOT do:
   - Override the V4 "no execution in v1-v4" boundary.
   - Promote any slice.
   - Change the monitored-slices list in `monitor.DEFAULT_MONITORED_SLICES`.
+
+Cache Fix — Honest Numbers (2026-07-02)
+The cache fix recorded earlier (commit 791dcec, "fix(cache): point
+feature cache at data.parquet (was bars.parquet)") is mechanically
+correct: the disk cache directory is now created on first run, the
+mtime-based cache key resolves correctly, and parquet files are
+written into localdata/features_cache/.
+
+However, the original "5x speedup (4 minutes to 1 minute)" claim
+recorded in this HANDOVER's Performance Optimization section is
+NOT reproducible on the current workload. Measured on 2026-07-02
+with the 1d 3-symbol (SPY/XLF/XLK) candidate-leaderboard path:
+
+  Run 1 (cache cleared): 32.913s wall
+  Run 2 (cache warm):    32.948s wall
+  Delta:                 +0.04s (noise, no speedup)
+
+Two reasons the original 5x figure does not reproduce:
+
+1. The in-memory frame_cache dict inside run_validation (line 314)
+   already short-circuits repeated calls within a single CLI
+   invocation. The disk cache only helps across separate
+   invocations of validate_slices.py.
+
+2. On the 1d 3-symbol leaderboard, compute_price_features is
+   called on ~1250 rows per symbol x 3 symbols = ~3750 rows
+   total per invocation. That is too small for the disk-I/O
+   cost of cache write to be amortized. The original 5x
+   measurement was for a heavier 15m + cross-asset + multi-symbol
+   scenario-grid workload that is not part of the current
+   validation routine.
+
+What the cache fix actually buys:
+  - Eliminates a silent dead-code path (the disk cache was
+    never hit before this commit, but the code claimed it was)
+  - Makes the cache work for heavy workloads (15m + cross-asset
+    + scenario grid), even if it does not show measurable
+    speedup on the light 1d 3-symbol leaderboard
+
+The original "5x speedup" line in the Performance Optimization
+section should be treated as not-validated, not as retracted.
+Future agents who measure the cache on a heavy workload should
+update the HANDOVER with the actual numbers.
