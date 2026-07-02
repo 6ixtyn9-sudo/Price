@@ -297,7 +297,11 @@ def run_validation(
             continue
 
         cross_symbols = cross_symbols_from_filter(slice_filter)
-        cache_key = (symbol, timeframe, tuple(sorted(cross_symbols.items())))
+        cache_key = (
+            symbol,
+            timeframe,
+            tuple(sorted((s, tuple(f)) for s, f in cross_symbols.items())),
+        )
         if cache_key not in frame_cache:
             frame_cache[cache_key] = build_eligible_frame(
                 symbol, timeframe, cross_symbols=cross_symbols
@@ -536,7 +540,12 @@ def run_walk_forward_diagnostics(
     rows = []
 
     for symbol, timeframe, combo in targets:
-        eligible_df = build_eligible_frame(symbol, timeframe)
+        slice_filter = parse_slice_combination(combo)
+        eligible_df = build_eligible_frame(
+            symbol,
+            timeframe,
+            cross_symbols=cross_symbols_from_filter(slice_filter),
+        )
         if eligible_df.empty:
             rows.append(
                 {
@@ -786,7 +795,12 @@ def run_date_range_diagnostics(
     rows = []
 
     for symbol, timeframe, combo in targets:
-        eligible_df = build_eligible_frame(symbol, timeframe)
+        slice_filter = parse_slice_combination(combo)
+        eligible_df = build_eligible_frame(
+            symbol,
+            timeframe,
+            cross_symbols=cross_symbols_from_filter(slice_filter),
+        )
         if eligible_df.empty:
             rows.append(
                 {
