@@ -975,3 +975,39 @@ Current practical conclusion (unchanged):
 - Do not cite the invalid pre-fix XLE/XLK numbers, and do not cite the
   superseded 5-survivor figure from the previous section.
 
+V4 Fold-Count Sensitivity Check (2026-07-01)
+The four strict survivors were re-run through the walk-forward diagnostics at
+n_folds = 3, 4, 5, and 6 (--n-folds) to test whether the XLF 1d "1111" pattern
+is a structural edge or an artifact of the specific 4-fold split.
+
+XLF 1d state_ext=stretched_up + state_slope=flat, valid_pass by fold count:
+- n_folds=3 -> 110  (2/3; last fold p=0.062, borderline)
+- n_folds=4 -> 1111 (4/4; the headline pattern)
+- n_folds=5 -> 11101 (4/5)
+- n_folds=6 -> 010101 (3/6)
+
+Interpretation: the perfect "1111" record is split-lucky in strength, not in
+sign. XLF's per-fold cost-adjusted mean return is positive in every fold at
+every fold count tested (including the folds that "fail"). The failures come
+from (a) parent-relative excess dipping slightly negative in some folds and
+(b) per-fold valid_n collapsing to ~14-16 as the folds get finer, which
+starves Newey-West significance. So the honest characterization of XLF is:
+consistently positive-signed across time, but with thin per-fold samples and
+fold-count-sensitive parent-relative significance -- not a clean, robust
+"passes every fold" edge.
+
+The other three survivors behaved as expected under the sweep:
+- XLE 1d state_ext=stretched_down + state_slope=downtrend: 111 at 3 folds but
+  0110 / 00110 / 001010 at 4-6 folds; front-loaded and decaying in recent
+  windows.
+- XLK 1h state_ext=stretched_up + state_vol=low_vol: recent-only at every
+  fold count; the earliest folds shrink to n=2-5 and fail.
+- XLE 1h state_session=afternoon + state_ext=neutral: mostly fails; only the
+  newest fold ever passes.
+
+Promotion decision is unchanged: nothing is promoted. XLF 1d remains the top
+candidate to keep watching, now with the added caveat that its walk-forward
+strength is fold-count sensitive and its recent per-fold samples are thin.
+The correct next unlock is more forward daily data on XLF, not further
+re-slicing of the existing history.
+
