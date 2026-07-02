@@ -148,13 +148,35 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Only commit if the captured data actually changed.
-          if git diff --quiet localdata/ 2>/dev/null; then
-            echo "No localdata changes; nothing to commit."
+          # The localdata/ directory is gitignored, which is correct
+          # for the parquet files (large binaries) but wrong for the
+          # workflow output CSVs that we DO want to commit. Use
+          # `git add -f` to bypass the ignore for specific files.
+          #
+          # This list must match the files the workflow actually
+          # produces. If a new output file is added to the pipeline,
+          # it must be added here too.
+          WORKFLOW_OUTPUT_FILES=(
+            "localdata/candidate_leaderboard.csv"
+            "localdata/discovered_slices.csv"
+            "localdata/paper_trade_log.csv"
+            "localdata/live_forward_returns.csv"
+            "localdata/validated_slices.csv"
+            "localdata/validation_scenario_grid.csv"
+            "localdata/walk_forward_diagnostics.csv"
+            "localdata/date_range_diagnostics.csv"
+          )
+          CHANGED=0
+          for f in "${WORKFLOW_OUTPUT_FILES[@]}"; do
+            if [ -f "$f" ]; then
+              git add -f "$f" && CHANGED=1
+            fi
+          done
+          if [ "$CHANGED" = "0" ]; then
+            echo "No workflow output changes; nothing to commit."
             exit 0
           fi
           # Avoid recursive workflow triggers by including [skip ci]
           # in the commit message.
-          git add localdata/
-          git commit -m "chore(live-capture): update localdata CSVs [skip ci]"
+          git commit -m "chore(live-capture): update workflow output CSVs [skip ci]"
           git push
