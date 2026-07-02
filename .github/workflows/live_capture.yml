@@ -25,8 +25,13 @@ name: Live Capture
 # See HANDOVER.md "Scheduled Live Capture (2026-07-02)".
 
 on:
+  # 21:00 UTC = 17:00 ET (1 hour after US market close, weekdays only).
+  # 1d end-of-day bars are typically published by Tiingo by then, and
+  # waiting an hour avoids the partial-bar NaN issue we saw when the
+  # 6-hourly cron fired mid-session. The workflow_dispatch trigger
+  # below remains for manual override.
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 21 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -93,6 +98,27 @@ jobs:
             --timeframes 15m \
             --days 30
           PYTHONPATH=src python3 scripts/build_warehouse.py
+
+      - name: Run discover_slices
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          # Discover slices for the standard universe. The leaderboard
+          # step reads the output of this. discovered_slices.csv is
+          # gitignored, so a fresh runner has nothing in it without
+          # this step. --append keeps any prior discovered slices for
+          # the same symbol/timeframe instead of clobbering them, so
+          # the leaderboard is a union of all 3 timeframes.
+          PYTHONPATH=src python3 scripts/discover_slices.py \
+            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
+            --timeframe 1d \
+            --append
+          PYTHONPATH=src python3 scripts/discover_slices.py \
+            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
+            --timeframe 1h \
+            --append
 
       - name: Run candidate leaderboard
         env:
