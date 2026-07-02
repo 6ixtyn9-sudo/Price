@@ -9,6 +9,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from validate_slices import (  # noqa: E402
+    cross_symbols_from_filter,
     annotate_search_wide_significance,
     _filter_date_window,
     classify_candidate_triage,
@@ -559,3 +560,24 @@ def test_annotate_search_wide_significance_bh_and_bonferroni():
     # higher ranks fail too. Exactly 2 BH passes total.
     assert int(out["search_wide_bh_pass"].sum()) == 2
     assert int(out["search_wide_bonferroni_pass"].sum()) == 1
+
+
+def test_cross_symbols_from_filter_extracts_symbol_and_fields():
+    # Mixed filter: one cross-asset field + one ordinary field.
+    filt = {
+        "cross_USO_state_slope": "uptrend",
+        "state_ext": "stretched_down",
+    }
+    assert cross_symbols_from_filter(filt) == {"USO": ["state_slope"]}
+
+    # Two cross fields on the same conditioning symbol.
+    filt2 = {
+        "cross_USO_state_slope": "uptrend",
+        "cross_USO_state_vol": "high_vol",
+    }
+    got = cross_symbols_from_filter(filt2)
+    assert set(got.keys()) == {"USO"}
+    assert sorted(got["USO"]) == ["state_slope", "state_vol"]
+
+    # No cross fields -> empty dict (existing slices are unaffected).
+    assert cross_symbols_from_filter({"state_ext": "neutral"}) == {}

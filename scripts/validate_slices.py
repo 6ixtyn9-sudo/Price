@@ -19,7 +19,7 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 
-from price.discovery import bin_features
+from price.discovery import attach_cross_asset_states, bin_features
 from price.features import compute_price_features
 from price.validation import (
     apply_slice_filter,
@@ -40,16 +40,56 @@ DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
 CANDIDATE_LEADERBOARD_PATH = "localdata/candidate_leaderboard.csv"
 
 
-def build_eligible_frame(symbol: str, timeframe: str) -> pd.DataFrame:
+def cross_symbols_from_filter(slice_filter: dict) -> dict:
+    """Extract {cond_symbol: [state_fields]} from a parsed slice filter.
+
+    Cross-asset fields are named cross_<SYM>_<state_field>, e.g.
+    cross_USO_state_slope. Symbols never contain underscores; state fields
+    always start with 'state_'. Returns an empty dict when there are no
+    cross-asset fields.
+    """
+    needed: dict = {}
+    for field in slice_filter:
+        if not field.startswith("cross_"):
+            continue
+        rest = field[len("cross_"):]
+        marker = "_state_"
+        idx = rest.find(marker)
+        if idx == -1:
+            continue
+        sym = rest[:idx]
+        state_field = rest[idx + 1:]  # drop leading underscore -> state_*
+        needed.setdefault(sym, [])
+        if state_field not in needed[sym]:
+            needed[sym].append(state_field)
+    return needed
+
+
+def build_eligible_frame(
+    symbol: str, timeframe: str, cross_symbols: dict = None
+) -> pd.DataFrame:
     """Rebuild the timestamped, binned, forward-eligible feature frame for a
     symbol/timeframe pair, straight from the local warehouse. No network
-    calls, no re-ingestion -- only reads what has already been captured."""
+    calls, no re-ingestion -- only reads what has already been captured.
+
+    If cross_symbols is given ({cond_symbol: [state_fields]}), each
+    conditioning symbol's most-recent-completed state is attached (backward
+    as-of, no look-ahead) as cross_<SYM>_<field> columns before the
+    forward-eligible rows are selected. This reconstructs, at validation
+    time, exactly the cross-asset columns discovery produced."""
     df_raw = load_from_warehouse(symbol, timeframe)
     if df_raw.empty:
         return pd.DataFrame()
 
     df_feat = compute_price_features(df_raw)
     df_binned = bin_features(df_feat)
+
+    if cross_symbols:
+        for cond_sym, fields in cross_symbols.items():
+            df_binned = attach_cross_asset_states(
+                df_binned, cond_sym, timeframe, fields
+            )
+
     return df_binned[df_binned["label_eligible"]].reset_index(drop=True)
 
 
@@ -250,19 +290,22 @@ def run_validation(
         timeframe = row["timeframe"]
         slice_combination = row["slice_combination"]
 
-        cache_key = (symbol, timeframe)
-        if cache_key not in frame_cache:
-            frame_cache[cache_key] = build_eligible_frame(symbol, timeframe)
-        eligible_df = frame_cache[cache_key]
-
-        if eligible_df.empty:
-            print(f"  -> No warehouse data for {symbol} ({timeframe}); skipping '{slice_combination}'.")
-            continue
-
         try:
             slice_filter = parse_slice_combination(slice_combination)
         except ValueError as exc:
             print(f"  -> Could not parse slice '{slice_combination}': {exc}")
+            continue
+
+        cross_symbols = cross_symbols_from_filter(slice_filter)
+        cache_key = (symbol, timeframe, tuple(sorted(cross_symbols.items())))
+        if cache_key not in frame_cache:
+            frame_cache[cache_key] = build_eligible_frame(
+                symbol, timeframe, cross_symbols=cross_symbols
+            )
+        eligible_df = frame_cache[cache_key]
+
+        if eligible_df.empty:
+            print(f"  -> No warehouse data for {symbol} ({timeframe}); skipping '{slice_combination}'.")
             continue
 
         tv = evaluate_slice_train_valid(

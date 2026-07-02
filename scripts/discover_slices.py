@@ -7,7 +7,7 @@ from price.discovery import discover_market_slices
 
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 
-def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=False):
+def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=False, cond_symbol=None):
     symbols = target_symbols or SYMBOLS
     
     combinations = [
@@ -20,16 +20,28 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
         combinations.append(["state_session", "state_slope"])
         combinations.append(["state_session", "state_ext", "state_slope"])
         
+    if cond_symbol:
+        cs = cond_symbol.upper()
+        combinations = combinations + [
+            [f"cross_{cs}_state_slope", "state_ext"],
+            [f"cross_{cs}_state_vol", "state_ext"],
+            [f"cross_{cs}_state_ext", "state_ext"],
+            [f"cross_{cs}_state_slope", "state_slope"],
+        ]
+
     all_slices = []
     
     for symbol in symbols:
         symbol = symbol.upper()
+        if cond_symbol and symbol == cond_symbol.upper():
+            print(f"Skipping {symbol}: cannot condition a symbol on itself.")
+            continue
         print(f"\n🔍 Exploring state slices for {symbol} ({timeframe})...")
         
         for fields in combinations:
             print(f"Testing state-space combination: {fields}")
             try:
-                slices = discover_market_slices(symbol, timeframe, fields, min_samples=min_samples)
+                slices = discover_market_slices(symbol, timeframe, fields, min_samples=min_samples, cond_symbol=cond_symbol)
                 if not slices.empty:
                     print(f"  -> Discovered {len(slices)} slices satisfying sample floor.")
                     all_slices.append(slices)
@@ -78,6 +90,14 @@ if __name__ == "__main__":
              "Use this when running discovery across multiple timeframes so earlier runs "
              "are not lost.",
     )
+    parser.add_argument(
+        "--condition-on",
+        default=None,
+        help="Optional conditioning symbol. When set, adds cross-asset slice "
+             "combinations that condition each primary symbol on this symbol's "
+             "most-recent-completed state (backward as-of, no look-ahead).",
+    )
+
     args = parser.parse_args()
     
     run_discovery(
@@ -85,4 +105,5 @@ if __name__ == "__main__":
         timeframe=args.timeframe,
         min_samples=args.min_samples,
         append=args.append,
+        cond_symbol=args.condition_on,
     )
