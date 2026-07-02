@@ -16,6 +16,7 @@ import contextlib
 import io
 from itertools import combinations
 
+import numpy as np
 import pandas as pd
 
 from price.discovery import bin_features
@@ -933,6 +934,51 @@ def classify_candidate_triage(
     return "rejected_unsupported"
 
 
+def annotate_search_wide_significance(
+    leaderboard: pd.DataFrame,
+    p_threshold: float = 0.05,
+    p_col: str = "valid_p_value_nw",
+) -> pd.DataFrame:
+    """Add search-wide multiple-testing columns to a candidate leaderboard.
+
+    The correction family is every leaderboard row with a finite p-value.
+    Adds Benjamini-Hochberg FDR (search_wide_bh_pass), Bonferroni
+    (search_wide_bonferroni_pass), the ascending p rank (search_wide_rank),
+    and the family size (search_wide_family_size). Read together with valid_n
+    and triage_bucket: the family includes sample-starved slices whose tiny
+    small-sample p-values inflate the family, so these columns are a guard
+    against over-claiming, not a promotion gate.
+    """
+    lb = leaderboard.copy()
+    p = pd.to_numeric(lb[p_col], errors="coerce")
+    finite = p.notna()
+    m = int(finite.sum())
+
+    lb["search_wide_family_size"] = m
+    lb["search_wide_rank"] = pd.NA
+    lb["search_wide_bh_pass"] = False
+    lb["search_wide_bonferroni_pass"] = False
+
+    if m == 0:
+        return lb
+
+    order = p[finite].sort_values(kind="mergesort")
+    ranks = {idx: i + 1 for i, idx in enumerate(order.index)}
+    lb.loc[finite, "search_wide_rank"] = [ranks[i] for i in p[finite].index]
+
+    bonf_thresh = p_threshold / m
+    lb.loc[finite, "search_wide_bonferroni_pass"] = p[finite] <= bonf_thresh
+
+    ranked_p = order.to_numpy()
+    bh_crit = (np.arange(1, m + 1) / m) * p_threshold
+    passing = np.nonzero(ranked_p <= bh_crit)[0]
+    bh_cut_rank = int(passing.max() + 1) if passing.size else 0
+    bh_idx = [i for i in order.index if ranks[i] <= bh_cut_rank]
+    lb.loc[bh_idx, "search_wide_bh_pass"] = True
+
+    return lb
+
+
 def run_candidate_leaderboard(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
@@ -1117,6 +1163,9 @@ def run_candidate_leaderboard(
     leaderboard.insert(0, "rank", range(1, len(leaderboard) + 1))
     leaderboard = leaderboard.rename(columns={"rank_symbol": "symbol", "rank_timeframe": "timeframe"})
 
+    leaderboard = annotate_search_wide_significance(
+        leaderboard, p_threshold=p_threshold
+    )
     leaderboard.to_csv(output_path, index=False)
 
     # Restore the default validation CSV after scenario diagnostics.
@@ -1150,6 +1199,9 @@ def run_candidate_leaderboard(
         "walk_forward_survival_rate",
         "scenario_survived_count",
         "robustness_score",
+        "search_wide_rank",
+        "search_wide_bh_pass",
+        "search_wide_bonferroni_pass",
     ]
     print(leaderboard[display_cols].head(25).to_string(index=False))
     return leaderboard
