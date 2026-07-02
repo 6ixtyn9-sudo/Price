@@ -903,3 +903,75 @@ Current practical conclusion:
   versus the newer 5-year ETF universe members.
 - Do not revive or cite the invalid pre-fix XLE/XLK expanded-universe numbers.
 
+V4 Comparable-History Rerun Update (2026-07-01)
+This section corrects the immediately preceding expanded-universe section.
+The earlier expanded-universe run compared newer ETFs at ~5 years of history
+against SPY/QQQ at only ~3 years, because capture_bars.py performs an
+incremental update when a partition already exists and therefore did not
+backfill SPY/QQQ to the full lookback.
+
+SPY and QQQ were force-backfilled to the same ~5-year window as the newer
+ETFs by fetching 1825 days directly and letting save_to_warehouse merge and
+deduplicate into the existing partitions, followed by a warehouse rebuild.
+Post-backfill SPY/QQQ coverage now starts 2021-07 like the rest of the
+universe, and their intraday return distributions remain plausible.
+
+Discovery and validation were re-run on the fully comparable universe
+(discovered_slices.csv rebuilt from scratch, not appended onto stale rows).
+
+Corrected post-backfill validation result:
+- 682 total discovered slice rows tested
+- 4 strict survivors (down from 5 before comparable history)
+- 3 provisional rows, sample-floor-starved rather than promoted
+- 675 rejected rows
+
+The prior QQQ 1h state_ext=stretched_up + state_vol=mid_vol slice is no
+longer a strict survivor once SPY/QQQ carry full history, so the "5 strict
+survivors" figure in the preceding section is superseded by this 4-survivor
+result. Use this section as the current record.
+
+Current strict survivors (with clean-survivor walk-forward triage split):
+
+1. XLF 1d state_ext=stretched_up + state_slope=flat
+   - triage: clean_survivor_wf_strong
+   - walk-forward pattern: 1111 (all four valid folds pass)
+   - scenario survival count: 4/5
+   - valid_n: 33
+   - date-range: all, 2024, latest_12m pass; 2025 fails; 2026-ytd and
+     latest_6m are strong but sample-starved (n=8)
+   - still the top expanded-universe candidate, still NOT promoted
+
+2. XLE 1d state_ext=stretched_down + state_slope=downtrend
+   - triage: clean_survivor_wf_mixed
+   - walk-forward pattern: 0110
+   - scenario survival count: 4/5
+   - recent windows (2026-ytd, latest_12m, latest_6m) fail and parent excess
+     goes negative; treat as decaying, do not promote
+
+3. XLK 1h state_ext=stretched_up + state_vol=low_vol
+   - triage: clean_survivor_wf_mixed
+   - walk-forward pattern: 0001
+   - scenario survival count: 4/5
+   - recent-only: 2026-ytd/latest strong, 2024-2025 fail; not stable
+
+4. XLE 1h state_session=afternoon + state_ext=neutral
+   - triage: clean_survivor_wf_failed
+   - walk-forward pattern: 0000 (no fold passes)
+   - scenario survival count: 1/5
+   - strict split survivor but demoted by walk-forward diagnostics
+
+Tooling note: the clean-survivors diagnostic scope originally filtered on the
+exact triage bucket "clean_survivor". After clean survivors were split into
+clean_survivor_wf_strong / clean_survivor_wf_mixed / clean_survivor_wf_failed,
+that exact match returned nothing and the walk-forward and date-range
+diagnostics produced empty output. The scope now matches any triage bucket
+starting with "clean_survivor".
+
+Current practical conclusion (unchanged):
+- No candidate is promoted.
+- XLF 1d state_ext=stretched_up + state_slope=flat is the current top
+  candidate to keep watching, pending more forward data, continued fold
+  survival, and resolution of its sample-starved most-recent windows.
+- Do not cite the invalid pre-fix XLE/XLK numbers, and do not cite the
+  superseded 5-survivor figure from the previous section.
+
