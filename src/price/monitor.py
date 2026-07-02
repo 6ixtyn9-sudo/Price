@@ -276,6 +276,12 @@ def scan_all_slices(
         if current_state is None:
             print(f"  Could not compute state for {symbol} ({timeframe})")
             for s in group_slices:
+                # Emit a no_state_data entry_signal so paper_trade.py
+                # can log it, AND a state_unavailable row for the
+                # monitor's audit trail. The two serve different
+                # purposes: the entry_signal row is per-slice (each
+                # slice in the group gets its own row), while the
+                # state_unavailable row is per-(symbol, timeframe).
                 signals.append({
                     "kind": "entry_signal",
                     "symbol": symbol,
@@ -286,6 +292,18 @@ def scan_all_slices(
                     "error": "no_state_data",
                     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 })
+            # Per-(symbol, timeframe) state_unavailable row
+            signals.append({
+                "kind": "state_unavailable",
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "slice_combination": group_slices[0]["slice_combination"],
+                "reason": "no_warehouse_data",
+                "bar_ts_utc": None,
+                "close_adj": None,
+                "current_state": {},
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            })
             continue
 
         state_cols = [c for c in current_state.columns if c.startswith("state_") or c.startswith("cross_")]
@@ -296,6 +314,35 @@ def scan_all_slices(
             close_adj = float(current_state["close_adj"].iloc[0])
         except (KeyError, ValueError, TypeError):
             close_adj = float("nan")
+
+        # Detect NaN state features (typically caused by a partial
+        # current bar). emit a state_unavailable row for research,
+        # but continue to evaluate the slice filter anyway so we
+        # still record what happened for the matched/non-matched
+        # path. The live_forward_returns script ignores this kind.
+        state_has_nan = bool(pd.isna(close_adj))
+        if not state_has_nan:
+            for col_name in ("feat_ext_vs_ma_20", "feat_trend_slope_20", "feat_atr_norm_ext"):
+                if col_name in current_state.columns:
+                    v = current_state[col_name].iloc[0]
+                    if pd.isna(v):
+                        state_has_nan = True
+                        break
+        if state_has_nan:
+            signals.append({
+                "kind": "state_unavailable",
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "slice_combination": group_slices[0]["slice_combination"],
+                "reason": "nan_state_features",
+                "bar_ts_utc": str(current_state["bar_ts_utc"].iloc[0]) if "bar_ts_utc" in current_state.columns else None,
+                "close_adj": close_adj,
+                "current_state": {c: current_state[c].iloc[0] for c in state_cols},
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            })
+            # Don't continue -- still try to match the slice so we
+            # have a record of "we tried, no match" alongside
+            # "the state was incomplete." Both rows are useful.
 
         for s in group_slices:
             matched = check_slice_match(current_state, s["slice_combination"])
