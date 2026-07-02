@@ -88,7 +88,7 @@ def build_eligible_frame(
     if df_raw.empty:
         return pd.DataFrame()
 
-    warehouse_file = Path(f"localdata/warehouse/{symbol}/{timeframe}/bars.parquet")
+    warehouse_file = Path(f"localdata/warehouse/{symbol}/{timeframe}/data.parquet")
     if warehouse_file.exists():
         mtime = warehouse_file.stat().st_mtime
         cache_key = hashlib.md5(f"{symbol}_{timeframe}_{mtime}".encode()).hexdigest()
