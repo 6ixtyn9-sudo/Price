@@ -1413,7 +1413,7 @@ What was added
 - `.github/workflows/live_capture.yml`: a GitHub Actions workflow
   that runs every 6 hours (`0 */6 * * *`). Steps: checkout, setup
   Python 3.11, install requirements, run `capture_bars.py` to pull
-  the most recent 1825 days of 1d bars and 3 days of 15m bars, run
+  the most recent 1825 days of 1d bars and 30 days of 15m bars, run
   `build_warehouse.py` to resample 15m to 1h and propagate Tiingo
   daily adjustment factors, run `validate_slices.py --candidate-
   leaderboard` to refresh the leaderboard, run `paper_trade.py
