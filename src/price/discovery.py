@@ -114,3 +114,54 @@ def discover_market_slices(
         df_slices = df_slices.sort_values("mean_fwd_ret_5", ascending=False).reset_index(drop=True)
         
     return df_slices
+
+
+def align_cross_asset_states(primary_df, cond_state_df, cond_symbol, fields):
+    """Backward as-of merge of a conditioning symbol's binned state onto
+    primary_df without look-ahead. For each primary bar at time t, the
+    conditioning state is its most recent bar with bar_ts_utc <= t. New
+    columns are named cross_<COND>_<field>. Row order is preserved.
+    """
+    if primary_df.empty:
+        return primary_df.copy()
+    if "bar_ts_utc" not in primary_df.columns:
+        raise ValueError("primary_df must contain a bar_ts_utc column.")
+    if cond_state_df.empty or "bar_ts_utc" not in cond_state_df.columns:
+        raise ValueError("cond_state_df must contain a non-empty bar_ts_utc column.")
+
+    prefix = f"cross_{cond_symbol.upper()}_"
+    rename = {f: f"{prefix}{f}" for f in fields}
+
+    cond = cond_state_df[["bar_ts_utc", *fields]].rename(columns=rename)
+    cond = cond.sort_values("bar_ts_utc").reset_index(drop=True)
+
+    primary = primary_df.copy()
+    primary["_orig_order"] = range(len(primary))
+    primary_sorted = primary.sort_values("bar_ts_utc").reset_index(drop=True)
+
+    merged = pd.merge_asof(
+        primary_sorted,
+        cond,
+        on="bar_ts_utc",
+        direction="backward",
+    )
+
+    merged = merged.sort_values("_orig_order").reset_index(drop=True)
+    merged = merged.drop(columns=["_orig_order"])
+    return merged
+
+
+def attach_cross_asset_states(primary_df, cond_symbol, timeframe, fields):
+    """Load the conditioning symbol from the warehouse, rebuild its binned
+    state frame the same way as the primary (compute_price_features +
+    bin_features over full history), and backward as-of merge the requested
+    state fields onto primary_df. Returns primary_df unchanged if the
+    conditioning symbol has no warehouse data.
+    """
+    cond_raw = load_from_warehouse(cond_symbol, timeframe)
+    if cond_raw.empty:
+        return primary_df.copy()
+
+    cond_feat = compute_price_features(cond_raw)
+    cond_binned = bin_features(cond_feat)
+    return align_cross_asset_states(primary_df, cond_binned, cond_symbol, fields)
