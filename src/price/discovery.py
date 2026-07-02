@@ -59,7 +59,8 @@ def discover_market_slices(
     symbol: str, 
     timeframe: str, 
     slice_fields: List[str], 
-    min_samples: int = 15
+    min_samples: int = 15,
+    cond_symbol: str = None,
 ) -> pd.DataFrame:
     df_raw = load_from_warehouse(symbol, timeframe)
     if df_raw.empty:
@@ -68,7 +69,18 @@ def discover_market_slices(
         
     df_feat = compute_price_features(df_raw)
     df_binned = bin_features(df_feat)
-    
+
+    # Optional cross-asset conditioning: attach the conditioning symbol's
+    # most-recent-completed state (backward as-of, no look-ahead) as
+    # cross_<SYM>_state_* columns so slice_fields can reference them.
+    if cond_symbol:
+        df_binned = attach_cross_asset_states(
+            df_binned,
+            cond_symbol,
+            timeframe,
+            ["state_ext", "state_slope", "state_vol"],
+        )
+
     eval_df = df_binned[df_binned['label_eligible']]
     if eval_df.empty:
         print(f"No eligible forward-looking evaluation rows for {symbol} ({timeframe}).")
