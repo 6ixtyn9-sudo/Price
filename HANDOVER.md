@@ -1219,3 +1219,66 @@ up to full stress-testing. XLK 1h `cross_USO_vol=mid_vol + stretched_down`
 is the first 1h cross-asset slice to demonstrate robustness. None are
 promotable to a live track without further out-of-sample testing, but they
 represent the current state of the art for this research substrate.
+
+Paper-Trading Exploration Layer (2026-07-02)
+This section records a deliberate, time-boxed deviation from the V1–V4
+"no execution" boundary.
+
+What was added:
+- `src/price/monitor.py`: polls Alpaca for the most recent bars, computes
+  features + binned state the same way the research pipeline does, and
+  checks whether the current market state matches any of a configured
+  set of slices. Emits a signal; does NOT place orders.
+- `src/price/trading.py`: minimal Alpaca paper-trading execution layer.
+  Connects to the paper account, submits market orders, tracks positions,
+  writes a trade journal to `localdata/trade_journal.csv`. Does NOT
+  decide when to trade; that is `monitor.py` plus risk limits.
+- `scripts/paper_trade.py` (added in a follow-up patch): one-command
+  glue that runs `monitor.scan_all_slices()` and, for each matched
+  signal that passes the risk guard, calls `trading.submit_entry` /
+  `trading.submit_exit` on the Alpaca paper account.
+
+Important — this is NOT a promotion of any slice.
+The HANDOVER's V4 conclusions stand unchanged:
+- "No candidate is promoted."
+- "XLF 1d state_ext=stretched_up + state_slope=flat — current top
+  candidate to keep watching, still NOT promoted."
+- "Do not promote it as a tradable edge."
+
+The four slices currently hardcoded in `monitor.DEFAULT_MONITORED_SLICES`
+are the V4 leaderboard top, not a validated edge set. They are:
+1. XLF 1d `state_ext=stretched_up + state_slope=flat`
+   (`clean_survivor_wf_strong`, walk-forward 1111 at NF=4, but search-wide
+   p fails; recent per-fold samples thin)
+2. XLK 1d `cross_TLT_state_slope=uptrend + state_ext=neutral`
+   (first cross-asset slice to hold up to stress-testing)
+3. XLK 1h `cross_USO_state_vol=mid_vol + state_ext=stretched_down`
+   (first 1h cross-asset survivor)
+4. SPY 1h `state_session=afternoon + state_slope=downtrend`
+   (top historical clean survivor, recently weaker / decaying)
+
+Why this layer exists despite the doctrine:
+- To observe how often these non-promoted slices are "in state" at
+  current market conditions, and what would have happened if a paper
+  order had been submitted.
+- To generate a research dataset (signals + simulated/actual fills) for
+  the next round of out-of-sample evaluation.
+- The paper account, not real money, is the only place this is allowed
+  to run.
+
+Hard rules for this layer (enforced in code by `src/price/risk_limits.py`):
+- Max notional per position
+- Max number of open positions
+- Max daily realized loss (kill switch)
+- Min seconds between consecutive entries on the same symbol
+- Hard kill switch flag (file-based) that blocks all new entries
+
+Practical conclusion:
+- Any P&L from `trading.py` is research output, not trading income.
+- The risk limits are the only thing standing between a "let me see
+  what would happen" exploration and a real loss on the paper account
+  (which itself can become a problem if it conditions future decision
+  making).
+- If a future agent finds themselves writing "the paper account is up
+  X% therefore the slice works", stop. That is the exact failure mode
+  this section exists to prevent.
