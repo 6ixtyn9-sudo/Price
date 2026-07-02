@@ -639,7 +639,7 @@ def select_diagnostic_targets(
 
     Scopes:
       - current-leaders: fixed legacy/current targets from HANDOVER.md
-      - clean-survivors: leaderboard rows with triage_bucket=clean_survivor
+      - clean-survivors: leaderboard rows with triage_bucket starting with clean_survivor
       - late-emerging: leaderboard rows with triage_bucket=late_emerging_valid_supported
       - leaderboard-top: top-N leaderboard rows regardless of triage bucket
     """
@@ -664,7 +664,9 @@ def select_diagnostic_targets(
         return []
 
     if scope == "clean-survivors":
-        selected = leaderboard[leaderboard["triage_bucket"] == "clean_survivor"]
+        selected = leaderboard[
+            leaderboard["triage_bucket"].astype(str).str.startswith("clean_survivor")
+        ]
     elif scope == "late-emerging":
         selected = leaderboard[leaderboard["triage_bucket"] == "late_emerging_valid_supported"]
     else:
