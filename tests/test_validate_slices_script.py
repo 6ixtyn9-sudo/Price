@@ -9,6 +9,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from validate_slices import (  # noqa: E402
+    annotate_search_wide_significance,
     _filter_date_window,
     classify_candidate_triage,
     classify_verdict,
@@ -505,3 +506,56 @@ def test_classify_candidate_triage_clean_survivor_wf_failed():
     )
     assert bucket == "clean_survivor_wf_failed"
 
+
+def test_annotate_search_wide_significance_bh_and_bonferroni():
+    # Family of 10 finite p-values plus one NaN (excluded from the family).
+    pvals = [
+        0.0000001,  # tiny -> clears Bonferroni and BH
+        0.008,      # clears BH (crit 0.01) but not Bonferroni (0.005)
+        0.02,
+        0.04,
+        0.20,
+        0.30,
+        0.40,
+        0.50,
+        0.60,
+        0.90,
+    ]
+    lb = pd.DataFrame(
+        {
+            "symbol": [f"S{i}" for i in range(10)],
+            "valid_p_value_nw": pvals,
+        }
+    )
+    lb = pd.concat(
+        [lb, pd.DataFrame({"symbol": ["NAN"], "valid_p_value_nw": [float("nan")]})],
+        ignore_index=True,
+    )
+
+    out = annotate_search_wide_significance(lb, p_threshold=0.05)
+
+    # Family size counts only the 10 finite p-values.
+    assert (out["search_wide_family_size"] == 10).all()
+
+    # The NaN row never passes and has no rank.
+    nan_row = out[out["symbol"] == "NAN"].iloc[0]
+    assert nan_row["search_wide_bh_pass"] == False  # noqa: E712
+    assert nan_row["search_wide_bonferroni_pass"] == False  # noqa: E712
+    assert pd.isna(nan_row["search_wide_rank"])
+
+    # Smallest p clears Bonferroni (0.05/10 = 0.005) and BH.
+    top = out[out["symbol"] == "S0"].iloc[0]
+    assert top["search_wide_rank"] == 1
+    assert top["search_wide_bonferroni_pass"] == True  # noqa: E712
+    assert top["search_wide_bh_pass"] == True  # noqa: E712
+
+    # p=0.008 fails Bonferroni (0.05/10=0.005) but passes BH (rank 2, crit 0.01).
+    second = out[out["symbol"] == "S1"].iloc[0]
+    assert second["search_wide_rank"] == 2
+    assert second["search_wide_bonferroni_pass"] == False  # noqa: E712
+    assert second["search_wide_bh_pass"] == True  # noqa: E712
+
+    # p=0.02 at rank 3 has BH crit 0.015 -> fails; and BH is monotone so all
+    # higher ranks fail too. Exactly 2 BH passes total.
+    assert int(out["search_wide_bh_pass"].sum()) == 2
+    assert int(out["search_wide_bonferroni_pass"].sum()) == 1
