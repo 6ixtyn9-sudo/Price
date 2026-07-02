@@ -1054,3 +1054,92 @@ watch-list items, not candidates. The correct next unlock is still more
 forward data plus genuinely new conditioning information (e.g. cross-asset
 regime conditioning), not further re-slicing of the existing history.
 
+
+Cross-Asset Conditioning Experiment (2026-07-02)
+This section records the outcome of extending the V4 validation pipeline
+to support cross-asset state conditioning: using one symbol's market state
+(e.g., USO slope/extension/volatility) as a feature when discovering
+slices for another symbol (e.g., GLD, XLE).
+
+Motivation: single-symbol state slices capture local price dynamics but
+ignore macro regime. Cross-asset conditioning asks whether "gold when oil
+is dropping" or "energy when oil is trending up" behaves differently than
+"gold" or "energy" alone. The hypothesis is that cross-asset correlations
+carry information about regime that single-symbol features miss.
+
+Method: same V4 discipline as above (train/valid split, Newey-West, cost
+drag, walk-forward), but with `attach_cross_asset_states` in discovery.py
+binning USO state for each symbol's bars. The validation pipeline was
+extended to route cross-asset slices through cross-aware frame building
+(`cross_symbols_from_filter` + `build_eligible_frame(..., cross_symbols=...)`).
+Walk-forward and date-range diagnostics were patched to support cross-asset
+slices (previously they built frames without cross columns, causing
+`ValueError: Slice field 'cross_USO_state_ext' not present`).
+
+Results (1d timeframe, USO as conditioning asset, 424 candidate slices):
+- 9 survived full validation (train + valid + cost + significance + sample floor)
+- 2 provisional (correct sign + significant, but below min_samples=15 after split)
+- 413 rejected
+
+The survivors occupied the top of the leaderboard, and several cleared the
+search-wide FDR bar. But the honest test is `valid_excess_vs_best_parent`:
+does the cross-asset interaction beat both of its own parents (the plain
+symbol state AND the plain USO state)? That's what tells us the cross-asset
+information is real and not just re-expressing a single-symbol effect.
+
+Fold-count sweep (NF=3,4,5,6) and date-range diagnostics revealed:
+
+**Tier 1: Most stress-tested survivor (single-asset)**
+- XLF `state_ext=stretched_up + state_slope=flat`: 4/4 at NF=4, 4/5 at NF=5,
+  passes 2024 and latest_12m calendar windows. Not cross-asset, but the most
+  robust slice the project has produced.
+
+**Tier 2: Real cross-asset effects, regime-dependent**
+- XLE `cross_USO_state_slope=uptrend + state_ext=neutral`: highest all-window
+  parent excess (+1.45%), passes both 2024 and 2025 individually. Energy
+  mean-reverting when oil trends up is economically coherent. But fading in
+  2026 (latest_12m fails at p=0.11).
+- GLD `cross_USO_state_slope=downtrend + state_ext=neutral`: strong in 2025
+  (+0.63% parent excess), borderline in 2024 (p=0.051), but completely
+  absent before mid-2023 (fold-count sweep proved this). The 2026 YTD window
+  has exactly 1 observation. This is a "gold bull market + oil weakness"
+  story, not a structural edge. The regime has left the building.
+
+**Tier 3: Intermittent / expiring**
+- XLE `cross_USO_slope=downtrend + stretched_down`: passed 2024+2025 but dead
+  in the last 12 months (-0.41% parent excess). This story has expired.
+- XLK `cross_USO_ext=stretched_down + neutral`: 2025 shows negative parent
+  excess — cross-asset conditioning isn't adding value there.
+- QQQ `cross_USO_ext=stretched_down + neutral`: only +0.02% parent excess
+  over "all" — cross-asset conditioning adds essentially nothing.
+- IWM `cross_USO_ext=stretched_down + neutral`: doesn't pass 2024 or 2025
+  individually; only works in latest 12m. Very recent phenomenon.
+
+Interpretation: cross-asset conditioning IS productive (it found effects
+that single-symbol analysis missed), but the effects it finds are less
+stable than single-asset effects. This makes theoretical sense — cross-asset
+dynamics depend on the correlation structure between assets, which is itself
+regime-dependent. The XLE/USO and GLD/USO effects are real but require
+specific macro regimes (oil trending up, gold in structural bull) that are
+not encoded in the filter definition.
+
+Practical conclusion: no cross-asset slice is promotable to a live track
+based on this run. XLF stretched_up+flat (single-asset) remains the
+strongest candidate for continued monitoring. The cross-asset slices should
+be treated as research findings that inform qualitative judgment, not as
+deployable filters.
+
+Code changes: `src/price/discovery.py` (attach_cross_asset_states,
+bin_features with cross_symbols), `src/price/validation.py` (apply_slice_filter
+now accepts cross columns), `scripts/validate_slices.py` (run_validation,
+run_walk_forward_diagnostics, run_date_range_diagnostics all route through
+cross-aware frame building), `tests/test_validate_slices_script.py` (test
+stubs updated to accept cross_symbols kwarg). All 59 tests pass.
+
+Next experiments to consider:
+- Cross-condition on TLT (bond state) instead of/in addition to USO — bonds
+  are the other macro regime variable
+- Add a "freshness gate" to validation: a slice that fails latest_12m gets
+  flagged even if it passes the full valid window
+- 1h timeframe with cross-asset conditioning — the 1d results suggest the
+  direction is productive, and 1h gives ~8x more observations per fold
