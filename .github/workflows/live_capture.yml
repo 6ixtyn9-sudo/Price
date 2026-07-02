@@ -55,19 +55,42 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run capture_bars (incremental)
+      - name: Run capture_bars (1d, 5-year history for V4 validation)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Pull the most recent bars for the standard universe.
-          # 1d history: 30 days. 15m history: 3 days.
-          # build_warehouse.py resamples 15m -> 1h and propagates
-          # Tiingo daily adjustment factors to intraday bars.
+          # Pull 1d history for the standard universe. The V4
+          # validation discipline requires ~1 year minimum and the
+          # clean_survivor tier (the only tier the live forward-
+          # return layer tracks) typically needs 3+ years to
+          # produce any survivors. We use 5 years to match the
+          # V4 cross-asset historical analysis. 1d comes from
+          # Tiingo (primary, free tier). build_warehouse.py
+          # propagates the daily adjustment factors to intraday.
           PYTHONPATH=src python3 scripts/capture_bars.py \
             --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
-            --timeframes 1d 15m \
+            --timeframes 1d \
+            --days 1825
+          PYTHONPATH=src python3 scripts/build_warehouse.py
+
+      - name: Run capture_bars (15m, 30-day history for intraday monitoring)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          # Pull 15m history for intraday monitoring only. 30 days
+          # is enough for paper_trade.py --dry-run to compute
+          # the current 1h state via the resample step. The
+          # intraday slices are NOT the live-capture layer's
+          # primary research target (XLF 1d is) so a shorter
+          # history here is fine and keeps the workflow within
+          # its 15-minute timeout.
+          PYTHONPATH=src python3 scripts/capture_bars.py \
+            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
+            --timeframes 15m \
             --days 30
           PYTHONPATH=src python3 scripts/build_warehouse.py
 
