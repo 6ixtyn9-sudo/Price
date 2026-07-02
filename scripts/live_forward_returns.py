@@ -220,7 +220,12 @@ def run_live_capture(
         existing = _load_existing_live_returns(output_path)
         return existing
 
-    log = pd.read_csv(log_path)
+    try:
+        log = pd.read_csv(log_path)
+    except pd.errors.EmptyDataError:
+        print(f"{log_path} is empty; nothing to capture.")
+        existing = _load_existing_live_returns(output_path)
+        return existing
     if log.empty:
         print(f"{log_path} is empty; nothing to capture.")
         existing = _load_existing_live_returns(output_path)
@@ -232,11 +237,6 @@ def run_live_capture(
         print("No clean_survivor* rows in the current leaderboard; nothing to capture.")
         print("(Re-run scripts/validate_slices.py --candidate-leaderboard to refresh.)")
         existing = _load_existing_live_returns(output_path)
-        return existing
-    if not universe:
-        print("No clean_survivor* rows in the current leaderboard; nothing to capture.")
-        print("(Re-run scripts/validate_slices.py --candidate-leaderboard to refresh.)")
-        existing = _load_existing_live_returns()
         return existing
 
     matched = log[log.apply(_is_matched_signal, axis=1)].copy()
