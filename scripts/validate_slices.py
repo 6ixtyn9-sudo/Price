@@ -13,8 +13,11 @@ Prints a consolidated scorecard and writes localdata/validated_slices.csv.
 
 import argparse
 import contextlib
+import hashlib
 import io
+import os
 from itertools import combinations
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -34,6 +37,7 @@ from price.warehouse import load_from_warehouse
 
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 VALIDATED_SLICES_PATH = "localdata/validated_slices.csv"
+FEATURES_CACHE_DIR = Path("localdata/features_cache")
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
 DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
@@ -76,12 +80,29 @@ def build_eligible_frame(
     conditioning symbol's most-recent-completed state is attached (backward
     as-of, no look-ahead) as cross_<SYM>_<field> columns before the
     forward-eligible rows are selected. This reconstructs, at validation
-    time, exactly the cross-asset columns discovery produced."""
+    time, exactly the cross-asset columns discovery produced.
+    
+    Features are cached to disk to avoid recomputing rolling windows on
+    repeated validation runs."""
     df_raw = load_from_warehouse(symbol, timeframe)
     if df_raw.empty:
         return pd.DataFrame()
 
-    df_feat = compute_price_features(df_raw)
+    warehouse_file = Path(f"localdata/warehouse/{symbol}/{timeframe}/bars.parquet")
+    if warehouse_file.exists():
+        mtime = warehouse_file.stat().st_mtime
+        cache_key = hashlib.md5(f"{symbol}_{timeframe}_{mtime}".encode()).hexdigest()
+        cache_file = FEATURES_CACHE_DIR / f"{cache_key}.parquet"
+        
+        if cache_file.exists():
+            df_feat = pd.read_parquet(cache_file)
+        else:
+            df_feat = compute_price_features(df_raw)
+            FEATURES_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            df_feat.to_parquet(cache_file, index=False)
+    else:
+        df_feat = compute_price_features(df_raw)
+
     df_binned = bin_features(df_feat)
 
     if cross_symbols:
