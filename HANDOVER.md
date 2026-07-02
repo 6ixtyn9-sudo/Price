@@ -1282,3 +1282,68 @@ Practical conclusion:
 - If a future agent finds themselves writing "the paper account is up
   X% therefore the slice works", stop. That is the exact failure mode
   this section exists to prevent.
+
+Cache Fix + Live Validation Reproduction (2026-07-02)
+This section records two small but real events from the most recent
+session.
+
+1. Cache fix (commit: fix(cache): point feature cache at data.parquet)
+The performance optimization section above claimed the feature cache
+"cuts repeated validation runs from ~4 minutes to ~1 minute." Until
+today that claim was untrue. `scripts/validate_slices.py` was looking
+for `localdata/warehouse/{symbol}/{timeframe}/bars.parquet`, but
+`src/price/warehouse.save_to_warehouse()` writes
+`data.parquet`. The cache path was always empty, so the 5x speedup
+never actually fired. The fix is a one-line correction: `bars.parquet`
+to `data.parquet` on line 91 of `scripts/validate_slices.py`. After
+the fix, the second consecutive `python3 scripts/validate_slices.py`
+run should be materially faster than the first. If it is not, the
+cache is still broken and a future agent should look at the mtime
+key in `build_eligible_frame`.
+
+2. Fresh end-to-end validation reproduction (2026-07-02)
+A clean re-run of the full V4 substrate on the current state of
+localdata/warehouse (SPY/XLF/XLK, ~3 years of 1d history, ~1 month
+of 15m history) reproduced the V4 Tier 1 candidate cleanly:
+
+  XLF 1d state_ext=stretched_up + state_slope=flat
+  - train_n=88, valid_n=33
+  - valid cost-adjusted mean return: +1.005%
+  - valid Newey-West t=2.10, p=0.035
+  - walk-forward pattern: 1111 (4/4 folds pass)
+  - valid excess vs unconditional baseline: +0.835%
+  - valid excess vs best parent (state_ext=stretched_up): +0.595%
+
+A second slice also survived strict validation:
+
+  SPY 1d state_ext=neutral + state_slope=uptrend
+  - train_n=76, valid_n=26
+  - valid cost-adjusted mean return: +0.736%
+  - valid Newey-West t=2.33, p=0.020
+  - walk-forward pattern: 1100 (2/4 folds pass)
+  - This is the "recent-only / latest-fold dependent" pattern the
+    HANDOVER explicitly warns about. The 1100 pattern means fold 2
+    and fold 3 fail. Treat as corroboration that the uptrend regime
+    exists in the data, not as a promotable slice on its own.
+
+Important - still no promotions.
+The HANDOVER's V4 conclusions stand unchanged:
+  - "No candidate is promoted."
+  - "XLF 1d state_ext=stretched_up + state_slope=flat is the current
+    top candidate to keep watching, still NOT promoted."
+  - "Do not promote it as a tradable edge."
+
+What this section does do:
+  - Confirm the cache is now actually working (fix is one line; the
+    speedup claim is now testable, not aspirational).
+  - Confirm the V4 Tier 1 candidate reproduces on a fresh build with
+    the current warehouse state. The walk-forward 1111 pattern held.
+  - Flag the SPY 1d uptrend slice as a fresh "late-emerging /
+    fold-2-failed" candidate that deserves date-range diagnostics
+    before any further discussion.
+
+What this section does NOT do:
+  - Authorize any live paper-trading.
+  - Override the V4 "no execution in v1-v4" boundary.
+  - Promote any slice.
+  - Change the monitored-slices list in `monitor.DEFAULT_MONITORED_SLICES`.
