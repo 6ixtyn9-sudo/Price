@@ -1143,3 +1143,79 @@ Next experiments to consider:
   flagged even if it passes the full valid window
 - 1h timeframe with cross-asset conditioning — the 1d results suggest the
   direction is productive, and 1h gives ~8x more observations per fold
+
+Cross-Asset Expansion + Stress Testing (2026-07-02)
+Extended the cross-asset conditioning experiment to TLT (bonds) and the
+1h timeframe, then stress-tested all survivors with fold-count sweeps
+(NF=3,4,5,6) and date-range diagnostics (freshness check).
+
+TLT conditioning on 1d (bonds as regime variable):
+- Discovered 8 survivors from 424 candidates
+- TLT proved more informative than USO for equity slices (XLK, QQQ, SPY)
+- Top candidate: XLK `cross_TLT_state_slope=uptrend + state_ext=neutral`
+  (ranks #1 overall, robustness score 16.00, walk-forward 3/4 at NF=4,
+  3/5 at NF=5, passes freshness with +0.47% parent excess in latest_12m)
+- QQQ `cross_TLT_state_ext=stretched_up + state_ext=neutral` cleared
+  Bonferroni correction (strictest multiple-testing bar) but collapsed
+  at NF=6 (1/6), revealing it's a late-emerging 2024+ effect
+
+1h cross-asset with USO:
+- Discovered 4 new survivors, all on XLK or GLD
+- Top candidate: XLK 1h `cross_USO_state_vol=mid_vol + state_ext=stretched_down`
+  (n=108 valid, walk-forward 3/4 at NF=4, 3/6 at NF=6, passes freshness
+  with +0.15% parent excess in latest_12m, passes 2024 + 2025 individually)
+- GLD 1h `cross_USO_state_ext=neutral + state_ext=neutral` has massive
+  sample (n=1254) and robust fold-count (3/6) but tiny effect (+0.04%
+  parent excess) and fails freshness (latest_12m p=0.054)
+
+Fold-count sweep revealed:
+- XLF `stretched_up + flat` remains the most robust: 4/4 at NF=4, 4/5
+  at NF=5, 3/6 at NF=6 (alternating pattern but consistent)
+- XLK 1d `cross_TLT_slope=uptrend + neutral` holds 3/4 at NF=4, degrades
+  to 2/6 at NF=6 but still passes the most recent folds
+- QQQ/XLK `cross_TLT_ext=stretched_up + neutral` both collapse at NF=6
+  (1/6), revealing they're late-emerging effects concentrated in 2024+
+- XLK 1h `cross_USO_vol=mid_vol + stretched_down` is surprisingly robust:
+  3/4 at NF=4, 3/5 at NF=5, 3/6 at NF=6
+
+Date-range diagnostics (freshness gate):
+- 4 of 8 1d TLT survivors pass latest_12m freshness check
+- XLK 1h `cross_USO_vol=mid_vol + stretched_down` passes 2024, 2025,
+  and latest_12m — genuinely fresh
+- GLD 1h `cross_USO_ext=neutral + neutral` passes 2024+2025 but fails
+  latest_12m (stale)
+- XLE 1h `afternoon + neutral` is a false survivor: passed train+valid
+  but fails 0/4 and 0/5 walk-forward folds
+
+Final tier ranking (survived + fold-count + freshness + parent excess):
+
+**Tier 1: Passed all stress tests**
+1. XLF 1d `state_ext=stretched_up + state_slope=flat` — single-asset,
+   4/4 NF=4, 3/6 NF=6, fresh, +0.79% parent excess in latest_12m
+2. XLK 1d `cross_TLT_state_slope=uptrend + state_ext=neutral` — best 1d
+   cross-asset, 3/4 NF=4, 2/6 NF=6, fresh, +0.47% parent excess
+3. XLK 1h `cross_USO_state_vol=mid_vol + state_ext=stretched_down` — best
+   1h cross-asset, 3/6 NF=6, fresh, +0.15% parent excess
+
+**Tier 2: Real but concentrated**
+4. QQQ 1d `cross_TLT_state_ext=stretched_up + state_ext=neutral` — Bonferroni
+   pass, fresh, but collapses at NF=6 (late-emerging 2024+ effect)
+5. GLD 1h `cross_USO_state_ext=neutral + state_ext=neutral` — massive sample,
+   robust fold-count, but tiny effect and stale
+
+Performance optimization:
+Added feature caching to `build_eligible_frame`. Computed features are now
+saved to `localdata/features_cache/` as parquet files, keyed by symbol +
+timeframe + warehouse file mtime. This cuts repeated validation runs from
+~4 minutes to ~1 minute (5x speedup). The profiler showed 9 of 11 seconds
+was spent in `compute_price_features` doing rolling window calculations;
+caching eliminates this on subsequent runs.
+
+Practical conclusion: the project now has three genuinely stress-tested
+candidates that pass validation + fold-count + freshness + parent excess.
+XLF `stretched_up + flat` (single-asset) remains the strongest. XLK 1d
+`cross_TLT_slope=uptrend + neutral` is the first cross-asset slice to hold
+up to full stress-testing. XLK 1h `cross_USO_vol=mid_vol + stretched_down`
+is the first 1h cross-asset slice to demonstrate robustness. None are
+promotable to a live track without further out-of-sample testing, but they
+represent the current state of the art for this research substrate.
