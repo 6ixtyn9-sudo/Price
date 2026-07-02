@@ -1011,3 +1011,46 @@ strength is fold-count sensitive and its recent per-fold samples are thin.
 The correct next unlock is more forward daily data on XLF, not further
 re-slicing of the existing history.
 
+V4 Multiple-Testing Reality Check (2026-07-01)
+The candidate leaderboard now carries search-wide multiple-testing columns
+(annotate_search_wide_significance in scripts/validate_slices.py):
+- search_wide_rank: ascending p-value rank within the correction family
+- search_wide_bh_pass: Benjamini-Hochberg FDR at p_threshold
+- search_wide_bonferroni_pass: Bonferroni at p_threshold
+- search_wide_family_size: number of hypotheses in the family
+
+Correction family = every leaderboard row with a finite valid_p_value_nw
+(676 rows in the current comparable-history run). At raw p<0.05 across 676
+hypotheses roughly 34 false positives are expected, so an uncorrected p-value
+means little on its own. Under search-wide correction only 11 slices clear
+BH-FDR and only 8 clear Bonferroni.
+
+Result for the four strict survivors:
+- XLE 1d state_ext=stretched_down + state_slope=downtrend: BH rank 11, BH
+  pass True, Bonferroni False. The only strict survivor that clears any
+  search-wide bar -- but its walk-forward pattern is a decaying 0110/001010,
+  so it is significant-but-decaying, not promotable.
+- XLF 1d state_ext=stretched_up + state_slope=flat: BH rank 59, BH pass
+  False, Bonferroni False. Its leaderboard-#1 position comes from
+  walk-forward strength, not from standing out in the search. Uncorrected it
+  looks strong; search-wide it does not.
+- XLK 1h state_ext=stretched_up + state_vol=low_vol: BH rank 40, fails.
+- XLE 1h state_session=afternoon + state_ext=neutral: BH rank 66, fails.
+
+Important caveat on the family: because the family is every finite-p row, it
+includes sample-starved slices whose small-sample Newey-West p-values are
+implausibly tiny (e.g. valid_n=3-6 with p on the order of 1e-8). Seven of the
+eleven BH-passers are exactly these starved rows (provisional_sample_starved
+or sample_starved_unsupported), and they occupy the lowest BH ranks. Read
+search_wide_* together with valid_n and triage_bucket; a low search_wide_rank
+driven by valid_n<15 is a small-sample artifact, not evidence.
+
+Net effect on promotion doctrine: nothing is promoted, and this check
+sharpens why. No slice currently combines (a) a robust walk-forward pattern,
+(b) a search-wide-defensible p-value on an adequate sample, and (c) a
+positive parent-relative excess. XLF has the pattern but not the search-wide
+p-value; XLE 1d has the search-wide p-value but not the pattern. Both remain
+watch-list items, not candidates. The correct next unlock is still more
+forward data plus genuinely new conditioning information (e.g. cross-asset
+regime conditioning), not further re-slicing of the existing history.
+
