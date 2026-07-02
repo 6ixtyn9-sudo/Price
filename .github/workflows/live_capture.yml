@@ -1,0 +1,111 @@
+name: Live Capture
+
+# Every 6 hours, run capture_bars, paper_trade --dry-run, and
+# live_forward_returns. Auto-commit any new forward-return rows.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   ALPACA_API_KEY
+#   ALPACA_SECRET_KEY
+#   TIINGO_API_KEY
+#
+# What this workflow does:
+#   1. Pulls the latest warehouse + paper_trade_log from main.
+#   2. Pulls the most recent bars from Alpaca (incremental update).
+#   3. Re-runs the candidate leaderboard to refresh clean_survivor*.
+#   4. Runs paper_trade.py --dry-run to emit a new audit row.
+#   5. Runs live_forward_returns.py to capture the realized forward
+#      return for any newly matched signal.
+#   6. Auto-commits any changes to localdata/*.csv back to main.
+#
+# What this workflow does NOT do:
+#   - Place any orders.
+#   - Override the V4 doctrine. It is research output, not execution.
+#   - Run on its own commits (concurrency block below).
+#
+# See HANDOVER.md "Scheduled Live Capture (2026-07-02)".
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: live-capture
+  cancel-in-progress: true
+
+jobs:
+  live-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run capture_bars (incremental)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          # Pull the most recent bars for the standard universe.
+          # 1d history: 30 days. 15m history: 3 days.
+          # build_warehouse.py resamples 15m -> 1h and propagates
+          # Tiingo daily adjustment factors to intraday bars.
+          PYTHONPATH=src python3 scripts/capture_bars.py \
+            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
+            --timeframes 1d 15m \
+            --days 30
+          PYTHONPATH=src python3 scripts/build_warehouse.py
+
+      - name: Run candidate leaderboard
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          PYTHONPATH=src python3 scripts/validate_slices.py --candidate-leaderboard
+
+      - name: Run paper_trade --dry-run
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          PYTHONPATH=src python3 scripts/paper_trade.py --dry-run
+
+      - name: Run live forward-return capture
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          PYTHONPATH=src python3 scripts/live_forward_returns.py
+
+      - name: Commit any changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Only commit if the captured data actually changed.
+          if git diff --quiet localdata/ 2>/dev/null; then
+            echo "No localdata changes; nothing to commit."
+            exit 0
+          fi
+          # Avoid recursive workflow triggers by including [skip ci]
+          # in the commit message.
+          git add localdata/
+          git commit -m "chore(live-capture): update localdata CSVs [skip ci]"
+          git push
