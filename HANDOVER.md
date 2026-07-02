@@ -1390,3 +1390,114 @@ The original "5x speedup" line in the Performance Optimization
 section should be treated as not-validated, not as retracted.
 Future agents who measure the cache on a heavy workload should
 update the HANDOVER with the actual numbers.
+
+Scheduled Live Capture (2026-07-02)
+This section records the addition of a scheduled live forward-return
+capture layer, which deviates from the V1-V4 "no execution" boundary
+in one specific way: code in this repo now runs unattended on a
+schedule. The deviation is purely about *how the code runs*, not
+*what it does* -- the live-capture layer does not place orders, does
+not connect to the Alpaca trading endpoint, and does not override
+any V4 doctrine about slice promotion. Its job is to collect the
+realized forward return for matched signals so future validation
+runs can use live out-of-sample data.
+
+What was added
+- `scripts/live_forward_returns.py`: reads `localdata/paper_trade_log.csv`
+  for matched entry signals, looks up the exit-time bars at +5 and +20
+  bars after the signal in the local warehouse (or via an on-demand
+  Alpaca fetch if the warehouse is stale), and writes the realized
+  forward return to `localdata/live_forward_returns.csv`. Idempotent.
+  Partial-data rows are kept distinct from completed ones via a
+  `partial_data` flag. Never silently drops a row.
+- `.github/workflows/live_capture.yml`: a GitHub Actions workflow
+  that runs every 6 hours (`0 */6 * * *`). Steps: checkout, setup
+  Python 3.11, install requirements, run `capture_bars.py` to pull
+  the most recent 30 days of 1d bars and 3 days of 15m bars, run
+  `build_warehouse.py` to resample 15m to 1h and propagate Tiingo
+  daily adjustment factors, run `validate_slices.py --candidate-
+  leaderboard` to refresh the leaderboard, run `paper_trade.py
+  --dry-run` to emit a new audit row, run `live_forward_returns.py`
+  to capture forward returns, then auto-commit any changes to
+  `localdata/*.csv` back to main. The commit message includes
+  `[skip ci]` to avoid recursive workflow triggers. The workflow
+  file uses `concurrency: cancel-in-progress: true` so a slow run
+  doesn't pile up.
+- `tests/test_live_forward_returns.py`: 4 unit tests covering
+  no-log, empty-leaderboard, real-data, and out-of-universe cases.
+  63 tests pass total (up from 59).
+
+Why the universe is dynamic, not hardcoded
+The HANDOVER's V4 "triage_bucket" system already provides a defensible
+answer to "which slices should we watch": `clean_survivor*` rows in
+`localdata/candidate_leaderboard.csv` are the slices that have passed
+train+valid+walk-forward+parent-excess discipline. `live_forward_returns.py`
+reads the current leaderboard at every run and tracks forward returns
+for whatever set of clean_survivor* slices exists at that moment.
+As the V4 substrate evolves (e.g. as new candidates graduate to
+clean_survivor, or current ones decay and get demoted), the watched
+set updates automatically. Currently this is exactly one slice: XLF 1d
+`state_ext=stretched_up + state_slope=flat`.
+
+Hard rules this layer enforces
+- No orders are placed. The trading endpoint is never called. Only
+  `fetch_alpaca_bars` is used, and only as a backfill when the local
+  warehouse is too stale to cover the exit window.
+- All API keys are repo secrets (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`,
+  `TIINGO_API_KEY`), not committed to the repo. The workflow
+  references them as `${{ secrets.ALPACA_API_KEY }}` and they are
+  exposed to each step via `env:` so they reach `os.environ`.
+- The auto-commit only fires when the CSV actually changed (via
+  `git diff --quiet localdata/`). No commit happens on a no-op run.
+- The workflow's `[skip ci]` in the commit message prevents the
+  auto-commit from triggering another workflow run.
+- The `concurrency: cancel-in-progress: true` block prevents two
+  runs from racing on the same data.
+
+What this section does NOT do
+- Authorize any live paper-trading. The HANDOVER's "no execution in
+  v1-v4" boundary stands. Any live paper-trading remains a separate,
+  explicit decision that should be documented in a new HANDOVER
+  section if and when it happens.
+- Override the V4 doctrine. The HANDOVER's V4 conclusions stand
+  unchanged: "No candidate is promoted," "XLF 1d state_ext=stretched_up
+  + state_slope=flat -- current top candidate to keep watching, still
+  NOT promoted," "Do not promote it as a tradable edge."
+- Modify `monitor.DEFAULT_MONITORED_SLICES` (the four V4-era
+  hardcoded slices). The live-capture layer tracks the current
+  leaderboard's clean_survivor* set, which is a different (and
+  stricter) filter.
+
+What the HANDOVER's "operator runs local commands" assumption has changed
+The V1-V4 doctrine repeatedly says "the operator runs local commands;
+the agent reads pasted terminal output and provides the next safe step."
+This remains true for everything in the repo except the new live-capture
+layer. That layer runs on GitHub's infrastructure, not on the operator's
+machine.
+
+Practical implications:
+- The operator can no longer see what the live-capture layer is doing
+  in real time. They can only see it via the auto-commits to
+  `localdata/*.csv` in the git log, or by visiting the Actions tab
+  on GitHub.
+- A bug in the live-capture layer (a malformed row, a wrong symbol,
+  etc.) would be auto-committed to main and would require a `git
+  revert` to undo. The layer has been written defensively (idempotent
+  reruns, no silent drops, partial_data flag) but the risk of a bad
+  commit is real.
+- The auto-commit policy is "always commit if CSV changed." A future
+  change to the layer should consider whether this policy is still
+  right, or whether some changes should require manual review.
+
+Practical conclusion
+- The live-capture layer is research infrastructure, not trading
+  infrastructure. It produces a new out-of-sample data point every
+  6 hours for whichever clean_survivor* slices exist. Over a few
+  weeks, this builds a live forward-return dataset that can be used
+  to validate (or invalidate) the V4 historical findings.
+- Any agent seeing `localdata/live_forward_returns.csv` in the repo
+  should know it is automatically generated, not operator-curated. It
+  is research output, not trading income.
+- If a future agent finds themselves writing "the live forward
+  returns are X% positive therefore the slices work", stop. That is
+  the exact failure mode this section exists to prevent.
