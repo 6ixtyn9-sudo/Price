@@ -60,7 +60,7 @@ def discover_market_slices(
     timeframe: str, 
     slice_fields: List[str], 
     min_samples: int = 15,
-    cond_symbol: str = None,
+    cond_symbols: List[str] = None,
 ) -> pd.DataFrame:
     df_raw = load_from_warehouse(symbol, timeframe)
     if df_raw.empty:
@@ -70,16 +70,17 @@ def discover_market_slices(
     df_feat = compute_price_features(df_raw)
     df_binned = bin_features(df_feat)
 
-    # Optional cross-asset conditioning: attach the conditioning symbol's
+    # Optional cross-asset conditioning: attach each conditioning symbol's
     # most-recent-completed state (backward as-of, no look-ahead) as
     # cross_<SYM>_state_* columns so slice_fields can reference them.
-    if cond_symbol:
-        df_binned = attach_cross_asset_states(
-            df_binned,
-            cond_symbol,
-            timeframe,
-            ["state_ext", "state_slope", "state_vol"],
-        )
+    if cond_symbols:
+        for cond_sym in cond_symbols:
+            df_binned = attach_cross_asset_states(
+                df_binned,
+                cond_sym,
+                timeframe,
+                ["state_ext", "state_slope", "state_vol"],
+            )
 
     eval_df = df_binned[df_binned['label_eligible']]
     if eval_df.empty:
