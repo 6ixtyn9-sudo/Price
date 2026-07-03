@@ -25,11 +25,14 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
     sma_20 = close.rolling(20).mean()
     df['feat_atr_norm_ext'] = (close - sma_20) / atr
     
-    for ret_period in [1, 3, 5, 10]:
+    for ret_period in [1, 3, 5, 10, 20]:
         df[f'feat_ret_{ret_period}'] = close.pct_change(ret_period)
         
     ret_1 = df['feat_ret_1']
     df['feat_realized_vol_20'] = ret_1.rolling(20).std()
+    
+    vol_60 = ret_1.rolling(60).std()
+    df['feat_vol_regime'] = df['feat_realized_vol_20'] / vol_60
     
     def compute_slope(series):
         x = np.arange(len(series))
@@ -40,6 +43,19 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
         return slope / y[-1]
         
     df['feat_trend_slope_20'] = close.rolling(20).apply(compute_slope, raw=False)
+    
+    def compute_trend_strength(series):
+        x = np.arange(len(series))
+        y = series.values
+        if len(y) < 20 or np.isnan(y).any():
+            return np.nan
+        slope, intercept = np.polyfit(x, y, 1)
+        y_pred = slope * x + intercept
+        ss_res = np.sum((y - y_pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+        return 1 - (ss_res / ss_tot) if ss_tot > 0 else np.nan
+        
+    df['feat_trend_strength_20'] = close.rolling(20).apply(compute_trend_strength, raw=False)
     
     ny_time = df['bar_ts_utc'].dt.tz_convert('America/New_York')
     df['feat_dow'] = ny_time.dt.dayofweek
@@ -56,6 +72,9 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
             
     df['feat_session_bucket'] = np.vectorize(get_session_bucket)(ny_time.dt.hour, ny_time.dt.minute)
     
+    df['feat_gap'] = (close / close.shift(1)) - 1.0
+    df['feat_range_position'] = (close - low) / (high - low + 1e-8)
+    
     df['fwd_ret_3'] = close.shift(-3) / close - 1.0
     df['fwd_ret_5'] = close.shift(-5) / close - 1.0
     
@@ -64,6 +83,9 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
     
     fwd_low_5 = low.rolling(5).min().shift(-5)
     df['fwd_mae_5'] = (fwd_low_5 / close) - 1.0
+    
+    cost = 0.0002
+    df['target_positive_5bar'] = (df['fwd_ret_5'] > cost).astype(int)
     
     df['label_eligible'] = ~df['fwd_ret_5'].isna()
     
