@@ -19,13 +19,13 @@ ever reach trading.submit_entry(). See HANDOVER.md,
 """
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-from price.config import SYMBOLS
-from price.data_sources import fetch_alpaca_bars
+from price.config import DATA_DIR
 from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
 from price.position_manager import check_exits, get_today_realized_pnl
@@ -41,6 +41,64 @@ DEFAULT_MONITORED_SLICES: List[dict] = [
     {"symbol": "XLK", "timeframe": "1h", "slice_combination": "cross_USO_state_vol=mid_vol + state_ext=stretched_down", "side": "long"},
     {"symbol": "SPY", "timeframe": "1h", "slice_combination": "state_session=afternoon + state_slope=downtrend", "side": "long"},
 ]
+CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
+
+
+def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
+    """Prefer the current clean-survivor leaderboard set when available.
+
+    This keeps the monitor aligned with live_forward_returns.py, which tracks
+    the dynamic clean_survivor* universe rather than the older hardcoded V4
+    slice list.
+    """
+    path = Path(CANDIDATE_LEADERBOARD_PATH)
+    if not path.exists():
+        return None
+    try:
+        lb = pd.read_csv(path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return None
+    if lb.empty or "triage_bucket" not in lb.columns:
+        return None
+
+    clean = lb[lb["triage_bucket"].astype(str).str.startswith("clean_survivor")].copy()
+    if clean.empty:
+        return None
+
+    out = []
+    for _, row in clean.iterrows():
+        side = str(row.get("side", "long") or "long").lower()
+        if side not in ("long", "short"):
+            side = "long"
+        out.append(
+            {
+                "symbol": str(row["symbol"]),
+                "timeframe": str(row["timeframe"]),
+                "slice_combination": str(row["slice_combination"]),
+                "side": side,
+            }
+        )
+    return out or None
+
+
+def get_default_monitored_slices() -> List[dict]:
+    return _load_clean_survivor_monitored_slices() or DEFAULT_MONITORED_SLICES
+
+
+def _drop_incomplete_intraday_rows(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+    """Keep only completed intraday bars.
+
+    `build_warehouse.py` may already have the current partial 1h bar because it
+    resamples the latest 15m data. The monitor should reason about the latest
+    completed bar, not a still-forming bar.
+    """
+    if df.empty or timeframe not in ("15m", "1h"):
+        return df
+
+    bar_delta = timedelta(minutes=15) if timeframe == "15m" else timedelta(hours=1)
+    cutoff = datetime.now(timezone.utc)
+    complete = df[df["bar_ts_utc"] + bar_delta <= cutoff].copy()
+    return complete.reset_index(drop=True)
 
 
 def get_current_state(
@@ -48,47 +106,22 @@ def get_current_state(
     timeframe: str,
     lookback_bars: int = 200,
     cross_symbols: Optional[Dict[str, List[str]]] = None,
+    required_fields: Optional[List[str]] = None,
 ) -> Optional[pd.DataFrame]:
-    """Compute the current (most recent) binned state row for `symbol` on
-    `timeframe`, with optional cross-asset state fields attached.
+    """Compute the most recent completed binned state row.
+
+    Important invariant: monitor state is rebuilt from the already-refreshed
+    local warehouse only. Do NOT overlay fresh Alpaca rows here.
+
+    Why:
+    - the workflow refreshes the warehouse immediately before paper_trade.py
+    - Alpaca's 1d/15m bars are raw-only, while the warehouse carries adjusted
+      fields; mixing them here can make the latest row's close_adj/high_adj/
+      low_adj NaN and collapse the daily state into NaNs
+    - 1h monitoring must use the resampled 1h warehouse partition, not a raw
+      concat of 1h bars with fresh 15m bars
     """
     df_warehouse = load_from_warehouse(symbol, timeframe)
-
-    if timeframe in ("15m", "1h"):
-        fetch_tf = "15m"
-        end_dt = datetime.now(timezone.utc)
-        start_dt = end_dt - timedelta(days=10)
-
-        try:
-            df_fresh = fetch_alpaca_bars(symbol, fetch_tf, start_dt, end_dt)
-            if df_fresh is not None and not df_fresh.empty:
-                if not df_warehouse.empty:
-                    df_combined = pd.concat([df_warehouse, df_fresh], ignore_index=True)
-                    df_combined = df_combined.sort_values("bar_ts_utc")
-                    df_combined = df_combined.drop_duplicates(subset=["bar_ts_utc"], keep="last")
-                    df_warehouse = df_combined.reset_index(drop=True)
-                else:
-                    df_warehouse = df_fresh
-        except Exception as e:
-            print(f"  Fresh Alpaca pull for {symbol} ({timeframe}) failed: {e}")
-
-    elif timeframe == "1d":
-        end_dt = datetime.now(timezone.utc)
-        start_dt = end_dt - timedelta(days=14)
-
-        try:
-            df_fresh = fetch_alpaca_bars(symbol, "1d", start_dt, end_dt)
-            if df_fresh is not None and not df_fresh.empty:
-                if not df_warehouse.empty:
-                    df_combined = pd.concat([df_warehouse, df_fresh], ignore_index=True)
-                    df_combined = df_combined.sort_values("bar_ts_utc")
-                    df_combined = df_combined.drop_duplicates(subset=["bar_ts_utc"], keep="last")
-                    df_warehouse = df_combined.reset_index(drop=True)
-                else:
-                    df_warehouse = df_fresh
-        except Exception as e:
-            print(f"  Fresh Alpaca pull for {symbol} (1d) failed: {e}")
-
     if df_warehouse.empty:
         return None
 
@@ -103,9 +136,10 @@ def get_current_state(
 
     df_tail = df_warehouse.tail(lookback_bars).copy()
     df_tail = df_tail.sort_values("bar_ts_utc").reset_index(drop=True)
+    df_tail = _drop_incomplete_intraday_rows(df_tail, timeframe)
 
     if len(df_tail) < 60:
-        print(f"  Only {len(df_tail)} bars for {symbol} ({timeframe}); need ~60 for features.")
+        print(f"  Only {len(df_tail)} completed bars for {symbol} ({timeframe}); need ~60 for features.")
         return None
 
     df_feat = compute_price_features(df_tail)
@@ -114,6 +148,23 @@ def get_current_state(
     if cross_symbols:
         for cond_sym, fields in cross_symbols.items():
             df_binned = attach_cross_asset_states(df_binned, cond_sym, timeframe, fields)
+
+    required_fields = required_fields or []
+    if required_fields:
+        missing = [field for field in required_fields if field not in df_binned.columns]
+        if missing:
+            print(f"  Missing required state fields for {symbol} ({timeframe}): {missing}")
+            return None
+
+        mask = df_binned["close_adj"].notna()
+        for field in required_fields:
+            mask &= df_binned[field].notna()
+
+        complete = df_binned[mask].reset_index(drop=True)
+        if complete.empty:
+            print(f"  No completed state row for {symbol} ({timeframe}) with required fields {required_fields}.")
+            return None
+        return complete.iloc[-1:]
 
     return df_binned.iloc[-1:]
 
@@ -217,14 +268,17 @@ def scan_all_slices(
     Parameters
     ----------
     slices : list of dict, optional
-        Override DEFAULT_MONITORED_SLICES.
+        Override the default monitored set. If omitted, prefer the current
+        leaderboard clean_survivor* universe and fall back to the older
+        hardcoded list only when the leaderboard is unavailable.
     limits : RiskLimits, optional
         Override the default risk limits. Used by tests.
     dry_run : bool, default False
         If True, the risk gate is *skipped* and every matched signal
         is emitted as tradable=True. Use only for debugging.
     """
-    slices = slices or DEFAULT_MONITORED_SLICES
+    if slices is None:
+        slices = get_default_monitored_slices()
     limits = limits or RiskLimits()
     signals: List[dict] = []
 
@@ -260,7 +314,15 @@ def scan_all_slices(
         print(f"\nScanning {symbol} ({timeframe})...")
 
         all_cross_symbols: Dict[str, List[str]] = {}
+        required_state_fields: List[str] = []
         for s in group_slices:
+            try:
+                slice_filter = parse_slice_combination(s["slice_combination"])
+            except ValueError:
+                continue
+            for field in slice_filter:
+                if field not in required_state_fields:
+                    required_state_fields.append(field)
             for sym, fields in extract_cross_symbols(s["slice_combination"]).items():
                 all_cross_symbols.setdefault(sym, [])
                 for f in fields:
@@ -271,10 +333,11 @@ def scan_all_slices(
             symbol,
             timeframe,
             cross_symbols=all_cross_symbols if all_cross_symbols else None,
+            required_fields=required_state_fields,
         )
 
         if current_state is None:
-            print(f"  Could not compute state for {symbol} ({timeframe})")
+            print(f"  Could not compute a completed state for {symbol} ({timeframe})")
             for s in group_slices:
                 # Emit a no_state_data entry_signal so paper_trade.py
                 # can log it, AND a state_unavailable row for the
@@ -292,13 +355,12 @@ def scan_all_slices(
                     "error": "no_state_data",
                     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 })
-            # Per-(symbol, timeframe) state_unavailable row
             signals.append({
                 "kind": "state_unavailable",
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "slice_combination": group_slices[0]["slice_combination"],
-                "reason": "no_warehouse_data",
+                "reason": "no_completed_state",
                 "bar_ts_utc": None,
                 "close_adj": None,
                 "current_state": {},
@@ -314,35 +376,6 @@ def scan_all_slices(
             close_adj = float(current_state["close_adj"].iloc[0])
         except (KeyError, ValueError, TypeError):
             close_adj = float("nan")
-
-        # Detect NaN state features (typically caused by a partial
-        # current bar). emit a state_unavailable row for research,
-        # but continue to evaluate the slice filter anyway so we
-        # still record what happened for the matched/non-matched
-        # path. The live_forward_returns script ignores this kind.
-        state_has_nan = bool(pd.isna(close_adj))
-        if not state_has_nan:
-            for col_name in ("feat_ext_vs_ma_20", "feat_trend_slope_20", "feat_atr_norm_ext"):
-                if col_name in current_state.columns:
-                    v = current_state[col_name].iloc[0]
-                    if pd.isna(v):
-                        state_has_nan = True
-                        break
-        if state_has_nan:
-            signals.append({
-                "kind": "state_unavailable",
-                "symbol": symbol,
-                "timeframe": timeframe,
-                "slice_combination": group_slices[0]["slice_combination"],
-                "reason": "nan_state_features",
-                "bar_ts_utc": str(current_state["bar_ts_utc"].iloc[0]) if "bar_ts_utc" in current_state.columns else None,
-                "close_adj": close_adj,
-                "current_state": {c: current_state[c].iloc[0] for c in state_cols},
-                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            })
-            # Don't continue -- still try to match the slice so we
-            # have a record of "we tried, no match" alongside
-            # "the state was incomplete." Both rows are useful.
 
         for s in group_slices:
             matched = check_slice_match(current_state, s["slice_combination"])

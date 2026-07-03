@@ -72,6 +72,15 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
     for sig in signals:
         kind = sig.get("kind")
 
+        if kind == "state_unavailable":
+            counts["no_state_data"] += 1
+            _append_audit({
+                "action": "skip",
+                "reason": sig.get("reason", "state_unavailable"),
+                **_strip_known_keys(sig, ["action"]),
+            })
+            continue
+
         if kind == "entry_signal":
             if sig.get("error") == "no_state_data":
                 counts["no_state_data"] += 1
