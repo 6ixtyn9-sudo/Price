@@ -395,7 +395,11 @@ def scan_all_slices(
                 print(f"  -   {s['slice_combination']}")
                 continue
 
-            qty = _default_qty(close_adj, limits) if not dry_run else 0
+            # Even in dry-run mode, compute the realistic suggested quantity.
+            # paper_trade.py uses this to write a meaningful audit row; setting
+            # qty=0 in dry-run makes every matched signal look artificially
+            # blocked by qty_zero and prevents downstream capture.
+            qty = _default_qty(close_adj, limits)
             if not dry_run:
                 side = str(s.get("side", "long") or "long").lower()
                 if side not in ("long", "short"):

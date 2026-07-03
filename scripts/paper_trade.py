@@ -121,7 +121,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                     "symbol": symbol,
                     "qty": qty,
                     "slice_label": slice_label,
-                    **_strip_known_keys(sig, ["action", "symbol", "qty", "slice_combination"]),
+                    **_strip_known_keys(sig, ["action", "symbol", "qty"]),
                 })
                 continue
 
@@ -142,7 +142,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 "order_id": result.get("order_id"),
                 "order_status": result.get("status"),
                 "error": result.get("error"),
-                **_strip_known_keys(sig, ["action", "symbol", "qty", "slice_combination"]),
+                **_strip_known_keys(sig, ["action", "symbol", "qty"]),
             })
 
         elif kind == "exit_intent":
