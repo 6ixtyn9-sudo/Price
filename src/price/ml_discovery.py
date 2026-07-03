@@ -120,21 +120,15 @@ def extract_feature_interactions(
     top_n: int = 6,
     max_interaction_size: int = 3
 ) -> List[Dict]:
-    """
-    Extract promising 2-feature and 3-feature combinations.
-    Uses the trained model's feature importance to guide combinations.
-    """
     if model is None:
         return []
 
-    # Get top features
     importance = model.feature_importances_
     top_indices = np.argsort(importance)[-top_n:][::-1]
     top_features = [feature_cols[i] for i in top_indices]
 
     interactions = []
 
-    # 2-feature combinations
     for combo in combinations(top_features, 2):
         interactions.append({
             "features": list(combo),
@@ -142,7 +136,6 @@ def extract_feature_interactions(
             "type": "interaction"
         })
 
-    # 3-feature combinations (if requested)
     if max_interaction_size >= 3:
         for combo in combinations(top_features, 3):
             interactions.append({
@@ -193,8 +186,9 @@ def run_ml_discovery(
     if result["model"] is None:
         return pd.DataFrame()
 
-    # Single features
     records = []
+
+    # Single features
     for _, row in result["importance"].head(10).iterrows():
         records.append({
             "symbol": symbol,
@@ -203,6 +197,7 @@ def run_ml_discovery(
             "importance": row['importance'],
             "source": f"lightgbm_{target_type}",
             "interaction_size": 1,
+            "features": [row['feature']],
             "cv_correlation": result["cv_score"]
         })
 
@@ -224,6 +219,7 @@ def run_ml_discovery(
                 "importance": None,
                 "source": f"lightgbm_{target_type}_interaction",
                 "interaction_size": inter["size"],
+                "features": inter["features"],
                 "cv_correlation": result["cv_score"]
             })
 
@@ -246,15 +242,17 @@ def evaluate_interactions(
     results = []
 
     for inter in interactions:
-        features = inter["features"]
-        size = inter["size"]
+        features = inter.get("features", [])
+        size = inter.get("size", 2)
+
+        if not features:
+            continue
 
         mask = pd.Series(True, index=df.index)
 
         for feat in features:
             if feat not in df.columns:
                 continue
-            # Use top 25% as "in state"
             threshold = df[feat].quantile(0.75)
             mask = mask & (df[feat] >= threshold)
 
