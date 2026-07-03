@@ -228,3 +228,57 @@ def run_ml_discovery(
             })
 
     return pd.DataFrame(records)
+
+
+def evaluate_interactions(
+    df: pd.DataFrame,
+    interactions: List[Dict],
+    target_col: str = 'fwd_ret_5',
+    min_samples: int = 15
+) -> pd.DataFrame:
+    """
+    Evaluate 2-feature and 3-feature combinations.
+    Returns scored results with mean return, hit rate, and sample size.
+    """
+    if df.empty or not interactions:
+        return pd.DataFrame()
+
+    results = []
+
+    for inter in interactions:
+        features = inter["features"]
+        size = inter["size"]
+
+        mask = pd.Series(True, index=df.index)
+
+        for feat in features:
+            if feat not in df.columns:
+                continue
+            # Use top 25% as "in state"
+            threshold = df[feat].quantile(0.75)
+            mask = mask & (df[feat] >= threshold)
+
+        subset = df[mask]
+
+        if len(subset) < min_samples:
+            continue
+
+        mean_ret = subset[target_col].mean()
+        hit_rate = (subset[target_col] > 0).mean()
+        n = len(subset)
+
+        results.append({
+            "slice_key": " + ".join(features),
+            "interaction_size": size,
+            "n_samples": n,
+            "mean_return": round(mean_ret, 6),
+            "hit_rate": round(hit_rate, 4),
+            "sharpe_proxy": round(mean_ret / (subset[target_col].std() + 1e-8), 4)
+        })
+
+    if not results:
+        return pd.DataFrame()
+
+    scored = pd.DataFrame(results)
+    scored = scored.sort_values(["mean_return", "n_samples"], ascending=[False, False])
+    return scored
