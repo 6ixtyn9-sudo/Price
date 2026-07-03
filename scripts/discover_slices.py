@@ -43,7 +43,7 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
         if cond_symbols and symbol in [s.upper() for s in cond_symbols]:
             print(f"Skipping {symbol}: cannot condition a symbol on itself.")
             continue
-        print(f"\n🔍 Exploring state slices for {symbol} ({timeframe})...")
+        print(f"\n[search] Exploring state slices for {symbol} ({timeframe})...")
         
         for fields in combinations:
             print(f"Testing state-space combination: {fields}")
@@ -55,13 +55,18 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
                 else:
                     print("  -> No slices met the sample size threshold.")
             except Exception as e:
-                print(f"  ❌ Error exploring combination {fields}: {e}")
+                print(f"  [error] Error exploring combination {fields}: {e}")
                 
     if not all_slices:
         print("\nNo market-state slices were discovered matching the sample floor.")
         return
-        
-    final_slices = pd.concat(all_slices).sort_values("mean_fwd_ret_5", ascending=False).reset_index(drop=True)
+
+    final_slices = pd.concat(all_slices, ignore_index=True)
+    # Rank by tradeable (direction-adjusted) P&L so the strongest edge of
+    # EITHER direction -- long or short -- floats to the top. Falls back to the
+    # raw mean for any rows that lack the tradeable column (defensive).
+    _sort_col = "tradeable_mean_fwd_ret_5" if "tradeable_mean_fwd_ret_5" in final_slices.columns else "mean_fwd_ret_5"
+    final_slices = final_slices.sort_values(_sort_col, ascending=False).reset_index(drop=True)
 
     output_path = Path(DISCOVERED_SLICES_PATH)
 
@@ -75,14 +80,16 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
             ~existing.apply(lambda r: (r["symbol"], r["timeframe"]) in covered, axis=1)
         ]
         final_slices = pd.concat([existing_keep, final_slices], ignore_index=True)
-        final_slices = final_slices.sort_values("mean_fwd_ret_5", ascending=False).reset_index(drop=True)
+        _sort_col = "tradeable_mean_fwd_ret_5" if "tradeable_mean_fwd_ret_5" in final_slices.columns else "mean_fwd_ret_5"
+        final_slices = final_slices.sort_values(_sort_col, ascending=False).reset_index(drop=True)
 
     final_slices.to_csv(output_path, index=False)
     action = "Appended to" if append else "Saved all discovered slices to"
-    print(f"\n💾 {action} {output_path}")
-    
-    print("\n🏆 Top 10 Discovered Market Slices (by 5-bar Forward Return):")
-    print(final_slices.head(10).to_string(index=False))
+    print(f"\n[ok] {action} {output_path}")
+
+    print("\n== Top 10 Discovered Market Slices (by tradeable, direction-adjusted P&L) ==")
+    show_cols = [c for c in ["symbol", "timeframe", "slice_combination", "side", "mean_fwd_ret_5", "sample_count"] if c in final_slices.columns]
+    print(final_slices[show_cols].head(10).to_string(index=False))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Discover high-stability 3D-5D market slices.")
