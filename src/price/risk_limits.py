@@ -36,7 +36,11 @@ class RiskLimits:
     max_open_positions: int = 4
     max_daily_realized_loss: float = 500.0
     per_symbol_cooldown_seconds: int = 3600
-    default_side: str = "buy"  # paper exploration is long-only
+    default_side: str = "buy"  # fallback side; monitor overrides per-slice
+    # Direction gate: short entries are BLOCKED here unless explicitly enabled.
+    # This is the kill-switch for the short side -- even a validated short
+    # candidate cannot reach trading.submit_entry unless allow_shorts=True.
+    allow_shorts: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -106,6 +110,7 @@ def check_entry(
     limits: RiskLimits,
     open_positions: list,
     today_realized_pnl: float,
+    side: str = "long",
 ) -> RiskCheckResult:
     """Run ALL risk checks. Returns allowed=True only if every one passes.
 
@@ -124,12 +129,16 @@ def check_entry(
         'symbol', 'qty', 'market_value' or 'avg_entry_price'.
     today_realized_pnl : float
         Sum of realized P&L for the current UTC day (negative = loss).
+    side : str
+        "long" or "short". Short entries are blocked unless
+        limits.allow_shorts is True.
     """
     reasons: list = []
     details: dict = {
         "symbol": symbol,
         "qty": qty,
         "price": price,
+        "side": side,
         "notional": qty * price,
         "open_position_count": len(open_positions),
         "today_realized_pnl": today_realized_pnl,
@@ -137,6 +146,9 @@ def check_entry(
 
     if is_halt_flag_set():
         reasons.append(f"halt flag is set at {HALT_FLAG_PATH}; new entries blocked")
+
+    if side == "short" and not limits.allow_shorts:
+        reasons.append("shorts not enabled (RiskLimits.allow_shorts is False)")
 
     notional = qty * price
     if notional > limits.max_notional_per_position:

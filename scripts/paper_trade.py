@@ -181,6 +181,9 @@ def main() -> int:
                         help="Daily realized loss kill switch (USD). Default 500.")
     parser.add_argument("--cooldown-seconds", type=int, default=3600,
                         help="Per-symbol entry cooldown in seconds. Default 3600 (1h).")
+    parser.add_argument("--allow-shorts", action="store_true",
+                        help="Enable short-side entries on the paper account. Default: short signals "
+                        "are computed and logged but BLOCKED at the risk gate (allow_shorts=False).")
     parser.add_argument("--halt", action="store_true",
                         help="Touch the localdata/HALT_TRADING.flag kill switch and exit. No orders will be placed on subsequent runs until --unhalt is used.")
     parser.add_argument("--unhalt", action="store_true",
@@ -203,6 +206,7 @@ def main() -> int:
         max_open_positions=args.max_open,
         max_daily_realized_loss=args.max_daily_loss,
         per_symbol_cooldown_seconds=args.cooldown_seconds,
+        allow_shorts=args.allow_shorts,
     )
 
     print(f"Risk limits: {limits.to_dict()}")

@@ -26,8 +26,8 @@ from price.discovery import attach_cross_asset_states, bin_features
 from price.features import compute_price_features
 from price.validation import (
     apply_slice_filter,
-    apply_transaction_cost,
     chronological_train_valid_split,
+    direction_adjusted_returns,
     evaluate_slice_train_valid,
     parse_slice_combination,
     summarize_returns,
@@ -122,6 +122,8 @@ def summarize_baseline_train_valid(
     cost_per_share: float = 0.0,
     price_col: str = "close_adj",
     min_samples: int = 15,
+    side: str = "long",
+    short_cost_bps: float = 0.0,
 ) -> dict:
     """Summarize the unconditional symbol/timeframe baseline over the same
     chronological train/valid windows used for slice validation.
@@ -129,6 +131,10 @@ def summarize_baseline_train_valid(
     This gives each slice a fair local benchmark: did the slice beat the
     whole eligible population for that same symbol/timeframe and period, or
     is it only positive because the underlying drifted up?
+
+    `side` direction-adjusts the baseline so a short slice is compared against
+    the unconditional SHORT baseline (negate every bar's return), not the
+    long drift. This is what makes "excess vs baseline" meaningful for shorts.
     """
     train_df, valid_df = chronological_train_valid_split(df, split=split)
 
@@ -137,11 +143,13 @@ def summarize_baseline_train_valid(
             return summarize_returns(pd.Series(dtype=float), min_samples=min_samples)
 
         price = window[price_col] if price_col and price_col in window.columns else None
-        returns = apply_transaction_cost(
+        returns = direction_adjusted_returns(
             window[target_col],
+            side=side,
             cost_bps=cost_bps,
             cost_per_share=cost_per_share,
             price=price,
+            short_cost_bps=short_cost_bps,
         )
         return summarize_returns(returns, min_samples=min_samples)
 
@@ -180,6 +188,8 @@ def summarize_parent_baselines_train_valid(
     cost_per_share: float = 0.0,
     price_col: str = "close_adj",
     min_samples: int = 15,
+    side: str = "long",
+    short_cost_bps: float = 0.0,
 ) -> dict:
     """Find the strongest parent-regime baseline in train and validation.
 
@@ -188,6 +198,9 @@ def summarize_parent_baselines_train_valid(
     deliberately conservative diagnostic: if the child slice cannot beat the
     strongest simpler parent in validation, the discovered 2D/3D combination
     may not add much beyond a simpler regime.
+
+    A parent of a short slice is itself a short, so it inherits the child's
+    `side` (same direction-adjustment).
     """
     parent_results = []
 
@@ -201,6 +214,8 @@ def summarize_parent_baselines_train_valid(
             cost_per_share=cost_per_share,
             price_col=price_col,
             min_samples=min_samples,
+            side=side,
+            short_cost_bps=short_cost_bps,
         )
         parent_results.append(
             {
@@ -292,6 +307,7 @@ def run_validation(
     n_folds: int = 4,
     min_samples: int = 15,
     p_threshold: float = 0.05,
+    short_cost_bps: float = 0.0,
 ) -> pd.DataFrame:
     try:
         discovered = pd.read_csv(slices_path)
@@ -310,6 +326,12 @@ def run_validation(
         symbol = row["symbol"]
         timeframe = row["timeframe"]
         slice_combination = row["slice_combination"]
+        # Direction: discovered slices now carry a `side` column. Default
+        # "long" for any row that lacks it (all pre-direction-agnostic rows),
+        # which keeps the change fully backward compatible.
+        side = str(row.get("side", "long") or "long").lower()
+        if side not in ("long", "short"):
+            side = "long"
 
         try:
             slice_filter = parse_slice_combination(slice_combination)
@@ -340,6 +362,8 @@ def run_validation(
             cost_bps=cost_bps,
             cost_per_share=cost_per_share,
             min_samples=min_samples,
+            side=side,
+            short_cost_bps=short_cost_bps,
         )
 
         baseline = summarize_baseline_train_valid(
@@ -348,6 +372,8 @@ def run_validation(
             cost_bps=cost_bps,
             cost_per_share=cost_per_share,
             min_samples=min_samples,
+            side=side,
+            short_cost_bps=short_cost_bps,
         )
 
         parent_baseline = summarize_parent_baselines_train_valid(
@@ -357,6 +383,8 @@ def run_validation(
             cost_bps=cost_bps,
             cost_per_share=cost_per_share,
             min_samples=min_samples,
+            side=side,
+            short_cost_bps=short_cost_bps,
         )
 
         try:
@@ -367,6 +395,8 @@ def run_validation(
                 cost_bps=cost_bps,
                 cost_per_share=cost_per_share,
                 min_samples=min_samples,
+                side=side,
+                short_cost_bps=short_cost_bps,
             )
         except ValueError:
             wf_folds = []
@@ -388,6 +418,8 @@ def run_validation(
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "slice_combination": slice_combination,
+                "side": side,
+                "short_cost_bps": short_cost_bps,
                 "train_n": tv["train"]["sample_count"],
                 "train_mean_ret_costadj": tv["train"]["mean_return"],
                 "train_baseline_mean_ret_costadj": baseline["train"]["mean_return"],
@@ -466,6 +498,8 @@ def summarize_filter_window(
     cost_per_share: float = 0.0,
     price_col: str = "close_adj",
     min_samples: int = 15,
+    side: str = "long",
+    short_cost_bps: float = 0.0,
 ) -> dict:
     """Summarize one slice/filter inside a single chronological window."""
     if window.empty:
@@ -476,11 +510,13 @@ def summarize_filter_window(
         return summarize_returns(pd.Series(dtype=float), min_samples=min_samples)
 
     price = filtered[price_col] if price_col and price_col in filtered.columns else None
-    returns = apply_transaction_cost(
+    returns = direction_adjusted_returns(
         filtered[target_col],
+        side=side,
         cost_bps=cost_bps,
         cost_per_share=cost_per_share,
         price=price,
+        short_cost_bps=short_cost_bps,
     )
     return summarize_returns(returns, min_samples=min_samples)
 
@@ -493,6 +529,8 @@ def best_parent_filter_window(
     cost_per_share: float = 0.0,
     price_col: str = "close_adj",
     min_samples: int = 15,
+    side: str = "long",
+    short_cost_bps: float = 0.0,
 ) -> dict:
     """Return the strongest simpler parent regime inside one window."""
     parent_summaries = []
@@ -506,6 +544,8 @@ def best_parent_filter_window(
             cost_per_share=cost_per_share,
             price_col=price_col,
             min_samples=min_samples,
+            side=side,
+            short_cost_bps=short_cost_bps,
         )
         mean_return = summary.get("mean_return", float("nan"))
         if not pd.isna(mean_return):
@@ -539,6 +579,7 @@ def run_walk_forward_diagnostics(
     output_path: str = WALK_FORWARD_DIAGNOSTICS_PATH,
     diagnostic_scope: str = "current-leaders",
     top_n: int = 5,
+    short_cost_bps: float = 0.0,
 ) -> pd.DataFrame:
     """Run anchored fold-by-fold diagnostics for the leading candidates.
 
@@ -560,7 +601,7 @@ def run_walk_forward_diagnostics(
 
     rows = []
 
-    for symbol, timeframe, combo in targets:
+    for symbol, timeframe, combo, side in targets:
         slice_filter = parse_slice_combination(combo)
         eligible_df = build_eligible_frame(
             symbol,
@@ -604,32 +645,24 @@ def run_walk_forward_diagnostics(
             valid_df = blocks[fold_idx + 1]
 
             train_summary = summarize_filter_window(
-                train_df,
-                slice_filter,
-                cost_bps=cost_bps,
-                cost_per_share=cost_per_share,
-                min_samples=min_samples,
+                train_df, slice_filter, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
             )
             valid_summary = summarize_filter_window(
-                valid_df,
-                slice_filter,
-                cost_bps=cost_bps,
-                cost_per_share=cost_per_share,
-                min_samples=min_samples,
+                valid_df, slice_filter, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
             )
             valid_baseline = summarize_filter_window(
-                valid_df,
-                {},
-                cost_bps=cost_bps,
-                cost_per_share=cost_per_share,
-                min_samples=min_samples,
+                valid_df, {}, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
             )
             valid_parent = best_parent_filter_window(
-                valid_df,
-                slice_filter,
-                cost_bps=cost_bps,
-                cost_per_share=cost_per_share,
-                min_samples=min_samples,
+                valid_df, slice_filter, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
             )
 
             train_pass = survives(train_summary, min_samples=min_samples, p_threshold=p_threshold)
@@ -695,9 +728,9 @@ def run_walk_forward_diagnostics(
 
 
 DEFAULT_DIAGNOSTIC_TARGETS = [
-    ("SPY", "1h", "state_session=afternoon + state_slope=downtrend"),
-    ("SPY", "1h", "state_session=lunch + state_slope=downtrend"),
-    ("QQQ", "1h", "state_session=lunch + state_slope=downtrend"),
+    ("SPY", "1h", "state_session=afternoon + state_slope=downtrend", "long"),
+    ("SPY", "1h", "state_session=lunch + state_slope=downtrend", "long"),
+    ("QQQ", "1h", "state_session=lunch + state_slope=downtrend", "long"),
 ]
 
 
@@ -708,8 +741,10 @@ def select_diagnostic_targets(
     n_folds: int = 4,
     min_samples: int = 15,
     p_threshold: float = 0.05,
-) -> list[tuple[str, str, str]]:
+) -> list[tuple[str, str, str, str]]:
     """Select candidate targets for diagnostic commands.
+
+    Returns 4-tuples: (symbol, timeframe, slice_combination, side).
 
     Scopes:
       - current-leaders: fixed legacy/current targets from HANDOVER.md
@@ -747,7 +782,15 @@ def select_diagnostic_targets(
         selected = leaderboard
 
     selected = selected.head(top_n)
-    return list(zip(selected["symbol"], selected["timeframe"], selected["slice_combination"]))
+    # Carry the side through so diagnostics direction-adjust correctly. The
+    # leaderboard row's `side` defaults to "long" when absent (older runs).
+    out = []
+    for _, r in selected.iterrows():
+        s = str(r.get("side", "long") or "long").lower()
+        if s not in ("long", "short"):
+            s = "long"
+        out.append((r["symbol"], r["timeframe"], r["slice_combination"], s))
+    return out
 
 
 def _filter_date_window(
@@ -797,6 +840,7 @@ def run_date_range_diagnostics(
     top_n: int = 5,
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
+    short_cost_bps: float = 0.0,
 ) -> pd.DataFrame:
     """Run targeted date-range sensitivity diagnostics.
 
@@ -815,7 +859,7 @@ def run_date_range_diagnostics(
 
     rows = []
 
-    for symbol, timeframe, combo in targets:
+    for symbol, timeframe, combo, side in targets:
         slice_filter = parse_slice_combination(combo)
         eligible_df = build_eligible_frame(
             symbol,
@@ -866,25 +910,19 @@ def run_date_range_diagnostics(
                 continue
 
             slice_summary = summarize_filter_window(
-                window_df,
-                slice_filter,
-                cost_bps=cost_bps,
-                cost_per_share=cost_per_share,
-                min_samples=min_samples,
+                window_df, slice_filter, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
             )
             baseline_summary = summarize_filter_window(
-                window_df,
-                {},
-                cost_bps=cost_bps,
-                cost_per_share=cost_per_share,
-                min_samples=min_samples,
+                window_df, {}, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
             )
             parent_summary = best_parent_filter_window(
-                window_df,
-                slice_filter,
-                cost_bps=cost_bps,
-                cost_per_share=cost_per_share,
-                min_samples=min_samples,
+                window_df, slice_filter, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
             )
 
             slice_mean = slice_summary["mean_return"]
@@ -1083,6 +1121,12 @@ def run_candidate_leaderboard(
         ("cost5", {"cost_bps": 5.0}),
         ("split06", {"split": 0.6}),
         ("split08", {"split": 0.8}),
+        # Short-borrow stress grid (per the direction-agnostic V5 work).
+        # short_cost_bps adds drag to short-side slices only; longs are
+        # unaffected, so this isolates short-edge robustness to borrow cost.
+        ("short_borrow2", {"short_cost_bps": 2.0}),
+        ("short_borrow5", {"short_cost_bps": 5.0}),
+        ("short_borrow10", {"short_cost_bps": 10.0}),
     ]
 
     scenario_frames = {}
@@ -1202,6 +1246,7 @@ def run_candidate_leaderboard(
                 "rank_symbol": row["symbol"],
                 "rank_timeframe": row["timeframe"],
                 "slice_combination": row["slice_combination"],
+                "side": row.get("side", "long"),
                 "verdict": verdict,
                 "triage_bucket": triage_bucket,
                 "train_n": row["train_n"],
@@ -1265,6 +1310,7 @@ def run_candidate_leaderboard(
         "timeframe",
         "slice_combination",
         "verdict",
+        "side",
         "triage_bucket",
         "train_pass",
         "valid_pass",
@@ -1401,6 +1447,7 @@ if __name__ == "__main__":
     parser.add_argument("--n-folds", type=int, default=4, help="Number of walk-forward folds")
     parser.add_argument("--min-samples", type=int, default=15, help="Minimum sample floor per fold/window")
     parser.add_argument("--p-threshold", type=float, default=0.05, help="Newey-West p-value survival threshold")
+    parser.add_argument("--short-cost-bps", type=float, default=0.0, help="Extra per-leg drag (bps) for SHORT slices only (borrow + dividend).")
     parser.add_argument(
         "--scenario-grid",
         action="store_true",
@@ -1474,6 +1521,7 @@ if __name__ == "__main__":
             output_path=args.walk_forward_diagnostics_output,
             diagnostic_scope=args.diagnostic_scope,
             top_n=args.top_n,
+            short_cost_bps=args.short_cost_bps,
         )
     elif args.date_range_diagnostics:
         run_date_range_diagnostics(
@@ -1486,6 +1534,7 @@ if __name__ == "__main__":
             top_n=args.top_n,
             slices_path=args.slices_path,
             n_folds=args.n_folds,
+            short_cost_bps=args.short_cost_bps,
         )
     elif args.candidate_leaderboard:
         run_candidate_leaderboard(
@@ -1504,4 +1553,5 @@ if __name__ == "__main__":
             n_folds=args.n_folds,
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
+            short_cost_bps=args.short_cost_bps,
         )

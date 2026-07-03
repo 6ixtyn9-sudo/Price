@@ -428,7 +428,7 @@ def test_select_diagnostic_targets_late_emerging_from_leaderboard(monkeypatch):
 
     targets = select_diagnostic_targets(scope="late-emerging", top_n=1)
 
-    assert targets == [("QQQ", "1h", "late_one")]
+    assert targets == [("QQQ", "1h", "late_one", "long")]
 
 
 def test_select_diagnostic_targets_rejects_unknown_scope():

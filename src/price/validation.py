@@ -91,6 +91,45 @@ def apply_transaction_cost(
     return returns - drag
 
 
+def direction_adjusted_returns(
+    returns: pd.Series,
+    side: str = "long",
+    cost_bps: float = 0.0,
+    cost_per_share: float = 0.0,
+    price: Optional[Union[pd.Series, float]] = None,
+    short_cost_bps: float = 0.0,
+    round_trip: bool = True,
+) -> pd.Series:
+    """Direction-adjusted, cost-adjusted tradeable P&L for a slice.
+
+      Long : P&L = fwd_ret - spread_cost
+      Short: P&L = -fwd_ret - spread_cost - borrow_drag
+
+    A short profits when fwd_ret < 0 (price falls), so its P&L is the negated
+    forward return, minus the same round-trip spread cost a long pays, minus an
+    extra short_cost_bps drag modelling stock borrow + dividend pass-through
+    over the hold. With this, the existing gate `mean_return > 0` correctly
+    tests tradeable expected P&L for BOTH directions: a promotable short is one
+    whose negated, borrow-adjusted mean is still positive.
+
+    `side` defaults to "long" so every caller that does not pass it -- and all
+    existing discovered_slices.csv rows that carry no `side` column -- behave
+    exactly as before. This is what makes the change backward compatible.
+    """
+    returns = pd.Series(returns).astype(float)
+    eff_cost_bps = cost_bps
+    if side == "short":
+        returns = -returns
+        eff_cost_bps = cost_bps + short_cost_bps
+    return apply_transaction_cost(
+        returns,
+        cost_bps=eff_cost_bps,
+        cost_per_share=cost_per_share,
+        price=price,
+        round_trip=round_trip,
+    )
+
+
 def newey_west_tstat(
     returns: np.ndarray,
     lags: Optional[int] = None,
@@ -253,11 +292,17 @@ def evaluate_slice_train_valid(
     price_col: Optional[str] = "close_adj",
     min_samples: int = DEFAULT_MIN_SAMPLES,
     nw_lags: Optional[int] = None,
+    side: str = "long",
+    short_cost_bps: float = 0.0,
 ) -> Dict[str, Dict[str, Union[int, float, bool]]]:
     """Chronological train/validation check for a single slice definition.
 
     Confirms the slice's edge on the training window and re-measures it,
     cost-adjusted, on the untouched out-of-sample validation window.
+
+    `side` ("long" | "short") direction-adjusts the return series before the
+    cost gate so the same `mean_return > 0` test works for both directions.
+    `short_cost_bps` adds extra borrow/dividend drag to short slices only.
     """
     train_df, valid_df = chronological_train_valid_split(df, ts_col=ts_col, split=split)
 
@@ -267,11 +312,13 @@ def evaluate_slice_train_valid(
     train_price = train_slice[price_col] if price_col and price_col in train_slice else None
     valid_price = valid_slice[price_col] if price_col and price_col in valid_slice else None
 
-    train_returns = apply_transaction_cost(
-        train_slice[target_col], cost_bps=cost_bps, cost_per_share=cost_per_share, price=train_price
+    train_returns = direction_adjusted_returns(
+        train_slice[target_col], side=side, cost_bps=cost_bps,
+        cost_per_share=cost_per_share, price=train_price, short_cost_bps=short_cost_bps,
     )
-    valid_returns = apply_transaction_cost(
-        valid_slice[target_col], cost_bps=cost_bps, cost_per_share=cost_per_share, price=valid_price
+    valid_returns = direction_adjusted_returns(
+        valid_slice[target_col], side=side, cost_bps=cost_bps,
+        cost_per_share=cost_per_share, price=valid_price, short_cost_bps=short_cost_bps,
     )
 
     return {
@@ -291,12 +338,17 @@ def walk_forward_validate_slice(
     price_col: Optional[str] = "close_adj",
     min_samples: int = DEFAULT_MIN_SAMPLES,
     nw_lags: Optional[int] = None,
+    side: str = "long",
+    short_cost_bps: float = 0.0,
 ) -> list:
     """Walk-forward validation of a single slice definition.
 
     Rolls forward chronologically: each fold trains on an expanding past
     window and validates strictly out-of-sample on the next forward block.
     Returns a list of per-fold {'fold', 'train': {...}, 'valid': {...}}.
+
+    `side` direction-adjusts returns so the gate is sign-aware; see
+    direction_adjusted_returns.
     """
     results = []
     for fold_idx, train_df, valid_df in walk_forward_folds(df, ts_col=ts_col, n_folds=n_folds):
@@ -306,11 +358,13 @@ def walk_forward_validate_slice(
         train_price = train_slice[price_col] if price_col and price_col in train_slice else None
         valid_price = valid_slice[price_col] if price_col and price_col in valid_slice else None
 
-        train_returns = apply_transaction_cost(
-            train_slice[target_col], cost_bps=cost_bps, cost_per_share=cost_per_share, price=train_price
+        train_returns = direction_adjusted_returns(
+            train_slice[target_col], side=side, cost_bps=cost_bps,
+            cost_per_share=cost_per_share, price=train_price, short_cost_bps=short_cost_bps,
         )
-        valid_returns = apply_transaction_cost(
-            valid_slice[target_col], cost_bps=cost_bps, cost_per_share=cost_per_share, price=valid_price
+        valid_returns = direction_adjusted_returns(
+            valid_slice[target_col], side=side, cost_bps=cost_bps,
+            cost_per_share=cost_per_share, price=valid_price, short_cost_bps=short_cost_bps,
         )
 
         results.append(

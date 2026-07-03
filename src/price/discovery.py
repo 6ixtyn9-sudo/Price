@@ -216,12 +216,22 @@ def discover_market_slices(
 
         ratio = mean_ret / std_ret if std_ret > 0 else 0.0
 
+        # Direction tag: a slice whose mean forward return is negative is a
+        # SHORT (it profits when price falls). The validation gate then
+        # direction-adjusts so the same mean_return > 0 test works for both.
+        # tradeable_mean_fwd_ret_5 is the sign-adjusted expected P&L, used to
+        # rank long and short edges on a single scale (best edge of either
+        # direction floats to the top).
+        side = "short" if mean_ret < 0 else "long"
+
         slice_metrics.append({
             'symbol': symbol,
             'timeframe': timeframe,
             'slice_combination': slice_key,
             'sample_count': n,
             'mean_fwd_ret_5': mean_ret,
+            'side': side,
+            'tradeable_mean_fwd_ret_5': -mean_ret if mean_ret < 0 else mean_ret,
             'win_rate': win_rate,
             'mean_mfe_5': mean_mfe,
             'mean_mae_5': mean_mae,
@@ -230,7 +240,11 @@ def discover_market_slices(
 
     df_slices = pd.DataFrame(slice_metrics)
     if not df_slices.empty:
-        df_slices = df_slices.sort_values("mean_fwd_ret_5", ascending=False).reset_index(drop=True)
+        # Rank by tradeable (direction-adjusted) expected P&L so the strongest
+        # edge of EITHER direction surfaces first, not just the strongest long.
+        df_slices = df_slices.sort_values(
+            "tradeable_mean_fwd_ret_5", ascending=False
+        ).reset_index(drop=True)
 
     return df_slices
 

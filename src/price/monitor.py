@@ -36,10 +36,10 @@ from price.warehouse import load_from_warehouse
 
 
 DEFAULT_MONITORED_SLICES: List[dict] = [
-    {"symbol": "XLF", "timeframe": "1d", "slice_combination": "state_ext=stretched_up + state_slope=flat"},
-    {"symbol": "XLK", "timeframe": "1d", "slice_combination": "cross_TLT_state_slope=uptrend + state_ext=neutral"},
-    {"symbol": "XLK", "timeframe": "1h", "slice_combination": "cross_USO_state_vol=mid_vol + state_ext=stretched_down"},
-    {"symbol": "SPY", "timeframe": "1h", "slice_combination": "state_session=afternoon + state_slope=downtrend"},
+    {"symbol": "XLF", "timeframe": "1d", "slice_combination": "state_ext=stretched_up + state_slope=flat", "side": "long"},
+    {"symbol": "XLK", "timeframe": "1d", "slice_combination": "cross_TLT_state_slope=uptrend + state_ext=neutral", "side": "long"},
+    {"symbol": "XLK", "timeframe": "1h", "slice_combination": "cross_USO_state_vol=mid_vol + state_ext=stretched_down", "side": "long"},
+    {"symbol": "SPY", "timeframe": "1h", "slice_combination": "state_session=afternoon + state_slope=downtrend", "side": "long"},
 ]
 
 
@@ -364,6 +364,10 @@ def scan_all_slices(
 
             qty = _default_qty(close_adj, limits) if not dry_run else 0
             if not dry_run:
+                side = str(s.get("side", "long") or "long").lower()
+                if side not in ("long", "short"):
+                    side = "long"
+                suggested_side = "sell" if side == "short" else "buy"
                 risk_result = check_entry(
                     symbol=symbol,
                     qty=qty,
@@ -371,6 +375,7 @@ def scan_all_slices(
                     limits=limits,
                     open_positions=open_positions_list,
                     today_realized_pnl=today_pnl,
+                    side=side,
                 )
                 tradable = risk_result.allowed
                 status_label = "MATCH  " if tradable else "BLOCKED"
@@ -381,6 +386,8 @@ def scan_all_slices(
                     "details": risk_result.details,
                 }
             else:
+                side = str(s.get("side", "long") or "long").lower()
+                suggested_side = "sell" if side == "short" else "buy"
                 tradable = True
                 status_label = "MATCH  "
                 reasons_str = "dry_run"
@@ -393,11 +400,12 @@ def scan_all_slices(
                 "slice_combination": s["slice_combination"],
                 "matched": True,
                 "tradable": tradable,
+                "side": side,
                 "current_state": state_dict,
                 "bar_ts_utc": str(current_state["bar_ts_utc"].iloc[0]),
                 "close_adj": close_adj,
                 "suggested_qty": qty,
-                "suggested_side": limits.default_side,
+                "suggested_side": suggested_side,
                 "suggested_notional": (qty * close_adj) if close_adj == close_adj else None,
                 "risk_check": risk_payload,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
