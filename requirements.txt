@@ -8,3 +8,4 @@ python-dotenv
 pandas_market_calendars
 requests
 lightgbm>=4.0
+

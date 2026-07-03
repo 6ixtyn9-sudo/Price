@@ -1501,3 +1501,17 @@ Practical conclusion
 - If a future agent finds themselves writing "the live forward
   returns are X% positive therefore the slices work", stop. That is
   the exact failure mode this section exists to prevent.
+V5 — ML Slice Discovery (2026-07-03)
+Added LightGBM-based slice discovery in src/price/ml_discovery.py.
+
+This augments (does not replace) the existing combinatorial discovery in discovery.py.
+The ML path:
+1. Uses the same feature frame
+2. Trains a LightGBM regressor on 5-bar forward returns with time-series CV
+3. Extracts top features by importance
+4. Outputs candidate slices in the same format as combinatorial discovery
+5. Feeds into the existing validate_slices.py pipeline
+
+This allows the system to discover non-linear and higher-order interactions that the 3D–5D grid misses, while preserving all V4 validation discipline.
+
+Requirements added: lightgbm
