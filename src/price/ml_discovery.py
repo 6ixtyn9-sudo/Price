@@ -12,6 +12,7 @@ from sklearn.model_selection import TimeSeriesSplit
 from itertools import combinations
 
 from price.features import compute_price_features
+from price.discovery import bin_features, ML_FEATURE_TO_STATE, STATE_LABELS
 from price.warehouse import load_from_warehouse
 
 
@@ -204,9 +205,9 @@ def run_ml_discovery(
     # Feature interactions
     if include_interactions:
         interactions = extract_feature_interactions(
-            result["model"], 
-            feature_cols, 
-            top_n=6, 
+            result["model"],
+            feature_cols,
+            top_n=6,
             max_interaction_size=max_interaction_size
         )
 
@@ -242,8 +243,17 @@ def evaluate_interactions(
     results = []
 
     for inter in interactions:
-        features = inter.get("features", [])
-        size = inter.get("size", 2)
+        # Upstream records carry a "features" list. Fall back to parsing a
+        # "slice_key" string ("feat_a + feat_b") for dicts that only carry
+        # the latter, so the documented V5 workflow is robust to either shape
+        # (run_ml_discovery records now carry both, but hand-built dicts or
+        # older callers may carry only slice_key).
+        features = inter.get("features")
+        if features is None and "slice_key" in inter:
+            features = [f.strip() for f in str(inter["slice_key"]).split("+") if f.strip()]
+        features = features or []
+
+        size = inter.get("size") or inter.get("interaction_size") or len(features) or 2
 
         if not features:
             continue
@@ -280,3 +290,104 @@ def evaluate_interactions(
     scored = pd.DataFrame(results)
     scored = scored.sort_values(["mean_return", "n_samples"], ascending=[False, False])
     return scored
+
+
+def ml_interaction_to_state_slice(
+    binned_df: pd.DataFrame,
+    features: List[str],
+) -> Tuple[Dict[str, str], List[str]]:
+    """Translate a raw ML feature list into a state_*=value slice filter.
+
+    This is the bridge between ML discovery and the existing validation
+    pipeline. evaluate_interactions defines the promising region as the
+    high-quantile (>= q75) side of each feature -- i.e. it only ever tests
+    "this feature is HIGH". So each feature is mapped to its HIGHEST state
+    bucket (state_ext -> stretched_up, state_ret_3 -> ret_up, state_vol ->
+    high_vol, ...), preserving the directional intent the ML found. Mapping
+    to the count-dominant bucket instead would be wrong: a feature's
+    top-25% often straddles the "neutral" bucket when the bin uses fixed
+    thresholds (e.g. state_ext at +-0.015), which would discard the very
+    "high" signal the ML surfaced.
+
+    Returns (slice_filter, mapped_features). Features with no state mapping,
+    or whose state column is absent / unpopulated in `binned_df`, are skipped.
+    """
+    slice_filter: Dict[str, str] = {}
+    mapped: List[str] = []
+
+    for feat in features:
+        state_field = ML_FEATURE_TO_STATE.get(feat)
+        if state_field is None or state_field not in binned_df.columns:
+            continue
+        if state_field not in STATE_LABELS:
+            continue
+
+        # Only emit when the top bucket is actually populated (>=1 non-null
+        # row), so we never produce a slice guaranteed to match zero rows.
+        present = binned_df[state_field].dropna().astype(str)
+        if present.empty:
+            continue
+
+        slice_filter[state_field] = STATE_LABELS[state_field][-1]
+        mapped.append(feat)
+
+    return slice_filter, mapped
+
+
+def interactions_to_state_slices(
+    df: pd.DataFrame,
+    scored: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    min_features_mapped: int = 1,
+) -> pd.DataFrame:
+    """Convert scored ML feature interactions into candidate slices in the
+    discovered_slices.csv schema so they flow through validate_slices.py
+    unchanged.
+
+    `df` is the prepared ML frame (from prepare_ml_frame). `scored` is the
+    output of evaluate_interactions and must contain a 'slice_key' column of
+    '+ '-joined raw feature names.
+
+    Output columns:
+      - symbol, timeframe, slice_combination  (the three columns
+        validate_slices.run_validation reads)
+      - source, ml_slice_key, ml_interaction_size, ml_n_samples,
+        ml_mean_return, ml_sharpe_proxy  (ML provenance, ignored by
+        validation but useful for traceability)
+    """
+    if df.empty or scored.empty:
+        return pd.DataFrame()
+
+    binned = bin_features(df)
+    if binned.empty:
+        return pd.DataFrame()
+
+    records = []
+    for _, row in scored.iterrows():
+        slice_key = str(row.get("slice_key", "")).strip()
+        if not slice_key:
+            continue
+
+        features = [f.strip() for f in slice_key.split("+") if f.strip()]
+        slice_filter, mapped = ml_interaction_to_state_slice(binned, features)
+
+        if len(mapped) < min_features_mapped or not slice_filter:
+            continue
+
+        combo = " + ".join(f"{field}={value}" for field, value in slice_filter.items())
+        records.append(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "slice_combination": combo,
+                "source": "ml_interaction",
+                "ml_slice_key": slice_key,
+                "ml_interaction_size": int(row.get("interaction_size", len(mapped))),
+                "ml_n_samples": row.get("n_samples"),
+                "ml_mean_return": row.get("mean_return"),
+                "ml_sharpe_proxy": row.get("sharpe_proxy"),
+            }
+        )
+
+    return pd.DataFrame(records)

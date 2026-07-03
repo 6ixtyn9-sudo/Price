@@ -1515,3 +1515,101 @@ The ML path:
 This allows the system to discover non-linear and higher-order interactions that the 3D–5D grid misses, while preserving all V4 validation discipline.
 
 Requirements added: lightgbm
+
+
+
+V5 — ML -> Validation Bridge (2026-07-03)
+The V5 section above claims the ML path (4) "outputs candidate slices in the
+same format as combinatorial discovery" and (5) "feeds into the existing
+validate_slices.py pipeline." Until this patch both claims were aspirational,
+not wired up. ml_discovery.py emitted raw feature interactions like
+`feat_ext_vs_ma_20 + feat_ret_3`, but validate_slices.py only understands
+binned `state_*=value` filters like `state_ext=stretched_up +
+state_ret_3=ret_up`, and `bin_features()` did not even bin the return
+features (`feat_ret_1/3/5/10/20`) that dominate ML candidate interactions.
+So the 8 promising 2-feature combinations the previous session exported to
+`localdata/ml_promising_slices.csv` could not actually be validated.
+
+This patch closes that loop. It is the conversion helper the prior session
+offered ("convert these combinations into the exact state format your current
+bin_features() expects"). No new validation code and no new doctrine:
+ML-discovered interactions now flow through the exact same V4 discipline
+(train/valid + cost + Newey-West + walk-forward + parent-excess).
+
+What was added:
+- `src/price/discovery.py`:
+  - `bin_features()` now also bins every raw feature LightGBM ranks highly
+    into the state vocabulary: `state_ret_{1,3,5,10,20}`
+    (ret_down/ret_flat/ret_up), plus `state_atr_ext`, `state_vol_regime`,
+    `state_trend_strength`, `state_gap`, `state_range_pos`. Purely additive;
+    the combinatorial discovery combinations never reference these columns,
+    so discovery/leaderboard behaviour is unchanged.
+  - `bin_features()` is now defensive: `state_ext`/`state_session`/`state_dow`
+    are emitted as NaN (instead of raising) when their source feature column
+    is absent, so it works on any feature subset.
+  - `ML_FEATURE_TO_STATE` maps each raw ML feature to its state field;
+    `STATE_LABELS` gives the ordered low->high label list per field. A test
+    pins the high-bucket labels (stretched_up / ret_up / high_vol / uptrend)
+    so the two dicts cannot drift from `bin_features`.
+- `src/price/ml_discovery.py`:
+  - `ml_interaction_to_state_slice()` + `interactions_to_state_slices()` are
+    the bridge: turn a raw interaction (`feat_ext_vs_ma_20 + feat_ret_3`)
+    into a `state_*=value` filter (`state_ext=stretched_up +
+    state_ret_3=ret_up`) and emit a candidate table in the
+    discovered_slices.csv schema (symbol / timeframe / slice_combination +
+    ML provenance columns that validation ignores).
+  - Each feature maps to its HIGHEST state bucket, not the count-dominant
+    one. evaluate_interactions only ever tests the high-quantile (>= q75)
+    side of a feature, so the faithful translation is the "high" bucket.
+    Using the count-dominant bucket would be wrong: a feature's top-25%
+    often straddles "neutral" when the bin uses fixed thresholds (state_ext
+    at +-0.015), which would discard the very "high" signal the ML surfaced.
+  - Adds a `slice_key` fallback to `evaluate_interactions()` on top of
+    upstream commit `85bf3c7` (which already made `run_ml_discovery` records
+    carry a `"features"` key and switched the loop to `.get("features", [])`).
+    The fallback means hand-built dicts or older callers that carry only a
+    `"slice_key": "feat_a + feat_b"` are still handled, not silently skipped.
+    Upstream's records now carry both keys, so the documented V5 workflow
+    (`res = run_ml_discovery(...); evaluate_interactions(df,
+    res[res.interaction_size>1].to_dict('records'))`) works either way.
+- `scripts/ml_to_slices.py`: one-command glue that runs run_ml_discovery +
+  evaluate_interactions, filters promising interactions (defaults match the
+  prior session: n>=30, mean_return>0.0008, sharpe_proxy>0.20), converts
+  them to state slices via the bridge, and writes
+  `localdata/ml_candidate_slices.csv`. Supports `--symbols`, `--timeframe`,
+  `--append`, `--target-type`, and the threshold flags.
+- `tests/test_ml_discovery.py`: 8 unit tests (synthetic fixtures, no
+  warehouse/network) covering the new state bins, the feature->state
+  mapping, top-bucket selection, schema tolerance, and a round-trip that
+  the emitted slice is parseable by `parse_slice_combination` and
+  applyable by `apply_slice_filter`.
+
+Verification:
+- `python3 -m py_compile` clean on all changed files.
+- `python3 -m pytest -q` -> 77 passed (was 69; +8 new).
+- `python3 -m ruff check` clean on all changed files.
+- An end-to-end smoke run on a synthetic SPY 1d warehouse with a
+  constructed edge exercised the full chain -- run_ml_discovery ->
+  evaluate_interactions (slice_key schema) -> bridge ->
+  `state_ext=stretched_up + state_ret_3=ret_up` ->
+  validate_slices.run_validation -- and produced a real scorecard for the
+  ML candidate (verdict: rejected, as expected for synthetic noise; the
+  plumbing is what was being verified).
+
+How to run it (operator, on real warehouse data):
+  python3 scripts/ml_to_slices.py --symbol SPY --timeframe 1d
+  # then through the full V4 discipline:
+  python3 scripts/validate_slices.py \
+      --slices-path localdata/ml_candidate_slices.csv --candidate-leaderboard
+
+Notes / doctrine unchanged:
+- ML candidate slices are candidates, not promotions. They must clear the
+  same train+valid+cost+Newey-West+walk-forward+parent-excess+search-wide
+  gates as combinatorial slices before any monitoring/tracking.
+- The ML bridge is a discovery expansion, not a validation shortcut. A
+  "promising" ML interaction (high mean_return / sharpe_proxy on the
+  in-sample high-quantile region) is explicitly NOT evidence of an edge;
+  it is a hypothesis that V4 validation then tries to falsify.
+- `scripts/ml_to_slices.py` overwrites `localdata/ml_candidate_slices.csv`
+  by default; use `--append` when running across multiple symbols so
+  earlier results are not lost (same convention as discover_slices.py).
