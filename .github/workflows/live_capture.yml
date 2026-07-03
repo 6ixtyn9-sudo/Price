@@ -1,7 +1,6 @@
 name: Live Capture
 
-# Every 6 hours, run capture_bars, paper_trade --dry-run, and
-# live_forward_returns. Auto-commit any new forward-return rows.
+# End-of-day paper-trading + live-capture workflow.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   ALPACA_API_KEY
@@ -9,20 +8,20 @@ name: Live Capture
 #   TIINGO_API_KEY
 #
 # What this workflow does:
-#   1. Pulls the latest warehouse + paper_trade_log from main.
-#   2. Pulls the most recent bars from Alpaca (incremental update).
-#   3. Re-runs the candidate leaderboard to refresh clean_survivor*.
-#   4. Runs paper_trade.py --dry-run to emit a new audit row.
-#   5. Runs live_forward_returns.py to capture the realized forward
-#      return for any newly matched signal.
-#   6. Auto-commits any changes to localdata/*.csv back to main.
+#   1. Pulls the latest warehouse + paper-trading journals from main.
+#   2. Pulls the most recent bars from Tiingo/Alpaca and rebuilds the warehouse.
+#   3. Re-runs discovery + the candidate leaderboard to refresh clean_survivor*.
+#   4. Runs paper_trade.py in LIVE PAPER mode (never real money; trading.py is hardwired paper=True).
+#   5. Runs live_forward_returns.py to capture realized forward returns for any matched signals.
+#   6. Auto-commits the lightweight workflow artifacts back to main.
 #
 # What this workflow does NOT do:
-#   - Place any orders.
-#   - Override the V4 doctrine. It is research output, not execution.
+#   - Trade real money.
+#   - Override the project doctrine about promotion; paper trades are evidence generation.
 #   - Run on its own commits (concurrency block below).
 #
-# See HANDOVER.md "Scheduled Live Capture (2026-07-02)".
+# See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)" and
+# "Scheduled Live Capture (2026-07-02)".
 
 on:
   # 21:00 UTC = 17:00 ET (1 hour after US market close, weekdays only).
@@ -41,7 +40,7 @@ concurrency:
 jobs:
   live-capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: write
 
@@ -128,13 +127,19 @@ jobs:
         run: |
           PYTHONPATH=src python3 scripts/validate_slices.py --candidate-leaderboard
 
-      - name: Run paper_trade --dry-run
+      - name: Run paper_trade (live paper mode, tightly risk-capped)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          PYTHONPATH=src python3 scripts/paper_trade.py --dry-run
+          # Live PAPER execution only. trading.py is hardwired paper=True.
+          # Keep this extremely constrained until the out-of-sample journal is larger.
+          PYTHONPATH=src python3 scripts/paper_trade.py \
+            --max-notional 500 \
+            --max-open 1 \
+            --max-daily-loss 100 \
+            --cooldown-seconds 86400
 
       - name: Run live forward-return capture
         env:
@@ -160,6 +165,9 @@ jobs:
             "localdata/candidate_leaderboard.csv"
             "localdata/discovered_slices.csv"
             "localdata/paper_trade_log.csv"
+            "localdata/trade_journal.csv"
+            "localdata/cooldown_journal.json"
+            "localdata/HALT_TRADING.flag"
             "localdata/live_forward_returns.csv"
             "localdata/validated_slices.csv"
             "localdata/validation_scenario_grid.csv"
