@@ -1,14 +1,15 @@
 """
 ML-based market state slice discovery using LightGBM.
 
-Supports both regression and classification targets.
+Supports single features + 2-feature and 3-feature interactions.
 """
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import lightgbm as lgb
 from sklearn.model_selection import TimeSeriesSplit
+from itertools import combinations
 
 from price.features import compute_price_features
 from price.warehouse import load_from_warehouse
@@ -113,15 +114,44 @@ def train_slice_model(
     }
 
 
-def extract_important_slices(importance_df: pd.DataFrame, top_n: int = 10) -> List[Dict]:
-    slices = []
-    for _, row in importance_df.head(top_n).iterrows():
-        slices.append({
-            "feature": row['feature'],
-            "importance": float(row['importance']),
-            "type": "ml_derived"
+def extract_feature_interactions(
+    model: lgb.Booster,
+    feature_cols: List[str],
+    top_n: int = 6,
+    max_interaction_size: int = 3
+) -> List[Dict]:
+    """
+    Extract promising 2-feature and 3-feature combinations.
+    Uses the trained model's feature importance to guide combinations.
+    """
+    if model is None:
+        return []
+
+    # Get top features
+    importance = model.feature_importances_
+    top_indices = np.argsort(importance)[-top_n:][::-1]
+    top_features = [feature_cols[i] for i in top_indices]
+
+    interactions = []
+
+    # 2-feature combinations
+    for combo in combinations(top_features, 2):
+        interactions.append({
+            "features": list(combo),
+            "size": 2,
+            "type": "interaction"
         })
-    return slices
+
+    # 3-feature combinations (if requested)
+    if max_interaction_size >= 3:
+        for combo in combinations(top_features, 3):
+            interactions.append({
+                "features": list(combo),
+                "size": 3,
+                "type": "interaction"
+            })
+
+    return interactions
 
 
 def run_ml_discovery(
@@ -129,7 +159,9 @@ def run_ml_discovery(
     timeframe: str,
     feature_cols: Optional[List[str]] = None,
     min_samples: int = 50,
-    target_type: str = "regression"
+    target_type: str = "regression",
+    include_interactions: bool = True,
+    max_interaction_size: int = 3
 ) -> pd.DataFrame:
     if feature_cols is None:
         feature_cols = [
@@ -161,17 +193,38 @@ def run_ml_discovery(
     if result["model"] is None:
         return pd.DataFrame()
 
-    slices = extract_important_slices(result["importance"])
-
+    # Single features
     records = []
-    for s in slices:
+    for _, row in result["importance"].head(10).iterrows():
         records.append({
             "symbol": symbol,
             "timeframe": timeframe,
-            "slice_key": s["feature"],
-            "importance": s["importance"],
+            "slice_key": row['feature'],
+            "importance": row['importance'],
             "source": f"lightgbm_{target_type}",
+            "interaction_size": 1,
             "cv_correlation": result["cv_score"]
         })
+
+    # Feature interactions
+    if include_interactions:
+        interactions = extract_feature_interactions(
+            result["model"], 
+            feature_cols, 
+            top_n=6, 
+            max_interaction_size=max_interaction_size
+        )
+
+        for inter in interactions:
+            key = " + ".join(inter["features"])
+            records.append({
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "slice_key": key,
+                "importance": None,
+                "source": f"lightgbm_{target_type}_interaction",
+                "interaction_size": inter["size"],
+                "cv_correlation": result["cv_score"]
+            })
 
     return pd.DataFrame(records)
