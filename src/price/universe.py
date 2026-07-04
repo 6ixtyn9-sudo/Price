@@ -132,20 +132,55 @@ def build_universe(
 
     # Add discovered equities
     if include_stocks and equity_assets:
+        import re
+        # liquid-name filter – kills SPACs / warrants / units / rights
+        bad_name_terms = [
+            'acquisition', 'spac', 'blank check',
+            'warrant', 'right', 'unit',
+            ' - ', ' wt', ' rt', ' ut',
+        ]
+        # symbol pattern: 1-5 uppercase letters, optionally . / -, but we already strip those
+        # also drop common warrant/right/unit suffixes
+        bad_suffix_re = re.compile(r'(W|R|U|P|WS|WT|RT|UN)$')
         for a in equity_assets:
             sym = a["symbol"]
+            name = (a.get("name") or "").lower()
             if tradable_only and not a["tradable"]:
                 continue
             # skip odd symbols: warrants, units, test symbols, etc.
             if any(c in sym for c in [".", "/", " ", "+"]):
                 continue
+            # hard symbol hygiene
+            if not re.match(r'^[A-Z]{1,5}$', sym):
+                if sym not in etfs:
+                    continue
+            # drop obvious warrant/right/unit tickers by suffix
+            if len(sym) >= 3 and bad_suffix_re.search(sym) and sym not in etfs:
+                # allowlist real 1-4 letter tickers that happen to end in W/R/U – e.g. W, ROKU, U
+                # crude allowlist: if symbol is in a known-good short list, keep – else drop
+                # for now: drop if symbol length >2 and name hints at warrant/unit
+                if any(t in name for t in bad_name_terms):
+                    continue
+                # also drop 4+ char symbols ending W/R/U/P unless they are known ETFs
+                if len(sym) >= 4:
+                    continue
+            # name-based SPAC / warrant filter
+            if any(term in name for term in bad_name_terms):
+                continue
+            # liquidity proxy: prefer marginable + shortable (real operating companies)
+            # keep ETFs regardless
+            if sym not in etfs:
+                if not a.get("marginable", True):
+                    continue
+                # don't require shortable strictly – many small caps aren't – but use as soft signal later
             if len(sym) > 5:  # most US equities are <=5 chars; filters out many odd classes
                 # allow known 5+ char ETFs already in etfs list
                 if sym not in etfs:
                     continue
-            if exchanges and a["exchange"] and a["exchange"] not in exchanges:
-                # be permissive: if exchange is None, keep it
-                pass
+            # exchange filter – strict now
+            exch = a.get("exchange")
+            if exchanges and exch and exch not in exchanges:
+                continue
             if sym in equities:
                 continue
             equities.append(sym)
