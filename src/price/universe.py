@@ -22,10 +22,15 @@ Source: https://docs.alpaca.markets/us/docs/about-market-data-api
 
 import json
 import time
-from pathlib import Path
 from typing import List, Dict, Optional
 
-from price.config import DATA_DIR, ALPACA_API_KEY, ALPACA_SECRET_KEY, ETF_SYMBOLS
+from price.config import (
+    DATA_DIR,
+    ALPACA_API_KEY,
+    ALPACA_SECRET_KEY,
+    ETF_SYMBOLS,
+    get_allowlist_symbols,
+)
 
 UNIVERSSE_CACHE = DATA_DIR / "universe_cache.json"
 UNIVERSE_CACHE_TTL_HOURS = 24
@@ -108,7 +113,7 @@ def build_universe(
     # Pull from API
     try:
         equity_assets = fetch_alpaca_assets("us_equity")
-    except Exception as e:
+    except Exception:
         # Fallback to ETF-only if API keys missing / rate limited
         equity_assets = []
 

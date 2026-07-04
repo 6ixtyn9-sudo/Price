@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "localdata"
 WAREHOUSE_DIR = DATA_DIR / "warehouse"
+ALLOWLIST_CACHE_PATH = DATA_DIR / "explicit_allowlist.json"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 WAREHOUSE_DIR.mkdir(parents=True, exist_ok=True)
@@ -61,16 +63,47 @@ ETF_SYMBOLS = [
 ]
 
 FUTURES_SYMBOLS = [
-    "ES", "MES", "MNQ", "MYM", "CL",
-    "MCL", "SI", "NG", "MGC", "M2K"
+    # Equity Index
+    "ES", "MES", "NQ", "MNQ", "RTY", "M2K", "YM", "DMY",
+    # Interest Rates
+    "ZB", "MZB", "ZN", "MZN", "ZT", "MZT", "ZF",
+    # Energy
+    "CL", "MCL", "NG", "MNG",
+    # Metals
+    "GC", "MGC", "SI", "SIL", "HG",
+    # Agriculture
+    "LE", "HE", "CC", "KC", "CT", "ZS", "ZM", "SB", "RS",
+    # Crypto futures / symbols exposed by Alpaca where available
+    "BTC", "ETH",
 ]
 
 CRYPTO_SYMBOLS = [
-    "BTC/USD", "ETH/USD", "SOL/USD", "AVAX/USD", "LTC/USD",
-    "BCH/USD", "LINK/USD", "UNI/USD", "AAVE/USD", "DOGE/USD",
-    "SHIB/USD", "MATIC/USD", "XRP/USD", "DOT/USD", "ATOM/USD",
-    "ALGO/USD", "XTZ/USD", "CRV/USD", "SUSHI/USD", "YFI/USD",
-    "GRT/USD", "MKR/USD", "COMP/USD", "ADA/USD", "TRX/USD"
+    "AAVE/USD", "AAVE/USDC", "AAVE/USDT",
+    "ADA/USD",
+    "ARB/USD",
+    "AVAX/USD", "AVAX/USDC", "AVAX/USDT",
+    "BAT/USD", "BAT/USDC",
+    "BCH/USD", "BCH/USDC", "BCH/USDT",
+    "BTC/USD", "BTC/USDC", "BTC/USDT",
+    "CRV/USD", "CRV/USDC",
+    "DOGE/USD", "DOGE/USDC", "DOGE/USDT",
+    "DOT/USD", "DOT/USDC",
+    "ETH/USD", "ETH/USDC", "ETH/USDT",
+    "FIL/USD",
+    "GRT/USD", "GRT/USDC",
+    "LDO/USD",
+    "LINK/USD", "LINK/USDC", "LINK/USDT",
+    "LTC/USD", "LTC/USDC", "LTC/USDT",
+    "ONDO/USD",
+    "PAXG/USD",
+    "RENDER/USD",
+    "SOL/USD", "SOL/USDC", "SOL/USDT",
+    "SUSHI/USD", "SUSHI/USDC", "SUSHI/USDT",
+    "UNI/USD", "UNI/USDC", "UNI/USDT",
+    "WIF/USD",
+    "XRP/USD",
+    "XTZ/USD", "XTZ/USDC",
+    "YFI/USD", "YFI/USDC", "YFI/USDT",
 ]
 
 def is_futures(symbol: str) -> bool:
@@ -83,13 +116,55 @@ def is_crypto(symbol: str) -> bool:
 def is_equity(symbol: str) -> bool:
     return not is_crypto(symbol) and not is_futures(symbol)
 
+def _coerce_symbol_list(value) -> list:
+    if not isinstance(value, list):
+        return []
+    return [str(s).strip().upper() if "/" not in str(s) else str(s).strip().upper()
+            for s in value if str(s).strip()]
+
+
+def _load_generated_allowlist() -> dict:
+    """Load the optional generated allowlist produced by scripts/survey_assets.py.
+
+    Keeping the 8k+ live Alpaca equity universe in localdata avoids committing
+    a giant static Python list while still making UNIVERSE_TIER=allowlist fully
+    reproducible on a machine that has already run the survey.
+    """
+    if not ALLOWLIST_CACHE_PATH.exists():
+        return {}
+    try:
+        with open(ALLOWLIST_CACHE_PATH) as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    if isinstance(payload, list):
+        return {"all": _coerce_symbol_list(payload)}
+    if not isinstance(payload, dict):
+        return {}
+
+    return {
+        "equities": _coerce_symbol_list(payload.get("equities", [])),
+        "futures": _coerce_symbol_list(payload.get("futures", [])),
+        "crypto": _coerce_symbol_list(payload.get("crypto", [])),
+        "all": _coerce_symbol_list(payload.get("all", [])),
+    }
+
+
 def get_allowlist_symbols() -> list:
+    generated = _load_generated_allowlist()
+    if generated:
+        equities = generated.get("equities") or []
+        futures = generated.get("futures") or FUTURES_SYMBOLS
+        crypto = generated.get("crypto") or CRYPTO_SYMBOLS
+        explicit_all = generated.get("all") or []
+        return sorted(set(explicit_all + equities + futures + crypto))
+
     return sorted(set(EXPLICIT_ALLOWLIST + FUTURES_SYMBOLS + CRYPTO_SYMBOLS))
 
 def _load_universe_symbols():
     static_fallback = ETF_SYMBOLS + FUTURES_SYMBOLS + CRYPTO_SYMBOLS
     try:
-        from pathlib import Path
         import json
         cache_path = DATA_DIR / "universe_cache.json"
         if cache_path.exists():
