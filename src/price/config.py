@@ -24,6 +24,17 @@ SYMBOLS = [
     "GC", "SI", "ZB", "ZN", "NG"
 ]
 
+# Explicit universe splits for future use (ingestion, cross-asset, etc.)
+ETF_SYMBOLS = [
+    "SPY", "QQQ", "IWM", "DIA", "GLD",
+    "TLT", "USO", "XLK", "XLF", "XLE"
+]
+
+FUTURES_SYMBOLS = [
+    "ES", "NQ", "RTY", "YM", "CL",
+    "GC", "SI", "ZB", "ZN", "NG"
+]
+
 TIMEFRAMES = ["15m", "1h", "1d"]
 
 # Futures use Alpaca as the sole primary source (Tiingo does not cover futures).
