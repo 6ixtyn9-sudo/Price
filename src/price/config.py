@@ -22,7 +22,7 @@ TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
 #   allowlist = curated EXPLICIT_ALLOWLIST (no SPACs, no junk)
 #   full      = all tradable US equities + crypto
 # Override via: export UNIVERSE_TIER=allowlist
-UNIVERSE_TIER = os.getenv("UNIVERSE_TIER", "full")
+UNIVERSE_TIER = os.getenv("UNIVERSE_TIER", "allowlist")
 
 # Curated allow-list - liquid names, no SPACs/warrants/units
 EXPLICIT_ALLOWLIST = [
