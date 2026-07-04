@@ -84,7 +84,7 @@ def is_equity(symbol: str) -> bool:
     return not is_crypto(symbol) and not is_futures(symbol)
 
 def get_allowlist_symbols() -> list:
-    return sorted(set(EXPLICIT_ALLOWLIST))
+    return sorted(set(EXPLICIT_ALLOWLIST + FUTURES_SYMBOLS + CRYPTO_SYMBOLS))
 
 def _load_universe_symbols():
     static_fallback = ETF_SYMBOLS + FUTURES_SYMBOLS + CRYPTO_SYMBOLS
