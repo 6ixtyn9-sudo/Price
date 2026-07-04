@@ -17,7 +17,10 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365)
             if tf not in ["1d", "15m"]:
                 continue
                 
-            source = PRIMARY_SOURCES[tf]
+            if is_futures(symbol):
+                source = "alpaca"
+            else:
+                source = PRIMARY_SOURCES[tf]
             print(f"\n🚀 Ingesting {symbol} ({tf}) from {source.upper()}...")
             
             existing_df = load_from_warehouse(symbol, tf)
