@@ -26,6 +26,9 @@ import numpy as np
 import pandas as pd
 
 from price.config import DATA_DIR
+# Backward-compatible hook for tests/older monitor workflows that monkeypatch
+# a live-refresh fetcher. get_current_state intentionally uses warehouse only.
+from price.data_sources import fetch_alpaca_bars  # noqa: F401
 from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
 from price.position_manager import check_exits, get_today_realized_pnl
@@ -101,6 +104,43 @@ def _drop_incomplete_intraday_rows(df: pd.DataFrame, timeframe: str) -> pd.DataF
     return complete.reset_index(drop=True)
 
 
+def _state_unavailable_context(symbol: str, timeframe: str) -> dict:
+    """Best-effort reason payload for an unavailable monitor state."""
+    ctx = {
+        "reason": "no_completed_state",
+        "bar_ts_utc": None,
+        "close_adj": None,
+        "current_state": {},
+    }
+
+    df = load_from_warehouse(symbol, timeframe)
+    if df.empty:
+        ctx["reason"] = "no_warehouse_data"
+        return ctx
+
+    if "close_adj" not in df.columns:
+        df = df.copy()
+        df["close_adj"] = df.get("close_raw", df.get("close", np.nan))
+
+    df = df.sort_values("bar_ts_utc").reset_index(drop=True)
+    df = _drop_incomplete_intraday_rows(df, timeframe)
+    if df.empty:
+        return ctx
+
+    latest = df.iloc[-1]
+    ctx["bar_ts_utc"] = str(latest.get("bar_ts_utc"))
+    close_adj = latest.get("close_adj", np.nan)
+    try:
+        close_adj_float = float(close_adj)
+    except (TypeError, ValueError):
+        close_adj_float = float("nan")
+    ctx["close_adj"] = close_adj_float if close_adj_float == close_adj_float else None
+
+    if pd.isna(close_adj):
+        ctx["reason"] = "nan_state_features"
+    return ctx
+
+
 def get_current_state(
     symbol: str,
     timeframe: str,
@@ -142,6 +182,11 @@ def get_current_state(
         print(f"  Only {len(df_tail)} completed bars for {symbol} ({timeframe}); need ~60 for features.")
         return None
 
+    latest_close = df_tail["close_adj"].iloc[-1] if "close_adj" in df_tail.columns else np.nan
+    if pd.isna(latest_close):
+        print(f"  Latest completed bar for {symbol} ({timeframe}) has NaN close_adj.")
+        return None
+
     df_feat = compute_price_features(df_tail)
     df_binned = bin_features(df_feat)
 
@@ -156,15 +201,21 @@ def get_current_state(
             print(f"  Missing required state fields for {symbol} ({timeframe}): {missing}")
             return None
 
-        mask = df_binned["close_adj"].notna()
+        latest = df_binned.iloc[-1:]
+        invalid_fields = []
+        if latest["close_adj"].isna().iloc[0]:
+            invalid_fields.append("close_adj")
         for field in required_fields:
-            mask &= df_binned[field].notna()
+            if latest[field].isna().iloc[0]:
+                invalid_fields.append(field)
 
-        complete = df_binned[mask].reset_index(drop=True)
-        if complete.empty:
-            print(f"  No completed state row for {symbol} ({timeframe}) with required fields {required_fields}.")
+        if invalid_fields:
+            print(
+                f"  Latest state row for {symbol} ({timeframe}) has NaN "
+                f"required fields: {invalid_fields}"
+            )
             return None
-        return complete.iloc[-1:]
+        return latest
 
     return df_binned.iloc[-1:]
 
@@ -355,15 +406,13 @@ def scan_all_slices(
                     "error": "no_state_data",
                     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 })
+            unavailable_ctx = _state_unavailable_context(symbol, timeframe)
             signals.append({
                 "kind": "state_unavailable",
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "slice_combination": group_slices[0]["slice_combination"],
-                "reason": "no_completed_state",
-                "bar_ts_utc": None,
-                "close_adj": None,
-                "current_state": {},
+                **unavailable_ctx,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             })
             continue
