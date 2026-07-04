@@ -22,7 +22,7 @@ from price.warehouse import save_to_warehouse, load_from_warehouse
 def test_futures_ingestion():
     symbols = ["ES", "CL"]          # two representative futures
     timeframe = "1d"
-    days = 7
+    days = 365
 
     end_dt = datetime.now(timezone.utc)
     start_dt = end_dt - timedelta(days=days)

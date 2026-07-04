@@ -35,6 +35,11 @@ FUTURES_SYMBOLS = [
     "GC", "SI", "ZB", "ZN", "NG"
 ]
 
+
+def is_futures(symbol: str) -> bool:
+    """Return True if symbol belongs to the futures universe."""
+    return symbol.upper() in FUTURES_SYMBOLS
+
 TIMEFRAMES = ["15m", "1h", "1d"]
 
 # Futures use Alpaca as the sole primary source (Tiingo does not cover futures).
