@@ -1,4 +1,5 @@
 row_key,symbol,timeframe,slice_combination,signal_ts_utc,signal_close_adj,captured_at_utc,exit_close_5b,fwd_ret_5b,exit_close_20b,fwd_ret_20b,partial_data
-XLE|1d|state_ext=stretched_down + state_slope=downtrend|2026-06-30 00:00:00+00:00,XLE,1d,state_ext=stretched_down + state_slope=downtrend,2026-06-30 00:00:00+00:00,53.11,2026-07-03T20:27:28.858376+00:00,,,,,True
-XLE|1d|state_ext=stretched_down + state_slope=downtrend|2026-06-30 00:00:00+00:00,XLE,1d,state_ext=stretched_down + state_slope=downtrend,2026-06-30 00:00:00+00:00,53.11,2026-07-03T20:27:29.696927+00:00,,,,,True
-XLE|1d|state_ext=stretched_down + state_slope=downtrend|2026-07-02 00:00:00+00:00,XLE,1d,state_ext=stretched_down + state_slope=downtrend,2026-07-02 00:00:00+00:00,53.22,2026-07-03T20:27:30.513374+00:00,,,,,True
+XLE|1d|state_ext=stretched_down + state_slope=downtrend|2026-06-30 00:00:00+00:00,XLE,1d,state_ext=stretched_down + state_slope=downtrend,2026-06-30 00:00:00+00:00,53.11,2026-07-03T21:58:19.186593+00:00,,,,,True
+XLE|1d|state_ext=stretched_down + state_slope=downtrend|2026-06-30 00:00:00+00:00,XLE,1d,state_ext=stretched_down + state_slope=downtrend,2026-06-30 00:00:00+00:00,53.11,2026-07-03T21:58:20.347550+00:00,,,,,True
+XLE|1d|state_ext=stretched_down + state_slope=downtrend|2026-07-02 00:00:00+00:00,XLE,1d,state_ext=stretched_down + state_slope=downtrend,2026-07-02 00:00:00+00:00,53.22,2026-07-03T21:58:21.481998+00:00,,,,,True
+XLE|1d|state_ext=stretched_down + state_slope=downtrend|2026-07-02 00:00:00+00:00,XLE,1d,state_ext=stretched_down + state_slope=downtrend,2026-07-02 00:00:00+00:00,53.22,2026-07-03T21:58:22.609932+00:00,,,,,True
