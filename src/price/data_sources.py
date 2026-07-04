@@ -2,14 +2,12 @@ import time
 import requests
 import pandas as pd
 from datetime import datetime, timedelta, timezone
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest
+from alpaca.data.historical import StockHistoricalDataClient, CryptoHistoricalDataClient
+from alpaca.data.requests import StockBarsRequest, CryptoBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.enums import DataFeed
 
-from price.config import FUTURES_SYMBOLS
-
-from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY
+from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY, is_crypto, is_futures, ETF_SYMBOLS
 
 def get_date_chunks(start_dt: datetime, end_dt: datetime, chunk_days: int):
     """
@@ -21,9 +19,66 @@ def get_date_chunks(start_dt: datetime, end_dt: datetime, chunk_days: int):
         yield current_start, current_end
         current_start = current_end + timedelta(seconds=1)
 
+def _normalize_alpaca_df(merged_df: pd.DataFrame, symbol: str, timeframe_str: str, source: str = "alpaca") -> pd.DataFrame:
+    """Common normalizer: adds adj columns = raw (no corp actions for crypto/futures / intraday)."""
+    df_clean = merged_df.reset_index()
+    # timestamp column name varies: 'timestamp' for stocks, also for crypto
+    ts_col = 'timestamp' if 'timestamp' in df_clean.columns else df_clean.columns[0]
+    df_clean['bar_ts_utc'] = pd.to_datetime(df_clean[ts_col]).dt.tz_convert('UTC')
+    df_clean['symbol'] = symbol.upper()
+    df_clean['timeframe'] = timeframe_str
+    df_clean['source'] = source
+    df_clean['ingested_at_utc'] = datetime.now(timezone.utc)
+
+    # Rename columns to raw OHLVC canonical schema
+    df_clean = df_clean.rename(columns={
+        'open': 'open_raw',
+        'high': 'high_raw',
+        'low': 'low_raw',
+        'close': 'close_raw',
+        'volume': 'volume_raw',
+        'trade_count': 'trade_count',
+        'vwap': 'vwap'
+    })
+
+    # Add adjusted columns = raw (no splits/dividends for crypto/futures/intraday)
+    for col in ['open', 'high', 'low', 'close']:
+        raw_col = f'{col}_raw'
+        adj_col = f'{col}_adj'
+        if raw_col in df_clean.columns:
+            df_clean[adj_col] = df_clean[raw_col]
+
+    df_clean['adj_factor'] = 1.0
+    df_clean['split_factor'] = 1.0
+    df_clean['dividend_cash'] = 0.0
+
+    # Select canonical columns (allow extra columns to be ignored downstream)
+    canonical_cols = [
+        'symbol', 'timeframe', 'bar_ts_utc', 'source', 'ingested_at_utc',
+        'open_raw', 'high_raw', 'low_raw', 'close_raw', 'volume_raw',
+        'open_adj', 'high_adj', 'low_adj', 'close_adj',
+        'adj_factor', 'split_factor', 'dividend_cash'
+    ]
+    # ensure all cols exist
+    for c in canonical_cols:
+        if c not in df_clean.columns:
+            if c in ['open_adj','high_adj','low_adj','close_adj']:
+                # fallback to raw
+                raw = c.replace('_adj','_raw')
+                df_clean[c] = df_clean.get(raw, 0.0)
+            elif c in ['adj_factor','split_factor']:
+                df_clean[c] = 1.0
+            elif c == 'dividend_cash':
+                df_clean[c] = 0.0
+            else:
+                df_clean[c] = pd.NA
+
+    return df_clean[canonical_cols]
+
 def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """
     Fetches raw bar data from Alpaca for a single symbol, with rate limit handling and chunking.
+    Works for US Equities / ETFs.
     """
     if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
         raise ValueError("Alpaca API credentials missing in environment.")
@@ -81,30 +136,7 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
     # Remove duplicate index rows if any chunks overlapped slightly
     merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
     
-    # Normalize DataFrame
-    df_clean = merged_df.reset_index()
-    df_clean['bar_ts_utc'] = pd.to_datetime(df_clean['timestamp']).dt.tz_convert('UTC')
-    df_clean['symbol'] = symbol.upper()
-    df_clean['timeframe'] = timeframe_str
-    df_clean['source'] = "alpaca"
-    df_clean['ingested_at_utc'] = datetime.now(timezone.utc)
-    
-    # Rename columns to raw OHLVC canonical schema
-    df_clean = df_clean.rename(columns={
-        'open': 'open_raw',
-        'high': 'high_raw',
-        'low': 'low_raw',
-        'close': 'close_raw',
-        'volume': 'volume_raw'
-    })
-    
-    # Select canonical columns
-    canonical_cols = [
-        'symbol', 'timeframe', 'bar_ts_utc', 'source', 'ingested_at_utc',
-        'open_raw', 'high_raw', 'low_raw', 'close_raw', 'volume_raw'
-    ]
-    
-    return df_clean[canonical_cols]
+    return _normalize_alpaca_df(merged_df, symbol, timeframe_str, source="alpaca")
 
 def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """
@@ -191,11 +223,26 @@ def fetch_alpaca_futures_bars(symbol: str, timeframe_str: str, start_dt: datetim
     """
     Fetches raw bar data from Alpaca for futures symbols.
     Uses the same StockHistoricalDataClient (Alpaca supports futures via the same endpoint).
+    NOTE: Alpaca free tier officially covers US Stocks/ETFs, Options, Crypto.
+    Futures data may return empty on free tier – caller should handle gracefully.
+    """
+    # Re-use equity path – output schema is identical
+    try:
+        return fetch_alpaca_bars(symbol, timeframe_str, start_dt, end_dt)
+    except Exception as e:
+        print(f"Futures fetch failed for {symbol}: {e}")
+        return pd.DataFrame()
+
+
+def fetch_crypto_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """
+    Fetch crypto OHLCV bars from Alpaca Crypto Data API (free tier included).
+    symbol format: 'BTC/USD', 'ETH/USD', etc.
     """
     if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
         raise ValueError("Alpaca API credentials missing in environment.")
 
-    client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
+    client = CryptoHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
 
     if timeframe_str == "15m":
         tf = TimeFrame(15, TimeFrameUnit.Minute)
@@ -204,37 +251,33 @@ def fetch_alpaca_futures_bars(symbol: str, timeframe_str: str, start_dt: datetim
     elif timeframe_str == "1d":
         tf = TimeFrame.Day
     else:
-        raise ValueError(f"Unsupported Alpaca timeframe: {timeframe_str}")
+        raise ValueError(f"Unsupported crypto timeframe: {timeframe_str}")
 
     all_dfs = []
-
     for chunk_start, chunk_end in get_date_chunks(start_dt, end_dt, 90):
         time.sleep(0.35)
-
-        request_params = StockBarsRequest(
+        request_params = CryptoBarsRequest(
             symbol_or_symbols=symbol,
             timeframe=tf,
             start=chunk_start,
-            end=chunk_end,
-            feed=DataFeed.IEX
+            end=chunk_end
         )
-
         retries = 3
         while retries > 0:
             try:
-                bars = client.get_stock_bars(request_params)
+                bars = client.get_crypto_bars(request_params)
                 df = bars.df
                 if df is not None and not df.empty:
                     all_dfs.append(df)
                 break
             except Exception as e:
                 retries -= 1
-                if "429" in str(e) or "Rate Limit" in str(e):
+                if "429" in str(e) or "rate" in str(e).lower():
                     time.sleep(10)
                 else:
                     time.sleep(2)
                 if retries == 0:
-                    print(f"Failed to fetch Alpaca futures bars for {symbol} ({chunk_start} to {chunk_end}): {e}")
+                    print(f"Failed to fetch crypto bars for {symbol}: {e}")
                     raise e
 
     if not all_dfs:
@@ -243,24 +286,33 @@ def fetch_alpaca_futures_bars(symbol: str, timeframe_str: str, start_dt: datetim
     merged_df = pd.concat(all_dfs).sort_index()
     merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
 
-    df_clean = merged_df.reset_index()
-    df_clean['bar_ts_utc'] = pd.to_datetime(df_clean['timestamp']).dt.tz_convert('UTC')
-    df_clean['symbol'] = symbol.upper()
-    df_clean['timeframe'] = timeframe_str
-    df_clean['source'] = "alpaca"
-    df_clean['ingested_at_utc'] = datetime.now(timezone.utc)
+    return _normalize_alpaca_df(merged_df, symbol, timeframe_str, source="alpaca_crypto")
 
-    df_clean = df_clean.rename(columns={
-        'open': 'open_raw',
-        'high': 'high_raw',
-        'low': 'low_raw',
-        'close': 'close_raw',
-        'volume': 'volume_raw'
-    })
 
-    canonical_cols = [
-        'symbol', 'timeframe', 'bar_ts_utc', 'source', 'ingested_at_utc',
-        'open_raw', 'high_raw', 'low_raw', 'close_raw', 'volume_raw'
-    ]
+def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """
+    Router that picks the correct data source based on asset class:
+      - Crypto: Alpaca CryptoHistoricalDataClient
+      - Futures: Alpaca (may be empty on free tier)
+      - ETF (core 10): Tiingo 1d, Alpaca 15m/1h
+      - All other equities: Alpaca (Tiingo fallback optional)
+    """
+    sym = symbol.upper()
+    # Crypto first
+    if is_crypto(sym):
+        return fetch_crypto_bars(sym, timeframe_str, start_dt, end_dt)
 
-    return df_clean[canonical_cols]
+    # Futures
+    if is_futures(sym):
+        return fetch_alpaca_futures_bars(sym, timeframe_str, start_dt, end_dt)
+
+    # Core ETFs get Tiingo daily for best adjusted history
+    if timeframe_str == "1d" and sym in ETF_SYMBOLS and TIINGO_API_KEY:
+        try:
+            return fetch_tiingo_daily_bars(sym, start_dt, end_dt)
+        except Exception as e:
+            print(f"Tiingo failed for {sym}, falling back to Alpaca: {e}")
+            return fetch_alpaca_bars(sym, timeframe_str, start_dt, end_dt)
+
+    # Default: Alpaca for everything else (free-tier universal)
+    return fetch_alpaca_bars(sym, timeframe_str, start_dt, end_dt)

@@ -1,10 +1,26 @@
 import pandas as pd
 from datetime import datetime, timezone
 
-from price.config import WAREHOUSE_DIR
+from price.config import WAREHOUSE_DIR, is_crypto
+
+def _sanitize_symbol(symbol: str) -> str:
+    """
+    Filesystem-safe symbol encoding.
+    - 'BTC/USD' -> 'BTC-USD'
+    - Keeps uppercase
+    - Replaces / : \\ and spaces
+    """
+    s = symbol.upper()
+    return s.replace("/", "-").replace(":", "-").replace("\\", "-").replace(" ", "_")
+
+def _desanitize_symbol(safe: str) -> str:
+    # best-effort reverse - mainly for display
+    # Note: ambiguous if original contained '-', but we store true symbol in data
+    return safe.replace("-", "/")
 
 def load_from_warehouse(symbol: str, timeframe: str) -> pd.DataFrame:
-    partition_dir = WAREHOUSE_DIR / f"symbol={symbol.upper()}" / f"timeframe={timeframe}"
+    safe_sym = _sanitize_symbol(symbol)
+    partition_dir = WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
     if not partition_dir.exists():
         return pd.DataFrame()
     
@@ -24,7 +40,8 @@ def save_to_warehouse(df: pd.DataFrame):
     groups = df.groupby(["symbol", "timeframe"])
     for (symbol, timeframe), group in groups:
         symbol = symbol.upper()
-        partition_dir = WAREHOUSE_DIR / f"symbol={symbol}" / f"timeframe={timeframe}"
+        safe_sym = _sanitize_symbol(symbol)
+        partition_dir = WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
         partition_dir.mkdir(parents=True, exist_ok=True)
         
         existing_df = load_from_warehouse(symbol, timeframe)
@@ -52,7 +69,7 @@ def save_to_warehouse(df: pd.DataFrame):
         print(f"Warehouse saved: {symbol} | {timeframe} | {len(final_df)} total rows.")
 
 def resample_15m_to_1h(symbol: str):
-    symbol = symbol.upper()
+    # symbol may be 'BTC/USD' – load_from_warehouse handles sanitizing
     df_15m = load_from_warehouse(symbol, "15m")
     if df_15m.empty:
         print(f"No 15m bars found to resample for {symbol}.")
@@ -60,28 +77,57 @@ def resample_15m_to_1h(symbol: str):
         
     df_15m = df_15m.sort_values("bar_ts_utc")
     
+    # Build agg dict dynamically – crypto may lack 'source' column in some paths
     agg_rules = {
         'open_raw': 'first',
         'high_raw': 'max',
         'low_raw': 'min',
         'close_raw': 'last',
         'volume_raw': 'sum',
-        'source': 'first',
     }
+    # optional cols
+    for opt in ['open_adj','high_adj','low_adj','close_adj','adj_factor','split_factor','dividend_cash','vwap','trade_count','source']:
+        if opt in df_15m.columns:
+            if opt in ['high_adj','high_raw','volume_raw','vwap']:
+                agg_rules[opt] = 'max' if 'high' in opt else 'sum' if 'volume' in opt else 'last'
+            elif opt in ['low_adj','low_raw']:
+                agg_rules[opt] = 'min'
+            elif opt in ['open_adj','open_raw']:
+                agg_rules[opt] = 'first'
+            else:
+                agg_rules[opt] = 'last'
     
-    resampled = df_15m.resample('1h', on='bar_ts_utc').agg(agg_rules).dropna().reset_index()
+    # ensure source aggregation exists
+    if 'source' in df_15m.columns and 'source' not in agg_rules:
+        agg_rules['source'] = 'first'
     
-    resampled['symbol'] = symbol
+    resampled = df_15m.resample('1h', on='bar_ts_utc').agg(agg_rules).dropna(subset=['open_raw','close_raw']).reset_index()
+    
+    resampled['symbol'] = symbol.upper()
     resampled['timeframe'] = "1h"
     resampled['ingested_at_utc'] = datetime.now(timezone.utc)
+    
+    # fill adj = raw if missing
+    for col in ['open_adj','high_adj','low_adj','close_adj']:
+        raw = col.replace('_adj','_raw')
+        if col not in resampled.columns and raw in resampled.columns:
+            resampled[col] = resampled[raw]
+    for fcol, default in [('adj_factor',1.0),('split_factor',1.0),('dividend_cash',0.0)]:
+        if fcol not in resampled.columns:
+            resampled[fcol] = default
     
     save_to_warehouse(resampled)
 
 def propagate_adjustment_factors(symbol: str):
-    symbol = symbol.upper()
+    # Skip crypto – no corporate actions, adj = raw already
+    if is_crypto(symbol):
+        return
     df_1d = load_from_warehouse(symbol, "1d")
     if df_1d.empty:
         print(f"No daily bars found to extract adjustments for {symbol}.")
+        return
+    if 'adj_factor' not in df_1d.columns:
+        # nothing to propagate – assume 1.0
         return
         
     # Daily Tiingo bars are stored at midnight UTC, but semantically represent
@@ -97,8 +143,12 @@ def propagate_adjustment_factors(symbol: str):
         df_tf = load_from_warehouse(symbol, tf)
         if df_tf.empty:
             continue
-            
-        df_tf['market_date'] = df_tf['bar_ts_utc'].dt.tz_convert('America/New_York').dt.date
+        
+        # crypto runs 24/7 – use UTC date; equities use NY date
+        if is_crypto(symbol):
+            df_tf['market_date'] = df_tf['bar_ts_utc'].dt.tz_convert('UTC').dt.date
+        else:
+            df_tf['market_date'] = df_tf['bar_ts_utc'].dt.tz_convert('America/New_York').dt.date
 
         def apply_adjustments(row):
             market_d = row['market_date']
@@ -125,7 +175,7 @@ def propagate_adjustment_factors(symbol: str):
             
         df_tf = df_tf.drop(columns=['market_date'])
         
-        df_tf['symbol'] = symbol
+        df_tf['symbol'] = symbol.upper()
         df_tf['timeframe'] = tf
         df_tf['ingested_at_utc'] = datetime.now(timezone.utc)  # Force update to current time to ensure overwrite
         
