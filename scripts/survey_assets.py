@@ -78,7 +78,7 @@ def main():
 
         if "crypto" in ac.lower() or "/" in sym:
             crypto_all.append(sym)
-        elif exch in ("NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "NYSEARCA", "NMS"):
+        elif any(e in exch for e in ("NYSE", "NASDAQ", "AMEX", "ARCA", "BATS")) and "OTC" not in exch:
             equities_all.append((sym, name, exch))
 
     equities_all.sort(key=lambda x: x[0])
