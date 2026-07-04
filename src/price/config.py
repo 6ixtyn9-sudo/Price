@@ -16,8 +16,12 @@ ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
 
 SYMBOLS = [
+    # ETF universe (original 10)
     "SPY", "QQQ", "IWM", "DIA", "GLD",
-    "TLT", "USO", "XLK", "XLF", "XLE"
+    "TLT", "USO", "XLK", "XLF", "XLE",
+    # Futures universe (added 2026-07-04)
+    "ES", "NQ", "RTY", "YM", "CL",
+    "GC", "SI", "ZB", "ZN", "NG"
 ]
 
 TIMEFRAMES = ["15m", "1h", "1d"]
