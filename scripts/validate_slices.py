@@ -10,6 +10,11 @@ local warehouse (no re-ingestion, no network calls), then runs:
 
 Prints a consolidated scorecard and writes localdata/validated_slices.csv.
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
 
 import argparse
 import contextlib

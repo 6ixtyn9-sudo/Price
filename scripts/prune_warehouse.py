@@ -8,6 +8,11 @@ Usage:
     python3 scripts/prune_warehouse.py --delete          # actually delete
     python3 scripts/prune_warehouse.py --delete --timeframe 15m
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
 import shutil
 import argparse
 import pandas as pd

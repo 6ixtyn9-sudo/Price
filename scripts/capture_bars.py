@@ -1,7 +1,12 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
 import argparse
 import pandas as pd
 from datetime import datetime, timedelta, timezone
-from price.config import SYMBOLS, PRIMARY_SOURCES, is_futures, is_crypto, is_equity, ETF_SYMBOLS, UNIVERSE_TIER, UNIVERSE_MAX_SYMBOLS
+from price.config import SYMBOLS, is_futures, is_crypto, is_equity, ETF_SYMBOLS, UNIVERSE_TIER, UNIVERSE_MAX_SYMBOLS
 from price.data_sources import fetch_universal_bars, fetch_alpaca_bars, fetch_tiingo_daily_bars, fetch_alpaca_futures_bars, fetch_crypto_bars
 from price.warehouse import save_to_warehouse, load_from_warehouse, resample_15m_to_1h, propagate_adjustment_factors
 

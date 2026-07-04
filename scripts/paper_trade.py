@@ -19,6 +19,11 @@ Usage:
 
 See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)".
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
 
 import argparse
 import sys

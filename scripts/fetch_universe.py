@@ -10,13 +10,13 @@ Usage:
 Outputs:
   localdata/universe_cache.json
 """
-import argparse
-import json
+import os
 import sys
-from pathlib import Path
 
-# ensure src on path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+import argparse
+from pathlib import Path
 
 from price.universe import build_universe, get_universe
 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         use_cache=not args.no_cache,
     )
 
-    print(f"✅ Universe built")
+    print("✅ Universe built")
     print(f"  Equities: {uni['meta']['count_equities']}  (ETFs {uni['meta']['count_etfs']}, stocks {uni['meta']['count_stocks']})")
     print(f"  Crypto:   {uni['meta']['count_crypto']}")
     print(f"  Total:    {len(uni['all'])}")

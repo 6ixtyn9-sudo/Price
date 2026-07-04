@@ -18,6 +18,11 @@ Then validate manually:
     python3 scripts/validate_slices.py \\
         --slices-path localdata/ml_candidate_slices.csv --candidate-leaderboard
 """
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
 
 import argparse
 from pathlib import Path
