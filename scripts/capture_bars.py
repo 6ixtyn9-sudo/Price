@@ -1,8 +1,8 @@
 import argparse
 import pandas as pd
 from datetime import datetime, timedelta, timezone
-from price.config import SYMBOLS, PRIMARY_SOURCES
-from price.data_sources import fetch_alpaca_bars, fetch_tiingo_daily_bars
+from price.config import SYMBOLS, PRIMARY_SOURCES, is_futures
+from price.data_sources import fetch_alpaca_bars, fetch_tiingo_daily_bars, fetch_alpaca_futures_bars
 from price.warehouse import save_to_warehouse, load_from_warehouse
 
 def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365):
@@ -34,7 +34,13 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365)
                 continue
                 
             try:
-                if tf == "1d" and source == "tiingo":
+                if is_futures(symbol):
+                    # Futures always come from Alpaca
+                    if tf in ("1d", "15m"):
+                        df = fetch_alpaca_futures_bars(symbol, tf, start_dt, end_dt)
+                    else:
+                        continue
+                elif tf == "1d" and source == "tiingo":
                     df = fetch_tiingo_daily_bars(symbol, start_dt, end_dt)
                 elif tf == "15m" and source == "alpaca":
                     df = fetch_alpaca_bars(symbol, "15m", start_dt, end_dt)
