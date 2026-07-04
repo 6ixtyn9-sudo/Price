@@ -7,6 +7,8 @@ from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.enums import DataFeed
 
+from price.config import FUTURES_SYMBOLS
+
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY
 
 def get_date_chunks(start_dt: datetime, end_dt: datetime, chunk_days: int):
@@ -183,3 +185,82 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
     ]
     
     return df[canonical_cols]
+
+
+def fetch_alpaca_futures_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """
+    Fetches raw bar data from Alpaca for futures symbols.
+    Uses the same StockHistoricalDataClient (Alpaca supports futures via the same endpoint).
+    """
+    if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
+        raise ValueError("Alpaca API credentials missing in environment.")
+
+    client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
+
+    if timeframe_str == "15m":
+        tf = TimeFrame(15, TimeFrameUnit.Minute)
+    elif timeframe_str == "1h":
+        tf = TimeFrame(1, TimeFrameUnit.Hour)
+    elif timeframe_str == "1d":
+        tf = TimeFrame.Day
+    else:
+        raise ValueError(f"Unsupported Alpaca timeframe: {timeframe_str}")
+
+    all_dfs = []
+
+    for chunk_start, chunk_end in get_date_chunks(start_dt, end_dt, 90):
+        time.sleep(0.35)
+
+        request_params = StockBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=tf,
+            start=chunk_start,
+            end=chunk_end,
+            feed=DataFeed.IEX
+        )
+
+        retries = 3
+        while retries > 0:
+            try:
+                bars = client.get_stock_bars(request_params)
+                df = bars.df
+                if df is not None and not df.empty:
+                    all_dfs.append(df)
+                break
+            except Exception as e:
+                retries -= 1
+                if "429" in str(e) or "Rate Limit" in str(e):
+                    time.sleep(10)
+                else:
+                    time.sleep(2)
+                if retries == 0:
+                    print(f"Failed to fetch Alpaca futures bars for {symbol} ({chunk_start} to {chunk_end}): {e}")
+                    raise e
+
+    if not all_dfs:
+        return pd.DataFrame()
+
+    merged_df = pd.concat(all_dfs).sort_index()
+    merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
+
+    df_clean = merged_df.reset_index()
+    df_clean['bar_ts_utc'] = pd.to_datetime(df_clean['timestamp']).dt.tz_convert('UTC')
+    df_clean['symbol'] = symbol.upper()
+    df_clean['timeframe'] = timeframe_str
+    df_clean['source'] = "alpaca"
+    df_clean['ingested_at_utc'] = datetime.now(timezone.utc)
+
+    df_clean = df_clean.rename(columns={
+        'open': 'open_raw',
+        'high': 'high_raw',
+        'low': 'low_raw',
+        'close': 'close_raw',
+        'volume': 'volume_raw'
+    })
+
+    canonical_cols = [
+        'symbol', 'timeframe', 'bar_ts_utc', 'source', 'ingested_at_utc',
+        'open_raw', 'high_raw', 'low_raw', 'close_raw', 'volume_raw'
+    ]
+
+    return df_clean[canonical_cols]
