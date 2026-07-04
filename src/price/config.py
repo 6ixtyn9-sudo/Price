@@ -31,8 +31,8 @@ ETF_SYMBOLS = [
 ]
 
 FUTURES_SYMBOLS = [
-    "ES", "NQ", "RTY", "YM", "CL",
-    "GC", "SI", "ZB", "ZN", "NG"
+    "ES", "MES", "MNQ", "MYM", "CL",
+    "MCL", "SI", "NG", "MGC", "M2K"
 ]
 
 
