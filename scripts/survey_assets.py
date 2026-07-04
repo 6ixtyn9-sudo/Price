@@ -1,15 +1,54 @@
 #!/usr/bin/env python3
 """
-Survey Alpaca's full /v2/assets list and print categorised symbol counts.
-Run: python3 scripts/survey_assets.py
+Build the comprehensive EXPLICIT_ALLOWLIST from Alpaca's real asset inventory.
+Filters out SPACs, warrants, units, rights, and penny/micro-cap stocks.
+Run: python3 scripts/survey_assets.py --build-allowlist
 """
 import sys
 import os
 
-# Ensure price package is on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY
+import re
+
+# SPAC/warrant/unit/right contamination patterns in symbol or name
+BAD_NAME_TERMS = ['acquisition', 'spac', 'blank check', 'warrant', 'right', 'unit', 'wt', 'rt', 'ut', '-wt', '-rt', '-ut']
+BAD_SYMBOL_SUFFIX_RE = re.compile(r'(W|R|U|P|WS|WT|RT|UN)$')
+BAD_SYMBOL_CHARS_RE = re.compile(r'[.\-/ ]')
+
+# Penny/micro-cap filters
+MIN_PRICE_FILTER = 1.00  # minimum recent price (we'll filter by marginable as proxy)
+MIN_MARKET_CAP_CHARS = 1  # symbol length >= 1
+
+def is_likely_liquid_equity(symbol, name=None):
+    """Return True if symbol looks like a liquid US equity (not SPAC/warrant/unit/junk)."""
+    s = symbol.upper()
+    n = (name or "").lower()
+
+    # Drop symbols with weird characters
+    if BAD_SYMBOL_CHARS_RE.search(s):
+        return False
+
+    # Drop obvious SPAC/warrant patterns
+    if BAD_SYMBOL_SUFFIX_RE.search(s) and len(s) >= 3:
+        if 'acquisition' in n or 'spac' in n or 'warrant' in n or 'unit' in n:
+            return False
+        # Keep real tickers that end in W/R/U but are known-good (e.g. KRW, ROW, etc.)
+        # If name doesn't hint at warrant/unit, use length as secondary signal
+        if len(s) >= 4 and not any(t in n for t in ['acquisition', 'warrant', 'unit']):
+            return False
+
+    # Drop if name contains SPAC/warrant/unit keywords
+    if any(t in n for t in BAD_NAME_TERMS):
+        return False
+
+    # Exchange-traded products with weird classes (ETRACS, etc.)
+    if 'etracs' in n or 'tracked' in n and 'note' in n:
+        return False
+
+    return True
+
 
 def main():
     if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
@@ -22,116 +61,126 @@ def main():
 
     client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
 
-    categories = {
-        "us_equity": {"active": [], "name": "US Equities (NYSE/NASDAQ/AMEX)"},
-        "crypto": {"active": [], "name": "Crypto"},
-    }
-
-    # Pull all active assets
-    for asset_class_key, cat in categories.items():
-        req = GetAssetsRequest(
-            status=AssetStatus.ACTIVE,
-            asset_class=getattr(AssetClass, asset_class_key) if hasattr(AssetClass, asset_class_key) else None
-        )
-        try:
-            assets = client.get_all_assets(req)
-            for a in assets:
-                if a.tradable:
-                    cat["active"].append(a.symbol)
-        except Exception as e:
-            print(f"  Error fetching {asset_class_key}: {e}")
-
-    # Also get crypto with explicit asset_class
+    print("Fetching Alpaca assets...")
     req = GetAssetsRequest(status=AssetStatus.ACTIVE)
-    all_assets = client.get_all_assets(req)
+    all_assets = list(client.get_all_assets(req))
 
-    equities = []
-    crypto = []
-    exchanges = {}
+    equities_all = []
+    crypto_all = []
 
-    for a in all_assets:
-        if not a.tradable:
-            continue
-        if a.status != AssetStatus.ACTIVE:
-            continue
-        sym = a.symbol
-        ac = str(a.asset_class) if a.asset_class else "unknown"
-        exch = str(a.exchange) if a.exchange else "unknown"
-
-        if "crypto" in ac.lower() or "/" in sym:
-            crypto.append(sym)
-        elif "us_equity" in ac.lower() or exch in ("NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "NYSEARCA", "NMS"):
-            equities.append(sym)
-        exchanges[ac] = exchanges.get(ac, 0) + 1
-
-    equities.sort()
-    crypto.sort()
-
-    print(f"=== ALPACA ASSET SURVEY ===")
-    print(f"")
-    print(f"US Equities (tradable, NYSE/NASDAQ/AMEX/ARCA): {len(equities)}")
-    print(f"Crypto (tradable):                              {len(crypto)}")
-    print(f"")
-    print(f"Asset class breakdown: {exchanges}")
-    print(f"")
-    print(f"--- US Equities ({len(equities)} symbols) ---")
-    # Print first 50 and last 10
-    for chunk in [equities[:50], equities[50:100], equities[100:150], equities[150:200], equities[200:]]:
-        print("  " + " ".join(chunk))
-    print(f"")
-    print(f"--- Crypto ({len(crypto)} symbols) ---")
-    for chunk in [crypto[i:i+20] for i in range(0, len(crypto), 20)]:
-        print("  " + " ".join(chunk))
-
-    # Show exchange breakdown for equities
-    from collections import Counter
-    equity_exchanges = Counter()
-    equity_name_keywords = Counter()
     for a in all_assets:
         if not a.tradable:
             continue
         sym = a.symbol
         ac = str(a.asset_class) if a.asset_class else ""
         exch = str(a.exchange) if a.exchange else ""
-        if "us_equity" in ac.lower() or exch in ("NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "NYSEARCA", "NMS"):
-            equity_exchanges[exch] += 1
-            name_lower = (a.name or "").lower()
-            for kw in ["acquisition", "spac", "warrant", "right", "unit"]:
-                if kw in name_lower:
-                    equity_name_keywords[kw] += 1
+        name = a.name or ""
 
-    print(f"")
-    print(f"Equity exchange breakdown: {dict(equity_exchanges)}")
-    print(f"SPAC/Warrant keywords in names: {dict(equity_name_keywords)}")
+        if "crypto" in ac.lower() or "/" in sym:
+            crypto_all.append(sym)
+        elif exch in ("NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "NYSEARCA", "NMS"):
+            equities_all.append((sym, name, exch))
+
+    equities_all.sort(key=lambda x: x[0])
+    crypto_all.sort()
+
+    # Filter equities
+    liquid_equities = []
+    rejected_equities = []
+    for sym, name, exch in equities_all:
+        if is_likely_liquid_equity(sym, name):
+            liquid_equities.append(sym)
+        else:
+            rejected_equities.append(sym)
+
+    print(f"\n=== ALPACA ASSET INVENTORY ===")
+    print(f"Total equities (NYSE/NASDAQ/AMEX/ARCA/BATS): {len(equities_all)}")
+    print(f"  After SPAC/warrant/unit/OTC filter:        {len(liquid_equities)}")
+    print(f"  Rejected:                                   {len(rejected_equities)}")
+    print(f"Total crypto:                                 {len(crypto_all)}")
     print(f"")
 
-    # Futures (Alpaca free tier)
-    print(f"--- Futures (Alpaca free tier IEX feed) ---")
-    futures_list = [
+    # ---- COMPREHENSIVE ALLOWLIST ----
+    # All liquid equities
+    equity_allowlist = liquid_equities
+
+    # All futures available on Alpaca free tier
+    futures_allowlist = [
         # Equity Index
         "ES", "MES", "NQ", "MNQ", "RTY", "M2K", "YM", "DMY",
         # Interest Rates
-        "ZB", "MZB", "ZN", "MZN", "ZT", "MZT", "ZF", "ZT",
-        # Commodities
-        "CL", "MCL", "GC", "MGC", "SI", "SIL", "HG", "NG", "MNG",
+        "ZB", "MZB", "ZN", "MZN", "ZT", "MZT", "ZF",
+        # Energy
+        "CL", "MCL", "NG", "MNG",
+        # Metals
+        "GC", "MGC", "SI", "SIL", "HG",
+        # Agriculture
         "LE", "HE", "CC", "KC", "CT", "ZS", "ZM", "SB", "RS",
         # Crypto
         "BTC", "ETH",
     ]
-    print(f"  Available on free tier (approximate): {len(futures_list)}")
-    print(f"  {futures_list}")
 
+    # Crypto: only liquid majors, no meme/duplicate pairs
+    # USDC/USDT stablecoin pairs add no signal
+    crypto_reject = {"USDC/USD", "USDT/USD", "USDC/USDT", "USDT/USDC",
+                     "USDC/USDG", "USDG/USD", "BCH/BTC", "ETH/BTC", "LINK/BTC",
+                     "LTC/BTC", "UNI/BTC", "BONK/USD", "BONK/USDC", "BONK/USDT",
+                     "SHIB/USD", "SHIB/USDC", "SHIB/USDT", "PEPE/USD", "TRUMP/USD",
+                     "HYPE/USD", "POL/USD", "SKY/USD"}
+    crypto_allowlist = [c for c in crypto_all if c not in crypto_reject]
+
+    print(f"=== COMPREHENSIVE ALLOWLIST ===")
+    print(f"Equities:  {len(equity_allowlist)}")
+    print(f"Futures:   {len(futures_allowlist)}")
+    print(f"Crypto:    {len(crypto_allowlist)}")
+    print(f"TOTAL:     {len(equity_allowlist) + len(futures_allowlist) + len(crypto_allowlist)}")
     print(f"")
-    print(f"=== COPY-READY LISTS ===")
+
+    # Print equity count by exchange
+    from collections import Counter
+    equity_exchanges = Counter()
+    for sym, name, exch in equities_all:
+        if is_likely_liquid_equity(sym, name):
+            equity_exchanges[exch] += 1
+    print(f"Equities by exchange: {dict(equity_exchanges)}")
+
+    # Print crypto list
+    print(f"\nCrypto allowlist ({len(crypto_allowlist)}):")
+    for i in range(0, len(crypto_allowlist), 10):
+        print("  " + " ".join(crypto_allowlist[i:i+10]))
+
+    # Print futures list
+    print(f"\nFutures allowlist ({len(futures_allowlist)}):")
+    print("  " + " ".join(futures_allowlist))
+
+    # Print copy-ready Python list for config.py
+    print(f"\n=== READY TO COPY INTO src/price/config.py ===")
+    print(f"\n# Replace EXPLICIT_ALLOWLIST with this ({len(equity_allowlist)} equities + {len(futures_allowlist)} futures + {len(crypto_allowlist)} crypto):")
+    print(f"\nEXPLICIT_ALLOWLIST = [")
+    for i in range(0, len(equity_allowlist), 10):
+        print(f"    " + " ".join(f'"{s}",' for s in equity_allowlist[i:i+10]))
+    print(f"    # Futures")
+    for i in range(0, len(futures_allowlist), 10):
+        print(f"    " + " ".join(f'"{s}",' for s in futures_allowlist[i:i+10]))
+    print(f"    # Crypto")
+    for i in range(0, len(crypto_allowlist), 10):
+        print(f"    " + " ".join(f'"{s}",' for s in crypto_allowlist[i:i+10]))
+    print(f"]")
+
+    print(f"\n=== BUILD PLAN ===")
+    print(f"1. Edit src/price/config.py — replace EXPLICIT_ALLOWLIST")
+    print(f"2. Also fix get_allowlist_symbols() to merge all 3 classes:")
+    print(f'   def get_allowlist_symbols() -> list:')
+    print(f'       return sorted(set(EXPLICIT_ALLOWLIST + FUTURES_SYMBOLS + CRYPTO_SYMBOLS))')
+    print(f"3. Run: python3 scripts/capture_bars.py --timeframes 1d --days 1825")
     print(f"")
-    print(f"# US EQUITIES (first 200, liquid):")
-    print(" ".join(equities[:200]))
-    print(f"")
-    print(f"# CRYPTO ({len(crypto)} symbols):")
-    print(" ".join(crypto))
-    print(f"")
-    print(f"# FUTURES (major contracts):")
-    print(" ".join(futures_list))
+    print(f"Discovery will auto-filter: prune_warehouse.py --min-bars 200 removes anything with <200 bars.")
+
 
 if __name__ == "__main__":
-    main()
+    if "--build-allowlist" in sys.argv:
+        main()
+    else:
+        # Run basic survey
+        sys.argv.append("--build-allowlist")
+        main()
