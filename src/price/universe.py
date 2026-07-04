@@ -244,12 +244,17 @@ def get_universe(tier: str = "full", max_symbols: Optional[int] = None) -> List[
       - "etf": original 10 ETF only
       - "etf_plus": ETF + top 100 liquid stocks
       - "sp500": ETF + ~500 stocks (if max_symbols set, caps)
+      - "allowlist": curated EXPLICIT_ALLOWLIST only (no SPACs, no junk)
       - "full": all tradable US equities + crypto (capped by max_symbols if provided)
       - "crypto": crypto only
       - "all": equities + crypto
     """
     if tier == "etf":
         return ETF_SYMBOLS.copy()
+
+    if tier == "allowlist":
+        # Bypass API discovery entirely - use curated allow-list
+        return get_allowlist_symbols()
 
     u = build_universe(
         include_etfs=True,
@@ -284,7 +289,7 @@ def is_equity_symbol(symbol: str) -> bool:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Fetch Alpaca free-tier universe")
-    parser.add_argument("--tier", default="full", choices=["etf", "etf_plus", "sp500", "full", "all", "crypto"])
+    parser.add_argument("--tier", default="full", choices=["etf", "etf_plus", "sp500", "allowlist", "full", "all", "crypto"])
     parser.add_argument("--max-symbols", type=int, default=None)
     parser.add_argument("--no-cache", action="store_true")
     args = parser.parse_args()

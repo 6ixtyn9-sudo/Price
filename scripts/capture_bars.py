@@ -87,7 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("--symbols", nargs="+", help="Symbols to ingest (overrides universe)")
     parser.add_argument("--timeframes", nargs="+", choices=["15m", "1d", "1h"], help="Timeframes to ingest")
     parser.add_argument("--days", type=int, default=365, help="Days of lookback")
-    parser.add_argument("--tier", choices=["etf", "etf_plus", "sp500", "full", "crypto", "all"], help="Override UNIVERSE_TIER")
+    parser.add_argument("--tier", choices=["etf", "etf_plus", "sp500", "allowlist", "full", "crypto", "all"], help="Override UNIVERSE_TIER")
     parser.add_argument("--max-symbols", type=int, help="Cap universe size")
     parser.add_argument("--universe", action="store_true", help="Print resolved universe and exit")
     parser.add_argument("--no-router", action="store_true", help="Disable universal router (legacy)")

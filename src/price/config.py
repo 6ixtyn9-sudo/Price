@@ -16,19 +16,45 @@ ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
 
 # Universe tier control
-#  etf       = original 10 ETF only (V1-V4 baseline)
-#  etf_plus  = ETF + 100 stocks
-#  sp500     = ETF + 500 stocks
-#  full      = all tradable US equities + crypto (Alpaca free-tier)
-# Can be overridden via env UNIVERSE_TIER and UNIVERSE_MAX_SYMBOLS
+#   etf       = original 10 ETF only
+#   etf_plus  = ETF + 100 stocks
+#   sp500     = ETF + 500 stocks
+#   allowlist = curated EXPLICIT_ALLOWLIST (no SPACs, no junk)
+#   full      = all tradable US equities + crypto
+# Override via: export UNIVERSE_TIER=allowlist
 UNIVERSE_TIER = os.getenv("UNIVERSE_TIER", "full")
+
+# Curated allow-list - liquid names, no SPACs/warrants/units
+EXPLICIT_ALLOWLIST = [
+    "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "GLD", "TLT", "USO",
+    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "AVGO",
+    "JPM", "UNH", "V", "MA", "HD", "PG", "COST", "XOM", "JNJ", "LLY", "ABBV",
+    "BAC", "WFC", "GS", "MS", "BLK", "AXP", "SCHW", "C",
+    "MRK", "PFE", "TMO", "ABT", "DHR", "AMGN", "GILD", "VRTX", "REGN", "ZTS",
+    "CAT", "GE", "HON", "UNP", "RTX", "LMT", "MM", "BA", "GD", "NOC", "UPS",
+    "FDX", "CSX", "NSC", "AMD", "INTC", "QCOM", "TXN", "ADI", "AMAT", "LRCX",
+    "MU", "KLAC", "MPWR", "ORCL", "CRM", "ADBE", "INTU", "NOW", "SNPS", "CDNS",
+    "ADSK", "PANW", "FTNT", "CRWD", "ZS", "MCD", "NKE", "LOW", "TJX", "SBUX",
+    "DG", "DLTR", "KO", "PEP", "WMT", "PM", "MDLZ", "STZ", "KMB", "GIS", "KHC",
+    "CVX", "EOG", "COP", "SLB", "MPC", "PSX", "VLO", "OXY", "HAL",
+    "LIN", "APD", "SHW", "FCX", "NEM", "DOW", "DD", "PPG", "ALB", "CTVA", "FMC",
+    "NEE", "DUK", "SO", "D", "AEP", "EXC", "XEL", "ED", "AWK", "WEC", "EIX",
+    "AMT", "PLD", "CCI", "EQIX", "PSA", "SPG", "AVB", "EQR", "WELL", "VTR",
+    "NFLX", "DIS", "CMCSA", "T", "VZ", "TMUS", "PYPL", "ICE", "CME",
+    "PGR", "CB", "MMC", "AON", "AFL", "MET", "TRV", "ALL",
+    "DE", "MTD", "ITW", "EMR", "ROK", "PH", "ISRG", "SYK", "MDT", "BSX", "HUM",
+    "TGT", "ROST", "BBY", "UAL", "DAL", "AAL", "HII", "LHX",
+    "ADP", "PAYX", "CPRT", "FICO", "CTAS", "CBOE", "BKNG", "MAR", "HLT", "MGM",
+    "WYNN", "LVS", "WMB", "KMI", "ET", "EPD", "TRGP", "OKE",
+    "GOLD", "AEM", "FNV", "WPM", "SPGI",
+]
+
 UNIVERSE_MAX_SYMBOLS = os.getenv("UNIVERSE_MAX_SYMBOLS")
 try:
     UNIVERSE_MAX_SYMBOLS = int(UNIVERSE_MAX_SYMBOLS) if UNIVERSE_MAX_SYMBOLS else None
 except (ValueError, TypeError):
     UNIVERSE_MAX_SYMBOLS = None
 
-# Explicit universe splits for future use (ingestion, cross-asset, etc.)
 ETF_SYMBOLS = [
     "SPY", "QQQ", "IWM", "DIA", "GLD",
     "TLT", "USO", "XLK", "XLF", "XLE"
@@ -39,7 +65,6 @@ FUTURES_SYMBOLS = [
     "MCL", "SI", "NG", "MGC", "M2K"
 ]
 
-# Alpaca free-tier crypto pairs (fallback if /assets call fails)
 CRYPTO_SYMBOLS = [
     "BTC/USD", "ETH/USD", "SOL/USD", "AVAX/USD", "LTC/USD",
     "BCH/USD", "LINK/USD", "UNI/USD", "AAVE/USD", "DOGE/USD",
@@ -49,32 +74,27 @@ CRYPTO_SYMBOLS = [
 ]
 
 def is_futures(symbol: str) -> bool:
-    """Return True if symbol belongs to the futures universe."""
     return symbol.upper() in FUTURES_SYMBOLS
 
 def is_crypto(symbol: str) -> bool:
-    """Crypto symbols contain '/' e.g. BTC/USD"""
     s = symbol.upper()
     return "/" in s or s in CRYPTO_SYMBOLS
 
 def is_equity(symbol: str) -> bool:
     return not is_crypto(symbol) and not is_futures(symbol)
 
-# --- Dynamic universe loading ---
-# Try to load cached universe from localdata/universe_cache.json
-# Fallback to static ETF+FUTURES+CRYPTO list if cache missing / import fails
+def get_allowlist_symbols() -> list:
+    return sorted(set(EXPLICIT_ALLOWLIST))
+
 def _load_universe_symbols():
-    # static fallback first
     static_fallback = ETF_SYMBOLS + FUTURES_SYMBOLS + CRYPTO_SYMBOLS
     try:
-        # avoid circular import: import late
         from pathlib import Path
         import json
         cache_path = DATA_DIR / "universe_cache.json"
         if cache_path.exists():
             with open(cache_path) as f:
                 u = json.load(f)
-                # tier-aware selection
                 if UNIVERSE_TIER == "etf":
                     return ETF_SYMBOLS
                 elif UNIVERSE_TIER == "crypto":
@@ -85,27 +105,24 @@ def _load_universe_symbols():
                         return syms[:UNIVERSE_MAX_SYMBOLS]
                     return syms
                 else:
-                    # etf_plus / sp500 etc: try to use cached 'all' then slice
                     syms = u.get("all", static_fallback)
                     if UNIVERSE_MAX_SYMBOLS:
                         return syms[:UNIVERSE_MAX_SYMBOLS]
                     return syms
     except Exception:
         pass
-    # if tier is explicitly etf, return etf only
     if UNIVERSE_TIER == "etf":
         return ETF_SYMBOLS
     if UNIVERSE_TIER == "crypto":
         return CRYPTO_SYMBOLS
-    # default: full free-tier static aggregate
+    if UNIVERSE_TIER == "allowlist":
+        return get_allowlist_symbols()
     return static_fallback
 
 SYMBOLS = _load_universe_symbols()
 
 TIMEFRAMES = ["15m", "1h", "1d"]
 
-# Futures use Alpaca as the sole primary source (Tiingo does not cover futures).
-# 1d bars for futures are fetched directly from Alpaca (no Tiingo fallback).
 PRIMARY_SOURCES = {
     "15m": "alpaca",
     "1h": "resampled",
