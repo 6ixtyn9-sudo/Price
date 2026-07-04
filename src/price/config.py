@@ -20,8 +20,8 @@ SYMBOLS = [
     "SPY", "QQQ", "IWM", "DIA", "GLD",
     "TLT", "USO", "XLK", "XLF", "XLE",
     # Futures universe (added 2026-07-04)
-    "ES", "NQ", "RTY", "YM", "CL",
-    "GC", "SI", "ZB", "ZN", "NG"
+    "ES", "MES", "MNQ", "MYM", "CL",
+    "MCL", "SI", "NG", "MGC", "M2K"
 ]
 
 # Explicit universe splits for future use (ingestion, cross-asset, etc.)
