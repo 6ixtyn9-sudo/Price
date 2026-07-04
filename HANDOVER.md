@@ -368,7 +368,7 @@ adj_factor (cumulative multiplicative factor applied to raw close to get close_a
 split_factor (default 1.0), dividend_cash (default 0.0)
 Descriptive features (computed later in V3):
 
-feat_ext_vs_ma_*, feat_atr_norm_ext, feat_ret_1/3/5/10, feat_realized_vol_*, feat_trend_slope_*, feat_session_bucket, feat_dow, feat_month, feat_sector_family
+feat_ext_vs_ma_, feat_atr_norm_ext, feat_ret_1/3/5/10, feat_realized_vol_, feat_trend_slope_*, feat_session_bucket, feat_dow, feat_month, feat_sector_family
 Forward evaluation placeholders (computed later in V3):
 
 fwd_ret_* (per horizon), fwd_mfe, fwd_mae, label_eligible
@@ -1389,13 +1389,13 @@ forward return to localdata/live_forward_returns.csv. Idempotent.
 Partial-data rows are kept distinct from completed ones via a
 partial_data flag. Never silently drops a row.
 .github/workflows/live_capture.yml: a GitHub Actions workflow
-that runs every 6 hours (0 */6 * * *). Steps: checkout, setup
+that runs every 6 hours (0 /6 * * ). Steps: checkout, setup
 Python 3.11, install requirements, run capture_bars.py to pull
 the most recent 1825 days of 1d bars and 30 days of 15m bars, run
 build_warehouse.py to resample 15m to 1h and propagate Tiingo
 daily adjustment factors, run validate_slices.py --candidate- leaderboard to refresh the leaderboard, run paper_trade.py --dry-run to emit a new audit row, run live_forward_returns.py
 to capture forward returns, then auto-commit any changes to
-localdata/*.csv back to main. The commit message includes
+localdata/.csv back to main. The commit message includes
 [skip ci] to avoid recursive workflow triggers. The workflow
 file uses concurrency: cancel-in-progress: true so a slow run
 doesn't pile up.
@@ -1404,7 +1404,7 @@ no-log, empty-leaderboard, real-data, and out-of-universe cases.
 63 tests pass total (up from 59).
 Why the universe is dynamic, not hardcoded
 The HANDOVER's V4 "triage_bucket" system already provides a defensible
-answer to "which slices should we watch": clean_survivor* rows in
+answer to "which slices should we watch": clean_survivor rows in
 localdata/candidate_leaderboard.csv are the slices that have passed
 train+valid+walk-forward+parent-excess discipline. live_forward_returns.py
 reads the current leaderboard at every run and tracks forward returns
@@ -1781,3 +1781,207 @@ Perform narrow manual ingestion test on 1–2 futures symbols.
 Run full V4/V5 pipeline on the new 10-symbol futures universe using the same validation gates.
 Practical conclusion
 Futures expansion maintains the lean, disciplined research philosophy of the repo while giving the discovery engine a fresh, regime-rich substrate of equal size to the original ETF set. No promotion claims are made. The existing paper-trading setup remains untouched.
+
+Liquidity-First Reset / Current Operating Universe (2026-07-04)
+This section supersedes the earlier broad-allowlist and futures-expansion push for the current research sprint.
+
+What happened
+
+The Alpaca asset survey successfully generated a full allowlist of roughly 10k symbols (9916 equities + 35 futures + 55 crypto = 9989 total), written to:
+
+localdata/explicit_allowlist.json
+
+A full 10k-symbol, 5-year 1d backfill was started and correctly saved data incrementally, but was stopped early because it was too large for the current iteration loop. The operator then replaced the full generated allowlist with a manual liquid-first allowlist.
+
+Current intended universe
+
+Use a small, liquid-first universe for initial findings:
+
+221 liquid equities / ETFs
+15 major crypto USD pairs
+0 futures
+236 total symbols
+
+This is the intended active universe until the research loop proves useful. Do not re-run scripts/survey_assets.py unless the operator explicitly wants to regenerate the broad 10k universe; doing so will overwrite localdata/explicit_allowlist.json back to the full survey output.
+
+Current local universe file
+
+localdata/explicit_allowlist.json is the active local universe source. It is intentionally localdata and gitignored. It should contain keys:
+
+equities
+futures
+crypto
+all
+meta
+
+For this sprint, futures must remain an explicit empty list:
+
+"futures": []
+
+Important config fix
+
+A bug was found in get_allowlist_symbols(): using generated.get("futures") or FUTURES_SYMBOLS caused an explicit empty futures list to silently re-add the default futures universe. That produced 270 symbols instead of 236 and reintroduced ambiguous roots like BTC/ETH/CL/ES.
+
+Fix committed locally by the operator:
+
+1ffe36a fix: honor empty generated futures allowlist
+
+Required behavior going forward:
+
+If localdata/explicit_allowlist.json exists, an explicit empty list means "exclude this asset class".
+Do not use or FUTURES_SYMBOLS / or CRYPTO_SYMBOLS fallback for present-but-empty generated lists.
+is_futures(symbol) must treat a symbol as futures only if it appears in the generated JSON's "futures" list when a generated allowlist exists.
+This avoids misrouting ambiguous symbols like CL (Colgate equity vs crude futures), ES, BTC, and ETH.
+
+Verification command:
+
+python3 scripts/capture_bars.py --tier allowlist --universe
+
+Expected current output:
+
+Resolved universe (236 symbols)
+
+It should include BTC/USD but not bare BTC; ETH/USD but not bare ETH. CL may appear, but it is Colgate equity and should ingest from ALPACA, not ALPACA_FUTURES.
+
+Futures status
+
+Futures are excluded for now.
+
+Reason: the current repo's futures routing is symbol-ambiguous and not yet a clean futures data path. Bare roots overlap with equities/crypto names:
+
+CL = Colgate equity and crude oil futures root
+ES can be an equity-like/root ambiguity
+BTC / ETH can be crypto/futures/root ambiguity
+
+Do not add futures back into the main allowlist until futures have a clean namespace and verified data-source handling. If futures are tested, test them separately with explicit symbols and do not mix them into the main liquid research universe.
+
+Current data-capture doctrine
+
+Start small, validate the loop, then grow only after initial findings.
+
+Current capture sizes:
+
+1d: 1825 days (~5 years)
+15m: 365 days (~1 year)
+1h: do not fetch directly; generated locally by resampling 15m
+
+Rationale:
+
+Daily bars are compact. Five years of 1d data gives about 1250 equity observations per symbol and about 1825 crypto observations per symbol.
+15m bars are much larger. One year already gives about 6500 equity bars per symbol and about 35k crypto bars per pair. A 5-year 15m pull would be roughly 5x larger and would slow iteration before the research loop has proven value.
+
+Current recommended commands
+
+Verify active universe:
+
+python3 scripts/capture_bars.py --tier allowlist --universe
+
+Daily backfill:
+
+python3 scripts/capture_bars.py --timeframes 1d --days 1825
+
+Intraday backfill:
+
+python3 scripts/capture_bars.py --timeframes 15m --days 365
+
+The 15m command also creates/updates 1h warehouse partitions by local resampling.
+
+Observed current progress
+
+The operator completed the 236-symbol 1d pass successfully. Most symbols have roughly 1252-1255 daily equity bars; crypto pairs have up to 1825 bars depending on listing/support history. The operator then started:
+
+python3 scripts/capture_bars.py --timeframes 15m --days 365
+
+Observed expected behavior:
+
+Equities fetch around ~6500-7000 15m bars for 1 year.
+Crypto fetches around ~35k 15m bars for 1 year because crypto trades 24/7.
+1h partitions are saved immediately after 15m resampling.
+Duplicate-looking saves for equities are expected/noisy: capture saves 15m, resamples 1h, then adjustment propagation may save 15m and 1h again.
+
+Warehouse cleanup already performed
+
+After the aborted 10k run, the operator dry-ran and deleted warehouse symbol directories not in the 236-symbol liquid allowlist. 196 non-allowlist directories were deleted. This was correct and reduced warehouse clutter.
+
+Do not blindly prune yet
+
+Be careful with:
+
+python3 scripts/prune_warehouse.py --min-bars 200 --delete
+
+Some newer crypto/assets may have fewer than 200 daily bars (example observed earlier: ADA/USD had 142 daily bars before a later incremental run). Always dry-run first:
+
+python3 scripts/prune_warehouse.py --min-bars 200
+
+If the dry-run would delete assets the operator wants to keep, either lower the threshold (e.g. --min-bars 100) or skip prune for now.
+
+Warehouse health check after capture
+
+Use this after 1d/15m capture to assess coverage:
+
+python3 - <<'PY'
+from pathlib import Path
+import json
+import pandas as pd
+
+payload = json.load(open("localdata/explicit_allowlist.json"))
+allowed = payload["all"]
+
+def safe(sym):
+return sym.upper().replace("/", "-").replace(":", "-").replace("\", "-").replace(" ", "_")
+
+root = Path("localdata/warehouse")
+
+for tf in ["1d", "15m", "1h"]:
+have = 0
+counts = []
+missing = []
+for sym in allowed:
+p = root / f"symbol={safe(sym)}" / f"timeframe={tf}" / "data.parquet"
+if not p.exists():
+missing.append(sym)
+continue
+try:
+n = len(pd.read_parquet(p))
+counts.append(n)
+have += 1
+except Exception:
+missing.append(sym)
+print(f"\n{tf}")
+print(" have:", have, "/", len(allowed))
+print(" missing:", len(missing))
+if counts:
+print(" min:", min(counts), "max:", max(counts), "avg:", round(sum(counts)/len(counts), 1))
+if missing:
+print(" missing first 15:", missing[:15])
+PY
+
+Recommended research sequence after capture
+
+Run discovery/validation in layers. Do not jump immediately into broader universes.
+
+Daily first:
+python3 scripts/discover_slices.py --timeframe 1d
+python3 scripts/validate_slices.py
+
+Then 1h:
+python3 scripts/discover_slices.py --timeframe 1h
+python3 scripts/validate_slices.py
+
+Then 15m if daily/1h diagnostics look sane:
+python3 scripts/discover_slices.py --timeframe 15m
+python3 scripts/validate_slices.py
+
+If discovering multiple timeframes into the same discovered_slices.csv, remember the existing handover warning: use --append or earlier results may be overwritten.
+
+Expansion gates
+
+Only expand after initial findings justify it. Expansion options, in order:
+
+increase 15m from 365 to 730 days
+add more liquid ETFs/stocks
+add selected crypto pairs
+add futures only after symbol namespace/data-source ambiguity is fixed
+revisit the full 10k allowlist only after the pipeline is proven and the operator explicitly accepts the runtime/storage cost
+
+Do not return to 10k symbols or 5-year 15m pulls as a default. The doctrine is: small liquid universe first, validate loop, then grow deliberately.
