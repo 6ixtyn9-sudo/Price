@@ -26,6 +26,8 @@ SYMBOLS = [
 
 TIMEFRAMES = ["15m", "1h", "1d"]
 
+# Futures use Alpaca as the sole primary source (Tiingo does not cover futures).
+# 1d bars for futures are fetched directly from Alpaca (no Tiingo fallback).
 PRIMARY_SOURCES = {
     "15m": "alpaca",
     "1h": "resampled",
