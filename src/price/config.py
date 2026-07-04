@@ -99,6 +99,8 @@ def _load_universe_symbols():
                     return ETF_SYMBOLS
                 elif UNIVERSE_TIER == "crypto":
                     return u.get("crypto", CRYPTO_SYMBOLS)
+                elif UNIVERSE_TIER == "allowlist":
+                    return get_allowlist_symbols()
                 elif UNIVERSE_TIER in ("full", "all"):
                     syms = u.get("all", static_fallback)
                     if UNIVERSE_MAX_SYMBOLS:
