@@ -107,7 +107,21 @@ CRYPTO_SYMBOLS = [
 ]
 
 def is_futures(symbol: str) -> bool:
-    return symbol.upper() in FUTURES_SYMBOLS
+    s = symbol.upper()
+
+    # If a generated allowlist exists, only symbols explicitly listed under
+    # its "futures" key should be treated as futures. This avoids ambiguous
+    # roots like CL/ES/BTC being misrouted when the user intentionally set
+    # futures=[] in localdata/explicit_allowlist.json.
+    try:
+        generated = _load_generated_allowlist()
+    except NameError:
+        generated = {}
+
+    if generated:
+        return s in set(generated.get("futures", []))
+
+    return s in FUTURES_SYMBOLS
 
 def is_crypto(symbol: str) -> bool:
     s = symbol.upper()
@@ -154,11 +168,17 @@ def _load_generated_allowlist() -> dict:
 def get_allowlist_symbols() -> list:
     generated = _load_generated_allowlist()
     if generated:
-        equities = generated.get("equities") or []
-        futures = generated.get("futures") or FUTURES_SYMBOLS
-        crypto = generated.get("crypto") or CRYPTO_SYMBOLS
-        explicit_all = generated.get("all") or []
-        return sorted(set(explicit_all + equities + futures + crypto))
+        # Important: an explicit empty list in localdata/explicit_allowlist.json
+        # means "exclude this asset class". Do not use `or FUTURES_SYMBOLS`
+        # here, because [] is falsey and would silently re-add defaults.
+        equities = generated.get("equities", [])
+        futures = generated.get("futures", [])
+        crypto = generated.get("crypto", [])
+        explicit_all = generated.get("all", [])
+
+        combined = explicit_all + equities + futures + crypto
+        if combined:
+            return sorted(set(combined))
 
     return sorted(set(EXPLICIT_ALLOWLIST + FUTURES_SYMBOLS + CRYPTO_SYMBOLS))
 
