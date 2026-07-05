@@ -68,6 +68,35 @@ def get_open_positions() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+
+def get_open_orders() -> pd.DataFrame:
+    """Return currently open/pending Alpaca paper orders.
+
+    Used by the paper-trading risk gate to prevent duplicate queued entries
+    when market orders are submitted outside regular market hours and remain
+    accepted until the next session.
+    """
+    client = get_trading_client()
+    orders = client.get_orders()
+
+    if not orders:
+        return pd.DataFrame()
+
+    rows = []
+    for o in orders:
+        rows.append({
+            "order_id": str(o.id),
+            "symbol": str(o.symbol).upper(),
+            "qty": float(o.qty) if o.qty is not None else 0.0,
+            "side": str(o.side),
+            "type": str(o.type),
+            "status": str(o.status),
+            "submitted_at": str(o.submitted_at),
+            "expires_at": str(getattr(o, "expires_at", "")),
+        })
+
+    return pd.DataFrame(rows)
+
 def submit_entry(symbol: str, qty: int, slice_label: str, side: str = "buy") -> dict:
     client = get_trading_client()
     order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
