@@ -1,2 +1,4 @@
 order_id,symbol,qty,side,order_type,time_in_force,status,submitted_at,slice_label,action,timestamp_utc
 191bf042-f13a-4d61-b012-e895e6f3d055,XLE,9,buy,market,day,accepted,2026-07-03 20:04:51.751115+00:00,state_ext=stretched_down + state_slope=downtrend,entry,2026-07-03T20:04:51.642038+00:00
+319b5f97-7519-4f37-ac52-99cee22d8c5e,XOP,16,buy,market,day,accepted,2026-07-05 17:10:42.455534+00:00,state_ext=stretched_down + state_slope=downtrend,entry,2026-07-05T17:10:42.533597+00:00
+61931977-a2ad-4e1e-b801-b9858833b01b,XLK,13,buy,market,day,accepted,2026-07-05 17:10:43.675259+00:00,cross_USO_state_vol=mid_vol + state_ext=stretched_down,entry,2026-07-05T17:10:43.759925+00:00
