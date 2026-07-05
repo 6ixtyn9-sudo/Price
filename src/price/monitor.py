@@ -33,7 +33,7 @@ from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
 from price.position_manager import check_exits, get_today_realized_pnl
 from price.risk_limits import RiskLimits, check_entry
-from price.trading import get_open_positions
+from price.trading import get_open_positions, get_open_orders
 from price.validation import parse_slice_combination
 from price.warehouse import load_from_warehouse
 
@@ -387,6 +387,19 @@ def scan_all_slices(
         if open_positions_df is not None and not open_positions_df.empty
         else []
     )
+
+    open_orders_df = get_open_orders()
+    open_orders_list = (
+        open_orders_df.to_dict("records")
+        if open_orders_df is not None and not open_orders_df.empty
+        else []
+    )
+
+    # Treat pending/open orders like open exposure for risk gating so repeated
+    # weekend/after-hours scans cannot queue duplicate DAY market orders before
+    # the first accepted order has had a chance to fill or expire.
+    exposure_for_entry_gate = open_positions_list + open_orders_list
+
     today_pnl = get_today_realized_pnl()
     open_position_slice_labels = _load_open_position_slice_labels()
 
@@ -507,7 +520,7 @@ def scan_all_slices(
                     qty=qty,
                     price=close_adj,
                     limits=limits,
-                    open_positions=open_positions_list,
+                    open_positions=exposure_for_entry_gate,
                     today_realized_pnl=today_pnl,
                     side=side,
                 )
