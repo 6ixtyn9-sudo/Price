@@ -75,6 +75,25 @@ def _normalize_alpaca_df(merged_df: pd.DataFrame, symbol: str, timeframe_str: st
 
     return df_clean[canonical_cols]
 
+def _filter_equity_regular_hours(df: pd.DataFrame, timeframe_str: str) -> pd.DataFrame:
+    """Keep regular trading hours for equity intraday bars.
+
+    Alpaca/IEX can return sparse premarket/after-hours bars. Those bars
+    contaminate intraday rolling features and session labels, especially around
+    08:00 ET and 16:00 ET. Crypto is 24/7 and is handled by fetch_crypto_bars,
+    so this helper is only used inside the equity stock-bar path.
+    """
+    if df.empty or timeframe_str not in ("15m", "1h"):
+        return df
+    if "bar_ts_utc" not in df.columns:
+        return df
+
+    ny = pd.to_datetime(df["bar_ts_utc"], utc=True).dt.tz_convert("America/New_York")
+    minutes = ny.dt.hour * 60 + ny.dt.minute
+    rth = (minutes >= 9 * 60 + 30) & (minutes < 16 * 60)
+    return df.loc[rth].reset_index(drop=True)
+
+
 def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """
     Fetches raw bar data from Alpaca for a single symbol, with rate limit handling and chunking.
@@ -136,7 +155,8 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
     # Remove duplicate index rows if any chunks overlapped slightly
     merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
     
-    return _normalize_alpaca_df(merged_df, symbol, timeframe_str, source="alpaca")
+    df_norm = _normalize_alpaca_df(merged_df, symbol, timeframe_str, source="alpaca")
+    return _filter_equity_regular_hours(df_norm, timeframe_str)
 
 def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """
