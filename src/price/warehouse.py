@@ -68,9 +68,26 @@ def save_to_warehouse(df: pd.DataFrame):
         save_df.to_parquet(output_file, index=False)
         print(f"Warehouse saved: {symbol} | {timeframe} | {len(final_df)} total rows.")
 
+def _filter_regular_hours_for_equity_intraday(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    """Filter equity intraday warehouse rows to regular market hours.
+
+    Crypto remains 24/7. Futures are excluded from the current liquid236
+    universe and are not filtered here.
+    """
+    if df.empty or is_crypto(symbol):
+        return df
+    if "bar_ts_utc" not in df.columns:
+        return df
+    ny = pd.to_datetime(df["bar_ts_utc"], utc=True).dt.tz_convert("America/New_York")
+    minutes = ny.dt.hour * 60 + ny.dt.minute
+    rth = (minutes >= 9 * 60 + 30) & (minutes < 16 * 60)
+    return df.loc[rth].reset_index(drop=True)
+
+
 def resample_15m_to_1h(symbol: str):
     # symbol may be 'BTC/USD' – load_from_warehouse handles sanitizing
     df_15m = load_from_warehouse(symbol, "15m")
+    df_15m = _filter_regular_hours_for_equity_intraday(df_15m, symbol)
     if df_15m.empty:
         print(f"No 15m bars found to resample for {symbol}.")
         return
