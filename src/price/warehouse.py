@@ -154,6 +154,18 @@ def propagate_adjustment_factors(symbol: str):
     # while intraday bars below are keyed by their New York market date.
     df_1d['market_date'] = df_1d['bar_ts_utc'].dt.tz_convert('UTC').dt.date
 
+    # Mixed historical daily sources can leave duplicate rows for the same
+    # market date (e.g. Tiingo daily at 00:00 UTC and Alpaca daily at 04:00 UTC).
+    # Keep the most recently ingested row per market date before building the
+    # adjustment map; otherwise to_dict(orient='index') raises on duplicate index.
+    if 'ingested_at_utc' in df_1d.columns:
+        df_1d['_ingested_sort'] = pd.to_datetime(df_1d['ingested_at_utc'], errors='coerce', utc=True)
+        df_1d = df_1d.sort_values(['market_date', '_ingested_sort', 'bar_ts_utc'])
+        df_1d = df_1d.drop(columns=['_ingested_sort'])
+    else:
+        df_1d = df_1d.sort_values(['market_date', 'bar_ts_utc'])
+    df_1d = df_1d.drop_duplicates(subset=['market_date'], keep='last')
+
     adj_map = df_1d.set_index('market_date')[['adj_factor', 'split_factor', 'dividend_cash']].to_dict('index')
     
     for tf in ["15m", "1h"]:
