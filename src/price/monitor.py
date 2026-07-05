@@ -45,6 +45,7 @@ DEFAULT_MONITORED_SLICES: List[dict] = [
     {"symbol": "SPY", "timeframe": "1h", "slice_combination": "state_session=afternoon + state_slope=downtrend", "side": "long"},
 ]
 CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
+MONITORED_SLICES_PATH = DATA_DIR / "monitored_slices.csv"
 
 
 def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
@@ -84,8 +85,55 @@ def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
     return out or None
 
 
+def _load_explicit_monitored_slices() -> Optional[List[dict]]:
+    """Load an operator-curated monitored_slices.csv when present.
+
+    This is the deployment/watch-list source. It prevents the monitor from
+    accidentally scanning every clean_survivor* row in whichever research
+    candidate_leaderboard.csv happens to be current.
+    """
+    path = Path(MONITORED_SLICES_PATH)
+    if not path.exists():
+        return None
+
+    try:
+        rows = pd.read_csv(path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return None
+
+    if rows.empty:
+        return None
+
+    required = {"symbol", "timeframe", "slice_combination"}
+    missing = required - set(rows.columns)
+    if missing:
+        print(f"monitored_slices.csv missing required columns: {sorted(missing)}")
+        return None
+
+    out = []
+    for _, row in rows.iterrows():
+        side = str(row.get("side", "long") or "long").lower()
+        if side not in ("long", "short"):
+            side = "long"
+
+        out.append(
+            {
+                "symbol": str(row["symbol"]).upper(),
+                "timeframe": str(row["timeframe"]),
+                "slice_combination": str(row["slice_combination"]),
+                "side": side,
+            }
+        )
+
+    return out or None
+
+
 def get_default_monitored_slices() -> List[dict]:
-    return _load_clean_survivor_monitored_slices() or DEFAULT_MONITORED_SLICES
+    return (
+        _load_explicit_monitored_slices()
+        or _load_clean_survivor_monitored_slices()
+        or DEFAULT_MONITORED_SLICES
+    )
 
 
 def _drop_incomplete_intraday_rows(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
