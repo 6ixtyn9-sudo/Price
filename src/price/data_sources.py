@@ -306,8 +306,15 @@ def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, en
     if is_futures(sym):
         return fetch_alpaca_futures_bars(sym, timeframe_str, start_dt, end_dt)
 
-    # Core ETFs get Tiingo daily for best adjusted history
-    if timeframe_str == "1d" and sym in ETF_SYMBOLS and TIINGO_API_KEY:
+    # Prefer Tiingo daily for ALL equities when available.
+    #
+    # Rationale:
+    # - Tiingo returns adjusted daily OHLCV with split/dividend fields.
+    # - Alpaca daily bars for non-core equities can be raw/unadjusted.
+    # - Bad daily adjustment factors contaminate feature states and intraday
+    #   adjustment propagation. This showed up as impossible one-day jumps in
+    #   non-core symbols during the liquid236 baseline audit.
+    if timeframe_str == "1d" and is_equity(sym) and TIINGO_API_KEY:
         try:
             return fetch_tiingo_daily_bars(sym, start_dt, end_dt)
         except Exception as e:
