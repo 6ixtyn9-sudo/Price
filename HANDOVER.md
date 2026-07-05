@@ -1985,3 +1985,127 @@ add futures only after symbol namespace/data-source ambiguity is fixed
 revisit the full 10k allowlist only after the pipeline is proven and the operator explicitly accepts the runtime/storage cost
 
 Do not return to 10k symbols or 5-year 15m pulls as a default. The doctrine is: small liquid universe first, validate loop, then grow deliberately.
+Liquid236 Full Baseline Results (2026-07-05)
+
+The first full liquid-first baseline is complete across all intended timeframes.
+
+Universe:
+- 221 liquid equities / ETFs
+- 15 major crypto USD pairs
+- 0 futures
+- 236 total symbols
+- futures intentionally excluded due to symbol ambiguity in current routing
+
+Data captured:
+- 1d: 1825 days
+- 15m: 365 days
+- 1h: generated from 15m resampling
+
+Artifacts archived:
+- localdata/discovered_slices_1d_liquid236.csv
+- localdata/validated_slices_1d_liquid236.csv
+- localdata/candidate_leaderboard_1d_liquid236.csv
+- localdata/discovered_slices_1h_liquid236.csv
+- localdata/validated_slices_1h_liquid236.csv
+- localdata/candidate_leaderboard_1h_liquid236.csv
+- localdata/discovered_slices_15m_liquid236.csv
+- localdata/validated_slices_15m_liquid236.csv
+- localdata/candidate_leaderboard_15m_liquid236.csv
+
+Aggregate result:
+- Total leaderboard rows across 1d/1h/15m: 22,644
+- 1d: 4 clean_survivor_wf_strong, 15 clean_survivor_wf_mixed
+- 1h: 0 clean_survivor_wf_strong, 8 clean_survivor_wf_mixed, 5 clean_survivor_wf_failed
+- 15m: 1 clean_survivor_wf_strong, 6 clean_survivor_wf_mixed, 4 clean_survivor_wf_failed
+
+Primary Tier-1 target set:
+1. XOP 1d
+   - slice: state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 84
+   - valid_mean_ret_costadj: +0.018436
+   - valid_excess_vs_baseline: +0.015272
+   - valid_excess_vs_best_parent: +0.002215
+   - walk_forward: 3/4, pattern 0111
+   - scenario_survived_count: 8
+   - search_wide_bh_pass: True
+
+2. MU 15m
+   - slice: state_session=afternoon + state_slope=downtrend
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 266
+   - valid_mean_ret_costadj: +0.011537
+   - valid_excess_vs_baseline: +0.009103
+   - valid_excess_vs_best_parent: +0.005889
+   - walk_forward: 3/4, pattern 1101
+   - scenario_survived_count: 8
+   - note: simpler 2D slice is preferred over the 3D MU variant because parent-excess is materially better.
+
+3. KLAC 1d
+   - slice: state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 53
+   - valid_mean_ret_costadj: +0.045880
+   - valid_excess_vs_baseline: +0.038932
+   - valid_excess_vs_best_parent: +0.008148
+   - walk_forward: 3/4, pattern 0111
+   - scenario_survived_count: 8
+   - search_wide_bh_pass: True
+   - search_wide_bonferroni_pass: True
+   - note: strongest statistical lead due to Bonferroni pass.
+
+4. XLB 1d
+   - slice: state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 82
+   - valid_mean_ret_costadj: +0.015540
+   - valid_excess_vs_baseline: +0.019481
+   - valid_excess_vs_best_parent: +0.003002
+   - walk_forward: 3/4, pattern 0111
+   - scenario_survived_count: 7
+   - search_wide_bh_pass: True
+
+5. XLF 1d
+   - slice: state_ext=stretched_up + state_slope=flat
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 33
+   - valid_mean_ret_costadj: +0.010050
+   - valid_excess_vs_baseline: +0.008234
+   - valid_excess_vs_best_parent: +0.005614
+   - walk_forward: 3/4, pattern 1110
+   - scenario_survived_count: 6
+
+Tier-2 watchlist:
+- AMD 1d, state_ext=stretched_up + state_slope=flat, long
+- DE 1d, state_ext=stretched_down + state_slope=downtrend, long
+- DASH 1d, state_ext=stretched_up + state_vol=low_vol, long
+- AVGO 1d, state_ext=stretched_down + state_slope=downtrend, long
+- XLE 1d, state_ext=stretched_down + state_slope=downtrend, long
+- HUM 1h, state_session=lunch + state_ext=stretched_up, long
+- FBTC 1h, state_ext=stretched_up + state_vol=high_vol, short
+- AAVE/USD 1h, state_session=morning + state_ext=stretched_down + state_slope=downtrend, short
+- XBI 15m, state_session=afternoon + state_ext=neutral, long
+- BCH/USD 15m, state_session=afternoon + state_ext=stretched_up, short
+- UNH 15m, state_session=morning + state_slope=uptrend, long
+
+Interpretation:
+- Daily produced the strongest broad candidates.
+- 15m produced one standout session/intraday candidate: MU afternoon + downtrend.
+- 1h produced mixed candidates but no clean_survivor_wf_strong.
+- The dominant daily family is stretched_down + downtrend rebound in cyclical / materials / energy-linked instruments (XOP, XLB, KLAC).
+- Do not promote every survived slice. Prioritize clean_survivor_wf_strong and require positive parent-excess plus walk-forward strength.
+- CVX 1d scored highly but has only WF 1/4, so it is not Tier 1 despite high scenario robustness.
+- Any clean_survivor_wf_failed, over_specified_survivor, late_emerging_recent_only, or late_emerging_regime_switching candidate remains diagnostic only.
+
+Next research steps:
+1. Inspect bar windows and corporate-action sanity for Tier-1 candidates.
+2. Re-run focused diagnostics for Tier-1 only.
+3. Consider adding only Tier-1/Tier-2 candidates to monitoring after inspection.
+4. Do not expand the universe yet; the current baseline is sufficient to choose targets.
+5. Future expensive full runs should be avoided unless the universe or feature set materially changes.
+
