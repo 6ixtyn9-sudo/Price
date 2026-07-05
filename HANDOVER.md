@@ -2109,3 +2109,108 @@ Next research steps:
 4. Do not expand the universe yet; the current baseline is sufficient to choose targets.
 5. Future expensive full runs should be avoided unless the universe or feature set materially changes.
 
+
+Corrected RTH/Tiingo Liquid236 Baseline Results (2026-07-05)
+
+This section supersedes the earlier Liquid236 baseline notes that were generated before:
+1. Tiingo daily routing was extended to all equities, and
+2. equity intraday bars were filtered to regular trading hours.
+
+Why rerun was required:
+- Tier-1 audit found impossible/non-market jumps in non-core daily equities (KLAC/XLB), caused by daily adjustment issues.
+- Equity 15m data contained sparse premarket/after-hours bars that contaminated intraday rolling features and session labels.
+- RTH filtering and Tiingo-all-equity daily routing were therefore required before trusting intraday/daily results.
+
+Fixes applied:
+- src/price/data_sources.py now prefers Tiingo daily bars for all equities when TIINGO_API_KEY is available.
+- src/price/data_sources.py imports is_equity for router logic.
+- equity intraday bars are filtered to regular trading hours for future capture.
+- warehouse 1h resampling uses RTH-filtered 15m rows for equities.
+- existing equity 15m warehouse partitions were cleaned to RTH and 1h partitions rebuilt.
+- crypto remains 24/7 and is not RTH-filtered.
+
+Corrected artifacts:
+- localdata/discovered_slices_1d_tiingo_liquid236.csv
+- localdata/validated_slices_1d_tiingo_liquid236.csv
+- localdata/candidate_leaderboard_1d_tiingo_liquid236.csv
+- localdata/discovered_slices_1h_rth_liquid236.csv
+- localdata/validated_slices_1h_rth_liquid236.csv
+- localdata/candidate_leaderboard_1h_rth_liquid236.csv
+- localdata/discovered_slices_15m_rth_liquid236.csv
+- localdata/validated_slices_15m_rth_liquid236.csv
+- localdata/candidate_leaderboard_15m_rth_liquid236.csv
+
+Corrected aggregate triage:
+- 1d_tiingo: 4 clean_survivor_wf_strong, 15 clean_survivor_wf_mixed
+- 1h_rth: 0 clean_survivor_wf_strong, 8 clean_survivor_wf_mixed
+- 15m_rth: 0 clean_survivor_wf_strong, 6 clean_survivor_wf_mixed
+
+Corrected Tier-1 target set:
+1. XOP 1d
+   - state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 84
+   - valid_mean_ret_costadj: +0.018436
+   - valid_excess_vs_baseline: +0.015272
+   - valid_excess_vs_best_parent: +0.002215
+   - walk_forward: 3/4, pattern 0111
+   - scenario_survived_count: 8
+   - search_wide_bh_pass: True
+
+2. XLB 1d
+   - state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 64
+   - valid_mean_ret_costadj: +0.015244
+   - valid_excess_vs_baseline: +0.012205
+   - valid_excess_vs_best_parent: +0.002644
+   - walk_forward: 3/4, pattern 0111
+   - scenario_survived_count: 8
+   - search_wide_bh_pass: True
+
+3. KLAC 1d
+   - state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 45
+   - valid_mean_ret_costadj: +0.046809
+   - valid_excess_vs_baseline: +0.025704
+   - valid_excess_vs_best_parent: +0.007930
+   - walk_forward: 3/4, pattern 0111
+   - scenario_survived_count: 8
+   - search_wide_bh_pass: True
+   - search_wide_bonferroni_pass: True
+
+4. XLF 1d
+   - state_ext=stretched_up + state_slope=flat
+   - side: long
+   - triage: clean_survivor_wf_strong
+   - valid_n: 33
+   - valid_mean_ret_costadj: +0.010050
+   - valid_excess_vs_baseline: +0.008234
+   - valid_excess_vs_best_parent: +0.005614
+   - walk_forward: 3/4, pattern 1110
+   - scenario_survived_count: 6
+
+Corrected intraday interpretation:
+- MU 15m was clean_survivor_wf_strong before RTH filtering.
+- After RTH filtering, MU 15m downgraded to clean_survivor_wf_mixed:
+  state_session=afternoon + state_slope=downtrend, long, WF 2/4.
+- Therefore MU 15m remains a watchlist item, not Tier 1.
+- 1h produced mixed candidates only; no clean_survivor_wf_strong.
+
+Final corrected conclusion:
+- Daily is the strongest timeframe in the liquid236 baseline.
+- The dominant durable family is stretched_down + downtrend rebound in XOP, XLB, and KLAC.
+- XLF is a distinct financial-sector stretched_up + flat continuation/extension pattern.
+- Intraday candidates are secondary until they show stronger walk-forward robustness on RTH-clean data.
+- Do not use pre-RTH intraday artifacts. Only *_rth_liquid236 files are valid for intraday.
+- Do not use old pre-Tiingo daily results for non-core equities. Prefer *_1d_tiingo_liquid236 files.
+
+Next steps:
+1. Re-run tier1_signal_audit on corrected Tier-1 candidates only: XOP, XLB, KLAC, XLF.
+2. Inspect recent signal windows and worst outcomes.
+3. Build a curated monitoring candidate list only after audit passes.
+4. Keep all execution/paper-trading disabled until the curated list is explicitly reviewed.
