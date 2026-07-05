@@ -2214,3 +2214,235 @@ Next steps:
 2. Inspect recent signal windows and worst outcomes.
 3. Build a curated monitoring candidate list only after audit passes.
 4. Keep all execution/paper-trading disabled until the curated list is explicitly reviewed.
+
+Session Close Update — Corrected Deep-End Paper Deployment (2026-07-05)
+
+This section records the final operational state after the corrected Liquid236 baseline, RTH cleanup, paper deployment, and workflow cleanup.
+
+Authoritative research artifacts
+
+The valid corrected research artifacts are now the corrected/RTH/Tiingo files only:
+
+Daily:
+- localdata/discovered_slices_1d_tiingo_liquid236.csv
+- localdata/validated_slices_1d_tiingo_liquid236.csv
+- localdata/candidate_leaderboard_1d_tiingo_liquid236.csv
+
+1h:
+- localdata/discovered_slices_1h_rth_liquid236.csv
+- localdata/validated_slices_1h_rth_liquid236.csv
+- localdata/candidate_leaderboard_1h_rth_liquid236.csv
+
+15m:
+- localdata/discovered_slices_15m_rth_liquid236.csv
+- localdata/validated_slices_15m_rth_liquid236.csv
+- localdata/candidate_leaderboard_15m_rth_liquid236.csv
+
+The older pre-RTH intraday and pre-Tiingo daily artifacts were deleted from localdata to avoid future confusion. Do not use non-RTH intraday results or pre-Tiingo daily results for target selection.
+
+Final corrected Tier-1 candidates
+
+The corrected Tier-1 paper candidates are:
+
+1. XOP 1d
+   - state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - source: corrected 1d_tiingo liquid236 baseline
+   - triage: clean_survivor_wf_strong
+
+2. XLB 1d
+   - state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - source: corrected 1d_tiingo liquid236 baseline
+   - triage: clean_survivor_wf_strong
+
+3. KLAC 1d
+   - state_ext=stretched_down + state_slope=downtrend
+   - side: long
+   - source: corrected 1d_tiingo liquid236 baseline
+   - triage: clean_survivor_wf_strong
+   - note: strongest statistical lead among Tier-1 due to search-wide Bonferroni pass.
+
+4. XLF 1d
+   - state_ext=stretched_up + state_slope=flat
+   - side: long
+   - source: existing deployed slice and corrected Tier-1 baseline
+   - triage: clean_survivor_wf_strong
+
+Corrected Tier-1 audit
+
+A corrected Tier-1 audit was run after the Tiingo and RTH fixes.
+
+Audit outputs:
+- localdata/tier1_corrected_quality_summary.csv
+- localdata/tier1_corrected_signal_hits.csv
+- localdata/tier1_corrected_largest_jumps.csv
+- localdata/tier1_corrected_signal_audit.log
+
+Results:
+- XOP, XLB, KLAC, and XLF all had:
+  - duplicate timestamps: 0
+  - NaN close_adj: 0
+  - non-positive close_adj: 0
+  - large daily jumps >=25%: 0
+
+Key audited profile:
+- XOP: high magnitude, real energy-sector tail risk.
+- XLB: cleaner material-sector version of the stretched_down + downtrend rebound family.
+- KLAC: strongest magnitude/statistical lead, but higher tail risk.
+- XLF: cleanest risk profile, lower hit frequency, high observed win rate.
+
+ML second opinion
+
+A targeted ML bridge run was executed on the corrected Tier-1 daily candidates:
+
+- XOP
+- XLB
+- KLAC
+- XLF
+
+Artifacts:
+- localdata/ml_candidate_slices_tier1_1d_tiingo.csv
+- localdata/ml_candidate_leaderboard_tier1_1d_tiingo.csv
+- localdata/ml_to_slices_tier1_1d_tiingo.log
+- localdata/ml_validate_tier1_1d_tiingo.log
+
+Result:
+- ML produced candidate slices for XOP, XLB, and XLF.
+- KLAC produced no ML interaction candidates meeting the promising thresholds.
+- 18 ML-derived candidates were validated.
+- 0 ML candidates survived full validation.
+- The best ML candidates were rejected as late_emerging, sample-starved, parent-underperformed, or unsupported.
+
+Interpretation:
+- ML did not produce a stronger promotable replacement for the corrected Tier-1 candidates.
+- This does not invalidate Tier-1, because Tier-1 is supported by fixed-bin combinatorial discovery, validation, scenario robustness, walk-forward, parent-excess, and audit sanity.
+- Current best evidence remains fixed-bin/combinatorial, not ML-derived.
+
+Deployment/watch list
+
+The monitor now prefers:
+
+localdata/monitored_slices.csv
+
+This file is the explicit deployment/watch-list source and prevents the monitor from accidentally deploying every clean_survivor* row in the latest research candidate_leaderboard.csv.
+
+Current monitored slices are:
+
+- XLB 1d, state_ext=stretched_down + state_slope=downtrend, long
+- XOP 1d, state_ext=stretched_down + state_slope=downtrend, long
+- KLAC 1d, state_ext=stretched_down + state_slope=downtrend, long
+- SPY 1h, state_session=afternoon + state_slope=downtrend, long
+- XLK 1d, cross_TLT_state_slope=uptrend + state_ext=neutral, long
+- XLK 1h, cross_USO_state_vol=mid_vol + state_ext=stretched_down, long
+- XLF 1d, state_ext=stretched_up + state_slope=flat, long
+
+Deployment philosophy:
+- Keep the incumbent paper slices in the deep end.
+- Add corrected Tier-1 friends to the same deep end.
+- Dynamic recall/deploy should happen by regenerating monitored_slices.csv from strict evidence rules, not by directly trading the current candidate_leaderboard.csv.
+- Current safe sync rule: incumbents + clean_survivor_wf_strong from corrected 1d/1h/15m leaderboards.
+- The monitor reads monitored_slices.csv each pass, so updates are picked up dynamically.
+
+Paper order state at session close
+
+The stale XLE order from the previous deployment was canceled.
+
+Alpaca paper orders at session close:
+- XOP market buy 16, accepted, pending next session
+- XLK market buy 13, accepted, pending next session
+- XLE market buy 9, canceled
+
+No open positions were present yet because the orders were submitted while the market was closed/weekend.
+
+Pending-order safety
+
+A pending-order risk-gate improvement was added:
+
+- price.trading.get_open_orders() returns accepted/open Alpaca paper orders.
+- monitor.scan_all_slices combines open positions and open orders as exposure_for_entry_gate.
+- This prevents repeated weekend/after-hours scans from queuing duplicate market orders before prior accepted DAY orders fill or expire.
+
+Verified behavior:
+- XOP and XLK matched again after order submission.
+- Risk gate blocked both because pending orders existed.
+- Dry-run still shows would_enter because dry_run intentionally bypasses risk checks for audit visibility.
+
+Live capture workflow
+
+The GitHub Actions live_capture workflow was changed to focus on the explicit monitored deep-end set.
+
+Current live workflow purpose:
+- refresh monitored symbols and conditioning symbols
+- build warehouse
+- write explicit monitored_slices.csv
+- run paper_trade in paper mode
+- run live_forward_returns
+- commit lightweight logs/artifacts
+
+The workflow no longer runs daily discovery or candidate leaderboard. Research discovery/validation should be handled by a separate future research-refresh workflow, not mixed into live paper execution.
+
+Monitored/conditioning symbols refreshed by the workflow:
+- XLF
+- XLK
+- SPY
+- XOP
+- XLB
+- KLAC
+- TLT
+- USO
+
+Workflow risk settings:
+- max_notional: 2500
+- max_open: 7
+- max_daily_loss: 500
+- cooldown_seconds: 3600
+
+Important distinction:
+- GitHub Actions refreshes warehouse data inside the runner for the monitored set.
+- The full parquet warehouse is not committed to git and is intentionally not persisted in the repo.
+- For paper execution, rebuilding the small monitored subset per workflow run is acceptable.
+- Full research warehouse persistence should be handled separately later if needed.
+
+Current architecture decision
+
+Do not mix research discovery and paper execution in the same workflow.
+
+Desired future split:
+1. live_capture.yml
+   - execution and forward-return logging for approved monitored_slices.csv only
+
+2. research_refresh.yml
+   - discovery
+   - validation
+   - edge decay checks
+   - candidate proposal/report generation
+   - no order placement
+
+This is the path toward autonomy without letting noisy daily discovery directly trade.
+
+Next session priorities
+
+1. Market-open audit:
+   - check accepted orders
+   - check filled positions
+   - verify no stale XLE exposure
+   - confirm XOP/XLK status after market opens
+
+2. Exit policy:
+   Current exit logic is state-invalidation only.
+   Validation horizon is fwd_ret_5.
+   Next design target is hybrid exit:
+   - exit when stable state breaks OR held >= 5 bars
+   - use timeframe-aware bar counting
+   - log exit reason clearly
+
+3. Workflow follow-up:
+   - verify live_capture completes successfully after the workflow cleanup
+   - if it times out, further reduce the workflow to execution-only essentials
+
+4. Research automation:
+   - design a separate research_refresh workflow
+   - do not let it place orders
+   - use it to detect edge decay and propose monitored_slices changes
+
