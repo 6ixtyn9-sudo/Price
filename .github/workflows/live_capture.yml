@@ -40,7 +40,7 @@ concurrency:
 jobs:
   live-capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: write
 
@@ -74,10 +74,11 @@ jobs:
           # Tiingo (primary, free tier). build_warehouse.py
           # propagates the daily adjustment factors to intraday.
           PYTHONPATH=src python3 scripts/capture_bars.py \
-            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
+            --symbols XLF XLK SPY XOP XLB KLAC TLT USO \
             --timeframes 1d \
             --days 1825
-          PYTHONPATH=src python3 scripts/build_warehouse.py
+          PYTHONPATH=src python3 scripts/build_warehouse.py \
+            --symbols XLF XLK SPY XOP XLB KLAC TLT USO
 
       - name: Run capture_bars (15m, 30-day history for intraday monitoring)
         env:
@@ -93,10 +94,11 @@ jobs:
           # history here is fine and keeps the workflow within
           # its 15-minute timeout.
           PYTHONPATH=src python3 scripts/capture_bars.py \
-            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
+            --symbols XLF XLK SPY XOP XLB KLAC TLT USO \
             --timeframes 15m \
             --days 30
-          PYTHONPATH=src python3 scripts/build_warehouse.py
+          PYTHONPATH=src python3 scripts/build_warehouse.py \
+            --symbols XLF XLK SPY XOP XLB KLAC TLT USO
 
       - name: Run discover_slices
         env:
@@ -127,6 +129,20 @@ jobs:
         run: |
           PYTHONPATH=src python3 scripts/validate_slices.py --candidate-leaderboard
 
+      - name: Write explicit monitored slices
+        run: |
+          mkdir -p localdata
+          cat > localdata/monitored_slices.csv <<'EOF'
+          symbol,timeframe,slice_combination,side,source_note
+          XLF,1d,state_ext=stretched_up + state_slope=flat,long,deployed_existing_and_corrected_tier1
+          XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,deployed_existing
+          XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,deployed_existing
+          SPY,1h,state_session=afternoon + state_slope=downtrend,long,deployed_existing
+          XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,corrected_liquid236_tier1
+          XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,corrected_liquid236_tier1
+          KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,corrected_liquid236_tier1
+          EOF
+
       - name: Run paper_trade (live paper mode, tightly risk-capped)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
@@ -136,10 +152,10 @@ jobs:
           # Live PAPER execution only. trading.py is hardwired paper=True.
           # Keep this extremely constrained until the out-of-sample journal is larger.
           PYTHONPATH=src python3 scripts/paper_trade.py \
-            --max-notional 500 \
-            --max-open 1 \
-            --max-daily-loss 100 \
-            --cooldown-seconds 86400
+            --max-notional 2500 \
+            --max-open 7 \
+            --max-daily-loss 500 \
+            --cooldown-seconds 3600
 
       - name: Run live forward-return capture
         env:
