@@ -10,7 +10,7 @@ name: Live Capture
 # What this workflow does:
 #   1. Pulls the latest warehouse + paper-trading journals from main.
 #   2. Pulls the most recent bars from Tiingo/Alpaca and rebuilds the warehouse.
-#   3. Re-runs discovery + the candidate leaderboard to refresh clean_survivor*.
+#   3. Writes the explicit monitored_slices.csv deployment/watch list.
 #   4. Runs paper_trade.py in LIVE PAPER mode (never real money; trading.py is hardwired paper=True).
 #   5. Runs live_forward_returns.py to capture realized forward returns for any matched signals.
 #   6. Auto-commits the lightweight workflow artifacts back to main.
