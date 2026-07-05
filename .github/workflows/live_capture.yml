@@ -100,35 +100,6 @@ jobs:
           PYTHONPATH=src python3 scripts/build_warehouse.py \
             --symbols XLF XLK SPY XOP XLB KLAC TLT USO
 
-      - name: Run discover_slices
-        env:
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
-        run: |
-          # Discover slices for the standard universe. The leaderboard
-          # step reads the output of this. discovered_slices.csv is
-          # gitignored, so a fresh runner has nothing in it without
-          # this step. --append keeps any prior discovered slices for
-          # the same symbol/timeframe instead of clobbering them, so
-          # the leaderboard is a union of all 3 timeframes.
-          PYTHONPATH=src python3 scripts/discover_slices.py \
-            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
-            --timeframe 1d \
-            --append
-          PYTHONPATH=src python3 scripts/discover_slices.py \
-            --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE \
-            --timeframe 1h \
-            --append
-
-      - name: Run candidate leaderboard
-        env:
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
-        run: |
-          PYTHONPATH=src python3 scripts/validate_slices.py --candidate-leaderboard
-
       - name: Write explicit monitored slices
         run: |
           mkdir -p localdata
