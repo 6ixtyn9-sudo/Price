@@ -233,6 +233,23 @@ def _load_existing_live_returns(output_path: Optional[Path] = None) -> pd.DataFr
     return pd.read_csv(output_path)
 
 
+def _dedupe_by_row_key(df: pd.DataFrame) -> pd.DataFrame:
+    """Collapse duplicate row_key rows, keeping the latest capture.
+
+    Older live_capture versions could create multiple rows for the same
+    signal because repeated matched audit rows shared one row_key. The durable
+    artifact should be one row per signal key; later runs update that row.
+    """
+    if df is None or df.empty or "row_key" not in df.columns:
+        return df
+    out = df.copy()
+    if "captured_at_utc" in out.columns:
+        out["_captured_sort"] = pd.to_datetime(out["captured_at_utc"], errors="coerce", utc=True)
+        out = out.sort_values("_captured_sort", na_position="first")
+        out = out.drop(columns=["_captured_sort"])
+    return out.drop_duplicates(subset=["row_key"], keep="last").reset_index(drop=True)
+
+
 def _row_key(symbol: str, timeframe: str, slice_combo: str, signal_ts: str,
              bin_mode: str = "insample") -> str:
     """Stable key for one (symbol, timeframe, bin mode, slice, signal-time).
@@ -351,7 +368,25 @@ def run_live_capture(
         existing = _load_existing_live_returns(output_path)
         return existing
 
-    existing = _load_existing_live_returns(output_path)
+    # One forward-return row per unique signal key. paper_trade.py can log the
+    # same matched state repeatedly across scheduled scans; those are audit
+    # observations of the same bar/slice signal, not distinct forward-return
+    # labels. Collapse before scoring so the output remains idempotent.
+    matched = matched.copy()
+    matched["_bin_mode"] = matched.apply(lambda r: _norm_bin_mode(r.get("bin_mode", "insample")), axis=1)
+    matched["_row_key"] = matched.apply(
+        lambda r: _row_key(
+            str(r["symbol"]),
+            str(r["timeframe"]),
+            str(r["slice_combination"]),
+            str(r["bar_ts_utc"]),
+            r["_bin_mode"],
+        ),
+        axis=1,
+    )
+    matched = matched.drop_duplicates(subset=["_row_key"], keep="last").reset_index(drop=True)
+
+    existing = _dedupe_by_row_key(_load_existing_live_returns(output_path))
     existing_keys: Set[str] = set()
     if not existing.empty and "row_key" in existing.columns:
         existing_keys = set(existing["row_key"].astype(str).tolist())
@@ -363,10 +398,10 @@ def run_live_capture(
         symbol = str(sig["symbol"])
         timeframe = str(sig["timeframe"])
         slice_combo = str(sig["slice_combination"])
-        bin_mode = _norm_bin_mode(sig.get("bin_mode", "insample"))
+        bin_mode = _norm_bin_mode(sig.get("_bin_mode", sig.get("bin_mode", "insample")))
         signal_ts = str(sig["bar_ts_utc"])
         signal_close = float(sig["close_adj"])
-        key = _row_key(symbol, timeframe, slice_combo, signal_ts, bin_mode)
+        key = str(sig.get("_row_key") or _row_key(symbol, timeframe, slice_combo, signal_ts, bin_mode))
 
         row: Dict = {
             "row_key": key,

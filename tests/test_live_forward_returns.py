@@ -297,3 +297,81 @@ def test_bin_mode_participates_in_universe_matching_and_row_key(temp_workspace):
     row = out.iloc[0]
     assert row["bin_mode"] == "rolling"
     assert "|rolling|" in row["row_key"]
+
+
+def test_duplicate_matched_log_rows_collapse_to_one_forward_row(temp_workspace):
+    """Repeated scans can log the same matched bar/slice many times. That is
+    one signal label, not many forward-return rows."""
+    paths = temp_workspace
+
+    pd.DataFrame([{
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "triage_bucket": "clean_survivor_wf_strong",
+    }]).to_csv(paths["lb_path"], index=False)
+
+    row = {
+        "kind": "entry_signal",
+        "matched": True,
+        "tradable": False,
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "bar_ts_utc": "2026-06-15T00:00:00+00:00",
+        "close_adj": 50.2 + 14 * 0.1,
+    }
+    pd.DataFrame([row, row, row]).to_csv(paths["log_path"], index=False)
+
+    out = lfr.run_live_capture(
+        log_path=paths["log_path"],
+        leaderboard_path=paths["lb_path"],
+        output_path=paths["out_path"],
+    )
+
+    assert len(out) == 1
+    assert out["row_key"].nunique() == 1
+
+
+def test_existing_duplicate_live_rows_are_compacted_on_update(temp_workspace):
+    """Legacy live_forward_returns files may already contain duplicate
+    row_keys. A rerun should compact them while updating the signal."""
+    paths = temp_workspace
+
+    pd.DataFrame([{
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "triage_bucket": "clean_survivor_wf_strong",
+    }]).to_csv(paths["lb_path"], index=False)
+
+    sig = {
+        "kind": "entry_signal",
+        "matched": True,
+        "tradable": False,
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "bar_ts_utc": "2026-06-15T00:00:00+00:00",
+        "close_adj": 50.2 + 14 * 0.1,
+    }
+    pd.DataFrame([sig]).to_csv(paths["log_path"], index=False)
+    key = "XLF|1d|state_ext=stretched_up + state_slope=flat|2026-06-15T00:00:00+00:00"
+    pd.DataFrame([
+        {"row_key": key, "symbol": "XLF", "timeframe": "1d", "slice_combination": sig["slice_combination"],
+         "signal_ts_utc": sig["bar_ts_utc"], "signal_close_adj": 51.6,
+         "captured_at_utc": "2026-07-01T00:00:00+00:00", "partial_data": True},
+        {"row_key": key, "symbol": "XLF", "timeframe": "1d", "slice_combination": sig["slice_combination"],
+         "signal_ts_utc": sig["bar_ts_utc"], "signal_close_adj": 51.6,
+         "captured_at_utc": "2026-07-02T00:00:00+00:00", "partial_data": True},
+    ]).to_csv(paths["out_path"], index=False)
+
+    out = lfr.run_live_capture(
+        log_path=paths["log_path"],
+        leaderboard_path=paths["lb_path"],
+        output_path=paths["out_path"],
+    )
+
+    assert len(out) == 1
+    assert out["row_key"].nunique() == 1
+    assert out.iloc[0]["captured_at_utc"] != "2026-07-01T00:00:00+00:00"

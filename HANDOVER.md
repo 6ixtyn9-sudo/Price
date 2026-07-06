@@ -3882,3 +3882,45 @@ The workflow's prior from ALPACA lines for XOP/XLB/KLAC daily were a logging
 truth problem, not evidence that the router had reverted. Future logs should now
 print from TIINGO for any equity 1d pull when a Tiingo key is present, matching
 the actual first-attempt source.
+Live Forward-Return Idempotency Repair (2026-07-06)
+
+The 19:50 UTC live_capture run confirmed the source-label fix: XOP, XLB, and
+KLAC daily captures now print from TIINGO, matching the universal router's
+all-equity-daily Tiingo-first behavior. The same run also showed the explicit
+monitored universe source is working: live_forward_returns.py --universe-source monitored updated the live forward-return artifact.
+
+A new issue was found by inspecting the committed artifact after that run:
+localdata/live_forward_returns.csv contained multiple rows with the same
+row_key. That violates the script's idempotency contract. Root cause:
+paper_trade.py can log the same matched bar/slice across repeated scheduled
+scans. Those are audit observations of the same signal label, not distinct
+forward-return labels. The old capture logic updated every duplicate audit row
+and preserved duplicate existing rows, so reruns could keep expanding or
+maintaining duplicates.
+
+Fix:
+
+scripts/live_forward_returns.py now collapses matched audit rows by computed
+row_key before scoring forward returns.
+Existing live_forward_returns.csv rows are compacted by row_key, keeping
+the latest captured_at_utc, before updates are applied. This repairs legacy
+duplicate artifacts on the next run.
+The durable output is restored to one row per signal key.
+For backward compatibility, bin_mode=insample keeps the historical row-key
+shape; non-insample modes include bin_mode in the row key to prevent
+insample/rolling collisions.
+Regression coverage was added to existing tests/test_live_forward_returns.py:
+repeated matched audit rows collapse to one output row, and pre-existing
+duplicate live rows compact on update.
+Verification:
+
+python3 -m py_compile scripts/live_forward_returns.py passed.
+python3 -m pytest -q -> 382 passed.
+python3 -m ruff check src scripts tests -> clean.
+Operational state from the run remains sane:
+
+XOP is still the only open tracked position.
+XOP stop remains unchanged around $147.18.
+No new entries were submitted.
+Forward-return capture is now populating, but the duplicate-row repair will
+take effect on the next workflow run after this patch is committed.
