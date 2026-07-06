@@ -128,8 +128,14 @@ def test_rejected_orders_excluded():
     assert reconstruct_round_trips(j) == []
 
 
-def test_empty_journal_returns_empty():
+def test_empty_journal_returns_empty(tmp_path, monkeypatch):
+    import price.attribution as attribution
+
     assert reconstruct_round_trips(pd.DataFrame()) == []
+    # None means "load the default trade journal". Pin that default to an
+    # isolated missing file so committed/live localdata cannot leak into this
+    # pure unit test.
+    monkeypatch.setattr(attribution, "TRADE_JOURNAL_PATH", tmp_path / "missing.csv")
     assert reconstruct_round_trips(None) == []
 
 

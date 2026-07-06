@@ -173,3 +173,41 @@ def test_out_of_universe_slice_is_skipped(temp_workspace):
     )
     assert out.empty
     assert not paths["out_path"].exists()
+
+
+def test_monitored_slices_used_when_leaderboard_absent(temp_workspace):
+    """Execution-only live_capture no longer refreshes candidate_leaderboard.
+    In that mode live forward returns must track the explicit monitored set
+    that paper_trade.py actually scanned."""
+    paths = temp_workspace
+    monitored_path = paths["log_path"].parent / "monitored_slices.csv"
+
+    pd.DataFrame([{
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "side": "long",
+        "bin_mode": "insample",
+    }]).to_csv(monitored_path, index=False)
+
+    pd.DataFrame([{
+        "kind": "entry_signal",
+        "matched": True,
+        "tradable": False,
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "bar_ts_utc": "2026-06-15T00:00:00+00:00",
+        "close_adj": 50.2 + 14 * 0.1,
+    }]).to_csv(paths["log_path"], index=False)
+
+    out = lfr.run_live_capture(
+        log_path=paths["log_path"],
+        leaderboard_path=paths["lb_path"],  # intentionally missing
+        monitored_path=monitored_path,
+        output_path=paths["out_path"],
+    )
+
+    assert len(out) == 1
+    assert out.iloc[0]["symbol"] == "XLF"
+    assert out.iloc[0]["slice_combination"] == "state_ext=stretched_up + state_slope=flat"

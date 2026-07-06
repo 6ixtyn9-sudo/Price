@@ -3786,3 +3786,43 @@ confirmed-fill-only stopout accounting.
 explicit workflow bin_mode column.
 this patch: monitor actually consumes and enforces the bin_mode contract.
 No slice is promoted and no risk gate is loosened.
+Live Forward-Return Capture Fallback (2026-07-06)
+
+The 19:08 UTC live_capture run succeeded end-to-end: hash-locked dependency
+install passed on GitHub's Python 3.11 runner, data capture completed, the
+monitor scanned with explicit bin_mode=insample, no new entries were
+submitted, and workflow outputs were committed back as 7839d62.
+
+One remaining issue was visible in the log:
+
+live_forward_returns.py printed "No clean_survivor* rows in the current
+leaderboard; nothing to capture." That is correct for the old dynamic-leaderboard
+workflow, but wrong for the current execution-only workflow. The live workflow no
+longer refreshes candidate_leaderboard.csv; its authoritative watched universe
+is now the explicit localdata/monitored_slices.csv file written earlier in the
+same workflow run.
+
+Fix:
+
+scripts/live_forward_returns.py now falls back to monitored_slices.csv when
+the clean-survivor leaderboard universe is absent or empty.
+The fallback universe uses (symbol, timeframe, slice_combination), so it
+still only captures forward returns for slices that the execution monitor is
+explicitly watching.
+Existing leaderboard behavior is preserved when a clean-survivor leaderboard
+is present.
+Regression coverage was added to existing tests/test_live_forward_returns.py
+rather than creating another test file.
+Verification:
+
+python3 -m py_compile scripts/live_forward_returns.py passed.
+python3 -m pytest -q -> 375 passed.
+python3 -m ruff check src scripts tests -> clean.
+Operational note from the same run:
+
+XOP remains the only open tracked position with a resting protective stop in
+localdata/stop_state.json.
+XLK's prior stop state was cleared because the position was no longer open;
+autonomous_fill_journaled=False, so this was treated as state cleanup, not
+a confirmed broker-side stop-out.
+No slice was promoted and no risk gate was loosened.

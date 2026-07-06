@@ -43,6 +43,7 @@ from price.warehouse import load_from_warehouse
 
 PAPER_TRADE_LOG_PATH: Path = DATA_DIR / "paper_trade_log.csv"
 LEADERBOARD_PATH: Path = DATA_DIR / "candidate_leaderboard.csv"
+MONITORED_SLICES_PATH: Path = DATA_DIR / "monitored_slices.csv"
 LIVE_FORWARD_RETURNS_PATH: Path = DATA_DIR / "live_forward_returns.csv"
 
 # Forward-return horizons, in number of bars.
@@ -67,6 +68,31 @@ def _load_clean_survivor_universe(leaderboard_path: Optional[Path] = None) -> Se
     return {
         (str(r["symbol"]), str(r["timeframe"]), str(r["slice_combination"]))
         for _, r in clean.iterrows()
+    }
+
+
+def _load_monitored_universe(monitored_path: Optional[Path] = None) -> Set[Tuple[str, str, str]]:
+    """Return the explicit deployment/watch universe from monitored_slices.csv.
+
+    The live workflow deliberately stopped refreshing candidate_leaderboard.csv
+    on every execution pass. In that execution-only mode, the authoritative
+    watched set is localdata/monitored_slices.csv, not a possibly-absent
+    leaderboard. This fallback keeps forward-return capture aligned with what
+    paper_trade.py actually scanned.
+    """
+    monitored_path = Path(monitored_path) if monitored_path else MONITORED_SLICES_PATH
+    if not monitored_path.exists():
+        return set()
+    try:
+        rows = pd.read_csv(monitored_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return set()
+    required = {"symbol", "timeframe", "slice_combination"}
+    if rows.empty or not required.issubset(rows.columns):
+        return set()
+    return {
+        (str(r["symbol"]), str(r["timeframe"]), str(r["slice_combination"]))
+        for _, r in rows.iterrows()
     }
 
 
@@ -198,6 +224,7 @@ def run_live_capture(
     leaderboard_path: Optional[Path] = None,
     output_path: Optional[Path] = None,
     universe: Optional[Set[Tuple[str, str, str]]] = None,
+    monitored_path: Optional[Path] = None,
 ) -> pd.DataFrame:
     """Scan the paper-trade audit log and write/append live forward returns.
 
@@ -209,7 +236,10 @@ def run_live_capture(
         Override the default module-level paths. Used by tests.
     universe : set of tuples, optional
         Override the watched universe. If None, derived from the current
-        candidate leaderboard's `clean_survivor*` rows.
+        candidate leaderboard's `clean_survivor*` rows, falling back to
+        monitored_slices.csv when the leaderboard is absent/empty.
+    monitored_path : Path, optional
+        Override the explicit monitored-slices path. Used by tests.
 
     Returns
     -------
@@ -219,6 +249,7 @@ def run_live_capture(
     log_path = Path(log_path) if log_path else PAPER_TRADE_LOG_PATH
     leaderboard_path = Path(leaderboard_path) if leaderboard_path else LEADERBOARD_PATH
     output_path = Path(output_path) if output_path else LIVE_FORWARD_RETURNS_PATH
+    monitored_path = Path(monitored_path) if monitored_path else MONITORED_SLICES_PATH
 
     if not log_path.exists():
         print(f"No paper-trade log at {log_path}; nothing to capture.")
@@ -238,9 +269,13 @@ def run_live_capture(
 
     if universe is None:
         universe = _load_clean_survivor_universe(leaderboard_path)
+        if not universe:
+            universe = _load_monitored_universe(monitored_path)
+            if universe:
+                print("No clean_survivor* leaderboard rows; using monitored_slices.csv universe.")
     if not universe:
-        print("No clean_survivor* rows in the current leaderboard; nothing to capture.")
-        print("(Re-run scripts/validate_slices.py --candidate-leaderboard to refresh.)")
+        print("No clean_survivor* rows and no monitored_slices.csv universe; nothing to capture.")
+        print("(Re-run scripts/validate_slices.py --candidate-leaderboard or write monitored_slices.csv.)")
         existing = _load_existing_live_returns(output_path)
         return existing
 
@@ -258,7 +293,7 @@ def run_live_capture(
         )
     ]
     if matched.empty:
-        print("No matched signals inside the clean_survivor* universe.")
+        print("No matched signals inside the watched universe.")
         existing = _load_existing_live_returns(output_path)
         return existing
 
