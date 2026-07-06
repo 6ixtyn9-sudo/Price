@@ -1928,7 +1928,7 @@ payload = json.load(open("localdata/explicit_allowlist.json"))
 allowed = payload["all"]
 
 def safe(sym):
-return sym.upper().replace("/", "-").replace(":", "-").replace("\", "-").replace(" ", "_")
+return sym.upper().replace("/", "-").replace(":", "-").replace("", "-").replace(" ", "_")
 
 root = Path("localdata/warehouse")
 
@@ -1990,231 +1990,232 @@ Liquid236 Full Baseline Results (2026-07-05)
 The first full liquid-first baseline is complete across all intended timeframes.
 
 Universe:
-- 221 liquid equities / ETFs
-- 15 major crypto USD pairs
-- 0 futures
-- 236 total symbols
-- futures intentionally excluded due to symbol ambiguity in current routing
 
+221 liquid equities / ETFs
+15 major crypto USD pairs
+0 futures
+236 total symbols
+futures intentionally excluded due to symbol ambiguity in current routing
 Data captured:
-- 1d: 1825 days
-- 15m: 365 days
-- 1h: generated from 15m resampling
 
+1d: 1825 days
+15m: 365 days
+1h: generated from 15m resampling
 Artifacts archived:
-- localdata/discovered_slices_1d_liquid236.csv
-- localdata/validated_slices_1d_liquid236.csv
-- localdata/candidate_leaderboard_1d_liquid236.csv
-- localdata/discovered_slices_1h_liquid236.csv
-- localdata/validated_slices_1h_liquid236.csv
-- localdata/candidate_leaderboard_1h_liquid236.csv
-- localdata/discovered_slices_15m_liquid236.csv
-- localdata/validated_slices_15m_liquid236.csv
-- localdata/candidate_leaderboard_15m_liquid236.csv
 
+localdata/discovered_slices_1d_liquid236.csv
+localdata/validated_slices_1d_liquid236.csv
+localdata/candidate_leaderboard_1d_liquid236.csv
+localdata/discovered_slices_1h_liquid236.csv
+localdata/validated_slices_1h_liquid236.csv
+localdata/candidate_leaderboard_1h_liquid236.csv
+localdata/discovered_slices_15m_liquid236.csv
+localdata/validated_slices_15m_liquid236.csv
+localdata/candidate_leaderboard_15m_liquid236.csv
 Aggregate result:
-- Total leaderboard rows across 1d/1h/15m: 22,644
-- 1d: 4 clean_survivor_wf_strong, 15 clean_survivor_wf_mixed
-- 1h: 0 clean_survivor_wf_strong, 8 clean_survivor_wf_mixed, 5 clean_survivor_wf_failed
-- 15m: 1 clean_survivor_wf_strong, 6 clean_survivor_wf_mixed, 4 clean_survivor_wf_failed
 
+Total leaderboard rows across 1d/1h/15m: 22,644
+1d: 4 clean_survivor_wf_strong, 15 clean_survivor_wf_mixed
+1h: 0 clean_survivor_wf_strong, 8 clean_survivor_wf_mixed, 5 clean_survivor_wf_failed
+15m: 1 clean_survivor_wf_strong, 6 clean_survivor_wf_mixed, 4 clean_survivor_wf_failed
 Primary Tier-1 target set:
-1. XOP 1d
-   - slice: state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 84
-   - valid_mean_ret_costadj: +0.018436
-   - valid_excess_vs_baseline: +0.015272
-   - valid_excess_vs_best_parent: +0.002215
-   - walk_forward: 3/4, pattern 0111
-   - scenario_survived_count: 8
-   - search_wide_bh_pass: True
 
-2. MU 15m
-   - slice: state_session=afternoon + state_slope=downtrend
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 266
-   - valid_mean_ret_costadj: +0.011537
-   - valid_excess_vs_baseline: +0.009103
-   - valid_excess_vs_best_parent: +0.005889
-   - walk_forward: 3/4, pattern 1101
-   - scenario_survived_count: 8
-   - note: simpler 2D slice is preferred over the 3D MU variant because parent-excess is materially better.
+XOP 1d
 
-3. KLAC 1d
-   - slice: state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 53
-   - valid_mean_ret_costadj: +0.045880
-   - valid_excess_vs_baseline: +0.038932
-   - valid_excess_vs_best_parent: +0.008148
-   - walk_forward: 3/4, pattern 0111
-   - scenario_survived_count: 8
-   - search_wide_bh_pass: True
-   - search_wide_bonferroni_pass: True
-   - note: strongest statistical lead due to Bonferroni pass.
+slice: state_ext=stretched_down + state_slope=downtrend
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 84
+valid_mean_ret_costadj: +0.018436
+valid_excess_vs_baseline: +0.015272
+valid_excess_vs_best_parent: +0.002215
+walk_forward: 3/4, pattern 0111
+scenario_survived_count: 8
+search_wide_bh_pass: True
+MU 15m
 
-4. XLB 1d
-   - slice: state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 82
-   - valid_mean_ret_costadj: +0.015540
-   - valid_excess_vs_baseline: +0.019481
-   - valid_excess_vs_best_parent: +0.003002
-   - walk_forward: 3/4, pattern 0111
-   - scenario_survived_count: 7
-   - search_wide_bh_pass: True
+slice: state_session=afternoon + state_slope=downtrend
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 266
+valid_mean_ret_costadj: +0.011537
+valid_excess_vs_baseline: +0.009103
+valid_excess_vs_best_parent: +0.005889
+walk_forward: 3/4, pattern 1101
+scenario_survived_count: 8
+note: simpler 2D slice is preferred over the 3D MU variant because parent-excess is materially better.
+KLAC 1d
 
-5. XLF 1d
-   - slice: state_ext=stretched_up + state_slope=flat
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 33
-   - valid_mean_ret_costadj: +0.010050
-   - valid_excess_vs_baseline: +0.008234
-   - valid_excess_vs_best_parent: +0.005614
-   - walk_forward: 3/4, pattern 1110
-   - scenario_survived_count: 6
+slice: state_ext=stretched_down + state_slope=downtrend
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 53
+valid_mean_ret_costadj: +0.045880
+valid_excess_vs_baseline: +0.038932
+valid_excess_vs_best_parent: +0.008148
+walk_forward: 3/4, pattern 0111
+scenario_survived_count: 8
+search_wide_bh_pass: True
+search_wide_bonferroni_pass: True
+note: strongest statistical lead due to Bonferroni pass.
+XLB 1d
 
+slice: state_ext=stretched_down + state_slope=downtrend
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 82
+valid_mean_ret_costadj: +0.015540
+valid_excess_vs_baseline: +0.019481
+valid_excess_vs_best_parent: +0.003002
+walk_forward: 3/4, pattern 0111
+scenario_survived_count: 7
+search_wide_bh_pass: True
+XLF 1d
+
+slice: state_ext=stretched_up + state_slope=flat
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 33
+valid_mean_ret_costadj: +0.010050
+valid_excess_vs_baseline: +0.008234
+valid_excess_vs_best_parent: +0.005614
+walk_forward: 3/4, pattern 1110
+scenario_survived_count: 6
 Tier-2 watchlist:
-- AMD 1d, state_ext=stretched_up + state_slope=flat, long
-- DE 1d, state_ext=stretched_down + state_slope=downtrend, long
-- DASH 1d, state_ext=stretched_up + state_vol=low_vol, long
-- AVGO 1d, state_ext=stretched_down + state_slope=downtrend, long
-- XLE 1d, state_ext=stretched_down + state_slope=downtrend, long
-- HUM 1h, state_session=lunch + state_ext=stretched_up, long
-- FBTC 1h, state_ext=stretched_up + state_vol=high_vol, short
-- AAVE/USD 1h, state_session=morning + state_ext=stretched_down + state_slope=downtrend, short
-- XBI 15m, state_session=afternoon + state_ext=neutral, long
-- BCH/USD 15m, state_session=afternoon + state_ext=stretched_up, short
-- UNH 15m, state_session=morning + state_slope=uptrend, long
 
+AMD 1d, state_ext=stretched_up + state_slope=flat, long
+DE 1d, state_ext=stretched_down + state_slope=downtrend, long
+DASH 1d, state_ext=stretched_up + state_vol=low_vol, long
+AVGO 1d, state_ext=stretched_down + state_slope=downtrend, long
+XLE 1d, state_ext=stretched_down + state_slope=downtrend, long
+HUM 1h, state_session=lunch + state_ext=stretched_up, long
+FBTC 1h, state_ext=stretched_up + state_vol=high_vol, short
+AAVE/USD 1h, state_session=morning + state_ext=stretched_down + state_slope=downtrend, short
+XBI 15m, state_session=afternoon + state_ext=neutral, long
+BCH/USD 15m, state_session=afternoon + state_ext=stretched_up, short
+UNH 15m, state_session=morning + state_slope=uptrend, long
 Interpretation:
-- Daily produced the strongest broad candidates.
-- 15m produced one standout session/intraday candidate: MU afternoon + downtrend.
-- 1h produced mixed candidates but no clean_survivor_wf_strong.
-- The dominant daily family is stretched_down + downtrend rebound in cyclical / materials / energy-linked instruments (XOP, XLB, KLAC).
-- Do not promote every survived slice. Prioritize clean_survivor_wf_strong and require positive parent-excess plus walk-forward strength.
-- CVX 1d scored highly but has only WF 1/4, so it is not Tier 1 despite high scenario robustness.
-- Any clean_survivor_wf_failed, over_specified_survivor, late_emerging_recent_only, or late_emerging_regime_switching candidate remains diagnostic only.
 
+Daily produced the strongest broad candidates.
+15m produced one standout session/intraday candidate: MU afternoon + downtrend.
+1h produced mixed candidates but no clean_survivor_wf_strong.
+The dominant daily family is stretched_down + downtrend rebound in cyclical / materials / energy-linked instruments (XOP, XLB, KLAC).
+Do not promote every survived slice. Prioritize clean_survivor_wf_strong and require positive parent-excess plus walk-forward strength.
+CVX 1d scored highly but has only WF 1/4, so it is not Tier 1 despite high scenario robustness.
+Any clean_survivor_wf_failed, over_specified_survivor, late_emerging_recent_only, or late_emerging_regime_switching candidate remains diagnostic only.
 Next research steps:
-1. Inspect bar windows and corporate-action sanity for Tier-1 candidates.
-2. Re-run focused diagnostics for Tier-1 only.
-3. Consider adding only Tier-1/Tier-2 candidates to monitoring after inspection.
-4. Do not expand the universe yet; the current baseline is sufficient to choose targets.
-5. Future expensive full runs should be avoided unless the universe or feature set materially changes.
 
-
+Inspect bar windows and corporate-action sanity for Tier-1 candidates.
+Re-run focused diagnostics for Tier-1 only.
+Consider adding only Tier-1/Tier-2 candidates to monitoring after inspection.
+Do not expand the universe yet; the current baseline is sufficient to choose targets.
+Future expensive full runs should be avoided unless the universe or feature set materially changes.
 Corrected RTH/Tiingo Liquid236 Baseline Results (2026-07-05)
 
 This section supersedes the earlier Liquid236 baseline notes that were generated before:
-1. Tiingo daily routing was extended to all equities, and
-2. equity intraday bars were filtered to regular trading hours.
 
+Tiingo daily routing was extended to all equities, and
+equity intraday bars were filtered to regular trading hours.
 Why rerun was required:
-- Tier-1 audit found impossible/non-market jumps in non-core daily equities (KLAC/XLB), caused by daily adjustment issues.
-- Equity 15m data contained sparse premarket/after-hours bars that contaminated intraday rolling features and session labels.
-- RTH filtering and Tiingo-all-equity daily routing were therefore required before trusting intraday/daily results.
 
+Tier-1 audit found impossible/non-market jumps in non-core daily equities (KLAC/XLB), caused by daily adjustment issues.
+Equity 15m data contained sparse premarket/after-hours bars that contaminated intraday rolling features and session labels.
+RTH filtering and Tiingo-all-equity daily routing were therefore required before trusting intraday/daily results.
 Fixes applied:
-- src/price/data_sources.py now prefers Tiingo daily bars for all equities when TIINGO_API_KEY is available.
-- src/price/data_sources.py imports is_equity for router logic.
-- equity intraday bars are filtered to regular trading hours for future capture.
-- warehouse 1h resampling uses RTH-filtered 15m rows for equities.
-- existing equity 15m warehouse partitions were cleaned to RTH and 1h partitions rebuilt.
-- crypto remains 24/7 and is not RTH-filtered.
 
+src/price/data_sources.py now prefers Tiingo daily bars for all equities when TIINGO_API_KEY is available.
+src/price/data_sources.py imports is_equity for router logic.
+equity intraday bars are filtered to regular trading hours for future capture.
+warehouse 1h resampling uses RTH-filtered 15m rows for equities.
+existing equity 15m warehouse partitions were cleaned to RTH and 1h partitions rebuilt.
+crypto remains 24/7 and is not RTH-filtered.
 Corrected artifacts:
-- localdata/discovered_slices_1d_tiingo_liquid236.csv
-- localdata/validated_slices_1d_tiingo_liquid236.csv
-- localdata/candidate_leaderboard_1d_tiingo_liquid236.csv
-- localdata/discovered_slices_1h_rth_liquid236.csv
-- localdata/validated_slices_1h_rth_liquid236.csv
-- localdata/candidate_leaderboard_1h_rth_liquid236.csv
-- localdata/discovered_slices_15m_rth_liquid236.csv
-- localdata/validated_slices_15m_rth_liquid236.csv
-- localdata/candidate_leaderboard_15m_rth_liquid236.csv
 
+localdata/discovered_slices_1d_tiingo_liquid236.csv
+localdata/validated_slices_1d_tiingo_liquid236.csv
+localdata/candidate_leaderboard_1d_tiingo_liquid236.csv
+localdata/discovered_slices_1h_rth_liquid236.csv
+localdata/validated_slices_1h_rth_liquid236.csv
+localdata/candidate_leaderboard_1h_rth_liquid236.csv
+localdata/discovered_slices_15m_rth_liquid236.csv
+localdata/validated_slices_15m_rth_liquid236.csv
+localdata/candidate_leaderboard_15m_rth_liquid236.csv
 Corrected aggregate triage:
-- 1d_tiingo: 4 clean_survivor_wf_strong, 15 clean_survivor_wf_mixed
-- 1h_rth: 0 clean_survivor_wf_strong, 8 clean_survivor_wf_mixed
-- 15m_rth: 0 clean_survivor_wf_strong, 6 clean_survivor_wf_mixed
 
+1d_tiingo: 4 clean_survivor_wf_strong, 15 clean_survivor_wf_mixed
+1h_rth: 0 clean_survivor_wf_strong, 8 clean_survivor_wf_mixed
+15m_rth: 0 clean_survivor_wf_strong, 6 clean_survivor_wf_mixed
 Corrected Tier-1 target set:
-1. XOP 1d
-   - state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 84
-   - valid_mean_ret_costadj: +0.018436
-   - valid_excess_vs_baseline: +0.015272
-   - valid_excess_vs_best_parent: +0.002215
-   - walk_forward: 3/4, pattern 0111
-   - scenario_survived_count: 8
-   - search_wide_bh_pass: True
 
-2. XLB 1d
-   - state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 64
-   - valid_mean_ret_costadj: +0.015244
-   - valid_excess_vs_baseline: +0.012205
-   - valid_excess_vs_best_parent: +0.002644
-   - walk_forward: 3/4, pattern 0111
-   - scenario_survived_count: 8
-   - search_wide_bh_pass: True
+XOP 1d
 
-3. KLAC 1d
-   - state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 45
-   - valid_mean_ret_costadj: +0.046809
-   - valid_excess_vs_baseline: +0.025704
-   - valid_excess_vs_best_parent: +0.007930
-   - walk_forward: 3/4, pattern 0111
-   - scenario_survived_count: 8
-   - search_wide_bh_pass: True
-   - search_wide_bonferroni_pass: True
+state_ext=stretched_down + state_slope=downtrend
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 84
+valid_mean_ret_costadj: +0.018436
+valid_excess_vs_baseline: +0.015272
+valid_excess_vs_best_parent: +0.002215
+walk_forward: 3/4, pattern 0111
+scenario_survived_count: 8
+search_wide_bh_pass: True
+XLB 1d
 
-4. XLF 1d
-   - state_ext=stretched_up + state_slope=flat
-   - side: long
-   - triage: clean_survivor_wf_strong
-   - valid_n: 33
-   - valid_mean_ret_costadj: +0.010050
-   - valid_excess_vs_baseline: +0.008234
-   - valid_excess_vs_best_parent: +0.005614
-   - walk_forward: 3/4, pattern 1110
-   - scenario_survived_count: 6
+state_ext=stretched_down + state_slope=downtrend
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 64
+valid_mean_ret_costadj: +0.015244
+valid_excess_vs_baseline: +0.012205
+valid_excess_vs_best_parent: +0.002644
+walk_forward: 3/4, pattern 0111
+scenario_survived_count: 8
+search_wide_bh_pass: True
+KLAC 1d
 
+state_ext=stretched_down + state_slope=downtrend
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 45
+valid_mean_ret_costadj: +0.046809
+valid_excess_vs_baseline: +0.025704
+valid_excess_vs_best_parent: +0.007930
+walk_forward: 3/4, pattern 0111
+scenario_survived_count: 8
+search_wide_bh_pass: True
+search_wide_bonferroni_pass: True
+XLF 1d
+
+state_ext=stretched_up + state_slope=flat
+side: long
+triage: clean_survivor_wf_strong
+valid_n: 33
+valid_mean_ret_costadj: +0.010050
+valid_excess_vs_baseline: +0.008234
+valid_excess_vs_best_parent: +0.005614
+walk_forward: 3/4, pattern 1110
+scenario_survived_count: 6
 Corrected intraday interpretation:
-- MU 15m was clean_survivor_wf_strong before RTH filtering.
-- After RTH filtering, MU 15m downgraded to clean_survivor_wf_mixed:
-  state_session=afternoon + state_slope=downtrend, long, WF 2/4.
-- Therefore MU 15m remains a watchlist item, not Tier 1.
-- 1h produced mixed candidates only; no clean_survivor_wf_strong.
 
+MU 15m was clean_survivor_wf_strong before RTH filtering.
+After RTH filtering, MU 15m downgraded to clean_survivor_wf_mixed:
+state_session=afternoon + state_slope=downtrend, long, WF 2/4.
+Therefore MU 15m remains a watchlist item, not Tier 1.
+1h produced mixed candidates only; no clean_survivor_wf_strong.
 Final corrected conclusion:
-- Daily is the strongest timeframe in the liquid236 baseline.
-- The dominant durable family is stretched_down + downtrend rebound in XOP, XLB, and KLAC.
-- XLF is a distinct financial-sector stretched_up + flat continuation/extension pattern.
-- Intraday candidates are secondary until they show stronger walk-forward robustness on RTH-clean data.
-- Do not use pre-RTH intraday artifacts. Only *_rth_liquid236 files are valid for intraday.
-- Do not use old pre-Tiingo daily results for non-core equities. Prefer *_1d_tiingo_liquid236 files.
 
+Daily is the strongest timeframe in the liquid236 baseline.
+The dominant durable family is stretched_down + downtrend rebound in XOP, XLB, and KLAC.
+XLF is a distinct financial-sector stretched_up + flat continuation/extension pattern.
+Intraday candidates are secondary until they show stronger walk-forward robustness on RTH-clean data.
+Do not use pre-RTH intraday artifacts. Only *_rth_liquid236 files are valid for intraday.
+Do not use old pre-Tiingo daily results for non-core equities. Prefer *_1d_tiingo_liquid236 files.
 Next steps:
-1. Re-run tier1_signal_audit on corrected Tier-1 candidates only: XOP, XLB, KLAC, XLF.
-2. Inspect recent signal windows and worst outcomes.
-3. Build a curated monitoring candidate list only after audit passes.
-4. Keep all execution/paper-trading disabled until the curated list is explicitly reviewed.
 
+Re-run tier1_signal_audit on corrected Tier-1 candidates only: XOP, XLB, KLAC, XLF.
+Inspect recent signal windows and worst outcomes.
+Build a curated monitoring candidate list only after audit passes.
+Keep all execution/paper-trading disabled until the curated list is explicitly reviewed.
 Session Close Update — Corrected Deep-End Paper Deployment (2026-07-05)
 
 This section records the final operational state after the corrected Liquid236 baseline, RTH cleanup, paper deployment, and workflow cleanup.
@@ -2224,101 +2225,100 @@ Authoritative research artifacts
 The valid corrected research artifacts are now the corrected/RTH/Tiingo files only:
 
 Daily:
-- localdata/discovered_slices_1d_tiingo_liquid236.csv
-- localdata/validated_slices_1d_tiingo_liquid236.csv
-- localdata/candidate_leaderboard_1d_tiingo_liquid236.csv
 
+localdata/discovered_slices_1d_tiingo_liquid236.csv
+localdata/validated_slices_1d_tiingo_liquid236.csv
+localdata/candidate_leaderboard_1d_tiingo_liquid236.csv
 1h:
-- localdata/discovered_slices_1h_rth_liquid236.csv
-- localdata/validated_slices_1h_rth_liquid236.csv
-- localdata/candidate_leaderboard_1h_rth_liquid236.csv
 
+localdata/discovered_slices_1h_rth_liquid236.csv
+localdata/validated_slices_1h_rth_liquid236.csv
+localdata/candidate_leaderboard_1h_rth_liquid236.csv
 15m:
-- localdata/discovered_slices_15m_rth_liquid236.csv
-- localdata/validated_slices_15m_rth_liquid236.csv
-- localdata/candidate_leaderboard_15m_rth_liquid236.csv
 
+localdata/discovered_slices_15m_rth_liquid236.csv
+localdata/validated_slices_15m_rth_liquid236.csv
+localdata/candidate_leaderboard_15m_rth_liquid236.csv
 The older pre-RTH intraday and pre-Tiingo daily artifacts were deleted from localdata to avoid future confusion. Do not use non-RTH intraday results or pre-Tiingo daily results for target selection.
 
 Final corrected Tier-1 candidates
 
 The corrected Tier-1 paper candidates are:
 
-1. XOP 1d
-   - state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - source: corrected 1d_tiingo liquid236 baseline
-   - triage: clean_survivor_wf_strong
+XOP 1d
 
-2. XLB 1d
-   - state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - source: corrected 1d_tiingo liquid236 baseline
-   - triage: clean_survivor_wf_strong
+state_ext=stretched_down + state_slope=downtrend
+side: long
+source: corrected 1d_tiingo liquid236 baseline
+triage: clean_survivor_wf_strong
+XLB 1d
 
-3. KLAC 1d
-   - state_ext=stretched_down + state_slope=downtrend
-   - side: long
-   - source: corrected 1d_tiingo liquid236 baseline
-   - triage: clean_survivor_wf_strong
-   - note: strongest statistical lead among Tier-1 due to search-wide Bonferroni pass.
+state_ext=stretched_down + state_slope=downtrend
+side: long
+source: corrected 1d_tiingo liquid236 baseline
+triage: clean_survivor_wf_strong
+KLAC 1d
 
-4. XLF 1d
-   - state_ext=stretched_up + state_slope=flat
-   - side: long
-   - source: existing deployed slice and corrected Tier-1 baseline
-   - triage: clean_survivor_wf_strong
+state_ext=stretched_down + state_slope=downtrend
+side: long
+source: corrected 1d_tiingo liquid236 baseline
+triage: clean_survivor_wf_strong
+note: strongest statistical lead among Tier-1 due to search-wide Bonferroni pass.
+XLF 1d
 
+state_ext=stretched_up + state_slope=flat
+side: long
+source: existing deployed slice and corrected Tier-1 baseline
+triage: clean_survivor_wf_strong
 Corrected Tier-1 audit
 
 A corrected Tier-1 audit was run after the Tiingo and RTH fixes.
 
 Audit outputs:
-- localdata/tier1_corrected_quality_summary.csv
-- localdata/tier1_corrected_signal_hits.csv
-- localdata/tier1_corrected_largest_jumps.csv
-- localdata/tier1_corrected_signal_audit.log
 
+localdata/tier1_corrected_quality_summary.csv
+localdata/tier1_corrected_signal_hits.csv
+localdata/tier1_corrected_largest_jumps.csv
+localdata/tier1_corrected_signal_audit.log
 Results:
-- XOP, XLB, KLAC, and XLF all had:
-  - duplicate timestamps: 0
-  - NaN close_adj: 0
-  - non-positive close_adj: 0
-  - large daily jumps >=25%: 0
 
+XOP, XLB, KLAC, and XLF all had:
+duplicate timestamps: 0
+NaN close_adj: 0
+non-positive close_adj: 0
+large daily jumps >=25%: 0
 Key audited profile:
-- XOP: high magnitude, real energy-sector tail risk.
-- XLB: cleaner material-sector version of the stretched_down + downtrend rebound family.
-- KLAC: strongest magnitude/statistical lead, but higher tail risk.
-- XLF: cleanest risk profile, lower hit frequency, high observed win rate.
 
+XOP: high magnitude, real energy-sector tail risk.
+XLB: cleaner material-sector version of the stretched_down + downtrend rebound family.
+KLAC: strongest magnitude/statistical lead, but higher tail risk.
+XLF: cleanest risk profile, lower hit frequency, high observed win rate.
 ML second opinion
 
 A targeted ML bridge run was executed on the corrected Tier-1 daily candidates:
 
-- XOP
-- XLB
-- KLAC
-- XLF
-
+XOP
+XLB
+KLAC
+XLF
 Artifacts:
-- localdata/ml_candidate_slices_tier1_1d_tiingo.csv
-- localdata/ml_candidate_leaderboard_tier1_1d_tiingo.csv
-- localdata/ml_to_slices_tier1_1d_tiingo.log
-- localdata/ml_validate_tier1_1d_tiingo.log
 
+localdata/ml_candidate_slices_tier1_1d_tiingo.csv
+localdata/ml_candidate_leaderboard_tier1_1d_tiingo.csv
+localdata/ml_to_slices_tier1_1d_tiingo.log
+localdata/ml_validate_tier1_1d_tiingo.log
 Result:
-- ML produced candidate slices for XOP, XLB, and XLF.
-- KLAC produced no ML interaction candidates meeting the promising thresholds.
-- 18 ML-derived candidates were validated.
-- 0 ML candidates survived full validation.
-- The best ML candidates were rejected as late_emerging, sample-starved, parent-underperformed, or unsupported.
 
+ML produced candidate slices for XOP, XLB, and XLF.
+KLAC produced no ML interaction candidates meeting the promising thresholds.
+18 ML-derived candidates were validated.
+0 ML candidates survived full validation.
+The best ML candidates were rejected as late_emerging, sample-starved, parent-underperformed, or unsupported.
 Interpretation:
-- ML did not produce a stronger promotable replacement for the corrected Tier-1 candidates.
-- This does not invalidate Tier-1, because Tier-1 is supported by fixed-bin combinatorial discovery, validation, scenario robustness, walk-forward, parent-excess, and audit sanity.
-- Current best evidence remains fixed-bin/combinatorial, not ML-derived.
 
+ML did not produce a stronger promotable replacement for the corrected Tier-1 candidates.
+This does not invalidate Tier-1, because Tier-1 is supported by fixed-bin combinatorial discovery, validation, scenario robustness, walk-forward, parent-excess, and audit sanity.
+Current best evidence remains fixed-bin/combinatorial, not ML-derived.
 Deployment/watch list
 
 The monitor now prefers:
@@ -2329,120 +2329,252 @@ This file is the explicit deployment/watch-list source and prevents the monitor 
 
 Current monitored slices are:
 
-- XLB 1d, state_ext=stretched_down + state_slope=downtrend, long
-- XOP 1d, state_ext=stretched_down + state_slope=downtrend, long
-- KLAC 1d, state_ext=stretched_down + state_slope=downtrend, long
-- SPY 1h, state_session=afternoon + state_slope=downtrend, long
-- XLK 1d, cross_TLT_state_slope=uptrend + state_ext=neutral, long
-- XLK 1h, cross_USO_state_vol=mid_vol + state_ext=stretched_down, long
-- XLF 1d, state_ext=stretched_up + state_slope=flat, long
-
+XLB 1d, state_ext=stretched_down + state_slope=downtrend, long
+XOP 1d, state_ext=stretched_down + state_slope=downtrend, long
+KLAC 1d, state_ext=stretched_down + state_slope=downtrend, long
+SPY 1h, state_session=afternoon + state_slope=downtrend, long
+XLK 1d, cross_TLT_state_slope=uptrend + state_ext=neutral, long
+XLK 1h, cross_USO_state_vol=mid_vol + state_ext=stretched_down, long
+XLF 1d, state_ext=stretched_up + state_slope=flat, long
 Deployment philosophy:
-- Keep the incumbent paper slices in the deep end.
-- Add corrected Tier-1 friends to the same deep end.
-- Dynamic recall/deploy should happen by regenerating monitored_slices.csv from strict evidence rules, not by directly trading the current candidate_leaderboard.csv.
-- Current safe sync rule: incumbents + clean_survivor_wf_strong from corrected 1d/1h/15m leaderboards.
-- The monitor reads monitored_slices.csv each pass, so updates are picked up dynamically.
 
+Keep the incumbent paper slices in the deep end.
+Add corrected Tier-1 friends to the same deep end.
+Dynamic recall/deploy should happen by regenerating monitored_slices.csv from strict evidence rules, not by directly trading the current candidate_leaderboard.csv.
+Current safe sync rule: incumbents + clean_survivor_wf_strong from corrected 1d/1h/15m leaderboards.
+The monitor reads monitored_slices.csv each pass, so updates are picked up dynamically.
 Paper order state at session close
 
 The stale XLE order from the previous deployment was canceled.
 
 Alpaca paper orders at session close:
-- XOP market buy 16, accepted, pending next session
-- XLK market buy 13, accepted, pending next session
-- XLE market buy 9, canceled
 
+XOP market buy 16, accepted, pending next session
+XLK market buy 13, accepted, pending next session
+XLE market buy 9, canceled
 No open positions were present yet because the orders were submitted while the market was closed/weekend.
 
 Pending-order safety
 
 A pending-order risk-gate improvement was added:
 
-- price.trading.get_open_orders() returns accepted/open Alpaca paper orders.
-- monitor.scan_all_slices combines open positions and open orders as exposure_for_entry_gate.
-- This prevents repeated weekend/after-hours scans from queuing duplicate market orders before prior accepted DAY orders fill or expire.
-
+price.trading.get_open_orders() returns accepted/open Alpaca paper orders.
+monitor.scan_all_slices combines open positions and open orders as exposure_for_entry_gate.
+This prevents repeated weekend/after-hours scans from queuing duplicate market orders before prior accepted DAY orders fill or expire.
 Verified behavior:
-- XOP and XLK matched again after order submission.
-- Risk gate blocked both because pending orders existed.
-- Dry-run still shows would_enter because dry_run intentionally bypasses risk checks for audit visibility.
 
+XOP and XLK matched again after order submission.
+Risk gate blocked both because pending orders existed.
+Dry-run still shows would_enter because dry_run intentionally bypasses risk checks for audit visibility.
 Live capture workflow
 
 The GitHub Actions live_capture workflow was changed to focus on the explicit monitored deep-end set.
 
 Current live workflow purpose:
-- refresh monitored symbols and conditioning symbols
-- build warehouse
-- write explicit monitored_slices.csv
-- run paper_trade in paper mode
-- run live_forward_returns
-- commit lightweight logs/artifacts
 
+refresh monitored symbols and conditioning symbols
+build warehouse
+write explicit monitored_slices.csv
+run paper_trade in paper mode
+run live_forward_returns
+commit lightweight logs/artifacts
 The workflow no longer runs daily discovery or candidate leaderboard. Research discovery/validation should be handled by a separate future research-refresh workflow, not mixed into live paper execution.
 
 Monitored/conditioning symbols refreshed by the workflow:
-- XLF
-- XLK
-- SPY
-- XOP
-- XLB
-- KLAC
-- TLT
-- USO
 
+XLF
+XLK
+SPY
+XOP
+XLB
+KLAC
+TLT
+USO
 Workflow risk settings:
-- max_notional: 2500
-- max_open: 7
-- max_daily_loss: 500
-- cooldown_seconds: 3600
 
+max_notional: 2500
+max_open: 7
+max_daily_loss: 500
+cooldown_seconds: 3600
 Important distinction:
-- GitHub Actions refreshes warehouse data inside the runner for the monitored set.
-- The full parquet warehouse is not committed to git and is intentionally not persisted in the repo.
-- For paper execution, rebuilding the small monitored subset per workflow run is acceptable.
-- Full research warehouse persistence should be handled separately later if needed.
 
+GitHub Actions refreshes warehouse data inside the runner for the monitored set.
+The full parquet warehouse is not committed to git and is intentionally not persisted in the repo.
+For paper execution, rebuilding the small monitored subset per workflow run is acceptable.
+Full research warehouse persistence should be handled separately later if needed.
 Current architecture decision
 
 Do not mix research discovery and paper execution in the same workflow.
 
 Desired future split:
-1. live_capture.yml
-   - execution and forward-return logging for approved monitored_slices.csv only
 
-2. research_refresh.yml
-   - discovery
-   - validation
-   - edge decay checks
-   - candidate proposal/report generation
-   - no order placement
+live_capture.yml
 
+execution and forward-return logging for approved monitored_slices.csv only
+research_refresh.yml
+
+discovery
+validation
+edge decay checks
+candidate proposal/report generation
+no order placement
 This is the path toward autonomy without letting noisy daily discovery directly trade.
 
 Next session priorities
 
-1. Market-open audit:
-   - check accepted orders
-   - check filled positions
-   - verify no stale XLE exposure
-   - confirm XOP/XLK status after market opens
+Market-open audit:
 
-2. Exit policy:
-   Current exit logic is state-invalidation only.
-   Validation horizon is fwd_ret_5.
-   Next design target is hybrid exit:
-   - exit when stable state breaks OR held >= 5 bars
-   - use timeframe-aware bar counting
-   - log exit reason clearly
+check accepted orders
+check filled positions
+verify no stale XLE exposure
+confirm XOP/XLK status after market opens
+Exit policy:
+Current exit logic is state-invalidation only.
+Validation horizon is fwd_ret_5.
+Next design target is hybrid exit:
 
-3. Workflow follow-up:
-   - verify live_capture completes successfully after the workflow cleanup
-   - if it times out, further reduce the workflow to execution-only essentials
+exit when stable state breaks OR held >= 5 bars
+use timeframe-aware bar counting
+log exit reason clearly
+Workflow follow-up:
 
-4. Research automation:
-   - design a separate research_refresh workflow
-   - do not let it place orders
-   - use it to detect edge decay and propose monitored_slices changes
+verify live_capture completes successfully after the workflow cleanup
+if it times out, further reduce the workflow to execution-only essentials
+Research automation:
 
+design a separate research_refresh workflow
+do not let it place orders
+use it to detect edge decay and propose monitored_slices changes
+ROI Refinement — Position Sizing (2026-07-06)
+This section records the first patch of an explicit "refine Price to maximise
+ROI" workstream. Operator direction for this session: refine the system toward
+maximising ROI, with the scope explicitly set to the path TOWARD REAL CAPITAL
+(paper stays the proving ground, but design for real-money readiness: real fill
+cost, buying-power/PDT limits, volatility-normalised risk, kill-switches). No
+promotion claims; the V4 "nothing is promoted" deadlock stands.
+
+Why sizing was chosen as the first lever
+The biggest ROI lever in a system with small, fragile edges is execution-side
+capital allocation, not new discovery. The original sizing rule was literally
+equal-notional: monitor._default_qty = floor(max_notional / price). A slice
+with KLAC's magnitude and a slice with XLF's got identical dollars, regardless
+of edge strength, volatility, sample confidence, or walk-forward robustness.
+That is where ROI was being left on the table. Ranked ROI levers agreed for the
+session: (1) sizing -> (2) exits -> (3) allocation -> (4) cost realism ->
+(5) P&L attribution. This patch delivers lever #1.
+
+What was added
+
+src/price/sizing.py: a self-contained edge- and volatility-aware sizing
+subsystem. Two-stage model:
+Stage A (always): conviction-weighted notional.
+target_notional = conviction * max_notional_per_position
+conviction in (0,1] is derived from the slice's research edge metrics in
+candidate_leaderboard.csv: magnitude (valid_mean_ret_costadj / EDGE_REF),
+robustness (blend of walk_forward_pass_count, scenario_survived_count,
+valid_n), validity (excess_vs_best_parent), and a small multiple-testing
+bonus (Bonferroni > BH > none). Stronger, more robust, search-wide-
+defensible edges earn more capital.
+Stage B (when account equity + ATR available): volatility rail.
+qty_risk = floor(conviction * risk_fraction_per_trade * equity / atr_14)
+qty = min(qty_notional, qty_risk), so a high-volatility name cannot
+concentrate more than its risk budget allows.
+All conviction model constants are module-level and tunable: EDGE_REF=0.03,
+EXCESS_REF=0.01, MIN_SAMPLES=15, MAX_SCENARIOS=8, MAX_WF=4,
+KNOWN_CONVICTION_FLOOR=0.35, BONUS_BONFERRONI=1.15, BONUS_BH=1.05.
+ATR(14) is computed locally (features.py computes ATR but discards it; this
+module recomputes it from high_adj/low_adj/close_adj rather than touching the
+core feature module).
+src/price/risk_limits.py: RiskLimits gained three additive fields:
+conviction_sizing_enabled (bool, default True), risk_fraction_per_trade
+(float, default 0.005 = 0.5% of equity at full conviction), and
+account_equity_for_sizing (Optional[float], default None -> Stage B skipped).
+src/price/monitor.py: scan_all_slices now sizes every matched signal via
+compute_position_size instead of the old equal-notional rule. The matched
+signal carries flat sizing_* audit fields (sizing_mode, sizing_conviction,
+sizing_target_notional, sizing_atr, sizing_qty_notional, sizing_qty_risk) so
+the paper_trade audit CSV records every sizing decision. The dead
+_default_qty helper was removed.
+scripts/paper_trade.py: new CLI flags --equal-notional (disable conviction
+sizing), --risk-fraction (vol-rail fraction, default 0.005), and
+--sizing-equity (account equity for the vol rail; None disables Stage B).
+tests/test_sizing.py: 19 unit tests covering conviction monotonicity
+(magnitude, walk-forward, parent-excess), MT-bonus ordering, the vol rail
+binding behaviour, the equal-notional-disabled path, bad-price handling, the
+notional cap invariant, CSV-safe audit output, ATR computation, and synthetic
+leaderboard lookup.
+Graceful-degradation safety property (the reason this is zero-risk to the live book)
+localdata/* is gitignored, so on a fresh clone -- and on the live_capture runner
+until a leaderboard is regenerated -- there is NO candidate_leaderboard.csv and
+no warehouse ATR. The sizing subsystem degrades as follows:
+
+No leaderboard edge data -> conviction = NEUTRAL_CONVICTION = 1.0, which
+reproduces the ORIGINAL equal-notional sizing EXACTLY. Sizing only deviates
+from equal-notional when we actually have edge data to justify it.
+No warehouse / no ATR -> Stage B skipped, Stage A only.
+No account equity configured -> Stage B skipped, Stage A only.
+price <= 0 / non-finite -> qty 0.
+Consequence: the currently-deployed paper book (XOP x16, XLK x13, XLE x9
+canceled) is UNAFFECTED until the operator regenerates candidate_leaderboard.csv
+and/or sets --sizing-equity. When conviction data IS present, capital is
+reallocated toward the stronger edges.
+Demonstration on the corrected Tier-1 daily numbers
+Feeding the corrected liquid236 Tier-1 metrics (from this HANDOVER) into
+compute_conviction produced:
+KLAC 1d (Bonferroni, 4.68% edge): conviction 0.928 -> 92.8% of cap
+XOP 1d (BH, 1.84% edge): conviction 0.355 -> 35.5% of cap
+XLB 1d (BH, 1.52% edge): conviction 0.350 -> 35.0% of cap (at floor)
+XLF 1d (no MT pass, 1.0% edge): conviction 0.350 -> 35.0% of cap (at floor)
+Interpretation: KLAC (the only Bonferroni-defensible edge, largest magnitude)
+earns ~full capital; the three ~1-1.8% edges all settle at the 0.35 floor.
+This is reallocation AWAY from the old rule where all four got identical 100%
+of the notional cap. The 0.35 floor is a deliberate choice so the weakest
+clean_survivor still gets a meaningful slice; it is tunable. Note the three
+weaker edges are indistinguishable at the floor because they are genuinely
+close in profile (all 3/4 WF, all ~1-1.8%) -- the model is not hiding
+differentiation that exists.
+
+Honest caveats
+
+On the current $2500 max_notional paper config with a $100k paper account,
+the vol rail (Stage B) rarely binds because the notional cap binds first.
+Conviction weighting (Stage A) is what shows up now; the vol rail becomes
+the primary knob as we move toward real capital / larger notional / real
+equity. The structure is already correct for both regimes.
+Conviction uses valid_mean_ret_costadj, which is already net of the
+validation cost (1bp). Real fill cost (lever #4, cost realism) is the next
+place to tighten; for now sizing already respects cost-adjusted edge.
+No slice is promoted by this patch. It only changes HOW MUCH capital a
+matched+risk-cleared signal is sized for, and only when edge data exists.
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 117 passed (was 95 green / 3 red; fixed the 3 red
+state_unavailable tests which had been broken since commit 8e0a095 "fix: add
+open orders helper" because scan_all_slices now calls get_open_orders() and
+those tests only patched get_open_positions/get_today_realized_pnl).
+python3 -m ruff check clean on all changed files (removed 4 unused imports I
+introduced + 1 pre-existing unused import in test_state_unavailable.py).
+What this patch does NOT do
+
+Does not change monitor.DEFAULT_MONITORED_SLICES or monitored_slices.csv.
+Does not change the live_capture workflow risk settings.
+Does not authorise new live paper-trading; the "no execution in v1-v4"
+boundary stands. Any deployment of conviction sizing to the live book
+requires the operator to (a) regenerate candidate_leaderboard.csv and
+(b) decide whether to set --sizing-equity on the workflow.
+Does not promote any slice.
+Next ROI levers (in agreed priority order)
+2. Exit policy: build the hybrid exit the HANDOVER's prior "Next session
+priorities" already called for -- state-break OR held >= validation
+horizon (5 bars, timeframe-aware), with profit-target/time-stop and a
+logged exit reason. Currently exits are state-invalidation only and can
+run winners/losers past the 5-bar edge window. Touches position_manager.py.
+3. Capital allocation across the book: correlation-aware allocation so the
+XOP/XLB/KLAC stretched-down-energy/materials concentration is treated as
+one risk bucket, not three independent positions.
+4. Cost realism: tighten the cost model toward real fills (validation's 1bp is
+optimistic for names like XOP); propagate realised cost into P&L.
+5. P&L attribution: realised-P&L-per-slice view (net of cost, vs historical
+expectation) so we can see which slices actually earn their capital. The
+sizing_* audit fields added here are the input to that.

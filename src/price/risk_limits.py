@@ -41,6 +41,22 @@ class RiskLimits:
     # This is the kill-switch for the short side -- even a validated short
     # candidate cannot reach trading.submit_entry unless allow_shorts=True.
     allow_shorts: bool = False
+    # ---- Position sizing knobs (edge- and volatility-aware sizing) ----
+    # When True, monitor sizes each matched signal by conviction (derived
+    # from the slice's research edge metrics in candidate_leaderboard.csv)
+    # rather than equal-notional. Defaults True; when no leaderboard data
+    # is present, sizing degrades to neutral conviction (== equal-notional),
+    # so enabling this is zero-risk to the live paper book.
+    conviction_sizing_enabled: bool = True
+    # Fraction of account equity risked per trade at full conviction, used
+    # by the volatility rail (Stage B). 0.005 == 0.5% of equity. The rail
+    # only activates when account_equity_for_sizing is also set.
+    risk_fraction_per_trade: float = 0.005
+    # Account equity used for the volatility rail. None disables Stage B
+    # (sizing falls back to conviction-weighted notional only). Toward real
+    # capital, set this to current account equity (or have the monitor
+    # fetch it live).
+    account_equity_for_sizing: Optional[float] = None
 
     def to_dict(self) -> dict:
         return asdict(self)

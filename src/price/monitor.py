@@ -33,6 +33,7 @@ from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
 from price.position_manager import check_exits, get_today_realized_pnl
 from price.risk_limits import RiskLimits, check_entry
+from price.sizing import compute_position_size
 from price.trading import get_open_positions, get_open_orders
 from price.validation import parse_slice_combination
 from price.warehouse import load_from_warehouse
@@ -311,15 +312,6 @@ def extract_cross_symbols(slice_combination: str) -> Dict[str, List[str]]:
     return cross_syms
 
 
-def _default_qty(close_adj: float, limits: RiskLimits) -> int:
-    """Floor(notional_cap / price), at least 1 share if price allows.
-    Returns 0 if price is missing or non-positive.
-    """
-    if close_adj is None or close_adj != close_adj or close_adj <= 0:
-        return 0
-    return max(0, int(limits.max_notional_per_position // close_adj))
-
-
 def _load_open_position_slice_labels() -> Dict[str, str]:
     """{symbol: slice_combination} for current open positions by scanning
     the trade journal for the most recent 'entry' per symbol.
@@ -505,11 +497,17 @@ def scan_all_slices(
                 print(f"  -   {s['slice_combination']}")
                 continue
 
-            # Even in dry-run mode, compute the realistic suggested quantity.
-            # paper_trade.py uses this to write a meaningful audit row; setting
-            # qty=0 in dry-run makes every matched signal look artificially
-            # blocked by qty_zero and prevents downstream capture.
-            qty = _default_qty(close_adj, limits)
+            # Edge- and volatility-aware sizing. Falls back to equal-notional
+            # when no candidate_leaderboard.csv edge data is available, so the
+            # live paper book is unaffected on a fresh/leaderboard-less run.
+            size = compute_position_size(
+                symbol=symbol,
+                timeframe=timeframe,
+                slice_combination=s["slice_combination"],
+                close_adj=close_adj,
+                limits=limits,
+            )
+            qty = size.qty
             if not dry_run:
                 side = str(s.get("side", "long") or "long").lower()
                 if side not in ("long", "short"):
@@ -554,6 +552,7 @@ def scan_all_slices(
                 "suggested_qty": qty,
                 "suggested_side": suggested_side,
                 "suggested_notional": (qty * close_adj) if close_adj == close_adj else None,
+                **size.to_audit_dict(),
                 "risk_check": risk_payload,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             }

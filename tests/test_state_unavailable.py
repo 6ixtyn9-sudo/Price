@@ -9,7 +9,6 @@ behavior so future refactors don't silently drop the new audit kind.
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -81,6 +80,7 @@ def test_state_unavailable_emitted_when_close_adj_nan(temp_warehouse, monkeypatc
     should emit a kind=state_unavailable row in addition to the
     per-slice entry_signal rows."""
     monkeypatch.setattr("price.monitor.get_open_positions", lambda: pd.DataFrame())
+    monkeypatch.setattr("price.monitor.get_open_orders", lambda: pd.DataFrame())
     monkeypatch.setattr("price.monitor.get_today_realized_pnl", lambda: 0.0)
     monkeypatch.setattr("price.monitor.fetch_alpaca_bars", lambda *a, **k: pd.DataFrame())
 
@@ -106,6 +106,7 @@ def test_no_state_unavailable_when_state_is_clean(temp_warehouse, monkeypatch):
     successfully, scan_all_slices should NOT emit any
     state_unavailable row."""
     monkeypatch.setattr("price.monitor.get_open_positions", lambda: pd.DataFrame())
+    monkeypatch.setattr("price.monitor.get_open_orders", lambda: pd.DataFrame())
     monkeypatch.setattr("price.monitor.get_today_realized_pnl", lambda: 0.0)
     monkeypatch.setattr("price.monitor.fetch_alpaca_bars", lambda *a, **k: pd.DataFrame())
 
@@ -125,6 +126,7 @@ def test_state_unavailable_when_warehouse_empty(temp_warehouse, monkeypatch):
     returns None and the no_warehouse_data branch should emit
     state_unavailable with reason='no_warehouse_data'."""
     monkeypatch.setattr("price.monitor.get_open_positions", lambda: pd.DataFrame())
+    monkeypatch.setattr("price.monitor.get_open_orders", lambda: pd.DataFrame())
     monkeypatch.setattr("price.monitor.get_today_realized_pnl", lambda: 0.0)
     monkeypatch.setattr("price.monitor.fetch_alpaca_bars", lambda *a, **k: pd.DataFrame())
 

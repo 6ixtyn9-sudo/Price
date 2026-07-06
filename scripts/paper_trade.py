@@ -195,6 +195,18 @@ def main() -> int:
                         help="Daily realized loss kill switch (USD). Default 500.")
     parser.add_argument("--cooldown-seconds", type=int, default=3600,
                         help="Per-symbol entry cooldown in seconds. Default 3600 (1h).")
+    parser.add_argument("--equal-notional", action="store_true",
+                        help="Disable conviction-weighted sizing and use the legacy equal-notional rule "
+                        "(floor(max_notional / price)). By default sizing is edge- and volatility-aware "
+                        "and degrades to equal-notional only when no leaderboard edge data exists.")
+    parser.add_argument("--risk-fraction", type=float, default=0.005,
+                        help="Fraction of account equity risked per trade at full conviction, for the "
+                        "volatility rail. Default 0.005 (0.5%%). Only active when --sizing-equity is set.")
+    parser.add_argument("--sizing-equity", type=float, default=None,
+                        help="Account equity used for the volatility rail (Stage B). When set, sizing "
+                        "also caps each position by risk_dollars / ATR so high-vol names cannot "
+                        "concentrate more than their risk budget. Toward real capital, set this to "
+                        "current account equity.")
     parser.add_argument("--allow-shorts", action="store_true",
                         help="Enable short-side entries on the paper account. Default: short signals "
                         "are computed and logged but BLOCKED at the risk gate (allow_shorts=False).")
@@ -221,6 +233,9 @@ def main() -> int:
         max_daily_realized_loss=args.max_daily_loss,
         per_symbol_cooldown_seconds=args.cooldown_seconds,
         allow_shorts=args.allow_shorts,
+        conviction_sizing_enabled=not args.equal_notional,
+        risk_fraction_per_trade=args.risk_fraction,
+        account_equity_for_sizing=args.sizing_equity,
     )
 
     print(f"Risk limits: {limits.to_dict()}")
