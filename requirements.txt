@@ -1,11 +1,16 @@
-pytest>=8.0
-ruff>=0.5
-alpaca-py
-pandas
-duckdb
-pyarrow
-python-dotenv
-pandas_market_calendars
-requests
-lightgbm>=4.0
-
+# Pinned install inputs for reproducibility. The GitHub Actions workflow
+# installs from requirements.lock with --require-hashes; update both files
+# together with: python -m piptools compile requirements.txt --generate-hashes --allow-unsafe -o requirements.lock
+pytest==9.0.3
+ruff==0.15.20
+alpaca-py==0.43.5
+pandas==2.2.3
+duckdb==1.5.4
+pyarrow==24.0.0
+python-dotenv==1.2.2
+pandas_market_calendars==5.4.0
+requests==2.33.0
+lightgbm==4.6.0
+# Compatibility pins for the workflow's Python 3.11 environment.
+numpy==2.4.6
+scipy==1.17.1
