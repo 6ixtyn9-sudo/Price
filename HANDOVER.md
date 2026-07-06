@@ -2605,7 +2605,8 @@ check_exits now implements a HYBRID exit: a position exits when ANY of
 (a) stable_state_break -- the slice's stable filter no longer matches
 the current bar (the original logic, preserved exactly), OR
 (b) horizon_reached -- bars held in the position's OWN timeframe
->= horizon_bars.
+
+= horizon_bars.
 Timeframe-aware bar counting: 5 bars on 1d ~= one trading week, 5 bars
 on 1h ~= one session. Bars held are counted from the entry SIGNAL bar
 (faithful to fwd_ret_5, which is measured from the signal bar's close),
@@ -3008,3 +3009,109 @@ regenerated.
 When measured slippage stabilizes across >= 5 round-trips per slice, consider
 feeding the mean back as --cost-slippage-bps on the live workflow. Do NOT
 auto-calibrate on small samples.
+
+Overfit-Kill — Look-Ahead-Free Rolling State Bins (2026-07-06)
+This patch delivers the single highest-value research improvement the HANDOVER's
+own V5 methodological note names: "replacing the in-sample-quantile 'in-state'
+definition with out-of-sample / rolling-quantile bins."
+
+The overfit, precisely located
+Two independent in-sample-quantile cuts, both flowing into validation:
+
+discovery.bin_features: pd.qcut(series, q=3) over the FULL history. This
+affects 8 state fields: state_slope, state_vol, state_ret_{1,3,5,10,20},
+state_atr_ext, state_vol_regime, state_trend_strength, state_gap,
+state_range_pos. Two failure modes: (a) look-ahead bias (bar T's boundary
+sees future bars), (b) in-sample fit (thresholds fit on the test data).
+ml_discovery.evaluate_interactions: df[feat].quantile(0.75) over the FULL
+history defines the ML "promising region". Same two failure modes.
+CRUCIALLY state_ext is NOT affected: it uses fixed +-0.015 thresholds (a fixed
+prior). That is exactly why the HANDOVER's history shows combinatorial state_ext
+slices sometimes clearing BH/Bonferroni while ML / quantile slices do not. This
+patch targets only the quantile-based fields.
+What was added (additive, not replacement)
+
+src/price/discovery.py:
+_expanding_qcut(series, labels, min_periods, fallback): the core
+look-ahead-free primitive. For bar T the quantile boundaries are computed
+via series.shift(1).expanding(min_periods).quantile(q) -- i.e. using ONLY
+bars strictly before T (bar T is a test point against its forward return;
+its own value must not influence its boundary). The first ~min_periods bars
+get NaN (dropped downstream).
+bin_features_rolling(df, min_periods): look-ahead-free variant of
+bin_features. Same columns, same label vocabularies. state_ext UNCHANGED
+(fixed prior -- no look-ahead to remove). state_session/state_dow UNCHANGED
+(categorical maps). All 8 quantile fields use _expanding_qcut.
+apply_state_bins(df, bin_mode): dispatcher. "insample" reproduces bin_features
+exactly (backward compatible); "rolling" uses bin_features_rolling.
+DEFAULT_ROLLING_MIN_PERIODS = 200 (matches the monitor's lookback; large
+enough for stable boundaries on daily/intraday).
+attach_cross_asset_states gains bin_mode so conditioning symbols bin
+consistently with the primary (no mixing in-sample primary with rolling
+conditioning).
+scripts/validate_slices.py: build_eligible_frame gains bin_mode. bin_mode is
+part of the disk-cache key (f"{symbol}{timeframe}{mtime}{bin_mode}") so
+the two modes never collide in cache. run_validation, run_walk_forward
+diagnostics, run_date_range_diagnostics, run_candidate_leaderboard, and
+run_scenario_grid all thread bin_mode end-to-end. --bin-mode CLI flag
+(default insample; choices insample|rolling).
+src/price/ml_discovery.py: evaluate_interactions gains bin_mode; in rolling
+mode the q75 threshold is a per-row expanding series (shift(1)).interactions_
+to_state_slices threads bin_mode so ML bins are consistent end-to-end.
+scripts/ml_to_slices.py: --bin-mode flag threads through evaluate_interactions
+interactions_to_state_slices.
+tests/test_rolling_bins.py: 11 tests -- the decisive look-ahead regression
+(monotonic series: rolling bins every bar 'high', insample bins early bars
+'low' using future data), boundary-excludes-current-bar, short/all-NaN
+fallbacks, min_periods->NaN, same-columns-as-insample, state_ext-unchanged,
+dispatcher, and the ML q75 cut in both modes.
+Demonstration (500-bar synthetic, regime shift midway)
+state_ext agreement (insample vs rolling): 100.0% (fixed prior, unchanged)
+state_slope agreement: 92.9% (boundaries differ)
+state_vol agreement: 49.5% (boundaries differ most --
+regime shift look-ahead)
+Look-ahead regression (strictly increasing series):
+rolling: every valid bar bins 'high' (running max of its own past) -- PASS
+rolling: first 50 bars NaN (no prior history) -- PASS
+insample: first 50 bars contain ['low'] <- LOOK-AHEAD (uses bars 100-299 to
+bin bars 0-49)
+This is the property that makes the overfit-kill real, not cosmetic.
+
+Why additive (not replacement) and what did NOT change
+
+No gate is loosened. No validation default is flipped. bin_mode defaults to
+"insample" everywhere, so every existing artefact (candidate_leaderboard,
+validated_slices, the Tier-1 survivors) reproduces unchanged. Rolling is
+OPT-IN via --bin-mode rolling.
+The promotion doctrine is untouched. Nothing is promoted. This makes the
+existing search MORE honest; it does not lower the bar.
+state_ext is deliberately left as a fixed prior. It is the one state field
+that has repeatedly cleared BH/Bonferroni precisely BECAUSE it is fixed.
+Converting it to a rolling quantile would destroy that property for no gain.
+How to use it (operator)
+Run the full pipeline end-to-end with rolling bins:
+python3 scripts/discover_slices.py --timeframe 1d --bin-mode rolling
+python3 scripts/ml_to_slices.py --symbol SPY --timeframe 1d --bin-mode rolling
+python3 scripts/validate_slices.py --candidate-leaderboard --bin-mode rolling
+Outputs should be tagged by mode (the handover recommends suffixing artefact
+filenames with _rolling) so rolling and insample results are never conflated.
+Then compare the rolling leaderboard to the insample one: a candidate that
+SURVIVES the full gate under rolling bins is the first candidate in the
+project's history to do so without the in-sample-quantile crutch -- i.e. a
+genuinely stronger edge than any current survivor, not a looser one.
+
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 183 passed (was 172; +11 rolling-bin tests).
+python3 -m ruff check clean repo-wide.
+Backward compatibility: insample (default) reproduces all prior behaviour;
+the 172 pre-existing tests are unchanged and still pass.
+Honest expectation
+This is the right next research step, not a guarantee of a promotable edge. It
+attacks the #1 overfit source at the root. If a candidate clears the full gate
+(train+valid+cost+Newey-West+walk-forward+parent-excess+search-wide) under
+rolling bins at realistic cost (--bin-mode rolling end-to-end), that is
+meaningfully stronger evidence than any current survivor. If nothing clears,
+the project has learned that the ML/quantile family has no structural edge once
+look-ahead is removed -- itself a defensible, valuable conclusion.

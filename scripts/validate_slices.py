@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from price.discovery import attach_cross_asset_states, bin_features
+from price.discovery import attach_cross_asset_states, apply_state_bins
 from price.features import compute_price_features
 from price.validation import (
     apply_slice_filter,
@@ -75,7 +75,8 @@ def cross_symbols_from_filter(slice_filter: dict) -> dict:
 
 
 def build_eligible_frame(
-    symbol: str, timeframe: str, cross_symbols: dict = None
+    symbol: str, timeframe: str, cross_symbols: dict = None,
+    bin_mode: str = "insample",
 ) -> pd.DataFrame:
     """Rebuild the timestamped, binned, forward-eligible feature frame for a
     symbol/timeframe pair, straight from the local warehouse. No network
@@ -86,6 +87,14 @@ def build_eligible_frame(
     as-of, no look-ahead) as cross_<SYM>_<field> columns before the
     forward-eligible rows are selected. This reconstructs, at validation
     time, exactly the cross-asset columns discovery produced.
+
+    bin_mode controls how state_* quantile fields are binned:
+      - "insample" (default): full-history pd.qcut (original behaviour;
+        backward compatible). Look-ahead-prone.
+      - "rolling": look-ahead-free expanding-window quantiles via
+        bin_features_rolling (bar T's boundary uses only bars before T).
+        The HANDOVER's V5 note names this the highest-value overfit-kill.
+    bin_mode is part of the disk-cache key so the two modes never collide.
     
     Features are cached to disk to avoid recomputing rolling windows on
     repeated validation runs."""
@@ -96,7 +105,7 @@ def build_eligible_frame(
     warehouse_file = Path(f"localdata/warehouse/symbol={symbol}/timeframe={timeframe}/data.parquet")
     if warehouse_file.exists():
         mtime = warehouse_file.stat().st_mtime
-        cache_key = hashlib.md5(f"{symbol}_{timeframe}_{mtime}".encode()).hexdigest()
+        cache_key = hashlib.md5(f"{symbol}_{timeframe}_{mtime}_{bin_mode}".encode()).hexdigest()
         cache_file = FEATURES_CACHE_DIR / f"{cache_key}.parquet"
         
         if cache_file.exists():
@@ -108,12 +117,12 @@ def build_eligible_frame(
     else:
         df_feat = compute_price_features(df_raw)
 
-    df_binned = bin_features(df_feat)
+    df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
 
     if cross_symbols:
         for cond_sym, fields in cross_symbols.items():
             df_binned = attach_cross_asset_states(
-                df_binned, cond_sym, timeframe, fields
+                df_binned, cond_sym, timeframe, fields, bin_mode=bin_mode
             )
 
     return df_binned[df_binned["label_eligible"]].reset_index(drop=True)
@@ -313,6 +322,7 @@ def run_validation(
     min_samples: int = 15,
     p_threshold: float = 0.05,
     short_cost_bps: float = 0.0,
+    bin_mode: str = "insample",
 ) -> pd.DataFrame:
     try:
         discovered = pd.read_csv(slices_path)
@@ -352,7 +362,7 @@ def run_validation(
         )
         if cache_key not in frame_cache:
             frame_cache[cache_key] = build_eligible_frame(
-                symbol, timeframe, cross_symbols=cross_symbols
+                symbol, timeframe, cross_symbols=cross_symbols, bin_mode=bin_mode
             )
         eligible_df = frame_cache[cache_key]
 
@@ -585,6 +595,7 @@ def run_walk_forward_diagnostics(
     diagnostic_scope: str = "current-leaders",
     top_n: int = 5,
     short_cost_bps: float = 0.0,
+    bin_mode: str = "insample",
 ) -> pd.DataFrame:
     """Run anchored fold-by-fold diagnostics for the leading candidates.
 
@@ -612,6 +623,7 @@ def run_walk_forward_diagnostics(
             symbol,
             timeframe,
             cross_symbols=cross_symbols_from_filter(slice_filter),
+            bin_mode=bin_mode,
         )
         if eligible_df.empty:
             rows.append(
@@ -846,6 +858,7 @@ def run_date_range_diagnostics(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
     short_cost_bps: float = 0.0,
+    bin_mode: str = "insample",
 ) -> pd.DataFrame:
     """Run targeted date-range sensitivity diagnostics.
 
@@ -870,6 +883,7 @@ def run_date_range_diagnostics(
             symbol,
             timeframe,
             cross_symbols=cross_symbols_from_filter(slice_filter),
+            bin_mode=bin_mode,
         )
         if eligible_df.empty:
             rows.append(
@@ -1106,6 +1120,7 @@ def run_candidate_leaderboard(
     min_samples: int = 15,
     p_threshold: float = 0.05,
     output_path: str = CANDIDATE_LEADERBOARD_PATH,
+    bin_mode: str = "insample",
 ) -> pd.DataFrame:
     """Rank all discovered slices by validation quality and robustness.
 
@@ -1145,6 +1160,7 @@ def run_candidate_leaderboard(
             "n_folds": n_folds,
             "min_samples": min_samples,
             "p_threshold": p_threshold,
+            "bin_mode": bin_mode,
         }
         params.update(overrides)
 
@@ -1342,6 +1358,7 @@ def run_scenario_grid(
     min_samples: int = 15,
     p_threshold: float = 0.05,
     output_path: str = SCENARIO_GRID_PATH,
+    bin_mode: str = "insample",
 ) -> pd.DataFrame:
     """Run a compact robustness grid for the current leading candidates.
 
@@ -1396,6 +1413,7 @@ def run_scenario_grid(
             "n_folds": n_folds,
             "min_samples": min_samples,
             "p_threshold": p_threshold,
+            "bin_mode": bin_mode,
         }
         params.update(overrides)
 
@@ -1453,6 +1471,16 @@ if __name__ == "__main__":
     parser.add_argument("--min-samples", type=int, default=15, help="Minimum sample floor per fold/window")
     parser.add_argument("--p-threshold", type=float, default=0.05, help="Newey-West p-value survival threshold")
     parser.add_argument("--short-cost-bps", type=float, default=0.0, help="Extra per-leg drag (bps) for SHORT slices only (borrow + dividend).")
+    parser.add_argument(
+        "--bin-mode",
+        default="insample",
+        choices=["insample", "rolling"],
+        help="How to bin quantile state fields (state_slope/state_vol/state_ret_*/etc). "
+        "'insample' (default) = full-history quantiles (original behaviour, look-ahead-prone). "
+        "'rolling' = look-ahead-free expanding-window quantiles (bar T's boundary uses only "
+        "bars before T). Use 'rolling' end-to-end (discovery + validation + ML) for the "
+        "overfit-kill. Output files are tagged with the mode to avoid cross-mode confusion.",
+    )
     parser.add_argument(
         "--scenario-grid",
         action="store_true",
@@ -1514,6 +1542,7 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             output_path=args.scenario_grid_output,
+            bin_mode=args.bin_mode,
         )
     elif args.walk_forward_diagnostics:
         run_walk_forward_diagnostics(
@@ -1527,6 +1556,7 @@ if __name__ == "__main__":
             diagnostic_scope=args.diagnostic_scope,
             top_n=args.top_n,
             short_cost_bps=args.short_cost_bps,
+            bin_mode=args.bin_mode,
         )
     elif args.date_range_diagnostics:
         run_date_range_diagnostics(
@@ -1540,6 +1570,7 @@ if __name__ == "__main__":
             slices_path=args.slices_path,
             n_folds=args.n_folds,
             short_cost_bps=args.short_cost_bps,
+            bin_mode=args.bin_mode,
         )
     elif args.candidate_leaderboard:
         run_candidate_leaderboard(
@@ -1548,6 +1579,7 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             output_path=args.candidate_leaderboard_output,
+            bin_mode=args.bin_mode,
         )
     else:
         run_validation(

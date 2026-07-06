@@ -12,7 +12,7 @@ from sklearn.model_selection import TimeSeriesSplit
 from itertools import combinations
 
 from price.features import compute_price_features
-from price.discovery import bin_features, ML_FEATURE_TO_STATE, STATE_LABELS
+from price.discovery import ML_FEATURE_TO_STATE, STATE_LABELS
 from price.warehouse import load_from_warehouse
 
 
@@ -231,14 +231,47 @@ def evaluate_interactions(
     df: pd.DataFrame,
     interactions: List[Dict],
     target_col: str = 'fwd_ret_5',
-    min_samples: int = 15
+    min_samples: int = 15,
+    bin_mode: str = "insample",
+    rolling_min_periods: int = 200,
 ) -> pd.DataFrame:
     """
     Evaluate 2-feature and 3-feature combinations.
     Returns scored results with mean return, hit rate, and sample size.
+
+    bin_mode controls the "promising region" threshold for each feature:
+      - "insample" (default): the 75th percentile over the FULL history. This
+        is the original behaviour. Look-ahead-prone: bar T's in-region flag
+        depends on future bars.
+      - "rolling": the 75th percentile as of each bar, computed from bars
+        STRICTLY BEFORE that bar (expanding window over shift(1)). Look-ahead-
+        free. The HANDOVER's V5 note names the in-sample quantile cut as the
+        dominant overfit source for ML candidates; this fixes it at the source.
     """
     if df.empty or not interactions:
         return pd.DataFrame()
+
+    # Precompute per-feature threshold series once (threshold for "in region").
+    feat_thresholds: Dict[str, pd.Series] = {}
+    all_feats = set()
+    for inter in interactions:
+        feats = inter.get("features")
+        if feats is None and "slice_key" in inter:
+            feats = [f.strip() for f in str(inter["slice_key"]).split("+") if f.strip()]
+        all_feats.update(feats or [])
+
+    for feat in all_feats:
+        if feat not in df.columns:
+            continue
+        if bin_mode == "rolling":
+            s = pd.Series(df[feat]).astype(float)
+            feat_thresholds[feat] = s.shift(1).expanding(
+                min_periods=rolling_min_periods
+            ).quantile(0.75)
+        else:
+            feat_thresholds[feat] = pd.Series(
+                df[feat].quantile(0.75), index=df.index
+            )
 
     results = []
 
@@ -261,10 +294,10 @@ def evaluate_interactions(
         mask = pd.Series(True, index=df.index)
 
         for feat in features:
-            if feat not in df.columns:
+            if feat not in feat_thresholds:
                 continue
-            threshold = df[feat].quantile(0.75)
-            mask = mask & (df[feat] >= threshold)
+            thr = feat_thresholds[feat]
+            mask = mask & (df[feat] >= thr) & thr.notna()
 
         subset = df[mask]
 
@@ -340,6 +373,8 @@ def interactions_to_state_slices(
     symbol: str,
     timeframe: str,
     min_features_mapped: int = 1,
+    bin_mode: str = "insample",
+    rolling_min_periods: int = 200,
 ) -> pd.DataFrame:
     """Convert scored ML feature interactions into candidate slices in the
     discovered_slices.csv schema so they flow through validate_slices.py
@@ -348,6 +383,11 @@ def interactions_to_state_slices(
     `df` is the prepared ML frame (from prepare_ml_frame). `scored` is the
     output of evaluate_interactions and must contain a 'slice_key' column of
     '+ '-joined raw feature names.
+
+    bin_mode is threaded to apply_state_bins so the state bins used to map
+    ML features to state slices are consistent with how evaluate_interactions
+    defined the promising region (rolling bins must flow end-to-end, not get
+    re-binned in-sample at this step).
 
     Output columns:
       - symbol, timeframe, slice_combination  (the three columns
@@ -359,7 +399,9 @@ def interactions_to_state_slices(
     if df.empty or scored.empty:
         return pd.DataFrame()
 
-    binned = bin_features(df)
+    from price.discovery import apply_state_bins
+    binned = apply_state_bins(df, bin_mode=bin_mode,
+                              rolling_min_periods=rolling_min_periods)
     if binned.empty:
         return pd.DataFrame()
 

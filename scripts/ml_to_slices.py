@@ -57,12 +57,13 @@ def run(
     sharpe_min,
     eval_min_samples,
     out_path,
+    bin_mode="insample",
 ):
     symbols = [s.upper() for s in (target_symbols or SYMBOLS)]
     all_candidates = []
 
     for symbol in symbols:
-        print(f"\n=== ML discovery: {symbol} ({timeframe}, target={target_type}) ===")
+        print(f"\n=== ML discovery: {symbol} ({timeframe}, target={target_type}, bin_mode={bin_mode}) ===")
 
         result = run_ml_discovery(
             symbol,
@@ -85,7 +86,9 @@ def run(
             print(f"  -> Empty ML frame for {symbol} {timeframe}; cannot score.")
             continue
 
-        scored = evaluate_interactions(df, interactions, min_samples=eval_min_samples)
+        scored = evaluate_interactions(
+            df, interactions, min_samples=eval_min_samples, bin_mode=bin_mode,
+        )
         if scored.empty:
             print("  -> No interactions passed the scoring sample floor.")
             continue
@@ -104,7 +107,9 @@ def run(
             )
             continue
 
-        candidates = interactions_to_state_slices(df, promising, symbol, timeframe)
+        candidates = interactions_to_state_slices(
+            df, promising, symbol, timeframe, bin_mode=bin_mode,
+        )
         if candidates.empty:
             print("  -> Promising interactions found, but none mapped to state slices.")
             continue
@@ -139,7 +144,7 @@ def run(
     print("\nNext step - run them through V4 validation:")
     print(
         f"  python3 scripts/validate_slices.py "
-        f"--slices-path {output_path} --candidate-leaderboard"
+        f"--slices-path {output_path} --candidate-leaderboard --bin-mode {bin_mode}"
     )
 
 
@@ -194,6 +199,16 @@ if __name__ == "__main__":
         default=15,
         help="Minimum samples for evaluate_interactions to keep an interaction at all",
     )
+    parser.add_argument(
+        "--bin-mode",
+        default="insample",
+        choices=["insample", "rolling"],
+        help="How to bin quantile state fields and define the ML promising region. "
+        "'insample' (default) = full-history quantiles (look-ahead-prone, original "
+        "behaviour). 'rolling' = look-ahead-free expanding-window quantiles (the "
+        "overfit-kill; bar T's boundary uses only bars before T). Use 'rolling' and "
+        "then validate with --bin-mode rolling for a consistent end-to-end run.",
+    )
     parser.add_argument("--output", default=OUTPUT_PATH, help="Output CSV path")
     args = parser.parse_args()
 
@@ -214,4 +229,5 @@ if __name__ == "__main__":
         sharpe_min=args.sharpe_min,
         eval_min_samples=args.eval_min_samples,
         out_path=args.output,
+        bin_mode=args.bin_mode,
     )

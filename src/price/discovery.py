@@ -66,6 +66,49 @@ def _qcut_state(series: pd.Series, labels: List[str], fallback: str):
         return fallback
 
 
+def _expanding_qcut(series: pd.Series, labels: List[str], min_periods: int, fallback: str):
+    """Time-respecting equal-frequency bins (look-ahead-free).
+
+    For bar T, the quantile boundaries are computed using ONLY bars strictly
+    before T (bars [0..T-1]), via an expanding window over the shift(1)'d
+    series. This removes the two failure modes of the full-history pd.qcut
+    used by bin_features():
+      1. look-ahead bias -- a bar at T is no longer binned using future bars.
+      2. in-sample fit -- the boundary at T is not fit on T's own value
+         (T is a test point against its forward return; the boundary must
+         exclude it).
+
+    Bars before min_periods get NaN (dropped from evaluation -- they are early
+    history). Falls back to `fallback` when the series is too short or all-NaN
+    to produce stable boundaries. This is the single highest-value overfit-kill
+    flagged by the HANDOVER's V5 methodological note.
+    """
+    n = len(labels)
+    s = pd.Series(series).astype(float)
+    if s.dropna().shape[0] < max(min_periods, n):
+        return fallback
+    # Shift by 1 so bar T's boundary uses only [0..T-1] (strictly excludes T).
+    prior = s.shift(1)
+    qs = [prior.expanding(min_periods=min_periods).quantile((i + 1) / n) for i in range(n - 1)]
+    valid = s.notna()
+    for q in qs:
+        valid = valid & q.notna()
+    result = pd.Series(np.nan, index=s.index, dtype=object)
+    for i in range(n):
+        lower = qs[i - 1] if i > 0 else pd.Series(-np.inf, index=s.index)
+        upper = qs[i] if i < n - 1 else pd.Series(np.inf, index=s.index)
+        mask = valid & (s >= lower) & (s < upper)
+        result[mask] = labels[i]
+    return result
+
+
+# Default min_periods for rolling-bin state fields. 200 matches the monitor's
+# lookback and is large enough that the expanding quantiles are stable on both
+# daily (~1250 bars) and intraday (thousands) histories while only dropping
+# early history that contributes little to validation anyway.
+DEFAULT_ROLLING_MIN_PERIODS = 200
+
+
 def bin_features(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
@@ -160,6 +203,136 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     return df_binned
+
+
+def bin_features_rolling(
+    df: pd.DataFrame,
+    min_periods: int = DEFAULT_ROLLING_MIN_PERIODS,
+) -> pd.DataFrame:
+    """Look-ahead-free variant of bin_features.
+
+    Produces the SAME state_* columns and label vocabularies as bin_features,
+    but every quantile-based field uses _expanding_qcut (boundary at bar T
+    computed from bars strictly before T only) instead of full-history pd.qcut.
+
+    What changes vs bin_features:
+      - state_slope, state_vol, state_ret_{1,3,5,10,20}, state_atr_ext,
+        state_vol_regime, state_trend_strength, state_gap, state_range_pos:
+        now binned with a time-respecting expanding quantile.
+      - state_ext: UNCHANGED. It already uses fixed +-0.015 thresholds (a
+        fixed prior), so it has no look-ahead to remove. This is deliberate:
+        state_ext is the one state field that combinatorial survivors
+        repeatedly clear BH/Bonferroni on, and that is BECAUSE it is a fixed
+        prior, not an in-sample quantile. Keeping it fixed preserves that
+        property.
+      - state_session, state_dow: UNCHANGED (categorical maps, not quantile).
+      - The first ~min_periods rows get NaN state (dropped by label_eligible
+        selection downstream).
+
+    Rationale: the HANDOVER's V5 methodological note names this as the
+    highest-value next improvement. The ML path's in-sample 75th-percentile
+    cut and bin_features' full-history qcut are the two overfit sources that
+    keep ML slices (and quantile-based combinatorial slices) failing the
+    search-wide gate while fixed-prior state_ext slices sometimes pass.
+    """
+    if df.empty:
+        return df
+
+    df_binned = df.copy()
+
+    # state_ext: fixed prior (unchanged from bin_features -- no look-ahead).
+    def bin_ext(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -0.015:
+            return "stretched_down"
+        elif val > 0.015:
+            return "stretched_up"
+        else:
+            return "neutral"
+
+    if "feat_ext_vs_ma_20" in df_binned.columns:
+        df_binned["state_ext"] = df_binned["feat_ext_vs_ma_20"].apply(bin_ext)
+    else:
+        df_binned["state_ext"] = np.nan
+
+    if "feat_trend_slope_20" in df_binned.columns and not df_binned["feat_trend_slope_20"].dropna().empty:
+        df_binned["state_slope"] = _expanding_qcut(
+            df_binned["feat_trend_slope_20"],
+            ["downtrend", "flat", "uptrend"], min_periods, "flat",
+        )
+    else:
+        df_binned["state_slope"] = "flat"
+
+    if "feat_realized_vol_20" in df_binned.columns and not df_binned["feat_realized_vol_20"].dropna().empty:
+        df_binned["state_vol"] = _expanding_qcut(
+            df_binned["feat_realized_vol_20"],
+            ["low_vol", "mid_vol", "high_vol"], min_periods, "mid_vol",
+        )
+    else:
+        df_binned["state_vol"] = "mid_vol"
+
+    session_map = {0: "morning", 1: "lunch", 2: "afternoon"}
+    if "feat_session_bucket" in df_binned.columns:
+        df_binned["state_session"] = df_binned["feat_session_bucket"].map(session_map)
+    else:
+        df_binned["state_session"] = np.nan
+
+    dow_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+    if "feat_dow" in df_binned.columns:
+        df_binned["state_dow"] = df_binned["feat_dow"].map(dow_map)
+    else:
+        df_binned["state_dow"] = np.nan
+
+    for _period in [1, 3, 5, 10, 20]:
+        _feat = f"feat_ret_{_period}"
+        if _feat in df_binned.columns:
+            df_binned[f"state_ret_{_period}"] = _expanding_qcut(
+                df_binned[_feat],
+                ["ret_down", "ret_flat", "ret_up"], min_periods, "ret_flat",
+            )
+    if "feat_atr_norm_ext" in df_binned.columns:
+        df_binned["state_atr_ext"] = _expanding_qcut(
+            df_binned["feat_atr_norm_ext"],
+            ["atr_down", "atr_neutral", "atr_up"], min_periods, "atr_neutral",
+        )
+    if "feat_vol_regime" in df_binned.columns:
+        df_binned["state_vol_regime"] = _expanding_qcut(
+            df_binned["feat_vol_regime"],
+            ["vol_regime_low", "vol_regime_mid", "vol_regime_high"], min_periods, "vol_regime_mid",
+        )
+    if "feat_trend_strength_20" in df_binned.columns:
+        df_binned["state_trend_strength"] = _expanding_qcut(
+            df_binned["feat_trend_strength_20"],
+            ["weak_trend", "mod_trend", "strong_trend"], min_periods, "mod_trend",
+        )
+    if "feat_gap" in df_binned.columns:
+        df_binned["state_gap"] = _expanding_qcut(
+            df_binned["feat_gap"],
+            ["gap_down", "gap_flat", "gap_up"], min_periods, "gap_flat",
+        )
+    if "feat_range_position" in df_binned.columns:
+        df_binned["state_range_pos"] = _expanding_qcut(
+            df_binned["feat_range_position"],
+            ["range_low", "range_mid", "range_high"], min_periods, "range_mid",
+        )
+
+    return df_binned
+
+
+def apply_state_bins(
+    df: pd.DataFrame,
+    bin_mode: str = "insample",
+    rolling_min_periods: int = DEFAULT_ROLLING_MIN_PERIODS,
+) -> pd.DataFrame:
+    """Dispatcher between full-history (insample) and look-ahead-free (rolling)
+    state binning. `bin_mode="insample"` reproduces the original bin_features
+    exactly (backward compatible). `bin_mode="rolling"` uses bin_features_rolling.
+    """
+    if bin_mode == "rolling":
+        return bin_features_rolling(df, min_periods=rolling_min_periods)
+    return bin_features(df)
+
 
 def discover_market_slices(
     symbol: str,
@@ -284,17 +457,21 @@ def align_cross_asset_states(primary_df, cond_state_df, cond_symbol, fields):
     return merged
 
 
-def attach_cross_asset_states(primary_df, cond_symbol, timeframe, fields):
+def attach_cross_asset_states(primary_df, cond_symbol, timeframe, fields, bin_mode="insample"):
     """Load the conditioning symbol from the warehouse, rebuild its binned
     state frame the same way as the primary (compute_price_features +
-    bin_features over full history), and backward as-of merge the requested
+    state binning over full history), and backward as-of merge the requested
     state fields onto primary_df. Returns primary_df unchanged if the
     conditioning symbol has no warehouse data.
+
+    bin_mode is threaded to apply_state_bins so the conditioning symbol is
+    binned consistently with the primary (a cross-asset slice must not mix
+    in-sample primary state with rolling conditioning state, or vice versa).
     """
     cond_raw = load_from_warehouse(cond_symbol, timeframe)
     if cond_raw.empty:
         return primary_df.copy()
 
     cond_feat = compute_price_features(cond_raw)
-    cond_binned = bin_features(cond_feat)
+    cond_binned = apply_state_bins(cond_feat, bin_mode=bin_mode)
     return align_cross_asset_states(primary_df, cond_binned, cond_symbol, fields)
