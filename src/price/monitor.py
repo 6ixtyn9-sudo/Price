@@ -32,7 +32,7 @@ from price.data_sources import fetch_alpaca_bars  # noqa: F401
 from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
 from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
-from price.risk_limits import RiskLimits, check_entry
+from price.risk_limits import RiskLimits, check_entry, risk_group_key
 from price.sizing import compute_position_size
 from price.trading import get_open_positions, get_open_orders
 from price.validation import parse_slice_combination
@@ -398,6 +398,14 @@ def scan_all_slices(
 
     today_pnl = get_today_realized_pnl()
     open_position_slice_labels = _load_open_position_slice_labels()
+    # Risk group per OPEN position (symbol -> stable-condition key). Built from
+    # the trade journal's slice labels because broker positions do not carry
+    # their originating slice. Used by the correlation-aware allocation cap.
+    open_position_risk_groups = {
+        sym: risk_group_key(sym, lbl)
+        for sym, lbl in open_position_slice_labels.items()
+        if lbl
+    }
 
     if open_positions_list:
         print(f"\nChecking exits for {len(open_positions_list)} open position(s)...")
@@ -521,6 +529,7 @@ def scan_all_slices(
                 if side not in ("long", "short"):
                     side = "long"
                 suggested_side = "sell" if side == "short" else "buy"
+                candidate_group = risk_group_key(symbol, s["slice_combination"])
                 risk_result = check_entry(
                     symbol=symbol,
                     qty=qty,
@@ -529,6 +538,8 @@ def scan_all_slices(
                     open_positions=exposure_for_entry_gate,
                     today_realized_pnl=today_pnl,
                     side=side,
+                    symbol_risk_group=candidate_group,
+                    open_position_risk_groups=open_position_risk_groups,
                 )
                 tradable = risk_result.allowed
                 status_label = "MATCH  " if tradable else "BLOCKED"
@@ -560,6 +571,7 @@ def scan_all_slices(
                 "suggested_qty": qty,
                 "suggested_side": suggested_side,
                 "suggested_notional": (qty * close_adj) if close_adj == close_adj else None,
+                "risk_group": candidate_group,
                 **size.to_audit_dict(),
                 "risk_check": risk_payload,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),

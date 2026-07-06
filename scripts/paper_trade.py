@@ -214,6 +214,12 @@ def main() -> int:
                         help="Max bars (in the position's own timeframe) to hold before a time-stop "
                         "exit. Default 5 = the fwd_ret_5 validation horizon (faithful to the measured "
                         "edge). 0 disables the horizon exit (state-break only, legacy behaviour).")
+    parser.add_argument("--max-per-group", type=int, default=2,
+                        help="Max concurrent open positions sharing a risk group (the slice's stable "
+                        "entry condition). Default 2: allows a confirming second name in a family but "
+                        "blocks the book concentrating on one factor (e.g. XOP+XLB+KLAC all on "
+                        "stretched_down+downtrend). 0 disables (every symbol = independent slot, "
+                        "legacy behaviour).")
     parser.add_argument("--allow-shorts", action="store_true",
                         help="Enable short-side entries on the paper account. Default: short signals "
                         "are computed and logged but BLOCKED at the risk gate (allow_shorts=False).")
@@ -243,6 +249,7 @@ def main() -> int:
         conviction_sizing_enabled=not args.equal_notional,
         risk_fraction_per_trade=args.risk_fraction,
         account_equity_for_sizing=args.sizing_equity,
+        max_positions_per_risk_group=args.max_per_group,
     )
 
     print(f"Risk limits: {limits.to_dict()}")

@@ -27,6 +27,12 @@ from price.config import DATA_DIR
 HALT_FLAG_PATH = DATA_DIR / "HALT_TRADING.flag"
 COOLDOWN_JOURNAL_PATH = DATA_DIR / "cooldown_journal.json"
 
+# Slice filter fields considered "transient" for risk-grouping: they flip
+# every bar (or every session) and therefore do NOT define a durable
+# correlation between two positions. Mirrors position_manager.TRANSIENT_FIELDS
+# so the exit policy and the allocation gate agree on what "stable" means.
+TRANSIENT_RISK_FIELDS: set = {"state_session", "state_dow", "state_month"}
+
 
 @dataclass
 class RiskLimits:
@@ -57,9 +63,52 @@ class RiskLimits:
     # capital, set this to current account equity (or have the monitor
     # fetch it live).
     account_equity_for_sizing: Optional[float] = None
+    # ---- Capital allocation knob (correlation-aware) ----
+    # Max concurrent open positions that share a risk group. A risk group is
+    # the slice's stable entry condition (see risk_group_key): two positions
+    # entered on the same condition are bets on the same regime and are
+    # treated as correlated exposure, NOT independent slots. Default 2 allows
+    # a confirming second name in a family but blocks the whole book
+    # concentrating on one factor (e.g. XOP+XLB+KLAC all on
+    # stretched_down+downtrend). <= 0 disables the group cap (legacy
+    # behaviour: every symbol counts as its own independent slot).
+    max_positions_per_risk_group: int = 2
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def risk_group_key(symbol: str, slice_combination: str) -> str:
+    """Normalized risk-group key for a (symbol, slice) pair.
+
+    The key is the slice's STABLE entry condition -- the non-transient
+    state fields, sorted into a canonical string so field order in the
+    slice_combination text does not matter. Rationale: two positions whose
+    entry conditions are identical fire on the same bars by construction
+    and are therefore maximally correlated -- they are the same regime bet.
+    Grouping on the entry condition needs no correlation-matrix estimation
+    (which would itself be an overfit risk) and is self-maintaining, because
+    the group is derived from the slice definition rather than a hand-kept
+    sector map.
+
+    XOP / XLB / KLAC all carry state_ext=stretched_down + state_slope=
+    downtrend, so they collapse to one group. XLF (stretched_up+flat),
+    XLK 1d (cross_TLT...+neutral), XLK 1h (cross_USO...+stretched_down),
+    and SPY 1h (slope=downtrend, session is transient) each form their own.
+
+    Falls back to the uppercased symbol when the slice cannot be parsed or
+    has no stable fields (so an unparseable slice is treated as its own
+    singleton group, never as matching everything).
+    """
+    from price.validation import parse_slice_combination
+    try:
+        filt = parse_slice_combination(slice_combination)
+    except (ValueError, TypeError):
+        return symbol.upper()
+    stable = {k: v for k, v in filt.items() if k not in TRANSIENT_RISK_FIELDS}
+    if not stable:
+        return symbol.upper()
+    return " + ".join(f"{k}={v}" for k, v in sorted(stable.items()))
 
 
 @dataclass
@@ -127,27 +176,14 @@ def check_entry(
     open_positions: list,
     today_realized_pnl: float,
     side: str = "long",
+    symbol_risk_group: Optional[str] = None,
+    open_position_risk_groups: Optional[dict] = None,
 ) -> RiskCheckResult:
     """Run ALL risk checks. Returns allowed=True only if every one passes.
 
-    Parameters
-    ----------
-    symbol : str
-        Ticker to be entered (e.g. "SPY").
-    qty : int
-        Number of shares to buy.
-    price : float
-        Reference price for notional calc.
-    limits : RiskLimits
-        The active limit set.
-    open_positions : list
-        List of currently open position dicts. Each must have at least
-        'symbol', 'qty', 'market_value' or 'avg_entry_price'.
-    today_realized_pnl : float
-        Sum of realized P&L for the current UTC day (negative = loss).
-    side : str
-        "long" or "short". Short entries are blocked unless
-        limits.allow_shorts is True.
+    symbol_risk_group / open_position_risk_groups drive the correlation-aware
+    allocation cap (max_positions_per_risk_group). Both optional for backward
+    compatibility; when either is absent the group check is skipped.
     """
     reasons: list = []
     details: dict = {
@@ -158,6 +194,7 @@ def check_entry(
         "notional": qty * price,
         "open_position_count": len(open_positions),
         "today_realized_pnl": today_realized_pnl,
+        "risk_group": symbol_risk_group,
     }
 
     if is_halt_flag_set():
@@ -177,6 +214,23 @@ def check_entry(
         reasons.append(f"already have an open position in {symbol}")
     elif len(distinct_symbols) >= limits.max_open_positions:
         reasons.append(f"already at max open positions ({limits.max_open_positions})")
+
+    # Correlation-aware allocation: cap concurrent exposure to one entry
+    # condition. Orthogonal to the per-symbol and max-open checks above.
+    if (
+        limits.max_positions_per_risk_group > 0
+        and symbol_risk_group
+        and open_position_risk_groups
+    ):
+        group_count = sum(
+            1 for g in open_position_risk_groups.values()
+            if g == symbol_risk_group
+        )
+        if group_count >= limits.max_positions_per_risk_group:
+            reasons.append(
+                f"risk group '{symbol_risk_group}' at cap "
+                f"({group_count}/{limits.max_positions_per_risk_group})"
+            )
 
     if -today_realized_pnl >= limits.max_daily_realized_loss:
         reasons.append(
