@@ -3225,3 +3225,94 @@ validations of any edge (XOP/XLK are deployed Tier-1 watch slices, not
 promoted edges). Realized P&L is still ~$0 (no exits yet). The attribution
 report (lever 5) will start producing real signal once the exit policy
 (lever 2) closes the first position.
+
+Reframe — Regime-Conditional Edges Are Tradeable If Gated (2026-07-06)
+
+The operator corrected the framing of the regime-confound finding above. The
+prior section's implication ("so the candidates are regime bets, demote
+everything, sit idle") was wrong in its IMPLICATION even though the diagnosis
+was right. The corrected understanding:
+
+A regime-conditional edge is only a problem if you (a) cannot detect the
+regime, or (b) mislabel it as structural. If you CAN detect the regime and
+you LABEL it honestly as regime-conditional, then "hop on and ride" is
+exactly the right strategy -- it is what most systematic traders actually
+do. The fold-0 failures across the stretched_down+downtrend family are not
+a bug; they are the SIGNAL for when NOT to deploy. That is actionable
+information, not a reason to stand down.
+
+What was built: a regime deployment gate (src/price/regime.py)
+A pre-entry filter in monitor.scan_all_slices that blocks a matched slice
+when its MACRO regime is hostile. Sits between check_slice_match and
+check_entry (same layer as the risk gate). It converts today's finding into
+an automatic dismount during wrong regimes rather than a demotion.
+
+What "regime" means here (defensible, not hand-kept)
+The macro trend of the slice's own market/sector, read from live price state
+via the SMA-50/SMA-200 crossover prior (the classic golden-cross / death-
+cross definition). Chosen deliberately because it is well-known and NOT
+hand-fit to this dataset (which would be the overfit risk the project
+rejects). For a slice conditioned on a cross-asset symbol, the regime is
+read from that conditioning symbol (e.g. USO for an energy slice).
+
+bull : SMA50 > SMA200 AND price > SMA50 -> dip-buying is the right trade
+bear : SMA50 < SMA200 AND price < SMA50 -> the fold-0 condition; BLOCK
+neutral : mixed -> allow (permissive; do not
+over-block in sideways markets)
+unknown : missing data / insufficient history -> ALLOW (fail-open; the
+sizing + risk guard remain)
+
+Per-slice configurability
+A slice in monitored_slices.csv may carry an optional regime_symbol column
+(e.g. SPY for broad-market regime, the sector ETF). When absent, the gate
+uses the slice's own symbol (the most direct read of "is THIS name in its
+working regime"). This keeps the gate data-driven per slice, not a global
+hand-tuned toggle.
+
+Graceful degradation (zero-risk to the live book)
+
+regime_filter_enabled=False (default) -> NO gate; current behaviour
+exactly. The flag is opt-in.
+No regime_symbol on the slice -> uses the slice's own symbol.
+No warehouse data for the regime symbol -> FAILS OPEN (allows entry).
+Blocking on missing macro data would be worse than deploying without the
+gate; conviction sizing + risk limits still protect the book.
+Regime data present + macro bear -> BLOCKS entry; logged with
+reason='regime hostile (bear on SYMBOL); entry blocked' so the audit
+trail shows regime-blocking separately from risk-blocking.
+What this patch does NOT do
+
+Does NOT re-validate any slice. Validation stays in validate_slices.py.
+Does NOT promote any slice. The slice is still a watch candidate; the
+gate just makes deployment honest about being regime-conditional.
+Does NOT define a regime map by hand (overfit risk). It reads live price.
+Does NOT touch the existing risk gate, sizing, exits, allocation, or
+cost model -- it composes cleanly with all of them.
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 199 passed (was 183; +16 regime tests).
+python3 -m ruff check clean repo-wide.
+Demonstration: same slice, two regime states. Gate ON + macro BEAR ->
+BLOCKED. Gate ON + macro BULL/NEUTRAL -> ALLOWED. Gate OFF -> no-op
+pass-through (default). Fail-open confirmed on missing data.
+How to use it (operator)
+python3 scripts/paper_trade.py --regime-filter
+python3 scripts/paper_trade.py --regime-filter --max-per-group 2
+Add per-slice regime_symbol to monitored_slices.csv (optional):
+symbol,timeframe,slice_combination,side,regime_symbol
+XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,SPY
+
+The gate is off by default, so the live book is unaffected until the
+operator opts in. When enabled, it makes the deployment of regime-
+conditional slices honest: ride the regime, dismount automatically when it
+leaves. This is the productive non-idle path the operator asked for.
+
+Standing conclusion (revised)
+The T1 watchlist edges are regime-conditional, not structural. That is now
+a FEATURE (tradeable when gated), not a flaw to be hidden. The regime gate
+makes deployment honest about the conditional nature. The path to a
+structural (regime-independent) edge remains: live out-of-sample
+accumulation across enough of a regime cycle, and/or a regime-control layer
+in VALIDATION (not just deployment) -- but that is research work, not the
+tradeable improvement this patch delivers.

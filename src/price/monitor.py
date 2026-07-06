@@ -32,6 +32,7 @@ from price.data_sources import fetch_alpaca_bars  # noqa: F401
 from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
 from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
+from price.regime import check_regime
 from price.risk_limits import RiskLimits, check_entry, risk_group_key
 from price.sizing import compute_position_size
 from price.trading import get_open_positions, get_open_orders
@@ -347,12 +348,14 @@ def scan_all_slices(
     dry_run: bool = False,
     exit_policy: Optional[ExitPolicy] = None,
     cost_model=None,
+    regime_filter_enabled: bool = False,
 ) -> List[dict]:
     """Scan all monitored slices; emit tradable signals + exit intents.
 
-    cost_model : realistic execution cost model threaded into sizing so
-        conviction nets the execution drag. None -> sizing uses its own
-        conservative default_cost_model().
+    regime_filter_enabled : when True, each matched slice is additionally
+        checked against its macro regime (SMA trend of the slice's own
+        symbol or a configured regime symbol). Entries are blocked when the
+        regime is 'bear'. Defaults False (zero-risk to the live book).
     """
     if slices is None:
         slices = get_default_monitored_slices()
@@ -495,6 +498,20 @@ def scan_all_slices(
                 print(f"  -   {s['slice_combination']}")
                 continue
 
+            # ---- Regime deployment gate ----
+            # Converts today's finding (watchlist edges are regime-conditional)
+            # into an actionable gate rather than a demotion. When enabled, a
+            # matched slice whose macro regime is 'bear' is blocked from entry
+            # (the fold-0 condition turned into an automatic dismount). When
+            # disabled (default) it is a no-op pass-through.
+            regime_state = check_regime(
+                slice_symbol=symbol,
+                slice_filter=parse_slice_combination(s["slice_combination"]),
+                configured_regime_symbol=s.get("regime_symbol"),
+                timeframe=timeframe,
+                enabled=regime_filter_enabled,
+            )
+
             # Edge- and volatility-aware sizing. Falls back to equal-notional
             # when no candidate_leaderboard.csv edge data is available, so the
             # live paper book is unaffected on a fresh/leaderboard-less run.
@@ -507,6 +524,13 @@ def scan_all_slices(
                 cost_model=cost_model,
             )
             qty = size.qty
+            # Regime gate outcome: when the macro regime is hostile AND the
+            # filter is enabled, block the entry regardless of the risk gate.
+            # Folded into the audit trail as a tradable=False reason so the
+            # operator can see regime-blocking separately from risk-blocking.
+            regime_blocked = (
+                regime_filter_enabled and not regime_state.favourable()
+            )
             if not dry_run:
                 side = str(s.get("side", "long") or "long").lower()
                 if side not in ("long", "short"):
@@ -525,6 +549,13 @@ def scan_all_slices(
                     open_position_risk_groups=open_position_risk_groups,
                 )
                 tradable = risk_result.allowed
+                if regime_blocked:
+                    tradable = False
+                    risk_result.reasons.insert(
+                        0,
+                        f"regime hostile ({regime_state.regime} on "
+                        f"{regime_state.symbol}); entry blocked",
+                    )
                 status_label = "MATCH  " if tradable else "BLOCKED"
                 reasons_str = ", ".join(risk_result.reasons) if risk_result.reasons else "risk gate passed"
                 risk_payload = {
@@ -535,7 +566,7 @@ def scan_all_slices(
             else:
                 side = str(s.get("side", "long") or "long").lower()
                 suggested_side = "sell" if side == "short" else "buy"
-                tradable = True
+                tradable = not regime_blocked
                 status_label = "MATCH  "
                 reasons_str = "dry_run"
                 risk_payload = {"allowed": True, "reasons": ["dry_run"], "details": {}}
@@ -555,6 +586,7 @@ def scan_all_slices(
                 "suggested_side": suggested_side,
                 "suggested_notional": (qty * close_adj) if close_adj == close_adj else None,
                 "risk_group": candidate_group,
+                **regime_state.to_audit_dict(),
                 **size.to_audit_dict(),
                 "risk_check": risk_payload,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),

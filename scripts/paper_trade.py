@@ -220,6 +220,12 @@ def main() -> int:
                         "blocks the book concentrating on one factor (e.g. XOP+XLB+KLAC all on "
                         "stretched_down+downtrend). 0 disables (every symbol = independent slot, "
                         "legacy behaviour).")
+    parser.add_argument("--regime-filter", action="store_true",
+                        help="Enable the regime deployment gate. When on, a matched slice is blocked "
+                        "from entry if its macro regime (SMA-50/200 trend of the slice's own symbol, "
+                        "or a configured regime_symbol) is 'bear'. Converts the regime-conditional "
+                        "finding into an automatic dismount during hostile macro periods. Default off "
+                        "(zero-risk to the live book); fails open on missing data.")
     parser.add_argument("--cost-spread-bps", type=float, default=1.0,
                         help="Per-leg half-spread cost in basis points (crossing a market order). "
                         "Liquid (SPY/XLF) ~0.4-1bp, XOP/KLAC wider. Default 1.0.")
@@ -278,7 +284,7 @@ def main() -> int:
     def _one_pass() -> Dict[str, int]:
         signals = scan_all_slices(
             limits=limits, dry_run=args.dry_run, exit_policy=exit_policy,
-            cost_model=cost_model,
+            cost_model=cost_model, regime_filter_enabled=args.regime_filter,
         )
         counts = _handle_signals(signals, dry_run=args.dry_run)
         print("\n=== pass summary ===")
