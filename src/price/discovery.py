@@ -340,6 +340,7 @@ def discover_market_slices(
     slice_fields: List[str],
     min_samples: int = 15,
     cond_symbols: List[str] = None,
+    bin_mode: str = "insample",
 ) -> pd.DataFrame:
     df_raw = load_from_warehouse(symbol, timeframe)
     if df_raw.empty:
@@ -347,7 +348,7 @@ def discover_market_slices(
         return pd.DataFrame()
 
     df_feat = compute_price_features(df_raw)
-    df_binned = bin_features(df_feat)
+    df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
 
     # Optional cross-asset conditioning: attach each conditioning symbol's
     # most-recent-completed state (backward as-of, no look-ahead) as
@@ -359,6 +360,7 @@ def discover_market_slices(
                 cond_sym,
                 timeframe,
                 ["state_ext", "state_slope", "state_vol"],
+                bin_mode=bin_mode,
             )
 
     eval_df = df_binned[df_binned['label_eligible']]

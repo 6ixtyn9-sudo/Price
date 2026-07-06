@@ -12,7 +12,7 @@ from price.discovery import discover_market_slices
 
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 
-def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=False, cond_symbols=None):
+def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=False, cond_symbols=None, bin_mode="insample"):
     symbols = target_symbols or SYMBOLS
     
     combinations = [
@@ -53,7 +53,7 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
         for fields in combinations:
             print(f"Testing state-space combination: {fields}")
             try:
-                slices = discover_market_slices(symbol, timeframe, fields, min_samples=min_samples, cond_symbols=cond_symbols)
+                slices = discover_market_slices(symbol, timeframe, fields, min_samples=min_samples, cond_symbols=cond_symbols, bin_mode=bin_mode)
                 if not slices.empty:
                     print(f"  -> Discovered {len(slices)} slices satisfying sample floor.")
                     all_slices.append(slices)
@@ -116,6 +116,15 @@ if __name__ == "__main__":
         help="Optional conditioning symbol(s). Supports multiple for multi-conditioning "
              "(e.g., --condition-on USO TLT).",
     )
+    parser.add_argument(
+        "--bin-mode",
+        default="insample",
+        choices=["insample", "rolling"],
+        help="How to bin quantile state fields. 'insample' (default) = full-history "
+        "quantiles (original behaviour). 'rolling' = look-ahead-free expanding-window "
+        "quantiles (bar T's boundary uses only bars before T). Use 'rolling' end-to-end "
+        "(discovery + validation + ML) for the overfit-kill.",
+    )
 
     args = parser.parse_args()
     
@@ -125,4 +134,5 @@ if __name__ == "__main__":
         min_samples=args.min_samples,
         append=args.append,
         cond_symbols=args.condition_on,
+        bin_mode=args.bin_mode,
     )
