@@ -5,6 +5,8 @@ Runs monitor.scan_all_slices(), and for each emitted signal:
   - If kind == 'entry_signal' and tradable == False: log only
   - If kind == 'exit_intent' and action == 'exit': call trading.close_position
   - If kind == 'exit_intent' and action == 'hold': log only
+  - If kind == 'stop_intent': audit-log only (the broker call already
+    happened inside scan_all_slices's reconcile_stops -- see stop_manager.py)
 
 Writes an audit log to localdata/paper_trade_log.csv with one row per
 signal-or-action so the operator has a full record of what the script
@@ -58,6 +60,23 @@ def _append_audit(row: dict) -> None:
     out.to_csv(AUDIT_LOG_PATH, index=False)
 
 
+def _resolve_sizing_equity(auto: bool, manual: float, get_account_info_fn=None) -> float:
+    """Resolve the account-equity value used for the volatility rail and
+    the aggregate open-risk budget. When `auto` is True, fetches live
+    equity from Alpaca; on any fetch failure, falls back to `manual`
+    (never raises, so a transient API hiccup cannot crash the scan).
+    """
+    if not auto:
+        return manual
+    if get_account_info_fn is None:
+        from price.trading import get_account_info as get_account_info_fn
+    try:
+        return get_account_info_fn()["equity"]
+    except Exception as e:  # noqa: BLE001 - a fetch failure must not crash the scan
+        print(f"--auto-sizing-equity fetch failed ({e}); falling back to --sizing-equity={manual}")
+        return manual
+
+
 def _strip_known_keys(sig: dict, keys: List[str]) -> dict:
     """Return a copy of `sig` without the listed keys. Used to prevent
     the `**sig` splat from clobbering the audit's own field names."""
@@ -73,10 +92,22 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
         "exit_submitted": 0,
         "exit_hold": 0,
         "no_state_data": 0,
+        "stop_actions": 0,
     }
 
     for sig in signals:
         kind = sig.get("kind")
+
+        if kind == "stop_intent":
+            # The actual broker call (attach/ratchet/no-op) already happened
+            # inside scan_all_slices's reconcile_stops call -- this is an
+            # audit-only row, mirroring the sig's own action label
+            # (stop_attached / stop_ratcheted / stop_unchanged / stop_pending
+            # / stop_attach_failed / stop_ratchet_failed / stop_state_cleared
+            # / would_attach_stop / would_ratchet_stop in --dry-run).
+            counts["stop_actions"] += 1
+            _append_audit(dict(sig))
+            continue
 
         if kind == "state_unavailable":
             counts["no_state_data"] += 1
@@ -209,11 +240,72 @@ def main() -> int:
                         help="Account equity used for the volatility rail (Stage B). When set, sizing "
                         "also caps each position by risk_dollars / ATR so high-vol names cannot "
                         "concentrate more than their risk budget. Toward real capital, set this to "
-                        "current account equity.")
+                        "current account equity. Ignored if --auto-sizing-equity is also given.")
+    parser.add_argument("--auto-sizing-equity", action="store_true",
+                        help="Fetch current account equity live from Alpaca (trading.get_account_info) "
+                        "and use it for the volatility rail AND the aggregate open-risk budget, instead "
+                        "of requiring a manually maintained --sizing-equity value. Recommended for "
+                        "unattended/scheduled runs (e.g. the live_capture workflow), since a stale "
+                        "hand-set equity number would silently under- or over-state the real risk "
+                        "budget as the account's P&L moves. Falls back to --sizing-equity (or Stage "
+                        "B / the aggregate cap being skipped) if the account fetch fails.")
     parser.add_argument("--exit-horizon", type=int, default=5,
                         help="Max bars (in the position's own timeframe) to hold before a time-stop "
                         "exit. Default 5 = the fwd_ret_5 validation horizon (faithful to the measured "
-                        "edge). 0 disables the horizon exit (state-break only, legacy behaviour).")
+                        "edge). 0 disables the horizon exit (state-break only, legacy behaviour). "
+                        "Suppressed once a trade is past +1R when --respect-r-gate is enabled "
+                        "(default): a confirmed winner is left to the trailing stop, not time-stopped.")
+    parser.add_argument("--no-r-gate", action="store_true",
+                        help="Disable the R-multiple horizon-suppression gate: restores the original "
+                        "unconditional 5-bar time-stop even for a trade that has already confirmed to "
+                        "+1R. Off by default (i.e. the R-gate is ON by default) so 'small losses, large "
+                        "profits' is the default behaviour once stops are attached.")
+    parser.add_argument("--stop-atr-mult", type=float, default=2.0,
+                        help="Initial protective-stop distance, in multiples of ATR(14), set the moment "
+                        "a position is filled and enforced as a REAL resting broker-side stop order "
+                        "(not just checked on the next scan). Default 2.0. This is also the per-share R "
+                        "for the trade: R_dollars = stop_atr_mult * ATR * qty.")
+    parser.add_argument("--trail-atr-mult", type=float, default=3.0,
+                        help="Chandelier trailing-stop distance, in multiples of ATR(14), active only "
+                        "once a trade has reached --breakeven-trigger-r. Looser than the initial stop by "
+                        "design, so a confirmed trend has room to run. Default 3.0.")
+    parser.add_argument("--breakeven-trigger-r", type=float, default=1.0,
+                        help="Unrealized R-multiple at which the protective stop ratchets to breakeven "
+                        "(the trade can no longer lose money) and the chandelier trail takes over. "
+                        "Default 1.0 (+1R).")
+    parser.add_argument("--max-aggregate-risk-pct", type=float, default=0.03,
+                        help="Max aggregate open risk across the WHOLE book at once (sum of every open "
+                        "position's current stop-distance risk; breakeven-or-better positions contribute "
+                        "$0), as a fraction of --sizing-equity. This is the leverage prerequisite: with "
+                        "every position carrying a real stop and the aggregate capped, leverage changes "
+                        "how much notional expresses a given R, not how much can be lost if wrong. "
+                        "Default 0.03 (3%%). Requires --sizing-equity to be set; otherwise fails open "
+                        "(no cap enforced, consistent with every other equity-dependent lever). "
+                        "Set <= 0 to disable explicitly.")
+    parser.add_argument("--whipsaw-limit", type=int, default=2,
+                        help="Same-day consecutive stop-outs on one symbol before the whipsaw circuit "
+                        "breaker benches it for the rest of the trading day. Default 2. Tight ATR stops "
+                        "mean more stop-outs; this exists so 'small losses' cannot silently become "
+                        "'many small losses in one choppy day.' Set <= 0 to disable.")
+    parser.add_argument("--target-leverage", type=float, default=1.0,
+                        help="How much of the account's real margin capacity to actually use, as a "
+                        "multiple of equity. Default 1.0 (cash-secured, no leverage). 2.0 = standard "
+                        "Reg T overnight margin. Deliberately NOT Alpaca's 4x intraday-only rate: that "
+                        "rate steps down to 2x for anything held overnight, and this system's exit "
+                        "policy holds positions across multiple bars (does not flatten same-day) -- "
+                        "using 4.0 here would silently violate the overnight limit every session. "
+                        "Requires --auto-sizing-equity or --sizing-equity to actually gate anything "
+                        "(the leverage checks fail open without a known equity value). A position that "
+                        "cannot get a protective stop attached is FORCE-CLOSED (not retried) whenever "
+                        "this is > 1.0 -- see stop_manager.reconcile_stops.")
+    parser.add_argument("--margin-cushion-pct", type=float, default=0.20,
+                        help="Real-time margin safety cushion: block new entries once the broker's "
+                        "actual buying_power falls below this fraction of the self-imposed leverage "
+                        "ceiling (equity * --target-leverage). Default 0.20 (stop entries at 80%% "
+                        "margin usage). This is the honest backstop against the gross-notional check's "
+                        "own approximate math -- it reads Alpaca's real-time account state rather than "
+                        "trusting our arithmetic alone. Requires --auto-sizing-equity or --sizing-equity. "
+                        "Set <= 0 to disable.")
     parser.add_argument("--max-per-group", type=int, default=2,
                         help="Max concurrent open positions sharing a risk group (the slice's stable "
                         "entry condition). Default 2: allows a confirming second name in a family but "
@@ -256,6 +348,10 @@ def main() -> int:
         print(f"Halt flag removed: {removed}")
         return 0
 
+    sizing_equity = _resolve_sizing_equity(args.auto_sizing_equity, args.sizing_equity)
+    if args.auto_sizing_equity and sizing_equity is not None:
+        print(f"Auto-fetched account equity for sizing/risk-budget: ${sizing_equity:,.2f}")
+
     limits = RiskLimits(
         max_notional_per_position=args.max_notional,
         max_open_positions=args.max_open,
@@ -264,8 +360,17 @@ def main() -> int:
         allow_shorts=args.allow_shorts,
         conviction_sizing_enabled=not args.equal_notional,
         risk_fraction_per_trade=args.risk_fraction,
-        account_equity_for_sizing=args.sizing_equity,
+        account_equity_for_sizing=sizing_equity,
         max_positions_per_risk_group=args.max_per_group,
+        stop_atr_multiple=args.stop_atr_mult,
+        trail_atr_multiple=args.trail_atr_mult,
+        breakeven_trigger_r=args.breakeven_trigger_r,
+        max_aggregate_open_risk_pct=(
+            args.max_aggregate_risk_pct if args.max_aggregate_risk_pct > 0 else None
+        ),
+        whipsaw_stopout_limit=args.whipsaw_limit,
+        target_leverage_multiple=args.target_leverage,
+        margin_cushion_pct=(args.margin_cushion_pct if args.margin_cushion_pct > 0 else None),
     )
 
     print(f"Risk limits: {limits.to_dict()}")
@@ -277,8 +382,12 @@ def main() -> int:
         spread_bps=args.cost_spread_bps,
         slippage_bps=args.cost_slippage_bps,
     )
-    exit_policy = ExitPolicy(horizon_bars=args.exit_horizon)
-    print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}")
+    exit_policy = ExitPolicy(
+        horizon_bars=args.exit_horizon,
+        respect_r_multiple_gate=not args.no_r_gate,
+    )
+    print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}, "
+          f"respect_r_multiple_gate={exit_policy.respect_r_multiple_gate}")
     print(f"Cost model: {cost_model.to_dict()}")
 
     def _one_pass() -> Dict[str, int]:

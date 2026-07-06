@@ -128,14 +128,27 @@ class ExitPolicy:
       - stable_state_break: the slice's stable (non-transient) filter no
         longer matches the current bar (the original exit logic).
       - horizon_reached: bars held (in the position's own timeframe) >=
-        horizon_bars. The validation horizon is fwd_ret_5, so the default 5
-        is faithful to the measured edge; holding longer is unvalidated and
-        lets winners/losers run past the edge window.
+        horizon_bars, AND the trade has not yet reached the R-based
+        breakeven ratchet (see below). The validation horizon is
+        fwd_ret_5, so the default 5 is faithful to the measured edge for
+        a trade whose entry thesis has not yet been confirmed by price;
+        holding a THESIS that hasn't played out any longer is unvalidated.
 
     horizon_bars=0 disables the horizon exit (state-break only = legacy).
+
+    respect_r_multiple_gate (default True): once a position has reached
+    +breakeven_trigger_r unrealized (tracked by price.stops / the
+    protective-stop reconciliation in stop_manager.py), the horizon exit
+    is SUPPRESSED for that position -- exit is left to the trailing stop
+    instead. This is the "small losses, large profits" design: the 5-bar
+    horizon exists to cut a thesis that never confirmed, not to cap a
+    winner that already confirmed and is being protected by a ratcheting
+    stop. Set False to restore the original unconditional horizon exit
+    (legacy behaviour, e.g. for slices with no protective-stop tracking).
     """
 
     horizon_bars: int = 5
+    respect_r_multiple_gate: bool = True
 
 
 def _parse_ts(ts) -> Optional[datetime]:
@@ -237,6 +250,36 @@ def _load_entry_context() -> Dict[str, dict]:
             "submitted_at": _clean(r.get("submitted_at")),
         }
     return out
+
+
+def _r_gate_suppresses_horizon(symbol: str, current_price, breakeven_trigger_r: float = 1.0) -> bool:
+    """True if `symbol`'s tracked R-state (price.stops) shows it has already
+    reached `breakeven_trigger_r` unrealized, so the time-stop horizon exit
+    should be suppressed in favour of the trailing stop.
+
+    Never raises: any failure to load stop state or price (missing
+    price.stops data, no tracked state for this symbol, bad current_price)
+    resolves to False -- i.e. the horizon exit behaves exactly as before
+    when R-state is unavailable. This is what makes the R-multiple gate
+    strictly additive: a symbol with no protective-stop tracking (e.g.
+    stop attachment failed, or the feature is simply not in use) gets the
+    original unconditional horizon exit, never a silently-disabled one.
+    """
+    try:
+        from price.stops import load_stop_states
+        states = load_stop_states()
+        state = states.get(symbol.upper())
+        if state is None:
+            return False
+        price = float(current_price)
+        if price != price:
+            return False
+        r_mult = state.unrealized_r_multiple(price)
+        if r_mult is None:
+            return False
+        return r_mult >= breakeven_trigger_r
+    except Exception:  # noqa: BLE001 - exit logic must never crash the scan
+        return False
 
 
 def check_exits(
@@ -357,19 +400,36 @@ def check_exits(
         exit_reasons: List[str] = []
         if mismatches:
             exit_reasons.append("stable filter broken: " + "; ".join(mismatches))
+
+        r_gate_active = False
         if (
             exit_policy.horizon_bars > 0
             and bars_held is not None
             and bars_held >= exit_policy.horizon_bars
         ):
-            exit_reasons.append(
-                f"horizon reached: held {bars_held} bars "
-                f">= {exit_policy.horizon_bars} ({timeframe})"
+            current_price = pos.get("current_price")
+            r_gate_active = (
+                exit_policy.respect_r_multiple_gate
+                and current_price is not None
+                and _r_gate_suppresses_horizon(symbol, current_price)
             )
+            if r_gate_active:
+                pass  # trade has confirmed (>= +1R); leave the exit to the trailing stop.
+            else:
+                exit_reasons.append(
+                    f"horizon reached: held {bars_held} bars "
+                    f">= {exit_policy.horizon_bars} ({timeframe})"
+                )
 
         action = "exit" if exit_reasons else "hold"
         if exit_reasons:
             reason = "; ".join(exit_reasons)
+        elif r_gate_active:
+            reason = (
+                f"horizon reached ({bars_held}/{exit_policy.horizon_bars} bars, {timeframe}) "
+                "but trade is past +1R; held under trailing-stop management instead "
+                "(small losses, large profits)"
+            )
         elif bars_held is not None:
             reason = (
                 f"stable filter matches; held {bars_held}/"
@@ -387,6 +447,7 @@ def check_exits(
             "bars_held": bars_held,
             "horizon_bars": exit_policy.horizon_bars,
             "timeframe": timeframe,
+            "r_multiple_suppressed_horizon": r_gate_active,
             "reason": reason,
         })
 

@@ -3363,3 +3363,381 @@ it regime-conditional and gate deployment (--regime-filter). If it survives in
 bear too, that is the first candidate with structural (regime-independent)
 evidence -- a categorically stronger claim. This is "reslice keeping the
 regime in mind" done honestly.
+
+Test Suite Fix — Stale bin_mode Test Doubles (2026-07-06)
+
+A fresh clone at HEAD (bc401b2) had 2 failing tests:
+test_run_walk_forward_diagnostics_writes_fold_rows and
+test_run_date_range_diagnostics_writes_target_windows in
+tests/test_validate_slices_script.py. Root cause: the rolling-bins patch
+(fad22d2) threaded a bin_mode kwarg through build_eligible_frame end to
+end, but these two tests' fake_build_eligible_frame(symbol, timeframe,
+cross_symbols=None) test doubles were never updated to accept it, so the
+real code called them with an unexpected kwarg. Fixed by adding
+bin_mode="insample" to both fakes' signatures. Production code untouched;
+this was a test-double drift bug, not a real defect. All 207 tests passed
+after the fix (the baseline this section's work then built on top of).
+
+Protective Stops — R-Based "Small Losses, Large Profits" (2026-07-06)
+
+This section records why a price-based stop-loss was added, and answers a
+question the operator asked directly: why had this never been built before?
+Honest answer: the project's exit policy (see "ROI Refinement -- Exit
+Policy" above) was designed to be faithful to the VALIDATION horizon
+(fwd_ret_5) -- state-break OR held >= 5 bars. That is a research-faithful
+exit, not a capital-protection exit. Nothing in the stack modeled "how much
+can this ONE trade lose if the price moves against it before the horizon or
+the state-break fires." max_daily_realized_loss (a pre-existing risk limit)
+only sums CLOSED trades -- an open loser could bleed all session with
+nothing tripping until it was already realized. That gap is what this patch
+closes.
+
+Design (operator-agreed, explicit trade-offs)
+
+The operator asked for "small losses, large profits" specifically -- not a
+generic fixed-percent stop/target pair. That is the classic asymmetric
+R-multiple design: define R (dollar risk to the initial stop) once at
+entry, cap losses at ~1R, and let winners run to many multiples of R via a
+ratcheting trailing stop rather than a fixed take-profit (a fixed target
+directly contradicts "let profits be large" -- it caps the winner).
+
+R = k_stop * ATR(14) * qty, set the moment a position is filled.
+k_stop = 2.0 (operator-chosen: tight enough to keep losses small,
+loose enough to tolerate ordinary daily noise; this ALSO makes the
+pre-existing sizing volatility rail's dollar-risk math literally true
+for the first time -- it always assumed a stop distance but nothing
+enforced one).
+At +1R unrealized, the stop ratchets to breakeven. The trade can no
+longer lose money from that point.
+Beyond +1R, the stop trails the highest favorable close since entry by
+k_trail * ATR(14) (a chandelier exit). k_trail = 3.0 (operator-chosen:
+looser than the entry stop on purpose, so a confirmed trend has room to
+run instead of being capped).
+The stop only ever ratchets in the trade's favor; it is never loosened.
+
+Broker-side enforcement (the operator's explicit choice, not the default)
+
+The operator was asked directly: should the stop be a REAL resting order
+at the broker (continuously enforced by Alpaca, independent of scan
+cadence), or only evaluated when paper_trade.py happens to run (matching
+the existing exit-policy architecture)? The operator chose broker-side,
+correctly identifying that a monitoring-only stop is a soft target, not a
+hard one, between scheduled runs. This is why the live_capture workflow's
+schedule was also changed (see below) -- a broker-side stop is enforced
+continuously either way, but the RATCHET (breakeven, then trailing) only
+advances the next time reconcile_stops runs, so scan frequency still
+matters for how promptly a winner's protection tightens.
+
+What was added
+
+src/price/stops.py: pure R-state logic, no network/broker calls.
+StopState (per-position R-state: entry price, initial/current stop,
+r_per_share, stage in {initial, breakeven, trailing}, extreme price
+since entry, stop_order_id). compute_initial_stop / new_stop_state
+(the k_stop * ATR distance). update_trailing_stop (the ratchet: pure
+function, returns a NEW StopState, never mutates, never loosens).
+current_risk_dollars() (a position at breakeven-or-better contributes
+$0 -- it can no longer lose money, so it should not consume risk
+budget). aggregate_open_risk_dollars / check_aggregate_risk_budget
+(sum of every open position's CURRENT risk, capped as a fraction of
+equity -- the leverage prerequisite, see below). Whipsaw circuit
+breaker: is_whipsaw_blocked / record_stopout / stopout_count_today --
+benches a symbol for the rest of the trading day after
+whipsaw_stopout_limit (default 2) same-day stop-outs, because tight
+ATR stops mean more stop-outs and "small losses" must not silently
+become "many small losses in one choppy day." Persisted to
+localdata/stop_state.json and localdata/stopout_journal.json (mirrors
+risk_limits.py's cooldown-journal pattern). 41 tests.
+src/price/trading.py: submit_protective_stop (a REAL resting GTC stop
+order; SELL stop protects a long, BUY stop protects a short),
+replace_protective_stop (moves the SAME order_id via Alpaca's
+replace-order endpoint, so the position is never briefly unprotected
+during a ratchet), cancel_order, get_orders_for_symbol.
+close_position now cancels any resting order on the symbol FIRST
+(best-effort, never blocks the close) so a naked stop order cannot
+survive a position closed by a different exit policy (state-break /
+horizon). 13 tests against a fake broker client (no real Alpaca calls).
+src/price/stop_manager.py: reconcile_stops, the orchestration layer.
+Per open position, per scan: no tracked stop yet -> compute ATR,
+submit the initial k_stopATR stop, persist the state. Tracked stop
+exists -> recompute the ratchet from current price/ATR; if improved,
+REPLACE the resting order and persist. Tracked stop's position is
+gone (stopped out or closed elsewhere) -> clear the bookkeeping and
+log a whipsaw-journal event. No ATR available, or the broker rejects
+the stop -> retried next scan (or force-closed under leverage; see
+below). dry_run computes and reports every intent without placing
+orders or persisting state. 16 tests + a genuine end-to-end
+integration test proving monitor.scan_all_slices actually calls this
+(not just that the parts work in isolation).
+src/price/position_manager.py: ExitPolicy gained
+respect_r_multiple_gate (default True). Once a position has reached
++1R (tracked via price.stops), the 5-bar horizon exit is SUPPRESSED
+for that position -- exit is left to the trailing stop instead. This
+is the mechanism that actually delivers "let profits run": without it,
+the horizon exit would force a winning trade closed at bar 5
+regardless of how well it was doing, directly fighting the trailing
+stop's purpose. The gate ONLY suppresses the horizon condition; a
+stable-filter break (the thesis invalidated) still exits unconditionally,
+and a symbol with no tracked stop state gets the original unconditional
+horizon exit (strictly additive, never a silent behaviour change without
+data to justify it). 7 new tests.
+src/price/risk_limits.py: RiskLimits gained stop_atr_multiple (2.0),
+trail_atr_multiple (3.0), breakeven_trigger_r (1.0),
+max_aggregate_open_risk_pct (0.03 = 3% of equity), and
+whipsaw_stopout_limit (2). check_entry gained proposed_r_dollars /
+open_stop_states / equity_for_risk_cap (aggregate-risk budget) as
+optional kwargs -- omitted by every pre-existing caller, so this is
+backward compatible by construction. 8 new tests.
+src/price/monitor.py: scan_all_slices now calls reconcile_stops right
+after the exit check (before the entry-scan loop), and computes each
+candidate entry's proposed_r_dollars (the SAME k_stopATR*qty distance
+stop_manager will actually place) to feed the aggregate-risk check.
+scripts/paper_trade.py: new flags --stop-atr-mult, --trail-atr-mult,
+--breakeven-trigger-r, --max-aggregate-risk-pct, --whipsaw-limit,
+--no-r-gate (restores the legacy unconditional horizon exit), and
+--auto-sizing-equity (fetches live account equity from Alpaca instead
+of requiring a hand-maintained --sizing-equity value -- this was a
+pre-existing "dormant lever" gap: the volatility rail and the new
+aggregate-risk budget both require an equity figure, and nothing
+before this patch supplied one on the live workflow). kind=stop_intent
+signals are audit-logged only; the broker call already happened inside
+scan_all_slices's reconcile_stops call. 3 tests on that audit path, 7
+tests on _resolve_sizing_equity.
+
+Graceful degradation (the safety property, same doctrine as every other lever)
+
+Every new RiskLimits field has a default that reproduces a defensible
+prior behaviour path, and every new check fails OPEN when its inputs are
+missing:
+stop_atr_multiple / trail_atr_multiple / breakeven_trigger_r have
+sensible defaults but only ever ACTIVATE via reconcile_stops, which is
+new code -- a caller that never calls it (there isn't one left in this
+codebase, but a hypothetical external caller) sees no change.
+max_aggregate_open_risk_pct defaults to an ACTIVE 3% -- unlike most
+levers in this project this one is NOT off-by-default, because the
+operator's whole point was "we are missing capital protection, fix it."
+It still fails open (allows the trade) if equity or the proposed R is
+unknown, consistent with the project's doctrine of "a gate only
+activates when there is real data to enforce it with."
+respect_r_multiple_gate defaults to True but is INERT for any symbol
+with no tracked StopState -- so a slice that never gets a stop attached
+(e.g. persistent ATR data gaps) keeps the exact pre-existing horizon
+behaviour.
+
+Live workflow changes (.github/workflows/live_capture.yml)
+
+Schedule changed from once/day (21:00 UTC) to 5x/trading day
+(14:00/16:00/18:00/20:00/21:00 UTC). Rationale: the protective stop is
+broker-enforced continuously regardless of scan cadence, but the RATCHET
+(breakeven at +1R, then the chandelier trail) only advances the next
+time reconcile_stops runs -- a once-a-day cadence meant a strong
+intraday move could give back most of its gain before the trail ever
+caught up. This was an explicit operator trade-off (more GitHub Actions
+minutes for tighter ratchet responsiveness).
+localdata/stop_state.json and localdata/stopout_journal.json added to
+the auto-commit file list. This is NOT cosmetic: without persisting
+these across workflow runs, every fresh checkout would start with NO
+tracked stop state, so reconcile_stops would treat every open position
+as brand new and re-attach an INITIAL stop at the CURRENT price every
+run -- silently discarding the breakeven/trailing ratchet progress and
+defeating "small losses, large profits" with no error ever raised. This
+would have been a real, silent bug if shipped without this fix.
+paper_trade invocation now passes every new flag explicitly (including
+--auto-sizing-equity), with inline comments explaining that
+--auto-sizing-equity is safe to enable by default because it only ever
+TIGHTENS sizing (the vol rail is a min() against conviction-notional
+sizing; the aggregate-risk check can only block a trade, never enlarge
+one).
+--regime-filter and --target-leverage are DELIBERATELY NOT enabled in
+the workflow. Both are net-new policy decisions requiring explicit
+operator sign-off, not bug fixes -- see this section and the Leverage
+Phase section below for the operator action items.
+
+What this patch does NOT do
+
+Does not build take-profit as a fixed target -- the operator explicitly
+wants profits large, so a hard target was rejected by design in favour
+of the trailing stop.
+Does not build pyramiding / multi-unit position tracking. Explicitly
+deferred by operator choice: Alpaca blends multiple entries into one
+avg_entry_price, so pyramiding needs its own per-unit ledger (a real
+schema change), and the operator chose to ship the risk rails first as
+an independently reviewable patch. Queued as the next phase.
+Does not promote any slice. The V4 "nothing is promoted" deadlock
+stands; this entire patch is capital-protection plumbing, not a
+research or promotion claim.
+Does not change monitor.DEFAULT_MONITORED_SLICES or
+monitored_slices.csv.
+
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 332 passed (up from the 207-test post-bugfix
+baseline; +125 tests across price.stops, price.stop_manager,
+price.trading's new order plumbing, the position_manager R-gate, the
+risk_limits leverage/aggregate-risk additions, and paper_trade.py's new
+audit/equity-resolution helpers).
+ruff check clean repo-wide.
+Multiple genuine end-to-end integration tests (not just unit tests on
+isolated modules) proving monitor.scan_all_slices actually wires
+reconcile_stops and the aggregate-risk check into a live scan.
+
+Operator action items (optional, none required for the patch to be safe)
+
+The live workflow now runs 5x/day instead of once -- monitor GitHub
+Actions minutes usage if that matters for the account's plan.
+Consider running python3 scripts/paper_trade.py --no-r-gate if you ever
+want to A/B the R-gate's effect on realized P&L once enough round-trips
+accumulate (lever 5's attribution report is the tool for that
+comparison).
+
+Leverage Phase (2026-07-06)
+
+This section records the design and implementation of steady-state
+(overnight-hold) leverage, built immediately after the protective-stop
+patch above because that patch is leverage's real prerequisite: turning on
+leverage before every position had a REAL enforced stop and a book-wide
+risk cap would have meant sizing bigger against a system that could not
+yet guarantee "small losses." With the stop system in place, this section
+extends it rather than replacing anything.
+
+A regulatory fact that shaped this design (verified, not assumed)
+
+FINRA's Pattern Day Trader rule (the old $25,000-equity / 4-day-trades-
+in-5-days framework) was eliminated by SEC approval on 2026-04-14,
+effective 2026-06-04, replaced by a real-time "intraday margin" standard
+under FINRA Rule 4210. Alpaca adopted the new framework on day one
+(2026-06-04). Practical consequence for this project: PDT-flag / day-trade-
+count logic is now dead weight and was deliberately NOT built. The
+account object's pattern_day_trader field (already read by
+trading.get_account_info) can be treated as legacy/inert.
+
+Why NOT Alpaca's 4x intraday rate (the key design decision)
+
+Alpaca margin accounts get up to 4x intraday buying power, but that
+multiplier is INTRADAY-ONLY: Reg T requires it to step down to 2x for
+anything held overnight, or the account receives a margin call and the
+broker can force-liquidate positions unilaterally -- exactly the
+uncontrolled exit the protective-stop system exists to prevent. This
+system's exit policy holds positions across multiple bars by design (a
+5-bar horizon is up to a trading week on 1d, a full session on 1h); it
+does not flatten positions same-day. Using 4.0 as a static leverage
+multiple would therefore silently violate the overnight limit every
+single session. The operator was presented this trade-off directly and
+chose: build 2.0x (Reg T's standard overnight multiplier, which matches
+how this system already holds positions) now; true 4x would require a
+separate same-day force-flatten exit mode, scoped as a future phase of
+similar size to pyramiding, not built here.
+
+Design: two independent budgets beyond the existing R-based one
+
+The R-based aggregate-risk budget (price.stops, above) caps the SUM of
+every open position's stop-distance dollar risk. Leverage does NOT change
+that number directly -- it changes how much NOTIONAL a given amount of
+equity can control. A low-ATR%, high-priced name can carry a small R (a
+tight stop) while still deploying huge notional/margin exposure -- exactly
+the case leverage amplifies. That is why leverage needs its OWN budget,
+not a bigger number plugged into the existing one:
+
+Gross notional exposure cap (src/price/leverage.py,
+check_gross_notional_budget): total deployed notional (existing
+positions' market value + a proposed new trade) <= equity *
+target_leverage_multiple. Deliberately opt-in via requiring
+open_positions_notional to be explicitly non-None (not defaulted to
+0.0) -- this was a real design bug caught by the existing test suite
+during development: an earlier version silently activated this check
+for any caller that had equity_for_risk_cap set for the UNRELATED
+sizing volatility rail, which would have incorrectly blocked trades
+for callers never asking for a notional cap. Fixed before merge.
+Margin cushion (src/price/leverage.py, check_margin_cushion): an
+honest backstop against the notional check's own approximate math.
+Reads Alpaca's REAL-TIME buying_power and blocks new entries once the
+fraction of the SELF-IMPOSED leverage ceiling (equity *
+target_leverage_multiple) remaining as actual buying power drops below
+margin_cushion_pct (operator-chosen default 0.20 = block at 80% margin
+usage). Deliberately normalizes against OUR OWN target_leverage_multiple,
+not whatever higher multiple the broker might allow (e.g. Alpaca's 4x
+intraday rate) -- this is a self-imposed ceiling, not a broker-capacity
+check.
+Force-close on unprotected leverage (src/price/stop_manager.py):
+when target_leverage_multiple > 1.0, a position that cannot get a
+protective stop attached this scan (no ATR data, or the broker rejects
+the stop order) is CLOSED immediately rather than retried next scan (the
+1.0x default behaviour). An unprotected position is tolerable at 1x
+(small, cash-secured, retried quickly); under leverage the same gap is
+materially more dangerous, so the safer default is to never hold
+unprotected leveraged exposure at all.
+
+What was added
+
+src/price/leverage.py: total_open_notional,
+check_gross_notional_budget, check_margin_cushion. Pure functions, no
+network/broker calls, fail open when equity/multiple/notional data is
+missing. 15 tests.
+src/price/risk_limits.py: RiskLimits gained target_leverage_multiple
+(default 1.0 = today's exact cash-secured behaviour) and
+margin_cushion_pct (default 0.20). check_entry gained
+open_positions_notional and buying_power as optional kwargs threading
+into the two new checks. 8 tests on the check_entry wiring, all
+backward compatible (omitted by every pre-existing caller).
+src/price/stop_manager.py: reconcile_stops gained close_position_fn
+(injectable, defaults to price.trading.close_position) and the
+force-close-when-levered rule described above. 5 new tests.
+src/price/monitor.py: scan_all_slices now computes
+open_positions_notional every scan (cheap, pure) and fetches
+buying_power from Alpaca ONLY when leverage is actually configured
+beyond the default (target_leverage_multiple != 1.0 or
+margin_cushion_pct set) -- avoids an extra live account API call on
+every scan when leverage is off. Both feed into check_entry.
+scripts/paper_trade.py: new flags --target-leverage (default 1.0) and
+--margin-cushion-pct (default 0.20).
+A genuine end-to-end integration test (tests/test_scan_leverage_
+integration.py) proving monitor.scan_all_slices wires both leverage
+checks into a live scan under three regimes: leverage off, leverage on
+with room, leverage on and margin-cushion-blocked.
+
+What this patch does NOT do
+
+Does not enable true 4x intraday leverage. See the design rationale
+above; this requires a same-day force-flatten exit mode that does not
+exist yet.
+Does not build PDT-flag handling. Verified unnecessary: PDT was
+eliminated by regulation, effective before this patch was written.
+Does not enable leverage on the live workflow. .github/workflows/
+live_capture.yml deliberately does NOT pass --target-leverage --
+turning on leverage is an explicit operator decision requiring
+sign-off on the ratio, same doctrine as --regime-filter.
+Does not promote any slice, or touch sizing/exits/allocation/cost/
+attribution logic. Composes with all of it.
+
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 332 passed (includes all leverage-phase tests
+alongside the protective-stop patch's tests in the same run; both
+patches landed in the same session).
+ruff check clean repo-wide.
+
+Operator action items (required before leverage can do anything)
+
+Leverage is fully inert at its 1.0x default. To activate it: (1) enable
+--auto-sizing-equity or set --sizing-equity explicitly (both leverage
+checks fail open without a known equity value -- this is why the
+protective-stops section's --auto-sizing-equity addition is also the
+leverage-activation switch), and (2) add --target-leverage 2.0
+--margin-cushion-pct 0.20 to the live_capture.yml paper_trade invocation
+once you have explicitly decided to do so.
+Do not set --target-leverage above 2.0 without first building the
+same-day force-flatten exit mode described above -- higher multiples on
+this codebase's current exit policy risk an overnight Reg T margin call.
+
+Next phase (queued, not built)
+
+Pyramiding / multi-unit position tracking (adding units to a
+confirmed winner once its first unit is at breakeven-or-better; requires
+a per-unit ledger since Alpaca blends fills into one avg_entry_price).
+True same-day 4x leverage (requires a force-flatten-before-close exit
+mode).
+Both were explicitly deferred by the operator to keep this session's two
+patches independently reviewable rather than compounding four risk
+decisions into one diff.

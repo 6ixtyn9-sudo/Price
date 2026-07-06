@@ -31,10 +31,13 @@ from price.config import DATA_DIR
 from price.data_sources import fetch_alpaca_bars  # noqa: F401
 from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
+from price.leverage import total_open_notional
 from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
 from price.regime import check_regime
 from price.risk_limits import RiskLimits, check_entry, risk_group_key
-from price.sizing import compute_position_size
+from price.sizing import compute_atr_14, compute_position_size
+from price.stop_manager import reconcile_stops
+from price.stops import DEFAULT_STOP_ATR_MULT, load_stop_states
 from price.trading import get_open_positions, get_open_orders
 from price.validation import parse_slice_combination
 from price.warehouse import load_from_warehouse
@@ -381,6 +384,27 @@ def scan_all_slices(
     # the first accepted order has had a chance to fill or expire.
     exposure_for_entry_gate = open_positions_list + open_orders_list
 
+    # Gross notional exposure already deployed, for the leverage budget
+    # (risk_limits.check_entry's gross-notional cap). Computed unconditionally
+    # (cheap, pure) but only actually GATES anything when the caller also
+    # supplies equity_for_risk_cap below -- see price.leverage's fail-open
+    # contract.
+    open_positions_notional = total_open_notional(open_positions_list)
+
+    # Real-time buying power for the margin-cushion backstop. Only fetched
+    # when leverage is actually configured beyond the default (an extra
+    # live account call otherwise adds no value and costs an API round
+    # trip on every scan). Never crashes the scan on a fetch failure --
+    # the margin-cushion check fails open when buying_power is None.
+    buying_power = None
+    if getattr(limits, "target_leverage_multiple", 1.0) != 1.0 or getattr(limits, "margin_cushion_pct", None):
+        try:
+            from price.trading import get_account_info
+            buying_power = get_account_info().get("buying_power")
+        except Exception as e:  # noqa: BLE001 - a fetch failure must not crash the scan
+            print(f"  could not fetch buying_power for margin-cushion check: {e}")
+            buying_power = None
+
     today_pnl = get_today_realized_pnl()
     open_position_slice_labels = _load_open_position_slice_labels()
     # Risk group per OPEN position (symbol -> stable-condition key). Built from
@@ -410,6 +434,36 @@ def scan_all_slices(
                 **intent,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             })
+
+    # ---- Protective-stop reconciliation (real, broker-side R management) ----
+    # Attaches an initial k*ATR stop the first scan after a fill, ratchets it
+    # to breakeven at +1R and then trails it (chandelier) beyond that, and
+    # cleans up bookkeeping for any tracked stop whose position is no longer
+    # open (stopped out, or closed by state-break/horizon). This is what
+    # makes "small losses, large profits" real rather than aspirational --
+    # the stop is a resting order at the broker, not just a check that only
+    # runs when this scan happens to run. See HANDOVER.md's R-based stop
+    # design (2026-07-06).
+    if open_positions_list:
+        try:
+            stop_intents = reconcile_stops(open_positions_df, limits, dry_run=dry_run)
+        except Exception as e:  # noqa: BLE001 - stop reconciliation must never crash the scan
+            print(f"  stop-reconciliation failed: {e}")
+            stop_intents = []
+        for intent in stop_intents:
+            print(f"  [STOP:{intent.get('action', '?').upper()}] {intent.get('symbol', '')}: "
+                  f"{intent.get('reason', '')}")
+            signals.append({
+                "kind": "stop_intent",
+                **intent,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            })
+
+    # Snapshot of every position's current tracked R-state, used below by
+    # the aggregate open-risk budget check (the leverage prerequisite): a
+    # new entry cannot push the book's total open risk past
+    # limits.max_aggregate_open_risk_pct of equity.
+    open_stop_states = load_stop_states()
 
     groups: Dict[tuple, List[dict]] = {}
     for s in slices:
@@ -537,6 +591,22 @@ def scan_all_slices(
                     side = "long"
                 suggested_side = "sell" if side == "short" else "buy"
                 candidate_group = risk_group_key(symbol, s["slice_combination"])
+
+                # Proposed R for the aggregate open-risk budget: the same
+                # k_stop * ATR distance stop_manager.reconcile_stops will
+                # actually place at the broker once this entry fills. None
+                # when ATR is unavailable -- the budget check fails open in
+                # that case, consistent with every other data-dependent
+                # lever in this project (see risk_limits.check_entry).
+                proposed_r_dollars = None
+                try:
+                    candidate_atr = compute_atr_14(load_from_warehouse(symbol, timeframe))
+                    if candidate_atr is not None and qty > 0:
+                        k_stop = getattr(limits, "stop_atr_multiple", DEFAULT_STOP_ATR_MULT)
+                        proposed_r_dollars = k_stop * candidate_atr * qty
+                except Exception:  # noqa: BLE001 - sizing/risk must never crash the scan
+                    proposed_r_dollars = None
+
                 risk_result = check_entry(
                     symbol=symbol,
                     qty=qty,
@@ -547,6 +617,11 @@ def scan_all_slices(
                     side=side,
                     symbol_risk_group=candidate_group,
                     open_position_risk_groups=open_position_risk_groups,
+                    proposed_r_dollars=proposed_r_dollars,
+                    open_stop_states=open_stop_states,
+                    equity_for_risk_cap=getattr(limits, "account_equity_for_sizing", None),
+                    open_positions_notional=open_positions_notional,
+                    buying_power=buying_power,
                 )
                 tradable = risk_result.allowed
                 if regime_blocked:

@@ -207,7 +207,7 @@ def test_run_scenario_grid_collects_target_rows(monkeypatch, tmp_path):
     )
 
 def test_run_walk_forward_diagnostics_writes_fold_rows(monkeypatch, tmp_path):
-    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None):
+    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None, bin_mode="insample"):
         return pd.DataFrame(
             {
                 "bar_ts_utc": pd.date_range("2024-01-01", periods=30, freq="h", tz="UTC"),
@@ -252,7 +252,7 @@ def test_filter_date_window_uses_half_open_utc_window():
 
 
 def test_run_date_range_diagnostics_writes_target_windows(monkeypatch, tmp_path):
-    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None):
+    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None, bin_mode="insample"):
         return pd.DataFrame(
             {
                 "bar_ts_utc": pd.date_range("2024-01-01", periods=900, freq="8h", tz="UTC"),

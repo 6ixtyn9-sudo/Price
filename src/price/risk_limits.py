@@ -73,6 +73,52 @@ class RiskLimits:
     # stretched_down+downtrend). <= 0 disables the group cap (legacy
     # behaviour: every symbol counts as its own independent slot).
     max_positions_per_risk_group: int = 2
+    # ---- Protective-stop knobs (R-based "small losses, large profits") ----
+    # Initial stop distance in multiples of ATR(14), set the moment a
+    # position is filled. This is what actually makes the volatility
+    # rail's dollar-risk math true -- previously nothing enforced it.
+    stop_atr_multiple: float = 2.0
+    # Chandelier trailing-stop distance (multiples of ATR(14)), active only
+    # once a trade has reached +1R. Looser than the entry stop on purpose,
+    # so a real trend has room to run instead of being capped.
+    trail_atr_multiple: float = 3.0
+    # Unrealized R-multiple that triggers the move-to-breakeven ratchet.
+    breakeven_trigger_r: float = 1.0
+    # Max aggregate open risk (sum of every open position's CURRENT stop
+    # distance, in dollars) across the whole book at once, as a fraction of
+    # equity. This is the leverage prerequisite: with every position
+    # carrying a real stop and the aggregate capped, leverage changes how
+    # much notional expresses a given R, not how much can be lost if wrong.
+    # None disables the cap (fails open; consistent with every other lever
+    # in this project only activating when the data to enforce it exists).
+    max_aggregate_open_risk_pct: Optional[float] = 0.03
+    # Same-day consecutive stop-outs on one symbol before the whipsaw
+    # circuit breaker benches it for the rest of the trading day. Tight
+    # stops mean more stop-outs; this exists so "small losses" doesn't
+    # quietly become "many small losses in one choppy day." <= 0 disables.
+    whipsaw_stopout_limit: int = 2
+    # ---- Leverage knobs (steady-state / overnight-hold only) ----
+    # How much of the account's real margin capacity to actually use, as a
+    # multiple of equity. 1.0 (default) == cash-secured, today's exact
+    # behaviour. 2.0 == standard Reg T overnight margin (2x buying power).
+    # Deliberately NOT set to Alpaca's 4x intraday multiplier: that rate is
+    # intraday-only and automatically steps down to 2x for anything held
+    # overnight, and this system's exit policy (5-bar horizon, multi-day
+    # holds) does not flatten positions same-day. Using 4.0 here would
+    # silently violate the overnight limit every session and invite a
+    # broker margin call / forced liquidation -- the exact uncontrolled
+    # exit the R-based stop system exists to prevent. True intraday 4x
+    # requires a separate same-day force-flatten exit mode; not built here.
+    target_leverage_multiple: float = 1.0
+    # Real-time margin safety cushion: block new entries once the broker's
+    # actual buying_power falls below margin_cushion_pct of the account's
+    # theoretical max buying power (equity * target_leverage_multiple).
+    # 0.20 == stop entries at 80% margin usage (20% cushion left). This is
+    # the honest backstop against our own approximate notional math: it
+    # reads Alpaca's real-time account state rather than trusting our
+    # arithmetic alone. None disables the check (fails open, consistent
+    # with every other equity-dependent lever in this project).
+    margin_cushion_pct: Optional[float] = 0.20
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -178,12 +224,29 @@ def check_entry(
     side: str = "long",
     symbol_risk_group: Optional[str] = None,
     open_position_risk_groups: Optional[dict] = None,
+    proposed_r_dollars: Optional[float] = None,
+    open_stop_states: Optional[dict] = None,
+    equity_for_risk_cap: Optional[float] = None,
+    open_positions_notional: Optional[float] = None,
+    buying_power: Optional[float] = None,
 ) -> RiskCheckResult:
     """Run ALL risk checks. Returns allowed=True only if every one passes.
 
     symbol_risk_group / open_position_risk_groups drive the correlation-aware
     allocation cap (max_positions_per_risk_group). Both optional for backward
     compatibility; when either is absent the group check is skipped.
+
+    proposed_r_dollars / open_stop_states / equity_for_risk_cap drive the
+    aggregate open-risk budget (limits.max_aggregate_open_risk_pct) -- the
+    leverage prerequisite. All optional for backward compatibility; when
+    any is absent the aggregate-risk check is skipped (fails open, same
+    doctrine as every other data-dependent lever in this project).
+
+    open_positions_notional / buying_power (together with equity_for_risk_
+    cap) drive the two leverage budgets: the gross notional exposure cap
+    (limits.target_leverage_multiple) and the real-time margin cushion
+    (limits.margin_cushion_pct). Both optional for backward compatibility;
+    when the relevant inputs are absent, that check fails open.
     """
     reasons: list = []
     details: dict = {
@@ -237,6 +300,81 @@ def check_entry(
             f"daily realized loss ${-today_realized_pnl:.2f} "
             f">= max ${limits.max_daily_realized_loss:.2f}"
         )
+
+    # Aggregate open-risk budget: the leverage prerequisite. Blocks a new
+    # entry if the SUM of every open position's current stop-distance risk
+    # (positions already at breakeven-or-better contribute zero) plus this
+    # trade's own R would exceed max_aggregate_open_risk_pct of equity.
+    if getattr(limits, "max_aggregate_open_risk_pct", None):
+        from price.stops import check_aggregate_risk_budget
+        risk_allowed, risk_detail = check_aggregate_risk_budget(
+            proposed_r_dollars=proposed_r_dollars,
+            states=open_stop_states or {},
+            equity=equity_for_risk_cap,
+            max_aggregate_open_risk_pct=limits.max_aggregate_open_risk_pct,
+        )
+        details["aggregate_risk"] = risk_detail
+        if not risk_allowed:
+            reasons.append(
+                f"aggregate open risk ${risk_detail.get('projected_open_risk_dollars'):.2f} "
+                f"would exceed budget ${risk_detail.get('budget_dollars'):.2f} "
+                f"({limits.max_aggregate_open_risk_pct:.1%} of equity)"
+            )
+
+    # Gross notional exposure cap: the leverage budget that the R-based
+    # aggregate-risk check above does NOT cover. Leverage changes how much
+    # NOTIONAL a given amount of equity can control, not how much R a
+    # given stop distance risks -- a low-ATR%, high-priced name can carry
+    # a small R while still deploying huge notional/margin exposure.
+    # check_gross_notional_budget fails open when equity/notional data is
+    # absent, so this is a no-op for every existing caller that doesn't
+    # pass open_positions_notional (backward compatible by construction).
+    from price.leverage import check_gross_notional_budget
+    notional_allowed, notional_detail = check_gross_notional_budget(
+        proposed_notional=notional,
+        open_positions_notional=open_positions_notional,
+        equity=equity_for_risk_cap,
+        target_leverage_multiple=getattr(limits, "target_leverage_multiple", 1.0),
+    )
+    details["gross_notional"] = notional_detail
+    if not notional_allowed:
+        reasons.append(
+            f"gross notional ${notional_detail.get('projected_open_notional'):.2f} "
+            f"would exceed budget ${notional_detail.get('budget_notional'):.2f} "
+            f"({getattr(limits, 'target_leverage_multiple', 1.0)}x equity)"
+        )
+
+    # Margin cushion: real-time broker-truth backstop against our own
+    # approximate notional math and against ever approaching a real
+    # margin call / forced liquidation.
+    if getattr(limits, "margin_cushion_pct", None):
+        from price.leverage import check_margin_cushion
+        margin_allowed, margin_detail = check_margin_cushion(
+            buying_power=buying_power,
+            equity=equity_for_risk_cap,
+            target_leverage_multiple=getattr(limits, "target_leverage_multiple", 1.0),
+            margin_cushion_pct=limits.margin_cushion_pct,
+        )
+        details["margin_cushion"] = margin_detail
+        if not margin_allowed:
+            reasons.append(
+                f"margin cushion breached: {margin_detail.get('remaining_fraction'):.1%} of "
+                f"self-imposed leverage ceiling remains as buying power "
+                f"(< {limits.margin_cushion_pct:.0%} required)"
+            )
+
+    # Whipsaw circuit breaker: bench a symbol for the rest of the trading
+    # day after `whipsaw_stopout_limit` same-day stop-outs. Tight ATR stops
+    # mean more stop-outs; this exists so "small losses" cannot silently
+    # become "many small losses in one choppy day."
+    if getattr(limits, "whipsaw_stopout_limit", 0) and limits.whipsaw_stopout_limit > 0:
+        from price.stops import is_whipsaw_blocked, stopout_count_today
+        if is_whipsaw_blocked(symbol, limit=limits.whipsaw_stopout_limit):
+            reasons.append(
+                f"whipsaw circuit breaker: {stopout_count_today(symbol)} stop-outs "
+                f"today for {symbol} >= limit {limits.whipsaw_stopout_limit}; "
+                "benched for the rest of the trading day"
+            )
 
     cooldown_state = _load_cooldown_state()
     last_entry_iso = cooldown_state.get(symbol.upper())
