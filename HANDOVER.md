@@ -2914,3 +2914,97 @@ different cost profile on the live workflow, add --cost-spread-bps /
 To re-rank slices at realistic cost (operator-owned research decision), run
 validation with --cost-bps 4.0 and compare. Do NOT flip the validation
 default silently.
+ROI Refinement — P&L Attribution (2026-07-06)
+Fifth and final patch of the ROI workstream (lever #5 of the agreed priority
+order: sizing -> exits -> allocation -> cost -> P&L attribution).
+
+Why attribution closes the workstream
+Levers 1-4 changed HOW capital is deployed (sizing, when to exit, how much
+per risk group, at what cost). None of them answered: did the deployed edge
+actually earn its capital? Without per-slice realized P&L, there is no
+feedback loop -- the system optimizes against a backtest it never checks
+against reality. Attribution is also where lever 4's one honest placeholder
+(slippage = 3bp, not measured) gets CALIBRATED from realized fills,
+closing the loop on the entire workstream.
+
+What was added
+
+src/price/attribution.py: read-only P&L attribution engine.
+reconstruct_round_trips: FIFO entry/exit pairing by symbol, handling
+partial fills (entry split across multiple exits), rejected-order
+exclusion, and correct side determination from the ENTRY (a long enters
+"buy" and closes "sell"; reading the exit's side would mis-label every
+long close as a short -- a real bug caught and fixed during testing).
+measure_realized_slippage: compares each round-trip's fill price to the
+signal bar's close_adj (from paper_trade_log), in basis points. This is
+the realized signal-to-fill gap that calibrates lever 4's 3bp default.
+attribute_pnl: full report -- per-slice win rate, mean realized return,
+total P&L, expected return (from validation valid_mean_ret_costadj),
+realized slippage, net-of-cost return, and a preliminary flag when a
+slice has < MIN_ROUND_TRIPS_FOR_STATS (5) round-trips.
+format_report: human-readable text report. Gracefully handles the
+zero-round-trip state (the current live state) by clearly stating what
+it WILL measure once fills + exits accumulate.
+scripts/attribute_pnl.py: one-command runner. --json for machine-readable.
+Read-only; places no orders, modifies no journals.
+tests/test_attribution.py: 15 tests -- FIFO pairing, partial fills, short-
+side sign, rejected exclusion, empty-state graceful degradation, slippage
+measurement, expected-vs-realized comparison, preliminary flag, JSON
+serialization, and report formatting.
+Graceful degradation (current live state)
+At session close there are 0 completed round-trips (XOP/XLK orders accepted
+but not filled; XLE canceled). The report correctly reports:
+Completed round-trips: 0
+Open positions: 3
+Total realized P&L: $0.00
+
+No completed round-trips yet ... This report will populate as fills +
+exits accumulate.
+No candidate_leaderboard.csv found; cannot compare realized to expected.
+This is by design: the infrastructure is built and proven now, and starts
+producing real signal the moment a fill+exit lands.
+Demonstration on a synthetic completed round-trip
+KLAC entered at signal close 100.0, filled at 100.30 (30bp adverse slippage),
+exited at 104.50 after ~5 bars:
+PER-SLICE: n=1, win=100%, meanRet=4.19%, totPnL=$42.00, expRet=4.68%,
+slipBp=30.0, net_of_cost=3.59% (*)
+REALIZED SLIPPAGE: 30.0 bps (entry leg) -- Compare to DEFAULT_SLIPPAGE_BPS=3.0
+This is the calibration loop in action: the measured 30bp slippage (synthetic,
+deliberately large to illustrate) would replace the 3bp placeholder, tightening
+the cost model and making sizing more honest.
+
+What this patch does NOT do
+
+Does NOT place orders, modify journals, or change any execution behaviour.
+Does NOT claim an edge. Realized P&L is measurement, not promotion.
+Does NOT auto-calibrate the cost model. The measured slippage is REPORTED;
+the operator decides whether to feed it back into --cost-slippage-bps.
+Auto-calibration is a deliberate non-goal until there are enough round-trips
+per slice to make the mean stable (MIN_ROUND_TRIPS_FOR_STATS = 5).
+Does NOT promote any slice.
+The full ROI workstream is now complete
+Lever 1 (sizing): conviction + vol rail -> capital follows edge strength
+Lever 2 (exits): hybrid exit -> holds respect the 5-bar edge horizon
+Lever 3 (allocation): risk groups -> no over-concentration on one factor
+Lever 4 (cost): realistic 8bp drag -> no over-sizing marginal edges
+Lever 5 (attribution): realized P&L per slice -> closes the feedback loop
+
+Each lever degrades gracefully: with no leaderboard/warehouse/fills, the system
+reproduces the original equal-notional, state-break-only, no-group-cap, zero-cost
+behaviour exactly. The levers only activate when the data to justify them exists.
+
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 172 passed (was 157; +15 attribution tests).
+python3 -m ruff check clean on all changed files.
+Live run (zero round-trips): correct empty-state report.
+Synthetic round-trip: correct P&L, slippage, expected-vs-realized, preliminary flag.
+Operator action items (optional)
+
+Run python3 scripts/attribute_pnl.py after any fill+exit to see per-slice
+realized P&L. Add --leaderboard localdata/candidate_leaderboard_1d_tiingo_ liquid236.csv for expected-vs-realized comparison once a leaderboard is
+regenerated.
+When measured slippage stabilizes across >= 5 round-trips per slice, consider
+feeding the mean back as --cost-slippage-bps on the live workflow. Do NOT
+auto-calibrate on small samples.
