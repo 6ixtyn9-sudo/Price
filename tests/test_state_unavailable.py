@@ -141,3 +141,64 @@ def test_state_unavailable_when_warehouse_empty(temp_warehouse, monkeypatch):
     assert len(su) == 1
     assert su[0]["reason"] == "no_warehouse_data"
     assert su[0]["symbol"] == "QQQ"
+
+
+def test_explicit_monitored_slices_preserve_bin_mode_and_regime_symbol(tmp_path, monkeypatch):
+    """Deployment metadata is functional: bin_mode controls live state
+    binning and regime_symbol controls the macro gate."""
+    import price.monitor as monitor
+
+    path = tmp_path / "monitored_slices.csv"
+    path.write_text(
+        "symbol,timeframe,slice_combination,side,bin_mode,regime_symbol,source_note\n"
+        "XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,rolling,SPY,test\n"
+    )
+    monkeypatch.setattr(monitor, "MONITORED_SLICES_PATH", path)
+
+    rows = monitor._load_explicit_monitored_slices()
+
+    assert rows == [{
+        "symbol": "XOP",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_down + state_slope=downtrend",
+        "side": "long",
+        "regime_symbol": "SPY",
+        "source_note": "test",
+        "bin_mode": "rolling",
+    }]
+
+
+def test_scan_threads_bin_mode_into_state_computation(monkeypatch):
+    """Two slices on the same symbol/timeframe but different bin modes must
+    not share one live state frame."""
+    import price.monitor as monitor
+
+    monkeypatch.setattr(monitor, "get_open_positions", lambda: pd.DataFrame())
+    monkeypatch.setattr(monitor, "get_open_orders", lambda: pd.DataFrame())
+    monkeypatch.setattr(monitor, "get_today_realized_pnl", lambda: 0.0)
+    monkeypatch.setattr(monitor, "_load_open_position_slice_labels", lambda: {})
+    monkeypatch.setattr(monitor, "load_stop_states", lambda: {})
+
+    seen_modes = []
+
+    def fake_state(symbol, timeframe, **kwargs):
+        seen_modes.append(kwargs.get("bin_mode"))
+        return pd.DataFrame([{
+            "bar_ts_utc": pd.Timestamp("2026-07-06", tz="UTC"),
+            "close_adj": 100.0,
+            "state_ext": "neutral",
+        }])
+
+    monkeypatch.setattr(monitor, "get_current_state", fake_state)
+
+    signals = monitor.scan_all_slices(
+        slices=[
+            {"symbol": "XLF", "timeframe": "1d", "slice_combination": "state_ext=neutral", "bin_mode": "insample"},
+            {"symbol": "XLF", "timeframe": "1d", "slice_combination": "state_ext=neutral", "bin_mode": "rolling"},
+        ],
+        dry_run=True,
+    )
+
+    assert seen_modes == ["insample", "rolling"]
+    matched = [s for s in signals if s.get("matched")]
+    assert [s["bin_mode"] for s in matched] == ["insample", "rolling"]

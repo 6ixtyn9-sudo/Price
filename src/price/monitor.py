@@ -29,7 +29,7 @@ from price.config import DATA_DIR
 # Backward-compatible hook for tests/older monitor workflows that monkeypatch
 # a live-refresh fetcher. get_current_state intentionally uses warehouse only.
 from price.data_sources import fetch_alpaca_bars  # noqa: F401
-from price.discovery import bin_features, attach_cross_asset_states
+from price.discovery import apply_state_bins, attach_cross_asset_states
 from price.features import compute_price_features
 from price.leverage import total_open_notional
 from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
@@ -79,12 +79,16 @@ def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
         side = str(row.get("side", "long") or "long").lower()
         if side not in ("long", "short"):
             side = "long"
+        bin_mode = str(row.get("bin_mode", "insample") or "insample").lower()
+        if bin_mode not in ("insample", "rolling"):
+            bin_mode = "insample"
         out.append(
             {
                 "symbol": str(row["symbol"]),
                 "timeframe": str(row["timeframe"]),
                 "slice_combination": str(row["slice_combination"]),
                 "side": side,
+                "bin_mode": bin_mode,
             }
         )
     return out or None
@@ -135,6 +139,8 @@ def _load_explicit_monitored_slices() -> Optional[List[dict]]:
                 value = str(row.get(optional_col)).strip()
                 if value:
                     record[optional_col] = value.upper() if optional_col == "regime_symbol" else value
+        bin_mode = str(row.get("bin_mode", "insample") or "insample").lower()
+        record["bin_mode"] = bin_mode if bin_mode in ("insample", "rolling") else "insample"
         out.append(record)
 
     return out or None
@@ -204,14 +210,23 @@ def _state_unavailable_context(symbol: str, timeframe: str) -> dict:
 def get_current_state(
     symbol: str,
     timeframe: str,
-    lookback_bars: int = 200,
+    lookback_bars: Optional[int] = None,
     cross_symbols: Optional[Dict[str, List[str]]] = None,
     required_fields: Optional[List[str]] = None,
+    bin_mode: str = "insample",
 ) -> Optional[pd.DataFrame]:
     """Compute the most recent completed binned state row.
 
     Important invariant: monitor state is rebuilt from the already-refreshed
     local warehouse only. Do NOT overlay fresh Alpaca rows here.
+
+    Deployment/research alignment invariant: by default this computes bins
+    over the full local warehouse partition, not only the latest 200 bars.
+    Validation bins are computed over the full eligible history (or expanding
+    history for bin_mode="rolling"); a short live-only tail can relabel
+    quantile-derived states like state_slope/state_vol and make the monitor
+    deploy a different state definition than the one that authorized the slice.
+    Pass lookback_bars only for tests or deliberately-local diagnostics.
 
     Why:
     - the workflow refreshes the warehouse immediately before paper_trade.py
@@ -234,7 +249,7 @@ def get_current_state(
         df_warehouse["split_factor"] = 1.0
         df_warehouse["dividend_cash"] = 0.0
 
-    df_tail = df_warehouse.tail(lookback_bars).copy()
+    df_tail = df_warehouse.tail(lookback_bars).copy() if lookback_bars else df_warehouse.copy()
     df_tail = df_tail.sort_values("bar_ts_utc").reset_index(drop=True)
     df_tail = _drop_incomplete_intraday_rows(df_tail, timeframe)
 
@@ -247,12 +262,16 @@ def get_current_state(
         print(f"  Latest completed bar for {symbol} ({timeframe}) has NaN close_adj.")
         return None
 
+    if bin_mode not in ("insample", "rolling"):
+        bin_mode = "insample"
     df_feat = compute_price_features(df_tail)
-    df_binned = bin_features(df_feat)
+    df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
 
     if cross_symbols:
         for cond_sym, fields in cross_symbols.items():
-            df_binned = attach_cross_asset_states(df_binned, cond_sym, timeframe, fields)
+            df_binned = attach_cross_asset_states(
+                df_binned, cond_sym, timeframe, fields, bin_mode=bin_mode,
+            )
 
     required_fields = required_fields or []
     if required_fields:
@@ -482,10 +501,14 @@ def scan_all_slices(
 
     groups: Dict[tuple, List[dict]] = {}
     for s in slices:
-        groups.setdefault((s["symbol"], s["timeframe"]), []).append(s)
+        bin_mode = str(s.get("bin_mode", "insample") or "insample").lower()
+        if bin_mode not in ("insample", "rolling"):
+            bin_mode = "insample"
+        s = {**s, "bin_mode": bin_mode}
+        groups.setdefault((s["symbol"], s["timeframe"], bin_mode), []).append(s)
 
-    for (symbol, timeframe), group_slices in groups.items():
-        print(f"\nScanning {symbol} ({timeframe})...")
+    for (symbol, timeframe, bin_mode), group_slices in groups.items():
+        print(f"\nScanning {symbol} ({timeframe}, bin_mode={bin_mode})...")
 
         all_cross_symbols: Dict[str, List[str]] = {}
         required_state_fields: List[str] = []
@@ -508,6 +531,7 @@ def scan_all_slices(
             timeframe,
             cross_symbols=all_cross_symbols if all_cross_symbols else None,
             required_fields=required_state_fields,
+            bin_mode=bin_mode,
         )
 
         if current_state is None:
@@ -524,6 +548,7 @@ def scan_all_slices(
                     "symbol": symbol,
                     "timeframe": timeframe,
                     "slice_combination": s["slice_combination"],
+                    "bin_mode": bin_mode,
                     "matched": False,
                     "tradable": False,
                     "error": "no_state_data",
@@ -535,6 +560,7 @@ def scan_all_slices(
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "slice_combination": group_slices[0]["slice_combination"],
+                "bin_mode": bin_mode,
                 **unavailable_ctx,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             })
@@ -557,6 +583,7 @@ def scan_all_slices(
                     "symbol": symbol,
                     "timeframe": timeframe,
                     "slice_combination": s["slice_combination"],
+                    "bin_mode": bin_mode,
                     "matched": False,
                     "tradable": False,
                     "current_state": state_dict,
@@ -665,6 +692,7 @@ def scan_all_slices(
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "slice_combination": s["slice_combination"],
+                "bin_mode": bin_mode,
                 "matched": True,
                 "tradable": tradable,
                 "side": side,

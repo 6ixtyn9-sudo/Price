@@ -3741,3 +3741,48 @@ mode).
 Both were explicitly deferred by the operator to keep this session's two
 patches independently reviewable rather than compounding four risk
 decisions into one diff.
+
+Red-Team Closeout — Bin-Mode Deployment Alignment (2026-07-06)
+
+This follow-up closes the remaining deployment/research alignment risk after
+commit 311c48a locked the live workflow's supply chain and pinned GitHub Actions.
+No new test file was added; regression coverage was appended to the existing
+tests/test_state_unavailable.py file per operator preference.
+
+Problem:
+
+The monitor wrote bin_mode=insample into monitored_slices.csv, but
+src/price/monitor.py still ignored that column and always used
+bin_features() over a short live lookback window. That meant validation could
+authorize a slice under one binning regime while live monitoring evaluated a
+slightly different state definition, especially for quantile-derived states such
+as state_slope, state_vol, and return bands.
+
+Fix:
+
+Explicit monitored slices now preserve bin_mode.
+Clean-survivor rows loaded from a candidate leaderboard also preserve
+bin_mode when present.
+scan_all_slices() groups by (symbol, timeframe, bin_mode), so insample and
+rolling slices on the same symbol/timeframe do not share one state frame.
+get_current_state() now calls apply_state_bins(..., bin_mode=...) instead
+of hard-coded bin_features().
+Cross-asset state attachment is threaded with the same bin_mode.
+Live state binning defaults to the full local warehouse partition rather than
+the prior 200-bar tail. lookback_bars remains available for tests/local
+diagnostics, but the scheduled path now avoids tail-local quantile relabeling.
+Verification:
+
+python3 -m py_compile src/price/monitor.py passed.
+python3 -m pytest -q -> 374 passed.
+python3 -m ruff check src scripts tests -> clean.
+Practical conclusion:
+
+The three red-team risks are now closed across commits:
+
+ad4a4ef: workflow deletion/state consistency, stale exposure filtering, and
+confirmed-fill-only stopout accounting.
+311c48a: hash-locked dependency install, pinned workflow actions/runner, and
+explicit workflow bin_mode column.
+this patch: monitor actually consumes and enforces the bin_mode contract.
+No slice is promoted and no risk gate is loosened.
