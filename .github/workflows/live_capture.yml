@@ -1,6 +1,6 @@
 name: Live Capture
 
-# End-of-day paper-trading + live-capture workflow.
+# Paper-trading + live-capture workflow, run several times per trading day.
 #
 # Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   ALPACA_API_KEY
@@ -12,25 +12,39 @@ name: Live Capture
 #   2. Pulls the most recent bars from Tiingo/Alpaca and rebuilds the warehouse.
 #   3. Writes the explicit monitored_slices.csv deployment/watch list.
 #   4. Runs paper_trade.py in LIVE PAPER mode (never real money; trading.py is hardwired paper=True).
+#      This is also where the R-based protective-stop system (attach / breakeven
+#      ratchet / chandelier trail) is reconciled every run -- see
+#      src/price/stop_manager.py and HANDOVER.md "Protective Stops".
 #   5. Runs live_forward_returns.py to capture realized forward returns for any matched signals.
 #   6. Auto-commits the lightweight workflow artifacts back to main.
 #
 # What this workflow does NOT do:
 #   - Trade real money.
 #   - Override the project doctrine about promotion; paper trades are evidence generation.
+#   - Enable the regime deployment gate or any leverage (see the paper_trade step below --
+#     both are explicit, not-yet-authorized operator decisions, not silently defaulted on).
 #   - Run on its own commits (concurrency block below).
 #
-# See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)" and
-# "Scheduled Live Capture (2026-07-02)".
+# See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)",
+# "Scheduled Live Capture (2026-07-02)", "Protective Stops (2026-07-06)",
+# and "Leverage Phase (2026-07-06)".
 
 on:
-  # 21:00 UTC = 17:00 ET (1 hour after US market close, weekdays only).
-  # 1d end-of-day bars are typically published by Tiingo by then, and
-  # waiting an hour avoids the partial-bar NaN issue we saw when the
-  # 6-hourly cron fired mid-session. The workflow_dispatch trigger
-  # below remains for manual override.
+  # Runs 5x on each trading day (roughly every 2 hours across the US
+  # session) instead of once at close. This matters now that positions
+  # carry a REAL broker-side protective stop that ratchets (breakeven at
+  # +1R, then a chandelier trail): the stop is continuously enforced by
+  # Alpaca regardless of scan cadence, but a WINNING trade's stop only
+  # actually MOVES UP the next time this workflow runs and calls
+  # stop_manager.reconcile_stops. A once-a-day scan meant a strong
+  # intraday move could give back most of its gain before the trail ever
+  # caught up. All times UTC; 13:30 ET market open is ~17:30 UTC in
+  # winter / ~13:30 UTC in summer (this uses summer/EDT-aligned hours;
+  # revisit if the project cares about exact DST alignment).
+  # 21:00 UTC (~1hr after US close) is kept as the last run of the day so
+  # end-of-day bars are settled before the final reconciliation.
   schedule:
-    - cron: "0 21 * * 1-5"
+    - cron: "0 14,16,18,20,21 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -122,11 +136,44 @@ jobs:
         run: |
           # Live PAPER execution only. trading.py is hardwired paper=True.
           # Keep this extremely constrained until the out-of-sample journal is larger.
+          #
+          # Every flag below is passed EXPLICITLY (even where it matches the
+          # CLI's own default) so a future change to the code's default
+          # cannot silently change deployed behaviour without showing up as
+          # a diff in this file.
+          #
+          # --auto-sizing-equity is enabled: it activates the sizing
+          # volatility rail (Stage B) and the aggregate open-risk budget,
+          # both of which are STRICTLY TIGHTENING mechanisms (qty is always
+          # min() against them; the aggregate-risk check can only BLOCK,
+          # never enlarge, a trade) -- so turning this on cannot loosen the
+          # live book's risk versus today, only make it more honest about
+          # real ATR-based risk. See HANDOVER.md "Protective Stops".
+          #
+          # --regime-filter and --target-leverage are DELIBERATELY NOT set
+          # here. Both are net-new policy decisions (which slices to gate
+          # on macro regime; whether/how much to leverage the book), not
+          # bug fixes, and this project's doctrine treats that class of
+          # decision as an explicit operator call -- see the "Operator
+          # action items" note in HANDOVER.md's regime-gate and
+          # leverage-phase sections. Add them here only after that sign-off.
           PYTHONPATH=src python3 scripts/paper_trade.py \
             --max-notional 2500 \
             --max-open 7 \
             --max-daily-loss 500 \
-            --cooldown-seconds 3600
+            --cooldown-seconds 3600 \
+            --auto-sizing-equity \
+            --risk-fraction 0.005 \
+            --exit-horizon 5 \
+            --max-per-group 2 \
+            --stop-atr-mult 2.0 \
+            --trail-atr-mult 3.0 \
+            --breakeven-trigger-r 1.0 \
+            --max-aggregate-risk-pct 0.03 \
+            --whipsaw-limit 2 \
+            --cost-spread-bps 1.0 \
+            --cost-slippage-bps 3.0 \
+            --cost-commission-bps 0.0
 
       - name: Run live forward-return capture
         env:
@@ -142,18 +189,30 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # The localdata/ directory is gitignored, which is correct
           # for the parquet files (large binaries) but wrong for the
-          # workflow output CSVs that we DO want to commit. Use
-          # `git add -f` to bypass the ignore for specific files.
+          # workflow output CSVs/JSON state that we DO want to commit.
+          # Use `git add -f` to bypass the ignore for specific files.
           #
           # This list must match the files the workflow actually
           # produces. If a new output file is added to the pipeline,
           # it must be added here too.
+          #
+          # stop_state.json / stopout_journal.json are CRITICAL to include:
+          # without them, every fresh checkout would start with an EMPTY
+          # protective-stop state, so the R-state (entry stop, breakeven/
+          # trailing ratchet progress) for every open position would
+          # silently reset to "no tracked stop" on each run, and
+          # stop_manager.reconcile_stops would re-attach a brand-new
+          # INITIAL stop at the CURRENT price every time instead of
+          # continuing the ratchet -- quietly defeating "small losses,
+          # large profits" without any error ever being raised.
           WORKFLOW_OUTPUT_FILES=(
             "localdata/candidate_leaderboard.csv"
             "localdata/discovered_slices.csv"
             "localdata/paper_trade_log.csv"
             "localdata/trade_journal.csv"
             "localdata/cooldown_journal.json"
+            "localdata/stop_state.json"
+            "localdata/stopout_journal.json"
             "localdata/HALT_TRADING.flag"
             "localdata/live_forward_returns.csv"
             "localdata/validated_slices.csv"
