@@ -7,7 +7,14 @@ import argparse
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 from price.config import SYMBOLS, is_futures, is_crypto, is_equity, ETF_SYMBOLS, UNIVERSE_TIER, UNIVERSE_MAX_SYMBOLS
-from price.data_sources import fetch_universal_bars, fetch_alpaca_bars, fetch_tiingo_daily_bars, fetch_alpaca_futures_bars, fetch_crypto_bars
+from price.data_sources import (
+    fetch_universal_bars,
+    fetch_alpaca_bars,
+    fetch_tiingo_daily_bars,
+    fetch_alpaca_futures_bars,
+    fetch_crypto_bars,
+    resolve_universal_source,
+)
 from price.warehouse import save_to_warehouse, load_from_warehouse, resample_15m_to_1h, propagate_adjustment_factors
 
 def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365, use_universal_router=True):
@@ -28,8 +35,12 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
             if tf not in ["1d", "15m", "1h"]:
                 continue
                 
-            # Determine source for logging
-            if is_crypto(symbol):
+            # Determine source for logging using the same routing rules as
+            # fetch_universal_bars. This is a first-attempt label: Tiingo daily
+            # equities may still fall back to Alpaca if Tiingo raises.
+            if use_universal_router:
+                source = resolve_universal_source(symbol, tf)
+            elif is_crypto(symbol):
                 source = "alpaca_crypto"
             elif is_futures(symbol):
                 source = "alpaca_futures"
@@ -37,7 +48,7 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
                 source = "tiingo"
             else:
                 source = "alpaca"
-                
+
             print(f"\n🚀 Ingesting {symbol} ({tf}) from {source.upper()}...")
             
             existing_df = load_from_warehouse(symbol, tf)

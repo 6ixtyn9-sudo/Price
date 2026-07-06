@@ -115,3 +115,45 @@ if __name__ == "__main__":
             for idx, row in merged.head(3).iterrows():
                 ratio = (row['alpaca_volume'] / row['tiingo_volume']) * 100 if row['tiingo_volume'] > 0 else 0
                 print(f"Date {row['date']}: Alpaca Vol = {int(row['alpaca_volume']):,}, Tiingo Vol = {int(row['tiingo_volume']):,}, IEX Share = {ratio:.2f}%")
+
+
+def test_resolve_universal_source_uses_tiingo_for_all_equity_daily(monkeypatch):
+    """The daily equity router was broadened from core ETFs to all equities;
+    the source-label helper must match that path so workflow logs don't lie."""
+    import price.data_sources as ds
+
+    monkeypatch.setattr(ds, "TIINGO_API_KEY", "dummy-token")
+
+    assert ds.resolve_universal_source("XOP", "1d") == "tiingo"
+    assert ds.resolve_universal_source("KLAC", "1d") == "tiingo"
+    assert ds.resolve_universal_source("XOP", "15m") == "alpaca"
+    assert ds.resolve_universal_source("BTC/USD", "1d") == "alpaca_crypto"
+
+
+def test_resolve_universal_source_falls_back_without_tiingo_key(monkeypatch):
+    import price.data_sources as ds
+
+    monkeypatch.setattr(ds, "TIINGO_API_KEY", None)
+
+    assert ds.resolve_universal_source("XOP", "1d") == "alpaca"
+
+
+def test_capture_bars_logs_universal_router_source(monkeypatch, capsys):
+    """capture_bars should print the same first-attempt source as the router,
+    not the old ETF-only Tiingo heuristic."""
+    import sys
+    from pathlib import Path
+
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import capture_bars as cb
+
+    monkeypatch.setattr(cb, "resolve_universal_source", lambda symbol, tf: "tiingo")
+    monkeypatch.setattr(cb, "load_from_warehouse", lambda symbol, tf: pd.DataFrame())
+    monkeypatch.setattr(cb, "fetch_universal_bars", lambda symbol, tf, start, end: pd.DataFrame())
+
+    cb.capture_bars(target_symbols=["XOP"], target_timeframes=["1d"], days_lookback=1)
+
+    out = capsys.readouterr().out
+    assert "Ingesting XOP (1d) from TIINGO" in out

@@ -9,6 +9,22 @@ from alpaca.data.enums import DataFeed
 
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY, is_crypto, is_futures, is_equity
 
+def resolve_universal_source(symbol: str, timeframe_str: str) -> str:
+    """Return the source label fetch_universal_bars will try first.
+
+    This is intentionally kept next to the router so operator/logging code
+    cannot drift from the actual data path. It is a first-attempt source: the
+    Tiingo daily route may still fall back to Alpaca if Tiingo raises.
+    """
+    sym = symbol.upper()
+    if is_crypto(sym):
+        return "alpaca_crypto"
+    if is_futures(sym):
+        return "alpaca_futures"
+    if timeframe_str == "1d" and is_equity(sym) and TIINGO_API_KEY:
+        return "tiingo"
+    return "alpaca"
+
 def get_date_chunks(start_dt: datetime, end_dt: datetime, chunk_days: int):
     """
     Slices a date range into smaller chunks to politely query APIs.

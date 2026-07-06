@@ -3840,3 +3840,45 @@ XLK's prior stop state was cleared because the position was no longer open;
 autonomous_fill_journaled=False, so this was treated as state cleanup, not
 a confirmed broker-side stop-out.
 No slice was promoted and no risk gate was loosened.
+
+Capture Source Logging Alignment (2026-07-06)
+
+The successful 19:34 UTC live_capture run showed another non-fatal but important
+operator-facing inconsistency: the capture log printed XOP/XLB/KLAC daily pulls
+as from ALPACA, even though fetch_universal_bars() routes all equity 1d bars
+to Tiingo when TIINGO_API_KEY is available.
+
+Root cause:
+
+scripts/capture_bars.py had its own stale source-label heuristic:
+
+ETF daily -> Tiingo
+all other equities -> Alpaca
+But the actual router in src/price/data_sources.py had already been broadened
+to:
+
+all equity daily + Tiingo key present -> Tiingo first, Alpaca fallback on
+Tiingo error
+Fix:
+
+Added resolve_universal_source(symbol, timeframe) next to the router in
+src/price/data_sources.py.
+scripts/capture_bars.py now uses that helper for logging when the universal
+router is enabled, so the printed first-attempt source cannot drift from the
+actual data path again.
+The label remains a first-attempt source: Tiingo daily can still fall back to
+Alpaca if Tiingo raises.
+Added regression coverage to existing tests/test_sources.py; no new test
+file was created.
+Verification:
+
+python3 -m py_compile src/price/data_sources.py scripts/capture_bars.py
+passed.
+python3 -m pytest -q -> 380 passed.
+python3 -m ruff check src scripts tests -> clean.
+Practical conclusion:
+
+The workflow's prior from ALPACA lines for XOP/XLB/KLAC daily were a logging
+truth problem, not evidence that the router had reverted. Future logs should now
+print from TIINGO for any equity 1d pull when a Tiingo key is present, matching
+the actual first-attempt source.
