@@ -1,5 +1,5 @@
 from price import universe as u
-from price.config import is_crypto, is_equity, ETF_SYMBOLS, CRYPTO_SYMBOLS
+from price.config import is_crypto, is_equity, ETF_SYMBOLS
 
 def test_crypto_detection():
     assert is_crypto("BTC/USD")

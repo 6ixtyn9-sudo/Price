@@ -12,9 +12,7 @@ Usage:
 """
 
 from datetime import datetime, timedelta, timezone
-import pandas as pd
 
-from price.config import FUTURES_SYMBOLS
 from price.data_sources import fetch_alpaca_futures_bars
 from price.warehouse import save_to_warehouse, load_from_warehouse
 
@@ -39,7 +37,7 @@ def test_futures_ingestion():
 
         print(f"  ✓ Fetched {len(df)} bars")
         save_to_warehouse(df)
-        print(f"  ✓ Saved to warehouse")
+        print("  ✓ Saved to warehouse")
 
         # Verify round-trip
         loaded = load_from_warehouse(symbol, timeframe)

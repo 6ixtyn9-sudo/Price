@@ -125,7 +125,7 @@ def test_real_data_captures_forward_returns(temp_workspace):
     row = out.iloc[0]
     assert row["symbol"] == "XLF"
     assert row["timeframe"] == "1d"
-    assert row["partial_data"] is True or row["partial_data"] == True
+    assert row["partial_data"]
     assert row["fwd_ret_5b"] is not None
     assert abs(row["fwd_ret_5b"] - (52.1 / 51.6 - 1)) < 1e-9
     assert row["fwd_ret_20b"] is None  # 20b exit is beyond warehouse

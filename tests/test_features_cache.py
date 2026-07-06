@@ -21,8 +21,8 @@ SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from price.warehouse import save_to_warehouse
-import validate_slices as vs
+from price.warehouse import save_to_warehouse  # noqa: E402
+import validate_slices as vs  # noqa: E402
 
 
 @pytest.fixture
@@ -95,7 +95,7 @@ def test_cache_invalidation_on_mtime_change(setup_cache_test):
     df = make_dummy_df()
     save_to_warehouse(df)
 
-    df1 = vs.build_eligible_frame("SPY", "1d")
+    vs.build_eligible_frame("SPY", "1d")
     cache_files_v1 = list(cache_dir.glob("*.parquet"))
     assert len(cache_files_v1) == 1
 
@@ -105,7 +105,7 @@ def test_cache_invalidation_on_mtime_change(setup_cache_test):
     new_mtime = old_mtime + 10000.0
     os.utime(wh_file, (new_mtime, new_mtime))
 
-    df2 = vs.build_eligible_frame("SPY", "1d")
+    vs.build_eligible_frame("SPY", "1d")
     cache_files_v2 = list(cache_dir.glob("*.parquet"))
     assert len(cache_files_v2) == 2
 
