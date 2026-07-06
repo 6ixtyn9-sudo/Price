@@ -25,9 +25,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from price.attribution import (  # noqa: E402
-    MIN_ROUND_TRIPS_FOR_STATS,
     RoundTrip,
-    SliceAttribution,
     attribute_pnl,
     format_report,
     load_expected_returns,
