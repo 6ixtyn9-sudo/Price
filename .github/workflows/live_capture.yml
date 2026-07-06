@@ -62,12 +62,14 @@ jobs:
 
     steps:
       - name: Checkout
-        # actions/checkout v4 pinned to immutable commit SHA, not a mutable tag.
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        # actions/checkout v7 pinned to immutable commit SHA, not a mutable tag.
+        # v7 targets the current Node runtime; v4 emitted Node 20 deprecation warnings.
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Python
-        # actions/setup-python v5 pinned to immutable commit SHA, not a mutable tag.
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        # actions/setup-python v6 pinned to immutable commit SHA, not a mutable tag.
+        # v6 targets the current Node runtime; v5 emitted Node 20 deprecation warnings.
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.11"
           cache: "pip"
