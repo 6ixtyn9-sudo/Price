@@ -3041,7 +3041,7 @@ get NaN (dropped downstream).
 bin_features_rolling(df, min_periods): look-ahead-free variant of
 bin_features. Same columns, same label vocabularies. state_ext UNCHANGED
 (fixed prior -- no look-ahead to remove). state_session/state_dow UNCHANGED
-(categorical maps). All 8 quantile fields use _expanding_qcut.
+(categorical maps). All 8 quantile fields use expanding_qcut.
 apply_state_bins(df, bin_mode): dispatcher. "insample" reproduces bin_features
 exactly (backward compatible); "rolling" uses bin_features_rolling.
 DEFAULT_ROLLING_MIN_PERIODS = 200 (matches the monitor's lookback; large
@@ -3056,7 +3056,7 @@ diagnostics, run_date_range_diagnostics, run_candidate_leaderboard, and
 run_scenario_grid all thread bin_mode end-to-end. --bin-mode CLI flag
 (default insample; choices insample|rolling).
 src/price/ml_discovery.py: evaluate_interactions gains bin_mode; in rolling
-mode the q75 threshold is a per-row expanding series (shift(1)).interactions_
+mode the q75 threshold is a per-row expanding series (shift(1)).interactions
 to_state_slices threads bin_mode so ML bins are consistent end-to-end.
 scripts/ml_to_slices.py: --bin-mode flag threads through evaluate_interactions
 interactions_to_state_slices.
@@ -3115,3 +3115,113 @@ rolling bins at realistic cost (--bin-mode rolling end-to-end), that is
 meaningfully stronger evidence than any current survivor. If nothing clears,
 the project has learned that the ML/quantile family has no structural edge once
 look-ahead is removed -- itself a defensible, valuable conclusion.
+
+Overfit-Kill Result — Rolling-Bins Validation + The Sector Confound (2026-07-06)
+
+What was run
+The full pipeline end-to-end with --bin-mode rolling on the 236-symbol
+liquid236 universe (1d), plus targeted diagnostics on the survivors.
+
+Rolling-bins validation result (full universe)
+The look-ahead-free rerun produced 25 strict survivors and surfaced a new
+leading candidate that appeared, at first read, to break the project's standing
+deadlock ("walk-forward but no search-wide p, or search-wide p but no walk-
+forward -- never both"):
+
+KLAC 1d state_ext=stretched_down + state_slope=downtrend
+
+walk-forward pattern: 0111 (3/4)
+valid_mean_ret_costadj: +4.75% (vs +4.68% under insample -- it GREW)
+search_wide_bonferroni_pass: True (the first clean survivor to clear the
+strictest multiple-testing bar, with a look-ahead-free bin definition)
+valid_excess_vs_best_parent: +0.87%
+latest_12m freshness gate: PASS (p=1.1e-8)
+effect strengthening fold-over-fold: 0.95% -> 3.49% -> 3.02% -> 4.42%
+This was the strongest single validation result the project had ever produced.
+It was also a FALSE LEAD. The next step exposed why.
+
+The decisive test: the sector spread (operator's question)
+The operator asked the right question: "is this not just a signal that the
+semiconductor business is booming?" A sector spread test was run -- the same
+stretched_down+downtrend slice on SOXX, SMH, NVDA, AMD, MU, AMAT, AVGO, TSM.
+Result:
+
+The slice structure recurs across the ENTIRE semiconductor family, not
+just KLAC. It is a sector-level phenomenon, not a KLAC-specific price
+state edge.
+SOXX (the semiconductor sector ETF itself) is REJECTED by the gate
+(unsupported, WF 0101). The sector-level instrument does not clear.
+The parent-excess on peer survivors is small and inconsistent: AMAT
++0.43%, AVGO +0.32%. The +state_slope=downtrend qualifier adds almost
+nothing over plain dip-buying (state_ext=stretched_down alone).
+Fold 0 fails across the WHOLE family (KLAC, XLB, XOP, XLE, AMAT, AVGO,
+SOXX) -- and fold 0 is the 2022-2023 window, the semiconductor downturn
+(post-COVID glut, memory crash). The edge disappears outside the bull
+regime.
+Conclusion: KLAC is a regime bet dressed up as a price-state edge. The bulk
+of its return is "buy dips in a stock that's going up a lot" -- and dip-
+buying works in semis because the sector has been in a historic multi-year
+(AI/capex) super-cycle. The validation framework surfaced a regime-conditional
+timing rule, not a structural price-behavior edge.
+
+DO NOT REPEAT THIS MISTAKE
+This section exists specifically so future agents do not re-promote KLAC (or
+XLB/XOP) as a "validated edge" without reading this finding. The standing
+"no candidate is promoted" conclusion holds, and now there is a concrete
+reason why: the surviving candidates are regime-conditional, not structural.
+
+The validation framework's blind spot (the lesson)
+The project's validation is TIME-stratified (train/valid/walk-forward are all
+chronological). It is NOT regime-stratified. A multi-year sector bull run
+produces positive forward returns for dip-buying in that sector, and Newey-
+West + Bonferroni + walk-forward + parent-excess CANNOT tell you whether
+that is a durable price-state edge or a regime artifact. They test TEMPORAL
+stability, not REGIME independence.
+
+The fingerprints of a regime confound (use these as red flags):
+
+The slice structure recurs across a whole sector/family, not just one
+name. (Test with a sector spread.)
+The parent-excess is small and inconsistent -- most of the return is
+captured by the simpler parent (plain dip-buying, plain momentum).
+The effect strengthens over time, tracking a known macro cycle.
+Fold 0 (the earliest, often non-bull window) fails across the family.
+The sector ETF itself does not clear the gate even when individual
+names do.
+A candidate that shows ANY of these is regime-confounded until proven
+otherwise. KLAC showed all five.
+
+Why the overfit-kill was still worth doing
+The rolling-bins work did not produce a promotable edge, but it succeeded at
+its stated goal: it made the search more honest. The original in-sample
+quantile cuts would have made these regime-conditional slices look even
+stronger; the look-ahead-free bins exposed their fold-0 weakness and the
+small parent-excess more clearly. The honest expectation recorded in the
+prior section ("if nothing clears, the project has learned something real")
+was met: the ML/quantile family has no structural edge once look-ahead is
+removed, AND the combinatorial survivors are regime-conditional. Both are
+defensible, valuable conclusions.
+
+Honest standing conclusion (revised)
+The project's deadlock is now better understood, not broken:
+
+No candidate is promoted. (Unchanged.)
+The reason is no longer "not enough evidence" -- it is now "the evidence
+is confounded by sector regime, which the validation framework cannot
+control for."
+The path to a real edge is NOT more re-slicing of the same history. It
+is either (a) a regime-control layer in validation (test slices across
+bull AND bear periods for their own sector), or (b) live out-of-sample
+accumulation through enough of a regime cycle to disambiguate.
+Live paper account state (2026-07-06, for the next agent)
+The two pending orders filled at market open:
+
+XOP buy 16 @ $154.47 (filled 15:30 SAST)
+XLK buy 13 @ $183.41 (filled 15:33 SAST)
+XLE buy 9 was previously canceled (correctly -- it is in the same risk
+group as XOP/XLB under the allocation lever).
+These are the FIRST FILLED positions on the paper account. They are not
+validations of any edge (XOP/XLK are deployed Tier-1 watch slices, not
+promoted edges). Realized P&L is still ~$0 (no exits yet). The attribution
+report (lever 5) will start producing real signal once the exit policy
+(lever 2) closes the first position.
