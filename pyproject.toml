@@ -29,6 +29,15 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 
+[tool.pyrefly]
+# Tell the static type checker where to resolve non-package imports.
+# `src/` is the inferred import root (from [tool.setuptools.packages.find]);
+# `scripts/` holds runnable scripts imported by tests (validate_slices,
+# live_forward_returns) via sys.path insertion that a static checker cannot
+# follow. Tests import these as bare modules (e.g. `import validate_slices`),
+# consistent across all test files.
+search-path = ["src", "scripts"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

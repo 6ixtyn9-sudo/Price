@@ -24,7 +24,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import price.warehouse as wh  # noqa: E402
-import scripts.live_forward_returns as lfr  # noqa: E402
+import live_forward_returns as lfr  # noqa: E402
 
 
 @pytest.fixture
