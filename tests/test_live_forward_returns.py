@@ -206,8 +206,94 @@ def test_monitored_slices_used_when_leaderboard_absent(temp_workspace):
         leaderboard_path=paths["lb_path"],  # intentionally missing
         monitored_path=monitored_path,
         output_path=paths["out_path"],
+        universe_source="monitored",
     )
 
     assert len(out) == 1
     assert out.iloc[0]["symbol"] == "XLF"
     assert out.iloc[0]["slice_combination"] == "state_ext=stretched_up + state_slope=flat"
+
+
+def test_default_leaderboard_mode_does_not_fallback_to_monitored(temp_workspace):
+    """Default research mode must not silently fall back to monitored_slices.
+    The execution workflow opts into monitored explicitly."""
+    paths = temp_workspace
+    monitored_path = paths["log_path"].parent / "monitored_slices.csv"
+
+    pd.DataFrame([{
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+    }]).to_csv(monitored_path, index=False)
+    pd.DataFrame([{
+        "kind": "entry_signal",
+        "matched": True,
+        "tradable": False,
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "bar_ts_utc": "2026-06-15T00:00:00+00:00",
+        "close_adj": 51.6,
+    }]).to_csv(paths["log_path"], index=False)
+
+    out = lfr.run_live_capture(
+        log_path=paths["log_path"],
+        leaderboard_path=paths["lb_path"],  # missing
+        monitored_path=monitored_path,
+        output_path=paths["out_path"],
+    )
+
+    assert out.empty
+    assert not paths["out_path"].exists()
+
+
+def test_bin_mode_participates_in_universe_matching_and_row_key(temp_workspace):
+    """Same slice text under a different bin mode is a different deployment
+    state definition and must not be captured/collided accidentally."""
+    paths = temp_workspace
+
+    # Watched universe is rolling only.
+    pd.DataFrame([{
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_up + state_slope=flat",
+        "triage_bucket": "clean_survivor_wf_strong",
+        "bin_mode": "rolling",
+    }]).to_csv(paths["lb_path"], index=False)
+
+    # Log carries the same slice text twice, once insample and once rolling.
+    pd.DataFrame([
+        {
+            "kind": "entry_signal",
+            "matched": True,
+            "tradable": False,
+            "symbol": "XLF",
+            "timeframe": "1d",
+            "slice_combination": "state_ext=stretched_up + state_slope=flat",
+            "bin_mode": "insample",
+            "bar_ts_utc": "2026-06-15T00:00:00+00:00",
+            "close_adj": 50.2 + 14 * 0.1,
+        },
+        {
+            "kind": "entry_signal",
+            "matched": True,
+            "tradable": False,
+            "symbol": "XLF",
+            "timeframe": "1d",
+            "slice_combination": "state_ext=stretched_up + state_slope=flat",
+            "bin_mode": "rolling",
+            "bar_ts_utc": "2026-06-15T00:00:00+00:00",
+            "close_adj": 50.2 + 14 * 0.1,
+        },
+    ]).to_csv(paths["log_path"], index=False)
+
+    out = lfr.run_live_capture(
+        log_path=paths["log_path"],
+        leaderboard_path=paths["lb_path"],
+        output_path=paths["out_path"],
+    )
+
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["bin_mode"] == "rolling"
+    assert "|rolling|" in row["row_key"]

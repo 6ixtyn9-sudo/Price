@@ -3786,7 +3786,8 @@ confirmed-fill-only stopout accounting.
 explicit workflow bin_mode column.
 this patch: monitor actually consumes and enforces the bin_mode contract.
 No slice is promoted and no risk gate is loosened.
-Live Forward-Return Capture Fallback (2026-07-06)
+
+Live Forward-Return Capture Universe Source (2026-07-06)
 
 The 19:08 UTC live_capture run succeeded end-to-end: hash-locked dependency
 install passed on GitHub's Python 3.11 runner, data capture completed, the
@@ -3802,21 +3803,34 @@ longer refreshes candidate_leaderboard.csv; its authoritative watched universe
 is now the explicit localdata/monitored_slices.csv file written earlier in the
 same workflow run.
 
+Important design correction:
+
+An implicit fallback from leaderboard -> monitored_slices.csv is NOT the cleanest
+answer, because it can mask a broken/missing leaderboard during research runs.
+The correct design is an explicit universe source.
+
 Fix:
 
-scripts/live_forward_returns.py now falls back to monitored_slices.csv when
-the clean-survivor leaderboard universe is absent or empty.
-The fallback universe uses (symbol, timeframe, slice_combination), so it
-still only captures forward returns for slices that the execution monitor is
-explicitly watching.
-Existing leaderboard behavior is preserved when a clean-survivor leaderboard
-is present.
+scripts/live_forward_returns.py now accepts --universe-source with choices:
+leaderboard, monitored, and auto.
+Default remains leaderboard, preserving the research-mode behavior:
+clean_survivor* rows only, no silent fallback.
+The live workflow calls:
+scripts/live_forward_returns.py --universe-source monitored
+because execution-mode forward returns should track the exact explicit
+monitored set that paper_trade.py scanned.
+auto exists only for deliberate diagnostics; it tries leaderboard first and
+monitored second.
+The watched universe key includes (symbol, timeframe, slice_combination, bin_mode), because the same slice text under insample versus rolling
+represents a different state definition and must not collide.
 Regression coverage was added to existing tests/test_live_forward_returns.py
-rather than creating another test file.
+rather than creating another test file. Tests cover explicit monitored mode,
+the guarantee that default leaderboard mode does NOT silently fall back to
+monitored_slices.csv, and bin-mode-specific matching/row keys.
 Verification:
 
 python3 -m py_compile scripts/live_forward_returns.py passed.
-python3 -m pytest -q -> 375 passed.
+python3 -m pytest -q -> 377 passed.
 python3 -m ruff check src scripts tests -> clean.
 Operational note from the same run:
 

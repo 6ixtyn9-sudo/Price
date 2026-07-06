@@ -189,7 +189,7 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          PYTHONPATH=src python3 scripts/live_forward_returns.py
+          PYTHONPATH=src python3 scripts/live_forward_returns.py --universe-source monitored
 
       - name: Commit any changes
         run: |

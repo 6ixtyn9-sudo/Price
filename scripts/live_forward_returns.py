@@ -12,10 +12,11 @@ Design:
   - Partial-data rows are kept distinct from completed ones via the
     `partial_data` flag, so a downstream analysis can decide whether
     to include them.
-  - Universe: only slices flagged as `clean_survivor*` in the current
-    candidate leaderboard. This is the same filter used by
-    `--diagnostic-scope clean-survivors`. The watched set evolves with
-    the V4 substrate instead of being hardcoded.
+  - Universe source is explicit. Research mode uses only slices flagged
+    as `clean_survivor*` in the current candidate leaderboard. Execution
+    mode uses the operator-curated `monitored_slices.csv` written by the
+    live workflow. There is no silent fallback between the two unless the
+    caller explicitly asks for `--universe-source auto`.
 
 This script is read-only against the Alpaca trading API. It only
 calls fetch_alpaca_bars for historical bar data. No orders are placed.
@@ -50,7 +51,17 @@ LIVE_FORWARD_RETURNS_PATH: Path = DATA_DIR / "live_forward_returns.csv"
 HORIZONS_BARS: List[int] = [5, 20]
 
 
-def _load_clean_survivor_universe(leaderboard_path: Optional[Path] = None) -> Set[Tuple[str, str, str]]:
+# Watched-universe key. bin_mode matters because the same symbol/timeframe/
+# slice text can be evaluated under different state-binning semantics.
+UniverseKey = Tuple[str, str, str, str]  # symbol, timeframe, slice_combination, bin_mode
+
+
+def _norm_bin_mode(value) -> str:
+    mode = str(value if value is not None and not pd.isna(value) else "insample").lower()
+    return mode if mode in ("insample", "rolling") else "insample"
+
+
+def _load_clean_survivor_universe(leaderboard_path: Optional[Path] = None) -> Set[UniverseKey]:
     """Return the set of (symbol, timeframe, slice_combination) tuples that
     are clean survivors in the current leaderboard. Used as the watched
     universe for live forward-return capture.
@@ -66,19 +77,24 @@ def _load_clean_survivor_universe(leaderboard_path: Optional[Path] = None) -> Se
         return set()
     clean = lb[lb["triage_bucket"].astype(str).str.startswith("clean_survivor")]
     return {
-        (str(r["symbol"]), str(r["timeframe"]), str(r["slice_combination"]))
+        (
+            str(r["symbol"]),
+            str(r["timeframe"]),
+            str(r["slice_combination"]),
+            _norm_bin_mode(r.get("bin_mode", "insample")),
+        )
         for _, r in clean.iterrows()
     }
 
 
-def _load_monitored_universe(monitored_path: Optional[Path] = None) -> Set[Tuple[str, str, str]]:
+def _load_monitored_universe(monitored_path: Optional[Path] = None) -> Set[UniverseKey]:
     """Return the explicit deployment/watch universe from monitored_slices.csv.
 
     The live workflow deliberately stopped refreshing candidate_leaderboard.csv
     on every execution pass. In that execution-only mode, the authoritative
     watched set is localdata/monitored_slices.csv, not a possibly-absent
-    leaderboard. This fallback keeps forward-return capture aligned with what
-    paper_trade.py actually scanned.
+    leaderboard. Callers must request this source explicitly; it is not a
+    silent fallback in normal research mode.
     """
     monitored_path = Path(monitored_path) if monitored_path else MONITORED_SLICES_PATH
     if not monitored_path.exists():
@@ -91,7 +107,12 @@ def _load_monitored_universe(monitored_path: Optional[Path] = None) -> Set[Tuple
     if rows.empty or not required.issubset(rows.columns):
         return set()
     return {
-        (str(r["symbol"]), str(r["timeframe"]), str(r["slice_combination"]))
+        (
+            str(r["symbol"]),
+            str(r["timeframe"]),
+            str(r["slice_combination"]),
+            _norm_bin_mode(r.get("bin_mode", "insample")),
+        )
         for _, r in rows.iterrows()
     }
 
@@ -212,10 +233,18 @@ def _load_existing_live_returns(output_path: Optional[Path] = None) -> pd.DataFr
     return pd.read_csv(output_path)
 
 
-def _row_key(symbol: str, timeframe: str, slice_combo: str, signal_ts: str) -> str:
-    """Stable key for one (symbol, timeframe, slice, signal-time) tuple.
-    Used to detect updates to existing partial rows."""
-    return f"{symbol}|{timeframe}|{slice_combo}|{signal_ts}"
+def _row_key(symbol: str, timeframe: str, slice_combo: str, signal_ts: str,
+             bin_mode: str = "insample") -> str:
+    """Stable key for one (symbol, timeframe, bin mode, slice, signal-time).
+
+    Backward compatibility: insample keeps the historical key shape so old
+    partial rows update in place. Non-insample modes include the mode to avoid
+    collisions when the same slice text is monitored under rolling bins.
+    """
+    bin_mode = _norm_bin_mode(bin_mode)
+    if bin_mode == "insample":
+        return f"{symbol}|{timeframe}|{slice_combo}|{signal_ts}"
+    return f"{symbol}|{timeframe}|{bin_mode}|{slice_combo}|{signal_ts}"
 
 
 def run_live_capture(
@@ -223,8 +252,9 @@ def run_live_capture(
     log_path: Optional[Path] = None,
     leaderboard_path: Optional[Path] = None,
     output_path: Optional[Path] = None,
-    universe: Optional[Set[Tuple[str, str, str]]] = None,
+    universe: Optional[Set[UniverseKey]] = None,
     monitored_path: Optional[Path] = None,
+    universe_source: str = "leaderboard",
 ) -> pd.DataFrame:
     """Scan the paper-trade audit log and write/append live forward returns.
 
@@ -235,11 +265,14 @@ def run_live_capture(
     log_path, leaderboard_path, output_path : Path, optional
         Override the default module-level paths. Used by tests.
     universe : set of tuples, optional
-        Override the watched universe. If None, derived from the current
-        candidate leaderboard's `clean_survivor*` rows, falling back to
-        monitored_slices.csv when the leaderboard is absent/empty.
+        Override the watched universe directly.
     monitored_path : Path, optional
         Override the explicit monitored-slices path. Used by tests.
+    universe_source : {"leaderboard", "monitored", "auto"}
+        Source used when `universe` is not provided. "leaderboard" preserves
+        the research default (clean_survivor* only). "monitored" is the live
+        execution workflow mode. "auto" tries leaderboard then monitored, but
+        should only be used deliberately for diagnostics.
 
     Returns
     -------
@@ -268,16 +301,33 @@ def run_live_capture(
         return existing
 
     if universe is None:
-        universe = _load_clean_survivor_universe(leaderboard_path)
-        if not universe:
+        universe_source = str(universe_source or "leaderboard").lower()
+        if universe_source == "leaderboard":
+            universe = _load_clean_survivor_universe(leaderboard_path)
+            if not universe:
+                print("No clean_survivor* rows in the current leaderboard; nothing to capture.")
+                print("(Use --universe-source monitored for the execution watch list.)")
+                existing = _load_existing_live_returns(output_path)
+                return existing
+        elif universe_source == "monitored":
             universe = _load_monitored_universe(monitored_path)
-            if universe:
-                print("No clean_survivor* leaderboard rows; using monitored_slices.csv universe.")
-    if not universe:
-        print("No clean_survivor* rows and no monitored_slices.csv universe; nothing to capture.")
-        print("(Re-run scripts/validate_slices.py --candidate-leaderboard or write monitored_slices.csv.)")
-        existing = _load_existing_live_returns(output_path)
-        return existing
+            if not universe:
+                print("No monitored_slices.csv universe; nothing to capture.")
+                print("(Write monitored_slices.csv or use --universe-source leaderboard.)")
+                existing = _load_existing_live_returns(output_path)
+                return existing
+        elif universe_source == "auto":
+            universe = _load_clean_survivor_universe(leaderboard_path)
+            if not universe:
+                universe = _load_monitored_universe(monitored_path)
+                if universe:
+                    print("No clean_survivor* leaderboard rows; using monitored_slices.csv universe (auto mode).")
+            if not universe:
+                print("No clean_survivor* rows and no monitored_slices.csv universe; nothing to capture.")
+                existing = _load_existing_live_returns(output_path)
+                return existing
+        else:
+            raise ValueError("universe_source must be one of: leaderboard, monitored, auto")
 
     matched = log[log.apply(_is_matched_signal, axis=1)].copy()
     if matched.empty:
@@ -287,8 +337,12 @@ def run_live_capture(
 
     matched = matched[
         matched.apply(
-            lambda r: (str(r["symbol"]), str(r["timeframe"]), str(r["slice_combination"]))
-            in universe,
+            lambda r: (
+                str(r["symbol"]),
+                str(r["timeframe"]),
+                str(r["slice_combination"]),
+                _norm_bin_mode(r.get("bin_mode", "insample")),
+            ) in universe,
             axis=1,
         )
     ]
@@ -309,15 +363,17 @@ def run_live_capture(
         symbol = str(sig["symbol"])
         timeframe = str(sig["timeframe"])
         slice_combo = str(sig["slice_combination"])
+        bin_mode = _norm_bin_mode(sig.get("bin_mode", "insample"))
         signal_ts = str(sig["bar_ts_utc"])
         signal_close = float(sig["close_adj"])
-        key = _row_key(symbol, timeframe, slice_combo, signal_ts)
+        key = _row_key(symbol, timeframe, slice_combo, signal_ts, bin_mode)
 
         row: Dict = {
             "row_key": key,
             "symbol": symbol,
             "timeframe": timeframe,
             "slice_combination": slice_combo,
+            "bin_mode": bin_mode,
             "signal_ts_utc": signal_ts,
             "signal_close_adj": signal_close,
             "captured_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -354,7 +410,8 @@ def run_live_capture(
         out = pd.concat([out, pd.DataFrame(new_rows)], ignore_index=True)
 
     if not out.empty:
-        out = out.sort_values(["symbol", "timeframe", "slice_combination", "signal_ts_utc"])
+        sort_cols = [c for c in ["symbol", "timeframe", "bin_mode", "slice_combination", "signal_ts_utc"] if c in out.columns]
+        out = out.sort_values(sort_cols)
         out = out.reset_index(drop=True)
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         out.to_csv(output_path, index=False)
@@ -377,8 +434,18 @@ def main() -> int:
         default=None,
         help="Forward-return horizons in bars (default: 5 20).",
     )
+    parser.add_argument(
+        "--universe-source",
+        choices=["leaderboard", "monitored", "auto"],
+        default="leaderboard",
+        help=(
+            "Watched universe source. leaderboard = clean_survivor* research "
+            "default; monitored = explicit monitored_slices.csv deployment set; "
+            "auto = try leaderboard then monitored. Default: leaderboard."
+        ),
+    )
     args = parser.parse_args()
-    run_live_capture(horizons=args.horizons)
+    run_live_capture(horizons=args.horizons, universe_source=args.universe_source)
     return 0
 
 
