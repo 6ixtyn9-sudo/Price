@@ -121,14 +121,21 @@ def _load_explicit_monitored_slices() -> Optional[List[dict]]:
         if side not in ("long", "short"):
             side = "long"
 
-        out.append(
-            {
-                "symbol": str(row["symbol"]).upper(),
-                "timeframe": str(row["timeframe"]),
-                "slice_combination": str(row["slice_combination"]),
-                "side": side,
-            }
-        )
+        record = {
+            "symbol": str(row["symbol"]).upper(),
+            "timeframe": str(row["timeframe"]),
+            "slice_combination": str(row["slice_combination"]),
+            "side": side,
+        }
+        # Optional deployment metadata. `regime_symbol` is functional: the
+        # regime gate uses it as the macro/sector series for this slice. Keep
+        # it when present instead of silently discarding the operator's gate.
+        for optional_col in ("regime_symbol", "source_note"):
+            if optional_col in rows.columns and pd.notna(row.get(optional_col)):
+                value = str(row.get(optional_col)).strip()
+                if value:
+                    record[optional_col] = value.upper() if optional_col == "regime_symbol" else value
+        out.append(record)
 
     return out or None
 
@@ -407,13 +414,21 @@ def scan_all_slices(
 
     today_pnl = get_today_realized_pnl()
     open_position_slice_labels = _load_open_position_slice_labels()
-    # Risk group per OPEN position (symbol -> stable-condition key). Built from
-    # the trade journal's slice labels because broker positions do not carry
-    # their originating slice. Used by the correlation-aware allocation cap.
+    # Risk group per CURRENT exposure (symbol -> stable-condition key). Built
+    # from the trade journal's slice labels because broker positions/orders do
+    # not carry their originating slice. Critically, filter the journal labels
+    # to symbols that are actually open/pending RIGHT NOW; a stale historical
+    # entry row for a symbol that has since exited/canceled must not consume a
+    # risk-group slot forever.
+    exposure_symbols = {
+        str(p.get("symbol", "")).upper()
+        for p in exposure_for_entry_gate
+        if p.get("symbol")
+    }
     open_position_risk_groups = {
         sym: risk_group_key(sym, lbl)
         for sym, lbl in open_position_slice_labels.items()
-        if lbl
+        if lbl and sym in exposure_symbols
     }
 
     if open_positions_list:
@@ -585,12 +600,13 @@ def scan_all_slices(
             regime_blocked = (
                 regime_filter_enabled and not regime_state.favourable()
             )
+            side = str(s.get("side", "long") or "long").lower()
+            if side not in ("long", "short"):
+                side = "long"
+            suggested_side = "sell" if side == "short" else "buy"
+            candidate_group = risk_group_key(symbol, s["slice_combination"])
+
             if not dry_run:
-                side = str(s.get("side", "long") or "long").lower()
-                if side not in ("long", "short"):
-                    side = "long"
-                suggested_side = "sell" if side == "short" else "buy"
-                candidate_group = risk_group_key(symbol, s["slice_combination"])
 
                 # Proposed R for the aggregate open-risk budget: the same
                 # k_stop * ATR distance stop_manager.reconcile_stops will
@@ -639,8 +655,6 @@ def scan_all_slices(
                     "details": risk_result.details,
                 }
             else:
-                side = str(s.get("side", "long") or "long").lower()
-                suggested_side = "sell" if side == "short" else "buy"
                 tradable = not regime_blocked
                 status_label = "MATCH  "
                 reasons_str = "dry_run"

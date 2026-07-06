@@ -220,13 +220,19 @@ jobs:
             "localdata/walk_forward_diagnostics.csv"
             "localdata/date_range_diagnostics.csv"
           )
-          CHANGED=0
           for f in "${WORKFLOW_OUTPUT_FILES[@]}"; do
             if [ -f "$f" ]; then
-              git add -f "$f" && CHANGED=1
+              git add -f "$f"
+            else
+              # Stage deletions too. This is critical for state files such as
+              # stop_state.json and HALT_TRADING.flag: if a workflow run clears
+              # one locally but the deletion is not committed, the next fresh
+              # checkout resurrects stale state and the live book can repeatedly
+              # replay an already-cleared stop/halt condition.
+              git rm -f --ignore-unmatch "$f"
             fi
           done
-          if [ "$CHANGED" = "0" ]; then
+          if git diff --cached --quiet; then
             echo "No workflow output changes; nothing to commit."
             exit 0
           fi

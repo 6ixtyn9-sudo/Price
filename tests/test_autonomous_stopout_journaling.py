@@ -201,6 +201,9 @@ def test_reconcile_stops_journals_real_pnl_for_autonomous_stopout(tmp_path):
     assert implied_pnl == pytest.approx((95.90 - 100.0) * 16.0)
     assert implied_pnl < 0  # a real, nonzero loss -- not the previous silent $0.00
 
+    from price.stops import stopout_count_today
+    assert stopout_count_today("XOP", path=journal_path) == 1
+
 
 def test_reconcile_stops_does_not_journal_when_stop_was_canceled_by_other_exit(tmp_path):
     """The position closed via a DIFFERENT exit policy (state-break/

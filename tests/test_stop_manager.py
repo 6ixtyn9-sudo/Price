@@ -276,7 +276,7 @@ def test_tracked_stop_cleared_when_position_no_longer_open(tmp_path):
     assert load_stop_states(path=state_path) == {}
 
     from price.stops import stopout_count_today
-    assert stopout_count_today("XOP", path=journal_path) == 1
+    assert stopout_count_today("XOP", path=journal_path) == 0
 
 
 def test_dry_run_does_not_clear_stop_state(tmp_path):

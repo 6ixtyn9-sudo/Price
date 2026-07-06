@@ -274,7 +274,12 @@ def reconcile_stops(
             "fill_price": fill_info.get("filled_avg_price") if fill_info else None,
         })
         if not dry_run:
-            record_stopout(symbol, path=stopout_journal_path)
+            # Only a confirmed autonomous broker-side stop fill is a
+            # stop-out. A position can also disappear because close_position()
+            # exited it for a horizon/state-break and canceled the stop; those
+            # must NOT increment the whipsaw circuit breaker.
+            if fill_info is not None:
+                record_stopout(symbol, path=stopout_journal_path)
             remove_stop_state(symbol, path=stop_state_path)
 
     if open_positions is None or open_positions.empty:
