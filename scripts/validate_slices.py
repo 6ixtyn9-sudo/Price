@@ -29,6 +29,7 @@ import pandas as pd
 
 from price.discovery import attach_cross_asset_states, apply_state_bins
 from price.features import compute_price_features
+from price.regime import attach_regime_labels, resolve_regime_symbol
 from price.validation import (
     apply_slice_filter,
     chronological_train_valid_split,
@@ -46,6 +47,7 @@ FEATURES_CACHE_DIR = Path("localdata/features_cache")
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
 DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
+REGIME_STRATIFIED_DIAGNOSTICS_PATH = "localdata/regime_stratified_diagnostics.csv"
 CANDIDATE_LEADERBOARD_PATH = "localdata/candidate_leaderboard.csv"
 
 
@@ -1114,6 +1116,167 @@ def annotate_search_wide_significance(
     return lb
 
 
+def run_regime_stratified_diagnostics(
+    cost_bps: float = 1.0,
+    cost_per_share: float = 0.0,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+    output_path: str = REGIME_STRATIFIED_DIAGNOSTICS_PATH,
+    diagnostic_scope: str = "current-leaders",
+    top_n: int = 5,
+    slices_path: str = DISCOVERED_SLICES_PATH,
+    n_folds: int = 4,
+    short_cost_bps: float = 0.0,
+    bin_mode: str = "insample",
+    regime_symbol: str = "",
+) -> pd.DataFrame:
+    """Run regime-stratified diagnostics: split each slice's bars by the
+    macro regime of its (own or configured) regime symbol and report the edge
+    in each regime bucket.
+
+    This is the missing 'regime independence' test the HANDOVER's
+    regime-confound finding identified as the path forward. Today's validation
+    is time-stratified (train/valid/walk-forward) -- it tests TEMPORAL
+    stability, not REGIME independence. A multi-year sector bull produces
+    positive forward returns for dip-buying and Newey-West cannot see the
+    confound. This diagnostic CAN: it splits the slice's bars into macro
+    bull / bear / neutral buckets and reports the edge in each.
+
+    How to read the output:
+      - A STRUCTURAL edge is positive in bull AND bear (or at least does not
+        collapse in bear).
+      - A REGIME-CONDITIONAL edge is positive in bull but ~0 or negative in
+        bear. This is not disqualifying (it is tradeable with the deployment
+        gate) but it must be labeled honestly, not promoted as structural.
+      - A slice with no bars in a regime bucket gets diagnostic_status=
+        'empty_regime_window' (skip -- cannot measure, usually because that
+        regime did not occur during the slice's history).
+
+    regime_symbol: optional override for which symbol defines the macro
+      regime (e.g. SPY for broad-market). When empty, the per-slice own
+      symbol is used (or the slice's cross-asset conditioning symbol).
+
+    This is a DIAGNOSTIC, not a filter: it adds information without changing
+    the promotion gate. Mirrors run_walk_forward_diagnostics and
+    run_date_range_diagnostics in shape.
+    """
+    targets = select_diagnostic_targets(
+        scope=diagnostic_scope,
+        top_n=top_n,
+        slices_path=slices_path,
+        n_folds=n_folds,
+        min_samples=min_samples,
+        p_threshold=p_threshold,
+    )
+
+    rows = []
+    # Ordered regime buckets for display. 'regime_warmup'/'unavailable' are
+    # diagnostic-only and excluded from the bull/bear/neutral reading.
+    regime_order = ["all", "bull", "bear", "neutral", "regime_warmup", "regime_unavailable"]
+
+    for symbol, timeframe, combo, side in targets:
+        slice_filter = parse_slice_combination(combo)
+        eligible_df = build_eligible_frame(
+            symbol,
+            timeframe,
+            cross_symbols=cross_symbols_from_filter(slice_filter),
+            bin_mode=bin_mode,
+        )
+        if eligible_df.empty:
+            for r_label in regime_order:
+                rows.append({
+                    "symbol": symbol, "timeframe": timeframe,
+                    "slice_combination": combo, "regime": r_label,
+                    "diagnostic_status": "missing_eligible_frame",
+                })
+            continue
+
+        eligible_df = eligible_df.sort_values("bar_ts_utc").reset_index(drop=True)
+
+        # Resolve the regime symbol for this slice and attach per-bar labels.
+        rsym = regime_symbol or resolve_regime_symbol(
+            symbol, slice_filter, configured_regime_symbol=None
+        )
+        labelled = attach_regime_labels(eligible_df, rsym, timeframe=timeframe)
+        if labelled is None or "regime" not in labelled.columns:
+            labelled = eligible_df.copy()
+            labelled["regime"] = "regime_unavailable"
+
+        # An 'all' bucket = no regime split (the headline number).
+        # Then one row per regime bucket present in the labelled frame.
+        present_regimes = ["all"] + [r for r in regime_order[1:]
+                                     if r in labelled["regime"].unique()]
+
+        for r_label in present_regimes:
+            if r_label == "all":
+                window_df = labelled
+            else:
+                window_df = labelled[labelled["regime"] == r_label]
+
+            if window_df.empty:
+                rows.append({
+                    "symbol": symbol, "timeframe": timeframe,
+                    "slice_combination": combo, "regime": r_label,
+                    "diagnostic_status": "empty_regime_window",
+                    "regime_symbol": rsym,
+                })
+                continue
+
+            slice_summary = summarize_filter_window(
+                window_df, slice_filter, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
+            )
+            baseline_summary = summarize_filter_window(
+                window_df, {}, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
+            )
+            parent_summary = best_parent_filter_window(
+                window_df, slice_filter, cost_bps=cost_bps,
+                cost_per_share=cost_per_share, min_samples=min_samples,
+                side=side, short_cost_bps=short_cost_bps,
+            )
+
+            slice_mean = slice_summary["mean_return"]
+            rows.append({
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "slice_combination": combo,
+                "regime": r_label,
+                "regime_symbol": rsym,
+                "diagnostic_status": "ok",
+                "regime_window_rows": len(window_df),
+                "slice_n": slice_summary["sample_count"],
+                "slice_mean_ret_costadj": slice_mean,
+                "slice_win_rate": slice_summary["win_rate"],
+                "slice_t_stat_nw": slice_summary["t_stat"],
+                "slice_p_value_nw": slice_summary["p_value"],
+                "slice_pass": survives(slice_summary, min_samples=min_samples, p_threshold=p_threshold),
+                "baseline_mean_ret_costadj": baseline_summary["mean_return"],
+                "excess_vs_baseline": slice_mean - baseline_summary["mean_return"],
+                "best_parent_filter": parent_summary["filter"],
+                "best_parent_mean_ret_costadj": parent_summary["mean_return"],
+                "excess_vs_best_parent": slice_mean - parent_summary["mean_return"],
+            })
+
+    diagnostics_df = pd.DataFrame(rows)
+    diagnostics_df.to_csv(output_path, index=False)
+
+    print(f"Saved regime-stratified diagnostics to {output_path}")
+    if diagnostics_df.empty:
+        print("No diagnostics produced.")
+    else:
+        display_cols = [
+            "symbol", "timeframe", "slice_combination", "regime", "regime_symbol",
+            "slice_n", "slice_mean_ret_costadj", "excess_vs_baseline",
+            "excess_vs_best_parent", "slice_p_value_nw", "slice_pass",
+        ]
+        available_cols = [c for c in display_cols if c in diagnostics_df.columns]
+        print(diagnostics_df[available_cols].to_string(index=False))
+    return diagnostics_df
+
+
 def run_candidate_leaderboard(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
@@ -1512,6 +1675,26 @@ if __name__ == "__main__":
         help="Path for --date-range-diagnostics compact CSV output",
     )
     parser.add_argument(
+        "--regime-stratified-diagnostics",
+        action="store_true",
+        help="Run regime-stratified diagnostics: split each slice's bars by macro "
+        "regime (bull/bear/neutral) and report the edge in each. This is the "
+        "regime-independence test that distinguishes a structural edge (positive "
+        "across regimes) from a regime-conditional one (positive only in bull).",
+    )
+    parser.add_argument(
+        "--regime-stratified-output",
+        default=REGIME_STRATIFIED_DIAGNOSTICS_PATH,
+        help="Path for --regime-stratified-diagnostics CSV output",
+    )
+    parser.add_argument(
+        "--regime-symbol",
+        default="",
+        help="Override the macro-regime symbol for --regime-stratified-diagnostics "
+        "(e.g. SPY for broad-market regime). Empty = use each slice's own symbol "
+        "(or its cross-asset conditioning symbol).",
+    )
+    parser.add_argument(
         "--diagnostic-scope",
         default="current-leaders",
         choices=["current-leaders", "clean-survivors", "late-emerging", "leaderboard-top"],
@@ -1571,6 +1754,21 @@ if __name__ == "__main__":
             n_folds=args.n_folds,
             short_cost_bps=args.short_cost_bps,
             bin_mode=args.bin_mode,
+        )
+    elif args.regime_stratified_diagnostics:
+        run_regime_stratified_diagnostics(
+            cost_bps=args.cost_bps,
+            cost_per_share=args.cost_per_share,
+            min_samples=args.min_samples,
+            p_threshold=args.p_threshold,
+            output_path=args.regime_stratified_output,
+            diagnostic_scope=args.diagnostic_scope,
+            top_n=args.top_n,
+            slices_path=args.slices_path,
+            n_folds=args.n_folds,
+            short_cost_bps=args.short_cost_bps,
+            bin_mode=args.bin_mode,
+            regime_symbol=args.regime_symbol,
         )
     elif args.candidate_leaderboard:
         run_candidate_leaderboard(

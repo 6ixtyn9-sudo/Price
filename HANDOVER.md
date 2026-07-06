@@ -3316,3 +3316,50 @@ structural (regime-independent) edge remains: live out-of-sample
 accumulation across enough of a regime cycle, and/or a regime-control layer
 in VALIDATION (not just deployment) -- but that is research work, not the
 tradeable improvement this patch delivers.
+
+Regime-Stratified Validation Diagnostic (2026-07-06)
+This patch delivers the validation-side companion to the regime deployment
+gate. The gate blocks entries during hostile macro regimes; this diagnostic
+EXPOSES whether a slice's edge is structural (positive across regimes) or
+regime-conditional (positive in bull, collapses in bear).
+
+Why it exists
+Today's validation is TIME-stratified (train/valid/walk-forward are all
+chronological). It tests TEMPORAL stability, not REGIME independence. A
+multi-year sector bull produces positive forward returns for dip-buying in
+that sector, and Newey-West + Bonferroni + walk-forward + parent-excess
+CANNOT tell you whether that is a durable edge or a regime artifact. The
+KLAC sector spread test proved this: a regime-conditional edge looked
+indistinguishable from a structural one under time-stratified validation.
+This diagnostic closes that blind spot.
+
+What was added
+
+src/price/regime.py: attach_regime_labels -- per-bar regime labeller using
+the SMA-50/200 prior as-of each bar (look-ahead-free), backward as-of merged
+onto the slice's eligible frame. Validation-side companion to assess_regime.
+scripts/validate_slices.py: run_regime_stratified_diagnostics -- splits each
+slice's bars into macro regime buckets (bull/bear/neutral/warmup/unavailable)
+and reports the edge in each. Writes localdata/regime_stratified_diagnostics.csv.
+CLI: --regime-stratified-diagnostics, --regime-symbol (optional override).
+tests/test_regime_stratified.py: 8 tests including the decisive
+regime-conditional-edge test (edge +2% bull / -2% bear -> shown correctly).
+How to read the output
+STRUCTURAL edge = positive in bull AND bear.
+REGIME-CONDITIONAL edge = positive in bull, ~0 or negative in bear.
+'all' = the headline number that AVERAGES the buckets (hides the confound).
+
+This is a DIAGNOSTIC, not a filter -- mirrors walk-forward and date-range
+diagnostics. Adds information without changing the promotion gate.
+
+How to use it (operator)
+python3 scripts/validate_slices.py --regime-stratified-diagnostics
+--diagnostic-scope leaderboard-top --top-n 10 --bin-mode rolling
+
+What to run after the live-capture week
+When reslicing: discover + validate as normal, then run the regime-stratified
+diagnostic on survivors BEFORE deploying. If an edge collapses in bear, label
+it regime-conditional and gate deployment (--regime-filter). If it survives in
+bear too, that is the first candidate with structural (regime-independent)
+evidence -- a categorically stronger claim. This is "reslice keeping the
+regime in mind" done honestly.

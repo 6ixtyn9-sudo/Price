@@ -42,6 +42,8 @@ being regime-conditional. The slice is still a watch candidate.
 from dataclasses import dataclass
 from typing import Optional
 
+import pandas as pd
+
 from price.warehouse import load_from_warehouse
 
 
@@ -205,3 +207,88 @@ def check_regime(
         slice_symbol, slice_filter, configured_regime_symbol
     )
     return assess_regime(regime_sym, timeframe=timeframe)
+
+
+def attach_regime_labels(
+    primary_df,
+    regime_symbol: str,
+    timeframe: str = "1d",
+    short_ma: int = SHORT_MA,
+    long_ma: int = LONG_MA,
+):
+    """Attach a per-bar macro `regime` label to primary_df.
+
+    This is the VALIDATION-side companion to assess_regime (which is the
+    DEPLOYMENT-side gate). It computes the SMA-50/200 regime AS-OF each bar
+    of the regime symbol (look-ahead-free: SMAs use only past data), then
+    backward as-of merges the regime label onto primary_df by bar_ts_utc.
+
+    The regime label is the macro trend of the regime symbol, NOT the slice's
+    own local state -- this is the right separation for testing whether a
+    dip-buying slice's edge is structural (positive across regimes) or
+    regime-conditional (positive only in the macro bull).
+
+    Returns primary_df unchanged (with no regime column) when the regime
+    symbol has no data -- never raises; the caller treats missing regime as
+    a 'regime_unavailable' bucket.
+    """
+    if primary_df is None or primary_df.empty:
+        return primary_df
+    if "bar_ts_utc" not in primary_df.columns:
+        return primary_df
+    try:
+        regime_raw = load_from_warehouse(regime_symbol, timeframe)
+    except Exception:  # noqa: BLE001 - validation must never crash
+        return primary_df
+    if regime_raw is None or regime_raw.empty or "close_adj" not in regime_raw.columns:
+        return primary_df
+
+    rg = regime_raw.sort_values("bar_ts_utc").reset_index(drop=True)
+    close = rg["close_adj"].astype(float)
+    if close.dropna().shape[0] < short_ma:
+        return primary_df  # insufficient history for even the short MA
+
+    sma_short = close.rolling(short_ma).mean()
+    sma_long = close.rolling(long_ma).mean() if close.dropna().shape[0] >= long_ma else None
+
+    def classify(i):
+        c = close.iloc[i]
+        s = sma_short.iloc[i]
+        if pd.isna(s):
+            return "regime_warmup"  # before short_ma has a value
+        if sma_long is not None:
+            lng = sma_long.iloc[i]
+            if pd.isna(lng):
+                return "regime_warmup"  # short MA valid, long MA still warming
+            if s > lng and c > s:
+                return "bull"
+            if s < lng and c < s:
+                return "bear"
+            return "neutral"
+        # Short-history fallback (mirror assess_regime's logic).
+        if c > s:
+            return "bull"
+        if c < s * 0.98:
+            return "bear"
+        return "neutral"
+
+    rg = rg.assign(regime=[classify(i) for i in range(len(rg))])
+    regime_lookup = rg[["bar_ts_utc", "regime"]].sort_values("bar_ts_utc").reset_index(drop=True)
+    regime_lookup["bar_ts_utc"] = pd.to_datetime(regime_lookup["bar_ts_utc"], utc=True)
+
+    primary = primary_df.copy()
+    primary["bar_ts_utc"] = pd.to_datetime(primary["bar_ts_utc"], utc=True)
+    primary_sorted = primary.sort_values("bar_ts_utc").reset_index(drop=True)
+    primary_sorted["_orig_order"] = range(len(primary_sorted))
+
+    merged = pd.merge_asof(
+        primary_sorted, regime_lookup, on="bar_ts_utc", direction="backward",
+    )
+    merged = merged.sort_values("_orig_order").reset_index(drop=True)
+    merged = merged.drop(columns=["_orig_order"])
+    if merged["regime"].isna().all():
+        # No overlap in time between slice bars and regime bars.
+        merged["regime"] = "regime_unavailable"
+    else:
+        merged["regime"] = merged["regime"].fillna("regime_unavailable")
+    return merged
