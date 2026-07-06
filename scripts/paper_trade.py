@@ -220,6 +220,16 @@ def main() -> int:
                         "blocks the book concentrating on one factor (e.g. XOP+XLB+KLAC all on "
                         "stretched_down+downtrend). 0 disables (every symbol = independent slot, "
                         "legacy behaviour).")
+    parser.add_argument("--cost-spread-bps", type=float, default=1.0,
+                        help="Per-leg half-spread cost in basis points (crossing a market order). "
+                        "Liquid (SPY/XLF) ~0.4-1bp, XOP/KLAC wider. Default 1.0.")
+    parser.add_argument("--cost-slippage-bps", type=float, default=3.0,
+                        help="Per-leg slippage in basis points, modelling adverse fill + the "
+                        "signal-to-fill gap (signal bar closes; order fills next session). The "
+                        "dominant uncertain term; recalibrate from realized fills later. Default 3.0.")
+    parser.add_argument("--cost-commission-bps", type=float, default=0.0,
+                        help="Per-leg commission in basis points. Default 0.0 (zero-commission "
+                        "retail / Alpaca paper).")
     parser.add_argument("--allow-shorts", action="store_true",
                         help="Enable short-side entries on the paper account. Default: short signals "
                         "are computed and logged but BLOCKED at the risk gate (allow_shorts=False).")
@@ -255,12 +265,20 @@ def main() -> int:
     print(f"Risk limits: {limits.to_dict()}")
     print(f"Dry run: {args.dry_run}")
 
+    from price.cost_model import CostModel
+    cost_model = CostModel(
+        commission_bps=args.cost_commission_bps,
+        spread_bps=args.cost_spread_bps,
+        slippage_bps=args.cost_slippage_bps,
+    )
     exit_policy = ExitPolicy(horizon_bars=args.exit_horizon)
     print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}")
+    print(f"Cost model: {cost_model.to_dict()}")
 
     def _one_pass() -> Dict[str, int]:
         signals = scan_all_slices(
             limits=limits, dry_run=args.dry_run, exit_policy=exit_policy,
+            cost_model=cost_model,
         )
         counts = _handle_signals(signals, dry_run=args.dry_run)
         print("\n=== pass summary ===")

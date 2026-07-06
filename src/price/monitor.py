@@ -346,31 +346,13 @@ def scan_all_slices(
     limits: Optional[RiskLimits] = None,
     dry_run: bool = False,
     exit_policy: Optional[ExitPolicy] = None,
+    cost_model=None,
 ) -> List[dict]:
     """Scan all monitored slices; emit tradable signals + exit intents.
 
-    For each slice that matches the current state, compute a default
-    position size, then call risk_limits.check_entry. If the guard
-    says no, the signal is still emitted (with risk_check.allowed=False
-    and the reasons) but is NOT marked tradable=True.
-
-    For each open position, also run position_manager.check_exits
-    (hybrid: stable-state-break OR held >= exit_policy.horizon_bars)
-    and return any 'exit' intents.
-
-    Parameters
-    ----------
-    slices : list of dict, optional
-        Override the default monitored set. If omitted, prefer the current
-        leaderboard clean_survivor* universe and fall back to the older
-        hardcoded list only when the leaderboard is unavailable.
-    limits : RiskLimits, optional
-        Override the default risk limits. Used by tests.
-    dry_run : bool, default False
-        If True, the risk gate is *skipped* and every matched signal
-        is emitted as tradable=True. Use only for debugging.
-    exit_policy : ExitPolicy, optional
-        Override the default horizon exit (default horizon_bars=5).
+    cost_model : realistic execution cost model threaded into sizing so
+        conviction nets the execution drag. None -> sizing uses its own
+        conservative default_cost_model().
     """
     if slices is None:
         slices = get_default_monitored_slices()
@@ -522,6 +504,7 @@ def scan_all_slices(
                 slice_combination=s["slice_combination"],
                 close_adj=close_adj,
                 limits=limits,
+                cost_model=cost_model,
             )
             qty = size.qty
             if not dry_run:

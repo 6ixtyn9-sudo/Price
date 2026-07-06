@@ -2578,3 +2578,339 @@ optimistic for names like XOP); propagate realised cost into P&L.
 5. P&L attribution: realised-P&L-per-slice view (net of cost, vs historical
 expectation) so we can see which slices actually earn their capital. The
 sizing_* audit fields added here are the input to that.
+
+ROI Refinement — Exit Policy (2026-07-06)
+Second patch of the ROI workstream (lever #2 of the agreed priority order:
+sizing -> exits -> allocation -> cost -> P&L attribution). Delivers the
+hybrid exit the prior "Next session priorities" section explicitly called
+for: "exit when stable state breaks OR held >= 5 bars, use timeframe-aware
+bar counting, log exit reason clearly."
+
+Why exits were the next lever
+The original exit policy was state-invalidation ONLY: a position held
+indefinitely until the slice's stable (non-session/DOW/month) filter broke,
+with no profit target, no time/age stop, and no respect for the 5-bar
+validation horizon the edges were actually measured on. That leaves ROI on
+the table in both directions: winners run into unvalidated territory, and
+losers run past the edge window. The validation measures fwd_ret_5; an exit
+discipline that doesn't bound hold length to that horizon is unfaithful to
+the measured edge by construction.
+
+What was added
+
+src/price/position_manager.py:
+ExitPolicy dataclass: horizon_bars (default 5 == the fwd_ret_5
+validation horizon; 0 disables -> state-break only = legacy behaviour).
+check_exits now implements a HYBRID exit: a position exits when ANY of
+(a) stable_state_break -- the slice's stable filter no longer matches
+the current bar (the original logic, preserved exactly), OR
+(b) horizon_reached -- bars held in the position's OWN timeframe
+>= horizon_bars.
+Timeframe-aware bar counting: 5 bars on 1d ~= one trading week, 5 bars
+on 1h ~= one session. Bars held are counted from the entry SIGNAL bar
+(faithful to fwd_ret_5, which is measured from the signal bar's close),
+not from order fill -- documented below.
+_count_bars_after / _parse_ts: pure helpers that count warehouse bars
+strictly after the entry bar; never raise; return None on missing data
+(None means "do not force a horizon exit on missing data" -- hold).
+_load_entry_context: per-symbol most-recent accepted entry context from
+the trade journal (slice, timeframe, entry_bar_ts, submitted_at). Used
+to resolve each open position's timeframe and entry bar. Legacy journal
+rows (written before entry_bar_ts/timeframe existed) fall back to
+submitted_at as the entry-time proxy, so they still get an approximate
+horizon exit rather than none.
+Every exit intent now carries bars_held, horizon_bars, timeframe, and a
+clear reason string ("horizon reached: held N bars >= 5 (1d)" /
+"stable filter broken: ..." / "stable filter matches; held N/5 bars"),
+satisfying the "log exit reason clearly" requirement.
+src/price/trading.py: submit_entry now accepts optional entry_bar_ts and
+timeframe and records them in the journal row. Backward compatible: old
+callers still work; old journal rows just lack the columns (NaN on read,
+handled by _load_entry_context).
+scripts/paper_trade.py: passes sig's bar_ts_utc + timeframe into
+submit_entry; new --exit-horizon CLI flag (default 5) constructs the
+ExitPolicy and threads it into scan_all_slices.
+src/price/monitor.py: scan_all_slices gains an exit_policy param and
+forwards it to check_exits.
+tests/test_position_manager.py: 13 tests covering exact bar counting,
+horizon exit, state-break exit (legacy preserved), both-firing, hold-
+within-horizon, horizon-disabled (0), no-entry-context hold, audit fields,
+timeframe resolution from context, and timeframe-aware counting (1h vs 1d).
+Safety / zero-risk-to-live-book property
+
+This patch only changes behaviour for OPEN POSITIONS returned by
+trading.get_open_positions(). At session start there are NONE (XOP x16 and
+XLK x13 orders are accepted but not yet filled; XLE x9 canceled). So the
+exit policy cannot trigger any premature close today regardless of settings.
+The horizon exit only fires when bars_held is computable (entry bar or
+submission time present in the journal + warehouse has bars after it). If
+either is missing, bars_held=None and the horizon exit is suppressed --
+a position is never force-exited on missing data. State-break still works.
+horizon_bars defaults to 5 (faithful). --exit-horizon 0 restores the exact
+legacy state-break-only behaviour for any operator who wants it.
+Entry-bar semantics (documented honestly)
+Bars held are counted from the entry SIGNAL bar (the bar whose state
+matched and triggered entry), because fwd_ret_5 is measured from that bar's
+close. This is the faithful choice. Consequence: for the currently-pending
+XOP/XLK entries, the signal bar (2026-07-02) predates the fill (next session
+open), so there is slippage between signal-bar-close and fill -- that gap is
+a real execution cost (lever #4, cost realism), not something the exit policy
+should paper over. Counting from the signal bar means a position exits at the
+5th bar-after-signal, which is exactly the horizon the edge was validated on.
+
+What this patch does NOT do
+
+Does NOT add a profit target. A profit-target exit (capture winners before
+horizon) would need its own validation against the fwd_mfe_5 (max-favourable-
+excursion) distribution that features.py already computes; adding one
+unvalidated would change the edge profile the slices were measured on. It
+is left as a documented future refinement (potential lever 2b), not built
+speculatively.
+Does NOT change monitor.DEFAULT_MONITORED_SLICES, monitored_slices.csv, the
+live_capture workflow, or any risk limit. No promotion claims.
+Does NOT exit on partial/incomplete intraday bars differently than before;
+the state comparison still uses the latest warehouse bar as in the original
+code (the bars_held count is over the same loaded frame).
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 130 passed (was 117; +13 exit-policy tests).
+python3 -m ruff check clean on all changed files.
+End-to-end smoke (synthetic data, mocked account): scan_all_slices with an
+open XLF position held 34 daily bars produced exactly one exit_intent,
+action=exit, reason="horizon reached: held 34 bars >= 5 (1d)", with the
+entry bar + timeframe resolved from the enriched journal. Confirms the
+full CLI -> monitor -> position_manager -> audit-reason path.
+Next ROI levers (in agreed priority order)
+3. Capital allocation across the book: correlation-aware allocation so the
+XOP/XLB/KLAC stretched-down energy/materials concentration is treated as
+one risk bucket, not three independent positions. Today max_open=7 treats
+them as independent.
+4. Cost realism: tighten the cost model toward real fills (validation's 1bp
+is optimistic for names like XOP); the entry-bar-vs-fill slippage noted
+above lives here.
+5. P&L attribution: realised-P&L-per-slice view (net of cost, vs the
+historical fwd_ret_5 expectation). The sizing_* audit fields (lever 1)
+and the bars_held/exit-reason fields (this lever) are the inputs.
+
+Operator action items (optional, none required for the patch to be safe)
+
+The new --exit-horizon flag defaults to 5 (faithful). If you want the live
+workflow to use it, add --exit-horizon 5 (or your preferred value) to the
+paper_trade invocation in .github/workflows/live_capture.yml. Until then
+the workflow uses the module default, which is also 5.
+Once XOP/XLK fill and produce their first exit, the audit row will carry
+bars_held + the exit reason -- the first real measurement of whether holds
+respect the 5-bar horizon.
+ROI Refinement — Capital Allocation (2026-07-06)
+Third patch of the ROI workstream (lever #3 of the agreed priority order:
+sizing -> exits -> allocation -> cost -> P&L attribution).
+
+Why allocation was the next lever
+The book treats every monitored symbol as an independent slot under
+max_open_positions. But three of the seven monitored slices -- XOP, XLB, KLAC
+-- are the SAME edge: state_ext=stretched_down + state_slope=downtrend, the
+"cyclical/materials/energy stretched-down rebound family" this HANDOVER
+explicitly names as the dominant durable family. When all three are in state
+simultaneously (likely, because they share macro drivers), the system would
+open three positions that are effectively one bet -- the book is concentrated,
+not diversified, and a single adverse regime move hits all three at once.
+max_open=7 does not see this; it counts three independent symbols.
+
+Design: risk group = the slice's stable entry condition
+The correlation key is the slice's STABLE (non-transient) filter -- the exact
+condition that triggers entry. Two positions whose entry conditions are
+identical fire on the same bars by construction and are therefore maximally
+correlated: they are the same regime bet. Grouping on the entry condition:
+
+needs no correlation-matrix estimation (which would itself be an overfit
+risk on this dataset);
+is self-maintaining -- the group is derived from the slice definition,
+not a hand-kept sector map that drifts;
+matches the project's own framing ("one family").
+Transient fields (state_session / state_dow / state_month) are excluded
+(mirror of position_manager.TRANSIENT_FIELDS), so the exit policy and the
+allocation gate agree on what "stable" means.
+What was added
+
+src/price/risk_limits.py:
+risk_group_key(symbol, slice_combination): canonical, field-order-
+independent stable-condition key. Falls back to the uppercased symbol
+on unparseable slices or transient-only slices, so a bad slice becomes
+its own singleton group -- never matches everything.
+RiskLimits.max_positions_per_risk_group (int, default 2; <=0 disables =
+legacy). Default 2 allows a confirming second name in a family but
+blocks the third: XOP+XLB open -> KLAC blocked; XLF (different group)
+still allowed.
+check_entry extended with symbol_risk_group + open_position_risk_groups
+params (both optional, backward compatible). The group cap is ORTHOGONAL
+to the existing per-symbol and max-open checks: it counts only positions
+whose group equals the candidate's group.
+risk_group surfaced in check_entry details for audit.
+src/price/monitor.py: scan_all_slices builds open_position_risk_groups from
+the trade journal's per-symbol slice labels (broker positions carry no
+slice), computes the candidate's group, passes both to check_entry, and
+adds risk_group to the emitted entry_signal payload.
+scripts/paper_trade.py: --max-per-group CLI flag (default 2; 0 = legacy).
+tests/test_allocation.py: 15 tests -- risk_group_key (8: the XOP/XLB/KLAC
+collapse, order-independence, transient exclusion, cross_ retention,
+fallbacks, and a pin of the full 7-slice -> 5-group mapping) and check_entry
+group cap (7: blocks 3rd same-group, allows different-group, disabled at 0,
+backward-compat when args absent, orthogonality to max_open, audit field,
+per-group counting).
+Graceful-degradation / safety
+
+max_positions_per_risk_group <= 0 disables the group check entirely ->
+exactly the legacy behaviour (every symbol = independent slot).
+check_entry's new params are optional; when absent, the group check is
+skipped. Existing callers (and any external caller) are unaffected.
+The group cap only ever BLOCKS; it never forces an entry or a close. It
+cannot, by itself, touch the live book beyond refusing a new same-group
+entry while the group is full.
+At session start the only open exposure is the two pending XOP/XLK orders
+(different groups: XOP is stretched_down+downtrend, XLK 1h is
+cross_USO_vol=mid_vol + stretched_down), so the cap does not bind today.
+Demonstration on the real concentration
+End-to-end smoke (mocked account, XOP+XLB already open on
+stretched_down+downtrend):
+KLAC -> BLOCKED: risk group 'state_ext=stretched_down + state_slope=
+downtrend' at cap (2/2)
+XLF -> MATCH, risk gate passed (different group: stretched_up+flat)
+The 7 monitored slices collapse to exactly 5 risk groups, with XOP/XLB/KLAC
+the single multi-member group -- the one the cap is designed to bound.
+
+Honest caveats / what this does NOT do
+
+FIFO blocking only. When a group is full, the next same-group candidate is
+blocked; the system does NOT auto-rotate into a higher-conviction name by
+closing an existing position. Within the allowed slots, conviction sizing
+(lever 1) already routes more capital to the stronger edge (KLAC > XOP/XLB).
+Conviction-aware rotation is a documented future refinement, not built here.
+Grouping is by entry condition, not by sector. Two DIFFERENT sectors that
+happen to share a stable filter (e.g. KLAC semis vs XOP energy, both
+stretched_down+downtrend) are grouped together. This is correct for
+position management (they share the trigger) and matches the HANDOVER's
+"one family" framing, but it means the group is broader than a pure sector
+cluster. A sector-overlay dimension could be added later if a finer cut is
+needed; it is deliberately not added now to avoid an over-specified,
+hand-maintained mapping.
+No promotion claims. Nothing is promoted. The V4 deadlock stands.
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 145 passed (was 130; +15 allocation tests).
+python3 -m ruff check clean on all changed files.
+End-to-end smoke confirmed KLAC group-blocked and XLF allowed through the
+full scan_all_slices -> check_entry -> audit path.
+Next ROI levers (in agreed priority order)
+4. Cost realism: tighten the cost model toward real fills (validation's 1bp
+is optimistic for names like XOP); the entry-bar-vs-fill slippage noted in
+the exit-policy section lives here.
+5. P&L attribution: realised-P&L-per-slice view (net of cost, vs the
+historical fwd_ret_5 expectation). The sizing_* (lever 1), bars_held /
+exit-reason (lever 2), and risk_group (this lever) audit fields are the
+inputs.
+
+Operator action items (optional, none required for the patch to be safe)
+
+--max-per-group defaults to 2 (faithful diversification within a family).
+If you want the live workflow to use it explicitly, add
+--max-per-group 2 to the paper_trade invocation in
+.github/workflows/live_capture.yml. Until then the module default (also 2)
+applies. Set --max-per-group 0 to restore exact legacy behaviour.
+ROI Refinement — Cost Realism (2026-07-06)
+Fourth patch of the ROI workstream (lever #4 of the agreed priority order:
+sizing -> exits -> allocation -> cost -> P&L attribution).
+
+Why cost was the next lever
+The research truth (validation) measures edges at ~1bp/leg (~2bp round trip).
+The execution path (sizing, trading, position_manager) used ZERO cost: sizing
+assumed you fill at the bar close with no spread, no slippage. That is the gap
+between backtested ROI and realized ROI. The biggest term is the signal-to-fill
+gap -- a signal fires on a closed bar (e.g. 2026-07-02) and the market order
+fills at the next session open (e.g. 2026-07-06+). Validation assumes
+transacting at the signal bar's close; the live workflow does not. Before this
+patch nothing modeled that gap, so a thin edge that barely clears validation
+cost could be sized up as if it cleared execution cost too.
+
+What was added
+
+src/price/cost_model.py: CostModel, the single source of truth for realistic
+execution cost. Decomposed into commission + spread + slippage (all per leg,
+in basis points), round-trip aware. Defaults are deliberately conservative
+for the monitored set's character (liquid-to-mid US equities/ETFs, market
+orders): commission 0bp (zero-commission retail / Alpaca paper), spread 1bp
+(half-spread crossing a market order), slippage 3bp (adverse fill + the
+signal-to-fill gap). Round trip = 8bp. Provides round_trip_bps/drag,
+per_leg_bps_for_validation (the --cost-bps value to reproduce the model in
+validation), and apply() mirroring validation.apply_transaction_cost.
+src/price/sizing.py: compute_conviction accepts cost_model and NETS the
+execution round-trip drag off the edge before magnitude. A cost-negated edge
+(net <= 0) returns conviction 0.05, mode="cost_negated", and is NOT rescued
+by the KNOWN_CONVICTION_FLOOR (a cost-eating trade is not a survivor
+net-of-cost). compute_position_size threads cost_model through (default =
+default_cost_model()) and PositionSize now carries expected_cost_bps_round_
+trip so every signal's expected cost is audited.
+src/price/monitor.py: scan_all_slices accepts cost_model, threads to sizing.
+scripts/paper_trade.py: --cost-spread-bps / --cost-slippage-bps /
+--cost-commission-bps construct the CostModel; printed each run.
+tests/test_cost_model.py: 12 tests -- arithmetic, cost-negation, monotonic
+conviction reduction, cost_model=None preserves pre-lever-4, zero-cost
+reproduces no-cost sizing, expected-cost audit field, and a pin that all
+four corrected Tier-1 daily edges survive the default 8bp drag.
+Cost overlap note (deliberately conservative)
+valid_mean_ret_costadj is already net of ~2bp validation cost. Netting the full
+execution drag double-counts that ~2bp. Intentional -- guarantees we never size
+a trade that cannot clear its real-world cost, at the cost of ~2bp pessimism
+(small vs the edges). Not "corrected" away on purpose.
+
+Design choices (deliberate, honest)
+
+NOT a per-symbol cost table (that would be the overfit/hand-authored risk
+this project rejects). Decomposed + conservative-default + configurable.
+Defaults are conservative placeholders, NOT measured. The slippage term
+stands in for the signal-to-fill gap until fills calibrate it (lever 5).
+Validation default is NOT flipped (re-ranking at realistic cost is an
+operator-owned research decision). The model only OFFERS alignment via
+per_leg_bps_for_validation() (--cost-bps 4.0 reproduces the default).
+Demonstration on the corrected Tier-1 edges (default 8bp cost)
+KLAC 4.68% gross -> 4.60% net -> conviction 92.6% (was 92.8%)
+XOP 1.84% gross -> 1.76% net -> conviction 35.0% (at floor)
+XLB 1.52% gross -> 1.44% net -> conviction 35.0% (at floor)
+XLF 1.00% gross -> 0.92% net -> conviction 35.0% (at floor)
+None negated. The Tier-1 survivors are robust to realistic cost. The lever's
+value is for THIN edges: a marginal 10bp edge gets ~zero capital here because
+net-of-8bp-execution-cost it is only ~2bp -- no longer over-sized as if
+cost-free. That is the ROI protection.
+
+Graceful degradation / safety
+
+cost_model=None on compute_conviction -> exec_drag=0 -> identical to
+pre-lever-4 (existing sizing tests unaffected; that is why 145 stayed green).
+The no-data path returns neutral conviction BEFORE cost logic, so the live
+book (no committed leaderboard) is unaffected until the operator regenerates
+candidate_leaderboard.csv.
+Cost only ever REDUCES conviction (or floors a negated edge to 0.05); it
+never increases a position or forces a trade.
+Verification
+
+python3 -m py_compile clean on all changed files.
+python3 -m pytest -q -> 157 passed (was 145; +12 cost tests).
+python3 -m ruff check clean on all changed files.
+Next ROI lever
+5. P&L attribution: realised-P&L-per-slice view (net of cost, vs the historical
+fwd_ret_5 expectation). The sizing_* (lever 1), bars_held / exit-reason
+(lever 2), risk_group (lever 3), and expected_cost_bps_round_trip (this
+lever) audit fields are all in place as inputs. This is also where the cost
+model's slippage term gets CALIBRATED from realized fills -- closing the loop
+on the one honest placeholder in lever 4.
+
+Operator action items (optional, none required for the patch to be safe)
+
+The default cost model (8bp round trip) applies automatically. For a
+different cost profile on the live workflow, add --cost-spread-bps /
+--cost-slippage-bps / --cost-commission-bps to the paper_trade invocation in
+.github/workflows/live_capture.yml.
+To re-rank slices at realistic cost (operator-owned research decision), run
+validation with --cost-bps 4.0 and compare. Do NOT flip the validation
+default silently.

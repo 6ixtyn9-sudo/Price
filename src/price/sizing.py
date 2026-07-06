@@ -46,6 +46,7 @@ from typing import Optional
 import pandas as pd
 
 from price.config import DATA_DIR
+from price.cost_model import CostModel, default_cost_model
 
 
 CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
@@ -138,12 +139,13 @@ class PositionSize:
 
     qty: int
     conviction: float
-    sizing_mode: str               # "conviction_with_vol_rail" | "conviction_notional_only" | "fallback_no_data" | "zero"
+    sizing_mode: str               # "conviction_with_vol_rail" | "conviction_notional_only" | "fallback_no_data" | "cost_negated" | "zero"
     target_notional: float
     qty_notional: int
     qty_risk: Optional[int]
     atr: Optional[float]
     conviction_result: Optional[ConvictionResult]
+    expected_cost_bps_round_trip: float = 0.0
     reasons: list = field(default_factory=list)
 
     def to_audit_dict(self) -> dict:
@@ -155,6 +157,7 @@ class PositionSize:
             "sizing_atr": (round(self.atr, 4) if self.atr is not None else None),
             "sizing_qty_notional": self.qty_notional,
             "sizing_qty_risk": self.qty_risk,
+            "sizing_expected_cost_bps_rt": round(self.expected_cost_bps_round_trip, 2),
         }
 
 
@@ -164,27 +167,24 @@ def _clip(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
 
-def compute_conviction(edge: Optional[SliceEdge]) -> ConvictionResult:
+def compute_conviction(
+    edge: Optional[SliceEdge],
+    cost_model: Optional[CostModel] = None,
+) -> ConvictionResult:
     """Map a slice's research edge metrics to a conviction weight in (0,1].
 
     Pure function: deterministic, no I/O, no network, no warehouse read.
-    Unit-tested independently of any data file.
 
-    Model (all components in [0,1], multiplicative):
-        conviction = magnitude * robustness * validity   (+ MT bonus)
+    magnitude is computed on the NET-OF-EXECUTION-COST edge: the cost_model's
+    round-trip drag is subtracted from the validation-cost-adjusted edge
+    first, so a trade whose edge is eaten by realistic execution cost earns
+    near-zero capital regardless of its other metrics. cost_model has NO
+    effect on the no-data path (we cannot net cost from an edge we lack).
 
-    - magnitude:   edge size relative to EDGE_REF, floored so a small
-                   but real edge still earns capital.
-    - robustness:  blend of walk-forward pass rate, scenario-stress
-                   survival, and sample adequacy.
-    - validity:    penalizes slices that barely beat (or underperform)
-                   their best simpler parent regime; full weight only
-                   when the edge is genuinely incremental.
-    - MT bonus:    small multiplier for surviving search-wide multiple-
-                   testing correction (Bonferroni > BH > none).
-
-    Returns ConvictionResult with conviction=NEUTRAL_CONVICTION (1.0)
-    when edge is None, so the no-data path reproduces equal-notional.
+    Cost overlap note (deliberately conservative): valid_mean_ret_costadj is
+    already net of ~2bp validation cost. Subtracting the full execution drag
+    double-counts that ~2bp. Intentional -- guarantees we never size a trade
+    that cannot clear its real-world cost.
     """
     if edge is None:
         return ConvictionResult(
@@ -194,7 +194,30 @@ def compute_conviction(edge: Optional[SliceEdge]) -> ConvictionResult:
             reasons=["no leaderboard edge data; using neutral conviction (reproduces equal-notional)"],
         )
 
-    magnitude = _clip(edge.mean_return / EDGE_REF, 0.1, 1.0)
+    # Net the execution drag off the validation-cost-adjusted edge.
+    exec_drag = cost_model.round_trip_drag() if cost_model else 0.0
+    net_edge = edge.mean_return - exec_drag
+
+    # A cost-negated edge earns ~no capital and is explicitly NOT rescued by
+    # the KNOWN_CONVICTION_FLOOR (a cost-eating trade is not a survivor
+    # net-of-cost). Tiny epsilon so it is distinguishable from a hard zero
+    # without deploying meaningful capital.
+    if net_edge <= 0:
+        return ConvictionResult(
+            conviction=0.05,
+            mode="cost_negated",
+            components={
+                "gross_edge": round(edge.mean_return, 6),
+                "exec_drag": round(exec_drag, 6),
+                "net_edge": round(net_edge, 6),
+            },
+            reasons=[
+                f"cost-negated: gross edge {edge.mean_return:.4f} - exec drag "
+                f"{exec_drag:.4f} = net {net_edge:.4f} <= 0; conviction floored to 0.05",
+            ],
+        )
+
+    magnitude = _clip(net_edge / EDGE_REF, 0.1, 1.0)
 
     wf_rate = edge.walk_forward_pass_count / MAX_WF if edge.walk_forward_pass_count > 0 else 0.0
     scenario_rate = edge.scenario_survived_count / MAX_SCENARIOS if edge.scenario_survived_count > 0 else 0.0
@@ -220,26 +243,38 @@ def compute_conviction(edge: Optional[SliceEdge]) -> ConvictionResult:
 
     conviction = _clip(conviction, KNOWN_CONVICTION_FLOOR, 1.0)
 
+    components = {
+        "magnitude": round(magnitude, 5),
+        "robustness": round(robustness, 5),
+        "validity": round(validity, 5),
+        "wf_rate": round(wf_rate, 5),
+        "scenario_rate": round(scenario_rate, 5),
+        "sample_rate": round(sample_rate, 5),
+        "mt_bonus": round(bonus, 5),
+        "mt_note": mt_note,
+    }
+    if exec_drag > 0:
+        components.update({
+            "gross_edge": round(edge.mean_return, 6),
+            "exec_drag": round(exec_drag, 6),
+            "net_edge": round(net_edge, 6),
+        })
+
+    edge_str = f"net edge {net_edge:.4f}"
+    drag_str = f"; gross {edge.mean_return:.4f} - drag {exec_drag:.4f}" if exec_drag > 0 else ""
+    reasons = [
+        f"magnitude={magnitude:.3f} ({edge_str} / ref {EDGE_REF}{drag_str})",
+        f"robustness={robustness:.3f} (wf {edge.walk_forward_pass_count}/{MAX_WF}, "
+        f"scenario {edge.scenario_survived_count}/{MAX_SCENARIOS}, n {edge.valid_n})",
+        f"validity={validity:.3f} (parent excess {edge.excess_vs_parent:.4f})",
+        f"mt_bonus={bonus:.3f} ({mt_note})",
+    ]
+
     return ConvictionResult(
         conviction=conviction,
         mode="leaderboard_backed",
-        components={
-            "magnitude": round(magnitude, 5),
-            "robustness": round(robustness, 5),
-            "validity": round(validity, 5),
-            "wf_rate": round(wf_rate, 5),
-            "scenario_rate": round(scenario_rate, 5),
-            "sample_rate": round(sample_rate, 5),
-            "mt_bonus": round(bonus, 5),
-            "mt_note": mt_note,
-        },
-        reasons=[
-            f"magnitude={magnitude:.3f} (edge {edge.mean_return:.4f} / ref {EDGE_REF})",
-            f"robustness={robustness:.3f} (wf {edge.walk_forward_pass_count}/{MAX_WF}, "
-            f"scenario {edge.scenario_survived_count}/{MAX_SCENARIOS}, n {edge.valid_n})",
-            f"validity={validity:.3f} (parent excess {edge.excess_vs_parent:.4f})",
-            f"mt_bonus={bonus:.3f} ({mt_note})",
-        ],
+        components=components,
+        reasons=reasons,
     )
 
 
@@ -390,22 +425,15 @@ def compute_position_size(
     equity: Optional[float] = None,
     leaderboard_path: Optional[Path] = None,
     conviction_sizing_enabled: Optional[bool] = None,
+    cost_model: Optional[CostModel] = None,
 ) -> PositionSize:
     """Compute an edge- and volatility-aware position size.
 
-    Parameters
-    ----------
-    symbol, timeframe, slice_combination : used to look up edge metrics
-        and to compute ATR from the warehouse if atr is not passed.
-    close_adj : reference price for notional / risk calc.
-    limits : RiskLimits. Uses max_notional_per_position,
-        risk_fraction_per_trade, conviction_sizing_enabled, and
-        account_equity_for_sizing (unless overridden by `equity`).
-    atr : optional precomputed 14-bar ATR; if None the warehouse is read.
-    equity : optional account equity for the vol rail; falls back to
-        limits.account_equity_for_sizing.
-    leaderboard_path : override the candidate leaderboard location.
-    conviction_sizing_enabled : override limits.conviction_sizing_enabled.
+    cost_model : realistic execution cost model. When provided (default is
+        the conservative default_cost_model()), conviction nets the execution
+        round-trip drag off the edge before sizing, so a cost-eating trade
+        earns near-zero capital. Pass CostModel(commission_bps=0, spread_bps=0,
+        slippage_bps=0) to disable cost adjustment (= pre-lever-4 behaviour).
     """
     # Resolve config with overrides.
     enabled = (
@@ -416,19 +444,23 @@ def compute_position_size(
     eq = equity if equity is not None else getattr(limits, "account_equity_for_sizing", None)
     risk_fraction = getattr(limits, "risk_fraction_per_trade", 0.0) or 0.0
     max_notional = float(getattr(limits, "max_notional_per_position", 2500.0))
+    if cost_model is None:
+        cost_model = default_cost_model()
 
     # Bad price -> no trade.
     if close_adj is None or close_adj != close_adj or close_adj <= 0:
         return PositionSize(
             qty=0, conviction=0.0, sizing_mode="zero",
             target_notional=0.0, qty_notional=0, qty_risk=None, atr=None,
-            conviction_result=None, reasons=["price invalid or non-positive"],
+            conviction_result=None,
+            expected_cost_bps_round_trip=cost_model.round_trip_bps(),
+            reasons=["price invalid or non-positive"],
         )
 
-    # Conviction (with graceful no-data fallback).
+    # Conviction (with graceful no-data fallback; cost nets only when edge known).
     if enabled:
         edge = load_edge_metrics(symbol, timeframe, slice_combination, leaderboard_path)
-        cr = compute_conviction(edge)
+        cr = compute_conviction(edge, cost_model=cost_model)
     else:
         cr = ConvictionResult(
             conviction=1.0, mode="disabled",
@@ -459,6 +491,8 @@ def compute_position_size(
         atr_for_result = None
         if cr.mode == "neutral_no_data":
             sizing_mode = "fallback_no_data"
+        elif cr.mode == "cost_negated":
+            sizing_mode = "cost_negated"
 
     qty = max(0, qty)
 
@@ -480,5 +514,6 @@ def compute_position_size(
         qty_risk=qty_risk,
         atr=atr_for_result,
         conviction_result=cr,
+        expected_cost_bps_round_trip=cost_model.round_trip_bps(),
         reasons=reasons,
     )
