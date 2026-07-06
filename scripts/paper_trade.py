@@ -36,6 +36,7 @@ import pandas as pd
 
 from price.config import DATA_DIR
 from price.monitor import scan_all_slices
+from price.position_manager import ExitPolicy
 from price.risk_limits import RiskLimits, record_entry, set_halt_flag
 from price.trading import close_position, submit_entry
 
@@ -135,6 +136,8 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 qty=qty,
                 slice_label=slice_label,
                 side=sig.get("suggested_side", "buy"),
+                entry_bar_ts=sig.get("bar_ts_utc"),
+                timeframe=sig.get("timeframe"),
             )
             if result.get("status") != "rejected":
                 record_entry(symbol)
@@ -207,6 +210,10 @@ def main() -> int:
                         "also caps each position by risk_dollars / ATR so high-vol names cannot "
                         "concentrate more than their risk budget. Toward real capital, set this to "
                         "current account equity.")
+    parser.add_argument("--exit-horizon", type=int, default=5,
+                        help="Max bars (in the position's own timeframe) to hold before a time-stop "
+                        "exit. Default 5 = the fwd_ret_5 validation horizon (faithful to the measured "
+                        "edge). 0 disables the horizon exit (state-break only, legacy behaviour).")
     parser.add_argument("--allow-shorts", action="store_true",
                         help="Enable short-side entries on the paper account. Default: short signals "
                         "are computed and logged but BLOCKED at the risk gate (allow_shorts=False).")
@@ -241,8 +248,13 @@ def main() -> int:
     print(f"Risk limits: {limits.to_dict()}")
     print(f"Dry run: {args.dry_run}")
 
+    exit_policy = ExitPolicy(horizon_bars=args.exit_horizon)
+    print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}")
+
     def _one_pass() -> Dict[str, int]:
-        signals = scan_all_slices(limits=limits, dry_run=args.dry_run)
+        signals = scan_all_slices(
+            limits=limits, dry_run=args.dry_run, exit_policy=exit_policy,
+        )
         counts = _handle_signals(signals, dry_run=args.dry_run)
         print("\n=== pass summary ===")
         for k, v in counts.items():

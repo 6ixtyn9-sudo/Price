@@ -14,6 +14,7 @@ It does NOT:
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 from alpaca.trading.client import TradingClient
@@ -97,7 +98,20 @@ def get_open_orders() -> pd.DataFrame:
 
     return pd.DataFrame(rows)
 
-def submit_entry(symbol: str, qty: int, slice_label: str, side: str = "buy") -> dict:
+def submit_entry(
+    symbol: str,
+    qty: int,
+    slice_label: str,
+    side: str = "buy",
+    entry_bar_ts: Optional[str] = None,
+    timeframe: Optional[str] = None,
+) -> dict:
+    """Submit a market entry order and journal it.
+
+    entry_bar_ts / timeframe are recorded so the exit policy can count bars
+    held in the position's own timeframe (faithful to the fwd_ret_5 horizon).
+    Both optional for backward compatibility; older callers still work.
+    """
     client = get_trading_client()
     order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
 
@@ -120,6 +134,8 @@ def submit_entry(symbol: str, qty: int, slice_label: str, side: str = "buy") -> 
             "status": order.status,
             "submitted_at": str(order.submitted_at),
             "slice_label": slice_label,
+            "entry_bar_ts": entry_bar_ts,
+            "timeframe": timeframe,
         }
     except Exception as e:
         result = {
@@ -131,6 +147,8 @@ def submit_entry(symbol: str, qty: int, slice_label: str, side: str = "buy") -> 
             "status": "rejected",
             "error": str(e),
             "slice_label": slice_label,
+            "entry_bar_ts": entry_bar_ts,
+            "timeframe": timeframe,
         }
 
     _append_journal(result, action="entry")

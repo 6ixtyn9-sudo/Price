@@ -31,7 +31,7 @@ from price.config import DATA_DIR
 from price.data_sources import fetch_alpaca_bars  # noqa: F401
 from price.discovery import bin_features, attach_cross_asset_states
 from price.features import compute_price_features
-from price.position_manager import check_exits, get_today_realized_pnl
+from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
 from price.risk_limits import RiskLimits, check_entry
 from price.sizing import compute_position_size
 from price.trading import get_open_positions, get_open_orders
@@ -345,6 +345,7 @@ def scan_all_slices(
     slices: Optional[List[dict]] = None,
     limits: Optional[RiskLimits] = None,
     dry_run: bool = False,
+    exit_policy: Optional[ExitPolicy] = None,
 ) -> List[dict]:
     """Scan all monitored slices; emit tradable signals + exit intents.
 
@@ -354,6 +355,7 @@ def scan_all_slices(
     and the reasons) but is NOT marked tradable=True.
 
     For each open position, also run position_manager.check_exits
+    (hybrid: stable-state-break OR held >= exit_policy.horizon_bars)
     and return any 'exit' intents.
 
     Parameters
@@ -367,6 +369,8 @@ def scan_all_slices(
     dry_run : bool, default False
         If True, the risk gate is *skipped* and every matched signal
         is emitted as tradable=True. Use only for debugging.
+    exit_policy : ExitPolicy, optional
+        Override the default horizon exit (default horizon_bars=5).
     """
     if slices is None:
         slices = get_default_monitored_slices()
@@ -398,7 +402,11 @@ def scan_all_slices(
     if open_positions_list:
         print(f"\nChecking exits for {len(open_positions_list)} open position(s)...")
         try:
-            exit_intents = check_exits(open_positions_df, open_position_slice_labels)
+            exit_intents = check_exits(
+                open_positions_df,
+                open_position_slice_labels,
+                exit_policy=exit_policy,
+            )
         except Exception as e:
             print(f"  exit-check failed: {e}")
             exit_intents = []

@@ -18,6 +18,7 @@ It does NOT decide when to enter (that's monitor.py).
 It does NOT place orders (that's trading.py).
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -119,11 +120,137 @@ def _extract_cross_symbols_from_stable(stable: Dict[str, str]) -> Dict[str, List
     return cross
 
 
+@dataclass
+class ExitPolicy:
+    """Hybrid exit policy configuration.
+
+    A position is exited when ANY condition fires:
+      - stable_state_break: the slice's stable (non-transient) filter no
+        longer matches the current bar (the original exit logic).
+      - horizon_reached: bars held (in the position's own timeframe) >=
+        horizon_bars. The validation horizon is fwd_ret_5, so the default 5
+        is faithful to the measured edge; holding longer is unvalidated and
+        lets winners/losers run past the edge window.
+
+    horizon_bars=0 disables the horizon exit (state-break only = legacy).
+    """
+
+    horizon_bars: int = 5
+
+
+def _parse_ts(ts) -> Optional[datetime]:
+    """Best-effort parse of an arbitrary timestamp to tz-aware UTC.
+
+    Returns None on anything unparseable. Used by bar-counting so the exit
+    logic never crashes on a malformed journal/warehouse timestamp.
+    """
+    if ts is None:
+        return None
+    try:
+        t = pd.to_datetime(ts, errors="coerce", utc=True)
+    except (ValueError, TypeError):
+        return None
+    if t is None or pd.isna(t):
+        return None
+    if getattr(t, "tzinfo", None) is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t
+
+
+def _count_bars_after(entry_ts, df: pd.DataFrame) -> Optional[int]:
+    """Number of warehouse bars strictly after ``entry_ts``.
+
+    Counts bars in the position's own timeframe (the warehouse partition the
+    caller loaded), so 5 bars on 1d ~= one trading week and 5 bars on 1h ~=
+    one session. This is the timeframe-aware bar counting the HANDOVER's
+    exit-policy target calls for. Returns None if unknowable (missing entry
+    bar, missing bar_ts_utc column, etc.); callers treat None as 'do not
+    force a horizon exit on missing data'.
+    """
+    if entry_ts is None or df is None or df.empty:
+        return None
+    if "bar_ts_utc" not in df.columns:
+        return None
+    parsed_entry = _parse_ts(entry_ts)
+    if parsed_entry is None:
+        return None
+    bar_ts = pd.to_datetime(df["bar_ts_utc"], errors="coerce", utc=True)
+    return int((bar_ts > parsed_entry).sum())
+
+
+def _load_entry_context() -> Dict[str, dict]:
+    """Per-symbol most-recent accepted entry context from the trade journal.
+
+    Returns {symbol: {slice_combination, timeframe, entry_bar_ts, submitted_at}}.
+    Resolves each open position's timeframe and entry bar for the horizon
+    exit. Never raises; returns {} if no journal / no entries. Rows written
+    before the entry_bar_ts/timeframe columns existed fall back to
+    submitted_at as the entry-time proxy, so legacy journal entries still
+    get a (slightly approximate) horizon exit.
+    """
+    try:
+        from price.trading import load_trade_journal
+        journal = load_trade_journal()
+    except Exception:  # noqa: BLE001 - exit logic must never crash the scan
+        return {}
+    if journal is None or journal.empty:
+        return {}
+    if "action" not in journal.columns or "symbol" not in journal.columns:
+        return {}
+
+    entries = journal[journal["action"] == "entry"].copy()
+    if entries.empty:
+        return {}
+    if "status" in entries.columns:
+        entries = entries[entries["status"].astype(str).str.lower() != "rejected"]
+    if entries.empty:
+        return {}
+
+    sort_col = "submitted_at" if "submitted_at" in entries.columns else "timestamp_utc"
+    entries["_sort_ts"] = pd.to_datetime(entries.get(sort_col), errors="coerce", utc=True)
+    entries = entries.dropna(subset=["_sort_ts"]).sort_values("_sort_ts")
+    if entries.empty:
+        return {}
+    last = entries.groupby("symbol").tail(1)
+
+    out: Dict[str, dict] = {}
+    for _, r in last.iterrows():
+        sym = str(r["symbol"]).upper()
+        tf = r.get("timeframe")
+        ebt = r.get("entry_bar_ts")
+
+        def _clean(v):
+            if v is None:
+                return None
+            try:
+                if pd.isna(v):
+                    return None
+            except (TypeError, ValueError):
+                pass
+            s = str(v)
+            return None if s.lower() in ("nan", "none", "") else s
+
+        out[sym] = {
+            "slice_combination": str(r.get("slice_label", "") or ""),
+            "timeframe": _clean(tf),
+            "entry_bar_ts": _clean(ebt),
+            "submitted_at": _clean(r.get("submitted_at")),
+        }
+    return out
+
+
 def check_exits(
     open_positions: pd.DataFrame,
     open_position_slice_labels: Dict[str, str],
+    exit_policy: Optional[ExitPolicy] = None,
 ) -> List[dict]:
-    """For each open position, decide whether to exit on stable-state change.
+    """For each open position, decide whether to exit (hybrid policy).
+
+    A position is exited when ANY of:
+      - stable_state_break: the slice's stable (non-transient) filter no
+        longer matches the current bar.
+      - horizon_reached: bars held in the position's own timeframe >=
+        exit_policy.horizon_bars (faithful to fwd_ret_5).
 
     Parameters
     ----------
@@ -131,25 +258,38 @@ def check_exits(
         From `trading.get_open_positions()`. Must have a 'symbol' column.
     open_position_slice_labels : dict
         {symbol: slice_combination_string} -- which slice entered it.
+    exit_policy : ExitPolicy, optional
+        Defaults to ExitPolicy() (horizon_bars=5).
 
     Returns
     -------
     list of dicts, each with: symbol, slice_combination, action, reason,
-    and (when applicable) stable_filter + current_stable_state.
-    action is "exit" if the stable filter no longer matches, else "hold".
+    bars_held, horizon_bars, timeframe, and (when applicable) stable_filter
+    + current_stable_state. action is "exit" if any exit condition fires,
+    else "hold".
     """
     if open_positions is None or open_positions.empty:
         return []
+    if exit_policy is None:
+        exit_policy = ExitPolicy()
 
+    entry_context = _load_entry_context()
     intents: List[dict] = []
+
     for _, pos in open_positions.iterrows():
         symbol = str(pos["symbol"]).upper()
-        slice_combo = open_position_slice_labels.get(symbol)
+        ctx = entry_context.get(symbol, {})
+        slice_combo = (
+            open_position_slice_labels.get(symbol)
+            or ctx.get("slice_combination")
+        )
         if not slice_combo:
             intents.append({
                 "symbol": symbol,
                 "action": "hold",
                 "reason": "no slice label recorded for this position",
+                "bars_held": None,
+                "horizon_bars": exit_policy.horizon_bars,
             })
             continue
         try:
@@ -160,11 +300,19 @@ def check_exits(
                 "slice_combination": slice_combo,
                 "action": "hold",
                 "reason": f"could not parse slice_combination: {exc}",
+                "bars_held": None,
+                "horizon_bars": exit_policy.horizon_bars,
             })
             continue
 
         stable, _ = split_filter(slice_filter)
-        timeframe = "1h" if "state_session" in slice_filter else "1d"
+
+        # Resolve timeframe from the entry journal when available; fall back
+        # to the session-presence heuristic for older journal rows that lack
+        # an explicit timeframe column.
+        timeframe = ctx.get("timeframe") or (
+            "1h" if "state_session" in slice_filter else "1d"
+        )
 
         df = load_from_warehouse(symbol, timeframe)
         if df.empty or len(df) < 60:
@@ -173,8 +321,17 @@ def check_exits(
                 "slice_combination": slice_combo,
                 "action": "hold",
                 "reason": f"insufficient warehouse data for {symbol} ({timeframe})",
+                "bars_held": None,
+                "horizon_bars": exit_policy.horizon_bars,
             })
             continue
+
+        # Bars held in the position's own timeframe, counted from the entry
+        # signal bar (faithful to the fwd_ret_5 edge horizon). Falls back to
+        # order submission time when the signal bar wasn't recorded. None if
+        # neither is available -> horizon exit cannot fire.
+        entry_bar_ts = ctx.get("entry_bar_ts") or ctx.get("submitted_at")
+        bars_held = _count_bars_after(entry_bar_ts, df)
 
         df_feat = compute_price_features(df)
         df_binned = bin_features(df_feat)
@@ -197,23 +354,40 @@ def check_exits(
         stable_str = " + ".join(f"{k}={v}" for k, v in stable.items())
         current_stable = {k: current_state.get(k, "") for k in stable}
 
-        if not mismatches:
-            intents.append({
-                "symbol": symbol,
-                "slice_combination": slice_combo,
-                "action": "hold",
-                "stable_filter": stable_str,
-                "current_stable_state": current_stable,
-                "reason": "stable filter still matches",
-            })
+        exit_reasons: List[str] = []
+        if mismatches:
+            exit_reasons.append("stable filter broken: " + "; ".join(mismatches))
+        if (
+            exit_policy.horizon_bars > 0
+            and bars_held is not None
+            and bars_held >= exit_policy.horizon_bars
+        ):
+            exit_reasons.append(
+                f"horizon reached: held {bars_held} bars "
+                f">= {exit_policy.horizon_bars} ({timeframe})"
+            )
+
+        action = "exit" if exit_reasons else "hold"
+        if exit_reasons:
+            reason = "; ".join(exit_reasons)
+        elif bars_held is not None:
+            reason = (
+                f"stable filter matches; held {bars_held}/"
+                f"{exit_policy.horizon_bars} bars ({timeframe})"
+            )
         else:
-            intents.append({
-                "symbol": symbol,
-                "slice_combination": slice_combo,
-                "action": "exit",
-                "stable_filter": stable_str,
-                "current_stable_state": current_stable,
-                "reason": "stable filter broken: " + "; ".join(mismatches),
-            })
+            reason = "stable filter matches; bars held unknown (no entry bar)"
+
+        intents.append({
+            "symbol": symbol,
+            "slice_combination": slice_combo,
+            "action": action,
+            "stable_filter": stable_str,
+            "current_stable_state": current_stable,
+            "bars_held": bars_held,
+            "horizon_bars": exit_policy.horizon_bars,
+            "timeframe": timeframe,
+            "reason": reason,
+        })
 
     return intents
