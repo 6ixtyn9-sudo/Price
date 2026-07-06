@@ -127,10 +127,15 @@ def _adopt_existing_broker_stop(symbol: str, side: str, qty: float, entry_price:
     ratchet logic will correctly advance it forward from the current price
     if it has, in fact, already earned a breakeven/trailing stage.
     """
-    stop_price = float(broker_order["stop_price"]) if broker_order.get("stop_price") is not None else None
-    if stop_price is None:
-        # Defensive: a stop order with no stop_price is malformed; fall
-        # back to treating entry_price as if there's zero cushion (R=0),
+    raw_stop_price = broker_order.get("stop_price")
+    try:
+        stop_price = float(raw_stop_price) if raw_stop_price is not None else None
+    except (TypeError, ValueError):
+        stop_price = None
+    if stop_price is None or stop_price != stop_price:
+        # Defensive: a stop order with no stop_price is malformed. Pandas
+        # Series commonly turns None into NaN, so check both None and NaN.
+        # Fall back to treating entry_price as if there's zero cushion (R=0),
         # which correctly makes current_risk_dollars()/unrealized_r_
         # multiple() degenerate-safe rather than raising.
         stop_price = entry_price
