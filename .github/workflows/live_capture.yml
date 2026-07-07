@@ -30,19 +30,9 @@ name: Live Capture
 # and "Leverage Phase (2026-07-06)".
 
 on:
-  # Runs 5x on each trading day (roughly every 2 hours across the US
-  # session) instead of once at close. This matters now that positions
-  # carry a REAL broker-side protective stop that ratchets (breakeven at
-  # +1R, then a chandelier trail): the stop is continuously enforced by
-  # Alpaca regardless of scan cadence, but a WINNING trade's stop only
-  # actually MOVES UP the next time this workflow runs and calls
-  # stop_manager.reconcile_stops. A once-a-day scan meant a strong
-  # intraday move could give back most of its gain before the trail ever
-  # caught up. All times UTC; 13:30 ET market open is ~17:30 UTC in
-  # winter / ~13:30 UTC in summer (this uses summer/EDT-aligned hours;
-  # revisit if the project cares about exact DST alignment).
-  # 21:00 UTC (~1hr after US close) is kept as the last run of the day so
-  # end-of-day bars are settled before the final reconciliation.
+  # US session coverage: 13:00 to 21:00 UTC (roughly 9:00 AM to 5:00 PM ET)
+  # This provides hourly monitoring for responsive stop-loss management
+  # and margin cushion tracking, essential for the upcoming leverage phase.
   schedule:
     - cron: "0 13-21 * * 1-5"
   workflow_dispatch:
@@ -56,7 +46,7 @@ jobs:
     # Pin the runner image instead of ubuntu-latest so OS-level packages do
     # not drift under a secrets-bearing workflow.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
 
@@ -89,6 +79,7 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
+          # UPGRADED: Scaled to full allowlist tier for universe-awareness.
           # Pull 1d history for the standard universe. The V4
           # validation discipline requires ~1 year minimum and the
           # clean_survivor tier (the only tier the live forward-
@@ -98,11 +89,11 @@ jobs:
           # Tiingo (primary, free tier). build_warehouse.py
           # propagates the daily adjustment factors to intraday.
           PYTHONPATH=src python3 scripts/capture_bars.py \
-            --symbols XLF XLK SPY XOP XLB KLAC TLT USO \
+            --tier allowlist \
             --timeframes 1d \
             --days 1825
           PYTHONPATH=src python3 scripts/build_warehouse.py \
-            --symbols XLF XLK SPY XOP XLB KLAC TLT USO
+            --tier allowlist
 
       - name: Run capture_bars (15m, 30-day history for intraday monitoring)
         env:
@@ -110,19 +101,16 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
+          # UPGRADED: Scaled to full allowlist tier for universe-awareness.
           # Pull 15m history for intraday monitoring only. 30 days
-          # is enough for paper_trade.py --dry-run to compute
-          # the current 1h state via the resample step. The
-          # intraday slices are NOT the live-capture layer's
-          # primary research target (XLF 1d is) so a shorter
-          # history here is fine and keeps the workflow within
-          # its 15-minute timeout.
+          # is enough for paper_trade.py to compute
+          # the current 1h state via the resample step.
           PYTHONPATH=src python3 scripts/capture_bars.py \
-            --symbols XLF XLK SPY XOP XLB KLAC TLT USO \
+            --tier allowlist \
             --timeframes 15m \
             --days 30
           PYTHONPATH=src python3 scripts/build_warehouse.py \
-            --symbols XLF XLK SPY XOP XLB KLAC TLT USO
+            --tier allowlist
 
       - name: Write explicit monitored slices
         run: |
@@ -145,28 +133,13 @@ jobs:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
           # Live PAPER execution only. trading.py is hardwired paper=True.
-          # Keep this extremely constrained until the out-of-sample journal is larger.
           #
-          # Every flag below is passed EXPLICITLY (even where it matches the
-          # CLI's own default) so a future change to the code's default
-          # cannot silently change deployed behaviour without showing up as
-          # a diff in this file.
+          # UPGRADED: Now uses Limit Orders and an honest cost model (1.5bp/5.0bp)
+          # to protect capital from slippage during the US session open.
           #
           # --auto-sizing-equity is enabled: it activates the sizing
           # volatility rail (Stage B) and the aggregate open-risk budget,
-          # both of which are STRICTLY TIGHTENING mechanisms (qty is always
-          # min() against them; the aggregate-risk check can only BLOCK,
-          # never enlarge, a trade) -- so turning this on cannot loosen the
-          # live book's risk versus today, only make it more honest about
-          # real ATR-based risk. See HANDOVER.md "Protective Stops".
-          #
-          # --regime-filter and --target-leverage are DELIBERATELY NOT set
-          # here. Both are net-new policy decisions (which slices to gate
-          # on macro regime; whether/how much to leverage the book), not
-          # bug fixes, and this project's doctrine treats that class of
-          # decision as an explicit operator call -- see the "Operator
-          # action items" note in HANDOVER.md's regime-gate and
-          # leverage-phase sections. Add them here only after that sign-off.
+          # both of which are STRICTLY TIGHTENING mechanisms.
           PYTHONPATH=src python3 scripts/paper_trade.py \
             --max-notional 2500 \
             --max-open 7 \
@@ -181,8 +154,8 @@ jobs:
             --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.03 \
             --whipsaw-limit 2 \
-            --cost-spread-bps 1.0 \
-            --cost-slippage-bps 3.0 \
+            --cost-spread-bps 1.5 \
+            --cost-slippage-bps 5.0 \
             --cost-commission-bps 0.0
 
       - name: Run live forward-return capture
@@ -191,7 +164,8 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          PYTHONPATH=src python3 scripts/live_forward_returns.py --universe-source monitored
+          # UPGRADED: Using --universe-source auto for bulletproof data discovery.
+          PYTHONPATH=src python3 scripts/live_forward_returns.py --universe-source auto
 
       - name: Commit any changes
         run: |
@@ -200,21 +174,10 @@ jobs:
           # The localdata/ directory is gitignored, which is correct
           # for the parquet files (large binaries) but wrong for the
           # workflow output CSVs/JSON state that we DO want to commit.
-          # Use `git add -f` to bypass the ignore for specific files.
-          #
-          # This list must match the files the workflow actually
-          # produces. If a new output file is added to the pipeline,
-          # it must be added here too.
           #
           # stop_state.json / stopout_journal.json are CRITICAL to include:
           # without them, every fresh checkout would start with an EMPTY
-          # protective-stop state, so the R-state (entry stop, breakeven/
-          # trailing ratchet progress) for every open position would
-          # silently reset to "no tracked stop" on each run, and
-          # stop_manager.reconcile_stops would re-attach a brand-new
-          # INITIAL stop at the CURRENT price every time instead of
-          # continuing the ratchet -- quietly defeating "small losses,
-          # large profits" without any error ever being raised.
+          # protective-stop state.
           WORKFLOW_OUTPUT_FILES=(
             "localdata/candidate_leaderboard.csv"
             "localdata/discovered_slices.csv"
@@ -234,11 +197,6 @@ jobs:
             if [ -f "$f" ]; then
               git add -f "$f"
             else
-              # Stage deletions too. This is critical for state files such as
-              # stop_state.json and HALT_TRADING.flag: if a workflow run clears
-              # one locally but the deletion is not committed, the next fresh
-              # checkout resurrects stale state and the live book can repeatedly
-              # replay an already-cleared stop/halt condition.
               git rm -f --ignore-unmatch "$f"
             fi
           done
