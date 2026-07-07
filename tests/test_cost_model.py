@@ -41,10 +41,10 @@ class _Limits:
 
 def test_default_round_trip_is_conservative():
     cm = default_cost_model()
-    # spread 1 + slippage 3 = 4bp/leg, round trip 8bp.
-    assert cm.leg_bps() == 4.0
-    assert cm.round_trip_bps() == 8.0
-    assert cm.round_trip_drag() == 0.0008
+    # spread 1.5 + slippage 5.0 = 6.5bp/leg, round trip 13bp.
+    assert cm.leg_bps() == 6.5
+    assert cm.round_trip_bps() == 13.0
+    assert cm.round_trip_drag() == 0.0013
 
 
 def test_per_leg_bps_for_validation_maps_to_validation_cost_bps():
