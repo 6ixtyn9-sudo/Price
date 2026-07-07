@@ -1,0 +1,8 @@
+symbol,timeframe,slice_combination,side,source_note
+XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_1d_tiingo_clean_survivor_wf_strong_rank_1
+XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_1d_tiingo_clean_survivor_wf_strong_rank_2
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_1d_tiingo_clean_survivor_wf_strong_rank_3
+SPY,1h,state_session=afternoon + state_slope=downtrend,long,deployed_existing
+XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,deployed_existing
+XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,deployed_existing
+XLF,1d,state_ext=stretched_up + state_slope=flat,long,deployed_existing_and_corrected_tier1

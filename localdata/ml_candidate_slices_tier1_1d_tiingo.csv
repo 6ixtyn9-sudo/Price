@@ -1,0 +1,19 @@
+symbol,timeframe,slice_combination,source,ml_slice_key,ml_interaction_size,ml_n_samples,ml_mean_return,ml_sharpe_proxy
+XOP,1d,state_vol_regime=vol_regime_high + state_ret_20=ret_up,ml_interaction,feat_vol_regime + feat_ret_20,2,31,0.039259,0.8776
+XOP,1d,state_vol=high_vol + state_vol_regime=vol_regime_high,ml_interaction,feat_realized_vol_20 + feat_vol_regime,2,122,0.023907,0.4329
+XOP,1d,state_vol=high_vol + state_ret_20=ret_up,ml_interaction,feat_realized_vol_20 + feat_ret_20,2,93,0.02355,0.4468
+XOP,1d,state_trend_strength=strong_trend + state_vol_regime=vol_regime_high,ml_interaction,feat_trend_strength_20 + feat_vol_regime,2,53,0.020753,0.389
+XOP,1d,state_slope=uptrend + state_vol_regime=vol_regime_high,ml_interaction,feat_trend_slope_20 + feat_vol_regime,2,38,0.01951,0.3604
+XOP,1d,state_vol=high_vol + state_slope=uptrend + state_ret_20=ret_up,ml_interaction,feat_realized_vol_20 + feat_trend_slope_20 + feat_ret_20,3,83,0.018598,0.3652
+XOP,1d,state_vol=high_vol + state_slope=uptrend,ml_interaction,feat_realized_vol_20 + feat_trend_slope_20,2,110,0.017573,0.3252
+XOP,1d,state_vol=high_vol + state_ret_20=ret_up + state_atr_ext=atr_up,ml_interaction,feat_realized_vol_20 + feat_ret_20 + feat_atr_norm_ext,3,61,0.016003,0.4189
+XOP,1d,state_vol=high_vol + state_atr_ext=atr_up,ml_interaction,feat_realized_vol_20 + feat_atr_norm_ext,2,83,0.014788,0.3989
+XOP,1d,state_vol=high_vol + state_slope=uptrend + state_atr_ext=atr_up,ml_interaction,feat_realized_vol_20 + feat_trend_slope_20 + feat_atr_norm_ext,3,68,0.013133,0.356
+XOP,1d,state_vol=high_vol + state_trend_strength=strong_trend,ml_interaction,feat_realized_vol_20 + feat_trend_strength_20,2,64,0.011602,0.2145
+XLB,1d,state_trend_strength=strong_trend + state_ext=stretched_up,ml_interaction,feat_trend_strength_20 + feat_ext_vs_ma_20,2,165,0.004957,0.2059
+XLB,1d,state_trend_strength=strong_trend + state_slope=uptrend + state_ext=stretched_up,ml_interaction,feat_trend_strength_20 + feat_trend_slope_20 + feat_ext_vs_ma_20,3,165,0.004957,0.2059
+XLF,1d,state_trend_strength=strong_trend + state_vol=high_vol,ml_interaction,feat_trend_strength_20 + feat_realized_vol_20,2,75,0.014543,0.4985
+XLF,1d,state_vol=high_vol + state_atr_ext=atr_up + state_ret_3=ret_up,ml_interaction,feat_realized_vol_20 + feat_atr_norm_ext + feat_ret_3,3,34,0.009092,0.5075
+XLF,1d,state_vol=high_vol + state_atr_ext=atr_up,ml_interaction,feat_realized_vol_20 + feat_atr_norm_ext,2,57,0.008385,0.3485
+XLF,1d,state_vol=high_vol + state_ret_3=ret_up,ml_interaction,feat_realized_vol_20 + feat_ret_3,2,106,0.008085,0.3254
+XLF,1d,state_vol=high_vol + state_ret_1=ret_up + state_ret_3=ret_up,ml_interaction,feat_realized_vol_20 + feat_ret_1 + feat_ret_3,3,61,0.005706,0.2323
