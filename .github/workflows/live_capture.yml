@@ -1,10 +1,5 @@
 name: Live Capture
 
-# Paper-trading + live-capture workflow, run several times per trading day.
-# US session coverage: 13:00 to 21:00 UTC (roughly 9:00 AM to 5:00 PM ET).
-#
-# Required repo secrets: ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY.
-
 on:
   schedule:
     - cron: "0 13-21 * * 1-5"
@@ -32,48 +27,43 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
+      - name: Cache Warehouse Data
+        uses: actions/cache@v4
+        with:
+          path: localdata/warehouse
+          key: warehouse-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            warehouse-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
-          python -m pip --version
           pip install --require-hashes -r requirements.lock
 
-      - name: Ingest Universe Data (Tiingo 1d + Alpaca RTH 15m)
+      - name: Ingest Universe Data
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Scaled to full allowlist tier for universe-awareness.
+          # Use the 'allowlist' tier to keep the bot in sync with your local IDE
           PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 1d --days 1825
           PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 15m --days 30
           PYTHONPATH=src python3 scripts/build_warehouse.py --tier allowlist
 
-      - name: Write explicit monitored slices
-        run: |
-          mkdir -p localdata
-          printf "symbol,timeframe,slice_combination,side,bin_mode,source_note\n\
-          XLF,1d,state_ext=stretched_up + state_slope=flat,long,insample,deployed_existing_and_corrected_tier1\n\
-          XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,insample,deployed_existing\n\
-          XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,insample,deployed_existing\n\
-          SPY,1h,state_session=afternoon + state_slope=downtrend,long,insample,deployed_existing\n\
-          XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1\n\
-          XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1\n\
-          KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1\n" > localdata/monitored_slices.csv
-
-      - name: Run paper_trade (Limit Orders + Honest Costs)
+      - name: Run paper_trade (Using Repository Monitor List)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Upgraded with Limit Orders and Honest Costs (1.5bp/5.0bp)
+          # The bot now uses the monitored_slices.csv you pushed from your IDE!
           PYTHONPATH=src python3 scripts/paper_trade.py \
             --max-notional 2500 --max-open 7 --max-daily-loss 500 \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
             --exit-horizon 5 --max-per-group 2 --stop-atr-mult 2.0 \
             --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.03 --whipsaw-limit 2 \
-            --cost-spread-bps 1.5 --cost-slippage-bps 5.0 --cost-commission-bps 0.0
+            --cost-spread-bps 1.5 --cost-slippage-bps 5.0
 
       - name: Run live forward-return capture
         env:
@@ -81,31 +71,14 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Using --universe-source auto for bulletproof discovery.
           PYTHONPATH=src python3 scripts/live_forward_returns.py --universe-source auto
 
       - name: Commit any changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          WORKFLOW_OUTPUT_FILES=(
-            "localdata/candidate_leaderboard.csv"
-            "localdata/discovered_slices.csv"
-            "localdata/paper_trade_log.csv"
-            "localdata/trade_journal.csv"
-            "localdata/cooldown_journal.json"
-            "localdata/stop_state.json"
-            "localdata/stopout_journal.json"
-            "localdata/HALT_TRADING.flag"
-            "localdata/live_forward_returns.csv"
-            "localdata/validated_slices.csv"
-            "localdata/validation_scenario_grid.csv"
-            "localdata/walk_forward_diagnostics.csv"
-            "localdata/date_range_diagnostics.csv"
-          )
-          for f in "${WORKFLOW_OUTPUT_FILES[@]}"; do
-            if [ -f "$f" ]; then git add -f "$f"; else git rm -f --ignore-unmatch "$f"; fi
-          done
+          # Sync everything back to the IDE except the warehouse
+          git add localdata/*.csv localdata/*.json
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "chore(live-capture): update workflow output [skip ci]"
           git push

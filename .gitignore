@@ -1,24 +1,19 @@
 # Python
 __pycache__/
 *.py[cod]
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
 .venv/
 
-# Local/env
-.env
-.env.*
-!.env.example
-localdata/*
-!.gitkeep
-
-# Data / generated artifacts
+# Ignore heavy data only
+localdata/warehouse/
 *.parquet
 *.duckdb
 *.duckdb.wal
 *.log
+
+# Allow intelligence/artifacts
+!localdata/*.csv
+!localdata/*.json
+!.gitkeep
 
 # OS/editor
 .DS_Store
