@@ -4025,3 +4025,104 @@ regime deployment gates (--regime-filter), and R-multiple protective stops succe
 bound portfolio drawdown during adverse macro market shifts.
 Capital Deployment Pilot: Transition from paper API keys to live capital under strict
 notional limits only after operator sign-off on empirical survival reports.
+
+Operational Hardening — Live Capture Consistency (2026-07-07)
+This section records three small operational patches landed in commit c9c61e0
+to close live-capture consistency gaps that had been on the HANDOVER as open
+questions for several days. No validation, sizing, or risk-gate logic changed.
+Nothing is promoted. The patches are execution-side plumbing only.
+
+Why these three, in this order
+The three changes target three distinct failure modes that were visible in
+the live workflow log over the last week:
+
+1. The live workflow called live_forward_returns.py --universe-source auto,
+   which silently fell through from candidate_leaderboard.csv to
+   monitored_slices.csv when the leaderboard was empty or stale. The HANDOVER
+   had explicitly recorded this as wrong ("An implicit fallback from
+   leaderboard -> monitored_slices.csv is NOT the cleanest answer, because
+   it can mask a broken/missing leaderboard during research runs"), but the
+   workflow was still using it. Patch 1 --universe-source monitored fixes
+   the inconsistency with the HANDOVER's own doctrine.
+
+2. monitor.get_default_monitored_slices() had a three-level silent fallback
+   chain (explicit -> dynamic -> hardcoded). On the happy path it did the
+   right thing; on the unhappy path there was no signal that the monitor
+   was reading a stale or empty set. Patch 2 adds a print() at each
+   fallback level so future agents (and the operator) can see which source
+   the monitor is actually using. Behavior is unchanged on the happy path;
+   visibility is added on the unhappy path.
+
+3. The auto-commit step in live_capture.yml had no guard against silent
+   corruption. A stuck loop or a runaway append could write 10k+ spurious
+   rows to a critical CSV and the workflow would happily commit it. The
+   HANDOVER's "Scheduled Live Capture" section had flagged this as an open
+   question ("A future change to the layer should consider whether this
+   policy is still right"). Patch 3 closes that question with a small,
+   opt-in guard.
+
+What was added
+
+.github/workflows/live_capture.yml:
+  --universe-source auto changed to --universe-source monitored (matches
+  HANDOVER doctrine; closes the silent-fallback gap).
+  New line: `python3 scripts/delta_spike_guard.py` runs immediately before
+  the auto-commit step.
+
+src/price/monitor.py:
+  get_default_monitored_slices() now prints a one-line message at each
+  fallback level (explicit -> dynamic -> hardcoded). Behavior is identical
+  on the happy path; the new thing is visibility of the unhappy path so
+  a future agent reading the scan output knows which source is in use.
+
+scripts/delta_spike_guard.py (new file):
+  Refuses to allow auto-commit if any of the 5 guarded CSVs grew by more
+  than SPIKE_FACTOR=10x AND SPIKE_MIN_DELTA=50 rows versus the previously
+  committed version. Guarded files:
+    localdata/live_forward_returns.csv
+    localdata/trade_journal.csv
+    localdata/paper_trade_log.csv
+    localdata/candidate_leaderboard.csv
+    localdata/monitored_slices.csv
+  Exits 0 on healthy, 1 on detected spike. Never raises; a transient
+  filesystem error is logged and treated as "cannot compare, allow commit"
+  (fail-open, consistent with the project's other data-dependent gates).
+  The thresholds (10x and 50 rows together) are deliberately conservative:
+  a normal weekly forward-return run adds a handful of rows, so the guard
+  will not trip on legitimate growth. Tune both constants in the script
+  if a future workload needs a different policy.
+
+Graceful degradation (the safety property)
+The new guard is opt-in via the workflow change. A hypothetical external
+caller that does not run scripts/delta_spike_guard.py before its commit
+sees no behavior change. The guard never modifies the CSVs it inspects,
+never deletes rows, and only ever BLOCKS a commit -- it cannot enlarge
+or force any action. The print() additions in monitor.py are similarly
+additive; the monitor returns the same slices in the same order, with
+the same risk-gating behavior.
+
+Verification
+python3 -m py_compile on monitor.py and delta_spike_guard.py: clean.
+python3 -m pytest -q tests/test_state_unavailable.py tests/test_attribution.py:
+20 passed, 0 failed.
+YAML validation on live_capture.yml (python3 -c "import yaml; yaml.safe_load(...)"):
+clean.
+
+What this section does NOT do
+Does not change validation, sizing, exits, allocation, cost, attribution,
+regime, or leverage logic.
+Does not promote any slice.
+Does not change monitor.DEFAULT_MONITORED_SLICES or monitored_slices.csv.
+Does not enable the regime filter or leverage on the live workflow; those
+remain opt-in per the HANDOVER's explicit-policy-decisions doctrine.
+Does not change the guard thresholds without operator sign-off; the
+SPIKE_FACTOR and SPIKE_MIN_DELTA constants are the only knobs and they
+are conservative by design.
+
+Open question this leaves for the next agent
+None of the three patches close the structural-edge question
+(regime-conditional vs regime-independent). The regime deployment gate
+remains a trading-side fix; the regime-stratified validation diagnostic
+remains diagnostic-only. The path to a real-money deployment still runs
+through Phase 4 of the locked roadmap above. No patch in this section
+should be read as moving the project toward that gate.
