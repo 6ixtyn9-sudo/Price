@@ -46,9 +46,9 @@ jobs:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
           # Use the 'allowlist' tier to keep the bot in sync with your local IDE
-          PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 1d --days 1825
-          PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 15m --days 30
-          PYTHONPATH=src python3 scripts/build_warehouse.py --tier allowlist
+          PYTHONPATH=src python3 scripts/capture_bars.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC --timeframes 1d --days 1825
+          PYTHONPATH=src python3 scripts/capture_bars.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC --timeframes 15m --days 30
+          PYTHONPATH=src python3 scripts/build_warehouse.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC
 
       - name: Run paper_trade (Using Repository Monitor List)
         env:
