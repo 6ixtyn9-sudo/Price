@@ -17,11 +17,6 @@ name: Live Capture
 #      - UPGRADED: Tiingo/RTH aware with 'auto' universe discovery.
 #   6. Auto-commits the lightweight workflow artifacts back to main.
 #
-# What this workflow does NOT do:
-#   - Trade real money.
-#   - Override the project doctrine about promotion; paper trades are evidence generation.
-#   - Enable the regime deployment gate or any leverage (see the paper_trade step below).
-#
 # See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)",
 # "Scheduled Live Capture (2026-07-02)", "Protective Stops (2026-07-06)",
 # and "Leverage Phase (2026-07-06)".
@@ -83,7 +78,7 @@ jobs:
           XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
           XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
           KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
-INNER_EOF
+          INNER_EOF
 
       - name: Run paper_trade (Limit Orders + Honest Costs)
         env:
