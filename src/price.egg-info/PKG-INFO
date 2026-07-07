@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: price
+Version: 0.1.0
+Summary: Price-first market-state discovery lab
+Requires-Python: >=3.11
+License-File: LICENSE
+Requires-Dist: alpaca-py
+Requires-Dist: pandas
+Requires-Dist: duckdb
+Requires-Dist: pyarrow
+Requires-Dist: python-dotenv
+Requires-Dist: pandas_market_calendars
+Requires-Dist: requests
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
+Dynamic: license-file

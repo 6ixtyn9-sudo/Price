@@ -1,0 +1,11 @@
+alpaca-py
+pandas
+duckdb
+pyarrow
+python-dotenv
+pandas_market_calendars
+requests
+
+[dev]
+pytest>=8.0
+ruff>=0.5
