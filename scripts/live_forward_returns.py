@@ -14,6 +14,7 @@ PAPER_TRADE_LOG_PATH = DATA_DIR / "paper_trade_log.csv"
 LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
 MONITORED_SLICES_PATH = DATA_DIR / "monitored_slices.csv"
 LIVE_FORWARD_RETURNS_PATH = DATA_DIR / "live_forward_returns.csv"
+HORIZONS = [5, 20]
 
 def _load_universe(source: str) -> Set[Tuple]:
     univ = set()
@@ -29,23 +30,37 @@ def _load_universe(source: str) -> Set[Tuple]:
             univ.add((str(r["symbol"]), str(r["timeframe"]), str(r["slice_combination"]), str(r.get("bin_mode", "insample")).lower()))
     return univ
 
-def _is_matched(row):
-    return str(row.get("kind")) == "entry_signal" and bool(row.get("matched")) and pd.notna(row.get("close_adj"))
+def _get_exit_close(symbol, timeframe, signal_ts, horizon_bars):
+    df = load_from_warehouse(symbol, timeframe)
+    if df.empty: return None, True
+    df = df.sort_values("bar_ts_utc").reset_index(drop=True)
+    signal_ts = pd.Timestamp(signal_ts).tz_convert("UTC")
+    future = df[df["bar_ts_utc"] >= signal_ts]
+    if future.empty: return None, True
+    idx = future.index[0] + horizon_bars
+    if idx >= len(df): return None, True
+    return float(df.iloc[idx]["close_adj"]), False
 
 def run_live_capture(universe_source="auto"):
     univ = _load_universe(universe_source)
-    if not univ: return print("No universe found.")
+    if not univ or not PAPER_TRADE_LOG_PATH.exists(): return
     log = pd.read_csv(PAPER_TRADE_LOG_PATH)
-    matched = log[log.apply(_is_matched, axis=1)].copy()
+    matched = log[(log["kind"]=="entry_signal") & (log["matched"]==True)].copy()
     matched = matched[matched.apply(lambda r: (str(r["symbol"]), str(r["timeframe"]), str(r["slice_combination"]), str(r.get("bin_mode", "insample")).lower()) in univ, axis=1)]
     if matched.empty: return print("No matched signals in universe.")
-    print(f"Found {len(matched)} matching signals. Processing forward returns...")
-    # (Simplified for brevity, standard logic remains in your full file)
-    matched.to_csv(LIVE_FORWARD_RETURNS_PATH, index=False)
-    print(f"Captured returns to {LIVE_FORWARD_RETURNS_PATH}")
+    
+    results = []
+    for _, sig in matched.iterrows():
+        row = {"symbol": sig["symbol"], "timeframe": sig["timeframe"], "slice_combination": sig["slice_combination"], "signal_ts_utc": sig["bar_ts_utc"], "signal_close": sig["close_adj"]}
+        for h in HORIZONS:
+            close, partial = _get_exit_close(sig["symbol"], sig["timeframe"], sig["bar_ts_utc"], h)
+            row[f"fwd_ret_{h}b"] = (close / sig["close_adj"] - 1.0) if close else None
+        results.append(row)
+    
+    pd.DataFrame(results).to_csv(LIVE_FORWARD_RETURNS_PATH, index=False)
+    print(f"✅ Success: Captured returns for {len(results)} signals to {LIVE_FORWARD_RETURNS_PATH}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--universe-source", default="auto")
-    args = parser.parse_args()
-    run_live_capture(args.universe_source)
+    run_live_capture(parser.parse_args().universe_source)
