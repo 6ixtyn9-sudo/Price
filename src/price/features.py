@@ -57,20 +57,40 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
         
     df['feat_trend_strength_20'] = close.rolling(20).apply(compute_trend_strength, raw=False)
     
-    ny_time = df['bar_ts_utc'].dt.tz_convert('America/New_York')
-    df['feat_dow'] = ny_time.dt.dayofweek
-    df['feat_month'] = ny_time.dt.month
-    
-    def get_session_bucket(hour, minute):
-        time_val = hour + minute / 60.0
-        if time_val < 11.5:
-            return 0
-        elif time_val < 13.5:
-            return 1
-        else:
-            return 2
-            
-    df['feat_session_bucket'] = np.vectorize(get_session_bucket)(ny_time.dt.hour, ny_time.dt.minute)
+    # Daily bars are stamped at midnight UTC (Tiingo) or early-UTC (Alpaca).
+    # Converting those stamps to America/New_York shifts them to the PRIOR
+    # evening, mislabeling every 1d bar's day-of-week/month (e.g. Monday's
+    # bar tagged 'Sun'). The semantic market date for a daily bar is its UTC
+    # date, so daily partitions take dow/month from UTC directly. Intraday
+    # bars have real clock times and keep the NY conversion.
+    ts = df['bar_ts_utc']
+    is_daily = False
+    if len(ts) >= 2:
+        median_gap = ts.diff().dropna().median()
+        is_daily = pd.notna(median_gap) and median_gap >= pd.Timedelta(hours=23)
+
+    if is_daily:
+        df['feat_dow'] = ts.dt.dayofweek
+        df['feat_month'] = ts.dt.month
+        # Session buckets are meaningless on daily bars; pin to the close
+        # bucket (2) for every row so the label is constant instead of an
+        # artifact of each source's timestamp convention.
+        df['feat_session_bucket'] = 2
+    else:
+        ny_time = ts.dt.tz_convert('America/New_York')
+        df['feat_dow'] = ny_time.dt.dayofweek
+        df['feat_month'] = ny_time.dt.month
+
+        def get_session_bucket(hour, minute):
+            time_val = hour + minute / 60.0
+            if time_val < 11.5:
+                return 0
+            elif time_val < 13.5:
+                return 1
+            else:
+                return 2
+
+        df['feat_session_bucket'] = np.vectorize(get_session_bucket)(ny_time.dt.hour, ny_time.dt.minute)
     
     df['feat_gap'] = (close / close.shift(1)) - 1.0
     df['feat_range_position'] = (close - low) / (high - low + 1e-8)

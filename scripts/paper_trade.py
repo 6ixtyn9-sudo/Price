@@ -143,6 +143,26 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
             slice_label = sig["slice_combination"]
             limit_price = sig.get("close_adj")  # Use signal bar close as the limit price
 
+            # Entry orders must be LIMIT-at-signal-close, never market.
+            # submit_entry falls back to a market order when limit_price is
+            # None/NaN; for scheduled runs (which can fire while the market is
+            # closed) a queued market order buys the next open blind -- the
+            # exact signal-close-to-fill gap the cost model exists to prevent.
+            # Block the entry instead and record why.
+            try:
+                _lp_ok = limit_price is not None and float(limit_price) > 0 and float(limit_price) == float(limit_price)
+            except (TypeError, ValueError):
+                _lp_ok = False
+            if not _lp_ok:
+                counts["entry_blocked"] += 1
+                _append_audit({
+                    "action": "block",
+                    "reason": "no_limit_price",
+                    "blocked_reasons": "signal close_adj missing/invalid; refusing market-order fallback",
+                    **_strip_known_keys(sig, ["action"]),
+                })
+                continue
+
             if qty <= 0:
                 counts["entry_blocked"] += 1
                 _append_audit({

@@ -239,15 +239,54 @@ def _dedupe_by_row_key(df: pd.DataFrame) -> pd.DataFrame:
     Older live_capture versions could create multiple rows for the same
     signal because repeated matched audit rows shared one row_key. The durable
     artifact should be one row per signal key; later runs update that row.
+
+    Migration: existing rows may carry pre-canonicalization keys (full 1d
+    equity timestamps such as Tiingo midnight vs Alpaca 04:00 UTC for the
+    same session). Re-key them through the current _row_key so old rows merge
+    with -- rather than duplicate -- new canonical rows.
     """
     if df is None or df.empty or "row_key" not in df.columns:
         return df
     out = df.copy()
+    needed = {"symbol", "timeframe", "slice_combination", "signal_ts_utc"}
+    if needed.issubset(out.columns):
+        out["row_key"] = out.apply(
+            lambda r: _row_key(
+                str(r["symbol"]),
+                str(r["timeframe"]),
+                str(r["slice_combination"]),
+                str(r["signal_ts_utc"]),
+                _norm_bin_mode(r.get("bin_mode", "insample")),
+            ),
+            axis=1,
+        )
     if "captured_at_utc" in out.columns:
         out["_captured_sort"] = pd.to_datetime(out["captured_at_utc"], errors="coerce", utc=True)
         out = out.sort_values("_captured_sort", na_position="first")
         out = out.drop(columns=["_captured_sort"])
     return out.drop_duplicates(subset=["row_key"], keep="last").reset_index(drop=True)
+
+
+def _canonical_signal_ts(symbol: str, timeframe: str, signal_ts: str) -> str:
+    """Canonicalize a signal timestamp for row-key identity.
+
+    Daily EQUITY bars represent one market session, but different sources
+    stamp them differently (Tiingo: midnight UTC; Alpaca: 04:00 UTC). Without
+    canonicalization the SAME session signal gets two row keys and the
+    forward-return ledger double-counts it. Collapse 1d equity timestamps to
+    the UTC calendar date. Crypto trades 24/7 (a 1d bar boundary is a real
+    clock time) and intraday bars have real clock times -- both keep the full
+    timestamp.
+    """
+    if str(timeframe) != "1d" or "/" in str(symbol):
+        return str(signal_ts)
+    try:
+        ts = pd.Timestamp(signal_ts)
+    except (TypeError, ValueError):
+        return str(signal_ts)
+    if pd.isna(ts):
+        return str(signal_ts)
+    return str(ts.date())
 
 
 def _row_key(symbol: str, timeframe: str, slice_combo: str, signal_ts: str,
@@ -257,8 +296,13 @@ def _row_key(symbol: str, timeframe: str, slice_combo: str, signal_ts: str,
     Backward compatibility: insample keeps the historical key shape so old
     partial rows update in place. Non-insample modes include the mode to avoid
     collisions when the same slice text is monitored under rolling bins.
+
+    1d equity signal timestamps are canonicalized to the market date so the
+    same session recorded by different sources (Tiingo midnight UTC vs Alpaca
+    04:00 UTC) cannot create duplicate ledger rows.
     """
     bin_mode = _norm_bin_mode(bin_mode)
+    signal_ts = _canonical_signal_ts(symbol, timeframe, signal_ts)
     if bin_mode == "insample":
         return f"{symbol}|{timeframe}|{slice_combo}|{signal_ts}"
     return f"{symbol}|{timeframe}|{bin_mode}|{slice_combo}|{signal_ts}"

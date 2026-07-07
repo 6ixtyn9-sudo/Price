@@ -51,6 +51,13 @@ from price.cost_model import CostModel, default_cost_model
 
 CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
 
+# Curated, execution-owned edge metrics for the monitored set. Written by the
+# operator from validated research artifacts (see HANDOVER). Checked BEFORE
+# candidate_leaderboard.csv so research reruns that overwrite the leaderboard
+# (e.g. the KLAC sector-spread diagnostic) cannot silently zero out live
+# conviction sizing.
+MONITORED_EDGE_METRICS_PATH = DATA_DIR / "monitored_edge_metrics.csv"
+
 # ---- conviction model constants (all dimensionless, in [0,1] space) ----
 # Reference edge magnitude that maps to "full" magnitude weight. The
 # corrected liquid236 Tier-1 daily edges range ~1.0% (XLF) to ~4.7%
@@ -344,12 +351,34 @@ def load_edge_metrics(
     slice_combination: str,
     leaderboard_path: Optional[Path] = None,
 ) -> Optional[SliceEdge]:
-    """Look up a slice's edge metrics in candidate_leaderboard.csv.
+    """Look up a slice's edge metrics.
 
-    Returns None if the file is absent, unreadable, or no row matches
-    (symbol, timeframe, slice_combination). Never raises.
+    Lookup order:
+      1. localdata/monitored_edge_metrics.csv (curated, execution-owned; same
+         schema columns as the candidate leaderboard) -- survives research
+         reruns that overwrite candidate_leaderboard.csv.
+      2. candidate_leaderboard.csv (or the explicit leaderboard_path).
+
+    Returns None if no source has a matching
+    (symbol, timeframe, slice_combination) row. Never raises.
     """
+    if leaderboard_path is None and MONITORED_EDGE_METRICS_PATH.exists():
+        curated = _load_edge_metrics_from(
+            MONITORED_EDGE_METRICS_PATH, symbol, timeframe, slice_combination
+        )
+        if curated is not None:
+            return curated
     path = Path(leaderboard_path) if leaderboard_path else Path(CANDIDATE_LEADERBOARD_PATH)
+    return _load_edge_metrics_from(path, symbol, timeframe, slice_combination)
+
+
+def _load_edge_metrics_from(
+    path: Path,
+    symbol: str,
+    timeframe: str,
+    slice_combination: str,
+) -> Optional[SliceEdge]:
+    """Read one edge-metrics CSV and return the matching SliceEdge, else None."""
     if not path.exists():
         return None
     try:

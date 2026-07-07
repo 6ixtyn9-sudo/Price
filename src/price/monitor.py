@@ -261,6 +261,15 @@ def get_current_state(
         print(f"  Only {len(df_tail)} completed bars for {symbol} ({timeframe}); need ~60 for features.")
         return None
 
+    # Bin-frame provenance: quantile-derived states (state_slope/state_vol/
+    # ret bands) depend on the frame they are binned over. Log it so a
+    # research/live window mismatch is visible instead of silent.
+    print(
+        f"  Bin frame: {len(df_tail)} bars "
+        f"[{df_tail['bar_ts_utc'].iloc[0]} .. {df_tail['bar_ts_utc'].iloc[-1]}] "
+        f"bin_mode={bin_mode}"
+    )
+
     latest_close = df_tail["close_adj"].iloc[-1] if "close_adj" in df_tail.columns else np.nan
     if pd.isna(latest_close):
         print(f"  Latest completed bar for {symbol} ({timeframe}) has NaN close_adj.")
@@ -624,6 +633,18 @@ def scan_all_slices(
                 cost_model=cost_model,
             )
             qty = size.qty
+            # LOUD missing-edge warning: a monitored slice with no edge row
+            # means conviction sizing silently degraded to equal-notional
+            # (e.g. candidate_leaderboard.csv was overwritten by a research
+            # diagnostic). Print every scan so the operator can see it.
+            if size.sizing_mode == "fallback_no_data":
+                print(
+                    f"  WARNING: no edge metrics for {symbol} {timeframe} "
+                    f"'{s['slice_combination']}' -- conviction sizing is "
+                    "INACTIVE (neutral 1.0 / equal-notional). Provide "
+                    "localdata/monitored_edge_metrics.csv or regenerate "
+                    "candidate_leaderboard.csv."
+                )
             # Regime gate outcome: when the macro regime is hostile AND the
             # filter is enabled, block the entry regardless of the risk gate.
             # Folded into the audit trail as a tradable=False reason so the

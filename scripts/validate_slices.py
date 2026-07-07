@@ -44,6 +44,10 @@ from price.warehouse import load_from_warehouse
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 VALIDATED_SLICES_PATH = "localdata/validated_slices.csv"
 FEATURES_CACHE_DIR = Path("localdata/features_cache")
+# Bump whenever compute_price_features / apply_state_bins semantics change.
+# Without this in the cache key, a feature-code fix silently keeps serving
+# stale cached features until the warehouse file's mtime happens to change.
+FEATURES_SCHEMA_VERSION = 2
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
 DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
@@ -107,7 +111,9 @@ def build_eligible_frame(
     warehouse_file = Path(f"localdata/warehouse/symbol={symbol}/timeframe={timeframe}/data.parquet")
     if warehouse_file.exists():
         mtime = warehouse_file.stat().st_mtime
-        cache_key = hashlib.md5(f"{symbol}_{timeframe}_{mtime}_{bin_mode}".encode()).hexdigest()
+        cache_key = hashlib.md5(
+            f"{symbol}_{timeframe}_{mtime}_{bin_mode}_v{FEATURES_SCHEMA_VERSION}".encode()
+        ).hexdigest()
         cache_file = FEATURES_CACHE_DIR / f"{cache_key}.parquet"
         
         if cache_file.exists():
