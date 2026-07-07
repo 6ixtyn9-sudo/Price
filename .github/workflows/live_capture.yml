@@ -44,7 +44,7 @@ on:
   # 21:00 UTC (~1hr after US close) is kept as the last run of the day so
   # end-of-day bars are settled before the final reconciliation.
   schedule:
-    - cron: "0 14,16,18,20,21 * * 1-5"
+    - cron: "0 13-21 * * 1-5"
   workflow_dispatch:
 
 concurrency:
