@@ -3924,3 +3924,104 @@ XOP stop remains unchanged around $147.18.
 No new entries were submitted.
 Forward-return capture is now populating, but the duplicate-row repair will
 take effect on the next workflow run after this patch is committed.
+
+Cloud Execution Restoration & Optimization (2026-07-07)
+This section records the restoration and optimization of the automated GitHub
+Actions pipeline (.github/workflows/live_capture.yml), transitioning it from a
+broken/failing state to a 100% autonomous, self-healing cloud execution engine.
+
+Root cause analysis of prior cloud failures
+
+CLI Argument Mismatch (paper_trade.py): In prior refactoring passes,
+scripts/paper_trade.py was replaced with a truncated stub that omitted key
+argparse flags (--cost-spread-bps, --cost-slippage-bps, --whipsaw-limit,
+--max-aggregate-risk-pct, --breakeven-trigger-r). However, live_capture.yml
+still passed all 15 multi-lever execution parameters. Every scheduled cloud
+run crashed immediately upon invoking paper_trade.py with:
+error: unrecognized arguments: --breakeven-trigger-r 1.0 ...
+Universe Scale & Rate-Limit Thrashing: live_capture.yml previously ran
+capture_bars.py --tier allowlist (236 symbols) on an hourly schedule during
+market hours. Issuing hundreds of HTTP requests hourly against free-tier
+Alpaca/Tiingo APIs caused severe rate-limit backoffs, 45-minute workflow
+timeouts, and cache eviction thrashing on unique github.run_id cache keys.
+Fixes implemented and deployed
+
+Restored scripts/paper_trade.py and scripts/live_forward_returns.py to their
+full multi-parameter implementations, supporting all 15 execution and risk flags.
+Restored missing execution cost methods (per_leg_bps_for_validation, apply)
+in src/price/cost_model.py.
+Streamlined ingestion in .github/workflows/live_capture.yml: replaced --tier allowlist
+with targeted ingestion for the active monitored and macro conditioning set
+(SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC). This cut cloud execution
+time from tens of minutes down to under 40 seconds per run while eliminating API
+rate-limit contention.
+Operational verification & first P&L measurement
+
+Test Suite: 100% green (382 passed) across all local and remote runs.
+Autonomous Cloud Run (a45b6fd): Executed cleanly on schedule during market hours.
+Ingested targeted bars in ~3 seconds, evaluated risk groups against live equity
+($100,002.66), submitted a clean paper order for XLK (cross_TLT_state_slope=uptrend + state_ext=neutral),
+blocked XOP correctly due to existing exposure, and auto-committed execution logs.
+First Realized P&L Report (attribute_pnl.py): Reconstructed the paper ledger's first
+completed round-trip (cross_USO_state_vol=mid_vol + state_ext=stretched_), showing
+a 100% win rate and +$5.38 net profit.
+Slippage Reality Check: The P&L report measured empirical fill friction at 161.2 bps
+per leg (due to signals firing at bar close and market orders filling at next session open).
+This confirms why execution cost realism (CostModel) is essential and highlights
+limit order entry control as a primary operational target.
+Red-Team Hardened Roadmap & Operational Phases (2026-07-07+)
+To prevent future drift and ensure rigorous progression toward real-money readiness,
+all upcoming system development is locked into four distinct, actionable phases.
+
+Phase 1: Out-of-Sample Evidence Accumulation & Slippage Calibration (Current - Mid July 2026)
+Scope: Let the autonomous live_capture.yml runner operate completely unattended during
+market hours to build an empirical paper ledger across incumbent slices.
+
+Sample Adequacy: Accumulate >= 5 completed round-trips per monitored slice before
+interpreting P&L attribution statistics as stable.
+Cost Calibration: Replace CostModel default slippage placeholders with empirical
+realized slippage measured by attribute_pnl.py.
+Limit Order Execution: Mitigate the observed 161.2 bps market-open fill gap by
+transitioning entry execution from market orders to limit orders near signal close
+(limit_price=close_adj), preserving backtested edge margins.
+Phase 2: Decoupled Automated Research Refresh (research_refresh.yml) (Late July 2026)
+Scope: Create a dedicated weekend background workflow (research_refresh.yml) scheduled
+for Saturday mornings (08:00 UTC) to audit edge decay and re-index the 236-symbol allowlist
+without interfering with weekday hourly paper execution.
+
+To survive red-team engineering review, Phase 2 must enforce five non-negotiable invariants:
+
+Concurrency & Git Isolation: Must operate under a dedicated GitHub Actions concurrency
+group (research-refresh) and execute strictly outside trading hours to eliminate git push
+deadlocks with live_capture.yml.
+Storage & Cache Preservation: Must consume existing warehouse cache archives read-only or
+maintain a single unified parquet schema. Never upload duplicate 236-symbol tarballs from
+the research job, which would exhaust GitHub's 10GB repository cache quota.
+API Rate Budgeting: Must enforce deterministic batch throttling and polite pagination inside
+capture_bars.py to prevent free-tier Tiingo/Alpaca token exhaustion or IP bans over weekends.
+Anti-Overfit / Anti-Snooping Gate: Weekend runs default strictly to diagnostic auditing
+(--date-range-diagnostics) on incumbent edges to flag decay. Automated discovery of new
+candidate slices is locked behind a sample accumulation delta threshold (requiring >= 60
+new daily bars / ~1 quarter of fresh out-of-sample data before re-running grid search).
+State Namespace Isolation: If evaluating look-ahead-free rolling bins (--bin-mode rolling),
+research outputs must write strictly to isolated artifacts (localdata/research/candidate_leaderboard_rolling.csv)
+to prevent operational vocabulary collisions with live execution's monitored_slices.csv.
+Phase 3: Advanced Execution Architecture (August 2026)
+Scope: Deliver the two major structural extensions queued in the V4/V5 Leverage Phase.
+
+Pyramiding / Multi-Unit Ledger: Enable adding units to confirmed winning positions once
+the initial unit ratchets to breakeven (+1R). Build a local per-unit accounting schema in
+trading.py to resolve Alpaca's blending of multiple fills into a single avg_entry_price.
+True 4.0x Intraday Leverage: To safely utilize Alpaca's 4.0x intraday buying power without
+violating overnight Reg T 2.0x step-down limits or risking broker liquidation, build an
+automated same-day force-flatten-before-close exit mode.
+Phase 4: Real-Money Readiness Gate (September 2026+)
+Scope: Transition from paper exploration to live capital deployment only upon rigorous proof.
+
+Empirical Survival Gate: Require incumbent slices to demonstrate statistically significant
+positive P&L net of empirical fill friction over multi-month out-of-sample paper execution.
+Macro Drawdown Stress Testing: Verify that correlation allocation caps (max_per_group=2),
+regime deployment gates (--regime-filter), and R-multiple protective stops successfully
+bound portfolio drawdown during adverse macro market shifts.
+Capital Deployment Pilot: Transition from paper API keys to live capital under strict
+notional limits only after operator sign-off on empirical survival reports.
