@@ -170,6 +170,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 slice_label=slice_label,
                 side=sig.get("suggested_side", "buy"),
                 limit_price=limit_price,
+                limit_price=limit_price,
                 entry_bar_ts=sig.get("bar_ts_utc"),
                 timeframe=sig.get("timeframe"),
             )

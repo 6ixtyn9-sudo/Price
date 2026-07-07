@@ -1,9 +1,10 @@
-order_id,symbol,qty,side,order_type,time_in_force,status,submitted_at,slice_label,action,timestamp_utc,stop_price,avg_entry_price,current_price,entry_bar_ts,timeframe
-191bf042-f13a-4d61-b012-e895e6f3d055,XLE,9.0,buy,market,day,accepted,2026-07-03 20:04:51.751115+00:00,state_ext=stretched_down + state_slope=downtrend,entry,2026-07-03T20:04:51.642038+00:00,,,,,
-319b5f97-7519-4f37-ac52-99cee22d8c5e,XOP,16.0,buy,market,day,accepted,2026-07-05 17:10:42.455534+00:00,state_ext=stretched_down + state_slope=downtrend,entry,2026-07-05T17:10:42.533597+00:00,,154.47,,,
-61931977-a2ad-4e1e-b801-b9858833b01b,XLK,13.0,buy,market,day,accepted,2026-07-05 17:10:43.675259+00:00,cross_USO_state_vol=mid_vol + state_ext=stretched_down,entry,2026-07-05T17:10:43.759925+00:00,,183.41,,,
-8d43e272-af53-4293-837c-a1667bf63b24,XLK,13.0,sell,stop,gtc,pending_new,2026-07-06 19:02:26.360462+00:00,,protective_stop_submit,2026-07-06T19:02:26.367972+00:00,171.4,,,,
-19362c3e-9eac-474f-aae0-e4d7296b3347,XOP,16.0,sell,stop,gtc,pending_new,2026-07-06 19:02:26.497025+00:00,,protective_stop_submit,2026-07-06T19:02:26.506053+00:00,147.18,,,,
-8d43e272-af53-4293-837c-a1667bf63b24,,,,,,cancel_requested,,,order_cancel,2026-07-06T19:02:27.257720+00:00,,,,,
-cc129145-bb1e-4534-a4f9-4ccb0c850a20,XLK,13.0,close,,,pending_new,2026-07-06 19:02:27.932029+00:00,,exit,2026-07-06T19:02:27.937572+00:00,,183.41,183.8238,,
-a421b4a1-3bc2-4ed9-8a6c-1fbc4f3c4612,SPY,3.0,buy,market,day,accepted,2026-07-07 05:40:08.246650+00:00,state_session=afternoon + state_slope=downtrend,entry,2026-07-07T05:40:07.995123+00:00,,,,2026-07-02 20:00:00+00:00,1h
+order_id,symbol,qty,side,order_type,time_in_force,status,submitted_at,slice_label,action,timestamp_utc,stop_price,avg_entry_price,current_price,entry_bar_ts,timeframe,limit_price
+191bf042-f13a-4d61-b012-e895e6f3d055,XLE,9.0,buy,market,day,accepted,2026-07-03 20:04:51.751115+00:00,state_ext=stretched_down + state_slope=downtrend,entry,2026-07-03T20:04:51.642038+00:00,,,,,,
+319b5f97-7519-4f37-ac52-99cee22d8c5e,XOP,16.0,buy,market,day,accepted,2026-07-05 17:10:42.455534+00:00,state_ext=stretched_down + state_slope=downtrend,entry,2026-07-05T17:10:42.533597+00:00,,154.47,,,,
+61931977-a2ad-4e1e-b801-b9858833b01b,XLK,13.0,buy,market,day,accepted,2026-07-05 17:10:43.675259+00:00,cross_USO_state_vol=mid_vol + state_ext=stretched_down,entry,2026-07-05T17:10:43.759925+00:00,,183.41,,,,
+8d43e272-af53-4293-837c-a1667bf63b24,XLK,13.0,sell,stop,gtc,pending_new,2026-07-06 19:02:26.360462+00:00,,protective_stop_submit,2026-07-06T19:02:26.367972+00:00,171.4,,,,,
+19362c3e-9eac-474f-aae0-e4d7296b3347,XOP,16.0,sell,stop,gtc,pending_new,2026-07-06 19:02:26.497025+00:00,,protective_stop_submit,2026-07-06T19:02:26.506053+00:00,147.18,,,,,
+8d43e272-af53-4293-837c-a1667bf63b24,,,,,,cancel_requested,,,order_cancel,2026-07-06T19:02:27.257720+00:00,,,,,,
+cc129145-bb1e-4534-a4f9-4ccb0c850a20,XLK,13.0,close,,,pending_new,2026-07-06 19:02:27.932029+00:00,,exit,2026-07-06T19:02:27.937572+00:00,,183.41,183.8238,,,
+a421b4a1-3bc2-4ed9-8a6c-1fbc4f3c4612,SPY,3.0,buy,market,day,accepted,2026-07-07 05:40:08.246650+00:00,state_session=afternoon + state_slope=downtrend,entry,2026-07-07T05:40:07.995123+00:00,,,,2026-07-02 20:00:00+00:00,1h,
+e69dc387-a633-4bcb-992c-005a8eb77d9d,SPY,1.0,buy,limit,day,accepted,2026-07-07 06:25:54.088896+00:00,manual_test,entry,2026-07-07T06:25:54.136309+00:00,,,,,,100.0
