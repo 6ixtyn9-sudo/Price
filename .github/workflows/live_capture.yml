@@ -1,25 +1,9 @@
 name: Live Capture
 
 # Paper-trading + live-capture workflow, run several times per trading day.
+# US session coverage: 13:00 to 21:00 UTC (roughly 9:00 AM to 5:00 PM ET).
 #
-# Required repo secrets (Settings -> Secrets and variables -> Actions):
-#   ALPACA_API_KEY
-#   ALPACA_SECRET_KEY
-#   TIINGO_API_KEY
-#
-# What this workflow does:
-#   1. Pulls the latest warehouse + paper-trading journals from main.
-#   2. Pulls the most recent bars from Tiingo/Alpaca and rebuilds the warehouse.
-#   3. Writes the explicit monitored_slices.csv deployment/watch list.
-#   4. Runs paper_trade.py in LIVE PAPER mode (never real money).
-#      - UPGRADED: Uses Limit Orders and Honest Costs (1.5bp/5.0bp).
-#   5. Runs live_forward_returns.py to capture realized forward returns.
-#      - UPGRADED: Tiingo/RTH aware with 'auto' universe discovery.
-#   6. Auto-commits the lightweight workflow artifacts back to main.
-#
-# See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)",
-# "Scheduled Live Capture (2026-07-02)", "Protective Stops (2026-07-06)",
-# and "Leverage Phase (2026-07-06)".
+# Required repo secrets: ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY.
 
 on:
   schedule:
@@ -59,26 +43,22 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Fetch 5 years of daily bars (Tiingo adjusted) for the full allowlist
+          # Scaled to full allowlist tier for universe-awareness.
           PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 1d --days 1825
-          # Fetch 14 days of 15m bars (Alpaca RTH) for the full allowlist
-          PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 15m --days 14
-          # Build warehouse (resample 1h and propagate adjustments)
+          PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 15m --days 30
           PYTHONPATH=src python3 scripts/build_warehouse.py --tier allowlist
 
       - name: Write explicit monitored slices
         run: |
           mkdir -p localdata
-          cat > localdata/monitored_slices.csv <<'INNER_EOF'
-          symbol,timeframe,slice_combination,side,bin_mode,source_note
-          XLF,1d,state_ext=stretched_up + state_slope=flat,long,insample,deployed_existing_and_corrected_tier1
-          XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,insample,deployed_existing
-          XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,insample,deployed_existing
-          SPY,1h,state_session=afternoon + state_slope=downtrend,long,insample,deployed_existing
-          XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
-          XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
-          KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
-          INNER_EOF
+          printf "symbol,timeframe,slice_combination,side,bin_mode,source_note\n\
+          XLF,1d,state_ext=stretched_up + state_slope=flat,long,insample,deployed_existing_and_corrected_tier1\n\
+          XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,insample,deployed_existing\n\
+          XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,insample,deployed_existing\n\
+          SPY,1h,state_session=afternoon + state_slope=downtrend,long,insample,deployed_existing\n\
+          XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1\n\
+          XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1\n\
+          KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1\n" > localdata/monitored_slices.csv
 
       - name: Run paper_trade (Limit Orders + Honest Costs)
         env:
@@ -86,6 +66,7 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
+          # Upgraded with Limit Orders and Honest Costs (1.5bp/5.0bp)
           PYTHONPATH=src python3 scripts/paper_trade.py \
             --max-notional 2500 --max-open 7 --max-daily-loss 500 \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
@@ -100,6 +81,7 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
+          # Using --universe-source auto for bulletproof discovery.
           PYTHONPATH=src python3 scripts/live_forward_returns.py --universe-source auto
 
       - name: Commit any changes
