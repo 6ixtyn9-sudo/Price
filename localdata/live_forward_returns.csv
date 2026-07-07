@@ -1,5 +1,5 @@
 symbol,timeframe,slice_combination,signal_ts_utc,signal_close,fwd_ret_5b,fwd_ret_20b
 XOP,1d,state_ext=stretched_down + state_slope=downtrend,2026-07-02 00:00:00+00:00,154.64,,
 XOP,1d,state_ext=stretched_down + state_slope=downtrend,2026-07-02 04:00:00+00:00,154.72,,
-SPY,1h,state_session=afternoon + state_slope=downtrend,2026-07-02 20:00:00+00:00,744.07,,
-XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,2026-07-02 19:00:00+00:00,180.5,,
+SPY,1h,state_session=afternoon + state_slope=downtrend,2026-07-02 20:00:00+00:00,744.07,0.008097356431518543,
+XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,2026-07-02 19:00:00+00:00,180.5,0.015900277008310315,
