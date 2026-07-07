@@ -472,11 +472,11 @@ def main() -> int:
     parser.add_argument(
         "--universe-source",
         choices=["leaderboard", "monitored", "auto"],
-        default="leaderboard",
+        default="auto",
         help=(
             "Watched universe source. leaderboard = clean_survivor* research "
             "default; monitored = explicit monitored_slices.csv deployment set; "
-            "auto = try leaderboard then monitored. Default: leaderboard."
+            "auto = try leaderboard then monitored. Default: auto."
         ),
     )
     args = parser.parse_args()

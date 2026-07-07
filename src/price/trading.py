@@ -2,7 +2,7 @@
 
 This module handles:
   - connecting to Alpaca's paper-trading API
-  - submitting market orders (entry + exit)
+  - submitting market/limit orders (entry + exit)
   - tracking open positions and their originating slice signals
   - logging every action to a CSV trade journal
 
@@ -21,6 +21,7 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
     GetOrdersRequest,
     MarketOrderRequest,
+    LimitOrderRequest,
     ReplaceOrderRequest,
     StopOrderRequest,
 )
@@ -137,10 +138,14 @@ def submit_entry(
     qty: int,
     slice_label: str,
     side: str = "buy",
+    limit_price: Optional[float] = None,
     entry_bar_ts: Optional[str] = None,
     timeframe: Optional[str] = None,
 ) -> dict:
-    """Submit a market entry order and journal it.
+    """Submit a market or limit entry order and journal it.
+
+    If limit_price is provided, submits a LIMIT order (recommended to control
+    slippage). If None, falls back to a MARKET order (legacy/risky).
 
     entry_bar_ts / timeframe are recorded so the exit policy can count bars
     held in the position's own timeframe (faithful to the fwd_ret_5 horizon).
@@ -149,12 +154,26 @@ def submit_entry(
     client = get_trading_client()
     order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
 
-    order_data = MarketOrderRequest(
-        symbol=symbol.upper(),
-        qty=qty,
-        side=order_side,
-        time_in_force=TimeInForce.DAY,
-    )
+    if limit_price is not None:
+        # Alpaca requires limit_price to have at most 2 decimals when >= $1.00,
+        # and at most 4 decimals when < $1.00.
+        rounded_limit = round(float(limit_price), 2 if limit_price >= 1.0 else 4)
+        order_data = LimitOrderRequest(
+            symbol=symbol.upper(),
+            qty=qty,
+            side=order_side,
+            time_in_force=TimeInForce.DAY,
+            limit_price=rounded_limit,
+        )
+        order_type = "limit"
+    else:
+        order_data = MarketOrderRequest(
+            symbol=symbol.upper(),
+            qty=qty,
+            side=order_side,
+            time_in_force=TimeInForce.DAY,
+        )
+        order_type = "market"
 
     try:
         order = client.submit_order(order_data)
@@ -163,7 +182,8 @@ def submit_entry(
             "symbol": symbol.upper(),
             "qty": qty,
             "side": side,
-            "order_type": "market",
+            "order_type": order_type,
+            "limit_price": limit_price,
             "time_in_force": "day",
             "status": _enum_value(order.status),
             "submitted_at": str(order.submitted_at),
@@ -177,7 +197,8 @@ def submit_entry(
             "symbol": symbol.upper(),
             "qty": qty,
             "side": side,
-            "order_type": "market",
+            "order_type": order_type,
+            "limit_price": limit_price,
             "status": "rejected",
             "error": str(e),
             "slice_label": slice_label,

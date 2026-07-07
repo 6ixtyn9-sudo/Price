@@ -141,6 +141,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
             symbol = sig["symbol"]
             qty = int(sig.get("suggested_qty", 0))
             slice_label = sig["slice_combination"]
+            limit_price = sig.get("close_adj")  # Use signal bar close as the limit price
 
             if qty <= 0:
                 counts["entry_blocked"] += 1
@@ -158,6 +159,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                     "symbol": symbol,
                     "qty": qty,
                     "slice_label": slice_label,
+                    "limit_price": limit_price,
                     **_strip_known_keys(sig, ["action", "symbol", "qty"]),
                 })
                 continue
@@ -167,6 +169,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 qty=qty,
                 slice_label=slice_label,
                 side=sig.get("suggested_side", "buy"),
+                limit_price=limit_price,
                 entry_bar_ts=sig.get("bar_ts_utc"),
                 timeframe=sig.get("timeframe"),
             )

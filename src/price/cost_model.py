@@ -43,12 +43,12 @@ from dataclasses import dataclass
 # NOT measured; they are honest placeholders to be calibrated from realized
 # fills once the book produces round-trips (lever 5).
 DEFAULT_COMMISSION_BPS = 0.0   # zero-commission retail / Alpaca paper
-DEFAULT_SPREAD_BPS = 1.0       # half-spread paid crossing a market order;
+DEFAULT_SPREAD_BPS = 1.5       # half-spread paid crossing a market order;
                                # liquid (SPY/XLF) ~0.4-1bp, XOP/KLAC wider
-DEFAULT_SLIPPAGE_BPS = 3.0     # adverse fill + the signal-to-fill gap (the
-                               # signal bar closes; the order fills next
-                               # session open). The dominant uncertain term;
-                               # recalibrate from realized fills later.
+DEFAULT_SLIPPAGE_BPS = 5.0     # adverse fill + the signal-to-fill gap.
+                               # With Limit Orders at signal close, this
+                               # should be much lower than the 161bp market
+                               # order gap, but we keep 5bp for 'touch' friction.
 
 
 @dataclass
