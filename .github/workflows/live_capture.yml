@@ -11,28 +11,22 @@ name: Live Capture
 #   1. Pulls the latest warehouse + paper-trading journals from main.
 #   2. Pulls the most recent bars from Tiingo/Alpaca and rebuilds the warehouse.
 #   3. Writes the explicit monitored_slices.csv deployment/watch list.
-#   4. Runs paper_trade.py in LIVE PAPER mode (never real money; trading.py is hardwired paper=True).
-#      This is also where the R-based protective-stop system (attach / breakeven
-#      ratchet / chandelier trail) is reconciled every run -- see
-#      src/price/stop_manager.py and HANDOVER.md "Protective Stops".
-#   5. Runs live_forward_returns.py to capture realized forward returns for any matched signals.
+#   4. Runs paper_trade.py in LIVE PAPER mode (never real money).
+#      - UPGRADED: Uses Limit Orders and Honest Costs (1.5bp/5.0bp).
+#   5. Runs live_forward_returns.py to capture realized forward returns.
+#      - UPGRADED: Tiingo/RTH aware with 'auto' universe discovery.
 #   6. Auto-commits the lightweight workflow artifacts back to main.
 #
 # What this workflow does NOT do:
 #   - Trade real money.
 #   - Override the project doctrine about promotion; paper trades are evidence generation.
-#   - Enable the regime deployment gate or any leverage (see the paper_trade step below --
-#     both are explicit, not-yet-authorized operator decisions, not silently defaulted on).
-#   - Run on its own commits (concurrency block below).
+#   - Enable the regime deployment gate or any leverage (see the paper_trade step below).
 #
 # See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)",
 # "Scheduled Live Capture (2026-07-02)", "Protective Stops (2026-07-06)",
 # and "Leverage Phase (2026-07-06)".
 
 on:
-  # US session coverage: 13:00 to 21:00 UTC (roughly 9:00 AM to 5:00 PM ET)
-  # This provides hourly monitoring for responsive stop-loss management
-  # and margin cushion tracking, essential for the upcoming leverage phase.
   schedule:
     - cron: "0 13-21 * * 1-5"
   workflow_dispatch:
@@ -43,8 +37,6 @@ concurrency:
 
 jobs:
   live-capture:
-    # Pin the runner image instead of ubuntu-latest so OS-level packages do
-    # not drift under a secrets-bearing workflow.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -52,13 +44,9 @@ jobs:
 
     steps:
       - name: Checkout
-        # actions/checkout v7 pinned to immutable commit SHA, not a mutable tag.
-        # v7 targets the current Node runtime; v4 emitted Node 20 deprecation warnings.
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Python
-        # actions/setup-python v6 pinned to immutable commit SHA, not a mutable tag.
-        # v6 targets the current Node runtime; v5 emitted Node 20 deprecation warnings.
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.11"
@@ -68,54 +56,25 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip --version
-          # Hash-locked install: every direct and transitive package must match
-          # requirements.lock exactly. This prevents silent dependency drift in
-          # a workflow that has API secrets and contents:write permission.
           pip install --require-hashes -r requirements.lock
 
-      - name: Run capture_bars (1d, 5-year history for V4 validation)
+      - name: Ingest Universe Data (Tiingo 1d + Alpaca RTH 15m)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # UPGRADED: Scaled to full allowlist tier for universe-awareness.
-          # Pull 1d history for the standard universe. The V4
-          # validation discipline requires ~1 year minimum and the
-          # clean_survivor tier (the only tier the live forward-
-          # return layer tracks) typically needs 3+ years to
-          # produce any survivors. We use 5 years to match the
-          # V4 cross-asset historical analysis. 1d comes from
-          # Tiingo (primary, free tier). build_warehouse.py
-          # propagates the daily adjustment factors to intraday.
-          PYTHONPATH=src python3 scripts/capture_bars.py \
-            --tier allowlist \
-            --timeframes 1d \
-            --days 1825
-          PYTHONPATH=src python3 scripts/build_warehouse.py \
-            --tier allowlist
-
-      - name: Run capture_bars (15m, 30-day history for intraday monitoring)
-        env:
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
-        run: |
-          # UPGRADED: Scaled to full allowlist tier for universe-awareness.
-          # Pull 15m history for intraday monitoring only. 30 days
-          # is enough for paper_trade.py to compute
-          # the current 1h state via the resample step.
-          PYTHONPATH=src python3 scripts/capture_bars.py \
-            --tier allowlist \
-            --timeframes 15m \
-            --days 30
-          PYTHONPATH=src python3 scripts/build_warehouse.py \
-            --tier allowlist
+          # Fetch 5 years of daily bars (Tiingo adjusted) for the full allowlist
+          PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 1d --days 1825
+          # Fetch 14 days of 15m bars (Alpaca RTH) for the full allowlist
+          PYTHONPATH=src python3 scripts/capture_bars.py --tier allowlist --timeframes 15m --days 14
+          # Build warehouse (resample 1h and propagate adjustments)
+          PYTHONPATH=src python3 scripts/build_warehouse.py --tier allowlist
 
       - name: Write explicit monitored slices
         run: |
           mkdir -p localdata
-          cat > localdata/monitored_slices.csv <<'EOF'
+          cat > localdata/monitored_slices.csv <<'INNER_EOF'
           symbol,timeframe,slice_combination,side,bin_mode,source_note
           XLF,1d,state_ext=stretched_up + state_slope=flat,long,insample,deployed_existing_and_corrected_tier1
           XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,insample,deployed_existing
@@ -124,39 +83,21 @@ jobs:
           XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
           XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
           KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,insample,corrected_liquid236_tier1
-          EOF
+INNER_EOF
 
-      - name: Run paper_trade (live paper mode, tightly risk-capped)
+      - name: Run paper_trade (Limit Orders + Honest Costs)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Live PAPER execution only. trading.py is hardwired paper=True.
-          #
-          # UPGRADED: Now uses Limit Orders and an honest cost model (1.5bp/5.0bp)
-          # to protect capital from slippage during the US session open.
-          #
-          # --auto-sizing-equity is enabled: it activates the sizing
-          # volatility rail (Stage B) and the aggregate open-risk budget,
-          # both of which are STRICTLY TIGHTENING mechanisms.
           PYTHONPATH=src python3 scripts/paper_trade.py \
-            --max-notional 2500 \
-            --max-open 7 \
-            --max-daily-loss 500 \
-            --cooldown-seconds 3600 \
-            --auto-sizing-equity \
-            --risk-fraction 0.005 \
-            --exit-horizon 5 \
-            --max-per-group 2 \
-            --stop-atr-mult 2.0 \
-            --trail-atr-mult 3.0 \
-            --breakeven-trigger-r 1.0 \
-            --max-aggregate-risk-pct 0.03 \
-            --whipsaw-limit 2 \
-            --cost-spread-bps 1.5 \
-            --cost-slippage-bps 5.0 \
-            --cost-commission-bps 0.0
+            --max-notional 2500 --max-open 7 --max-daily-loss 500 \
+            --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
+            --exit-horizon 5 --max-per-group 2 --stop-atr-mult 2.0 \
+            --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
+            --max-aggregate-risk-pct 0.03 --whipsaw-limit 2 \
+            --cost-spread-bps 1.5 --cost-slippage-bps 5.0 --cost-commission-bps 0.0
 
       - name: Run live forward-return capture
         env:
@@ -164,20 +105,12 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # UPGRADED: Using --universe-source auto for bulletproof data discovery.
           PYTHONPATH=src python3 scripts/live_forward_returns.py --universe-source auto
 
       - name: Commit any changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # The localdata/ directory is gitignored, which is correct
-          # for the parquet files (large binaries) but wrong for the
-          # workflow output CSVs/JSON state that we DO want to commit.
-          #
-          # stop_state.json / stopout_journal.json are CRITICAL to include:
-          # without them, every fresh checkout would start with an EMPTY
-          # protective-stop state.
           WORKFLOW_OUTPUT_FILES=(
             "localdata/candidate_leaderboard.csv"
             "localdata/discovered_slices.csv"
@@ -194,17 +127,8 @@ jobs:
             "localdata/date_range_diagnostics.csv"
           )
           for f in "${WORKFLOW_OUTPUT_FILES[@]}"; do
-            if [ -f "$f" ]; then
-              git add -f "$f"
-            else
-              git rm -f --ignore-unmatch "$f"
-            fi
+            if [ -f "$f" ]; then git add -f "$f"; else git rm -f --ignore-unmatch "$f"; fi
           done
-          if git diff --cached --quiet; then
-            echo "No workflow output changes; nothing to commit."
-            exit 0
-          fi
-          # Avoid recursive workflow triggers by including [skip ci]
-          # in the commit message.
-          git commit -m "chore(live-capture): update workflow output CSVs [skip ci]"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "chore(live-capture): update workflow output [skip ci]"
           git push

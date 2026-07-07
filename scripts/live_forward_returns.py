@@ -38,19 +38,15 @@ def _get_exit_close(symbol, timeframe, signal_ts, horizon_bars):
             idx = future.index[0] + horizon_bars
             if idx < len(df): return float(df.iloc[idx]["close_adj"])
     
-    # Fallback to Universal Router (Tiingo 1d / RTH Alpaca Intraday)
     try:
-        # Request enough bars to cover the horizon
         lookback = 45 if timeframe == "1d" else 14
         df_api = fetch_universal_bars(symbol, timeframe, sig_ts, datetime.now(timezone.utc))
         if df_api is not None and not df_api.empty:
             df_api = df_api.sort_values("bar_ts_utc").reset_index(drop=True)
-            # Filter for bars strictly after the signal
             future_api = df_api[df_api["bar_ts_utc"] >= sig_ts]
             if not future_api.empty:
                 api_idx = future_api.index[0] + horizon_bars
                 if api_idx < len(df_api):
-                    # For 1d use adjusted close from Tiingo; for intraday use raw/adj (identical)
                     return float(df_api.iloc[api_idx]["close_adj"])
     except: pass
     return None
@@ -62,7 +58,6 @@ def run_live_capture(universe_source="auto"):
     is_matched = log["matched"].astype(str).str.lower() == "true"
     is_entry = log["kind"] == "entry_signal"
     matched = log[is_matched & is_entry].copy()
-    
     matched = matched[matched.apply(lambda r: (str(r["symbol"]).upper(), str(r["timeframe"]), str(r["slice_combination"]), str(r.get("bin_mode", "insample")).lower()) in univ, axis=1)]
     if matched.empty: return print("No signals found in universe.")
     
@@ -73,13 +68,10 @@ def run_live_capture(universe_source="auto"):
             close = _get_exit_close(sig["symbol"], sig["timeframe"], sig["bar_ts_utc"], h)
             res[f"fwd_ret_{h}b"] = (close / sig["close_adj"] - 1.0) if close else None
         results.append(res)
-    
-    df_out = pd.DataFrame(results).drop_duplicates(subset=["symbol", "signal_ts_utc", "slice_combination"])
-    df_out.to_csv(LIVE_FORWARD_RETURNS_PATH, index=False)
-    print(f"✅ Success: Captured {len(df_out)} signals (Tiingo/RTH aware).")
+    pd.DataFrame(results).drop_duplicates(subset=["symbol", "signal_ts_utc", "slice_combination"]).to_csv(LIVE_FORWARD_RETURNS_PATH, index=False)
+    print(f"✅ Success: Captured {len(results)} signals (Tiingo/RTH aware).")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--universe-source", default="auto")
     run_live_capture(parser.parse_args().universe_source)
-EOF
