@@ -9,3 +9,4 @@ cc129145-bb1e-4534-a4f9-4ccb0c850a20,XLK,13.0,close,,,pending_new,2026-07-06 19:
 a421b4a1-3bc2-4ed9-8a6c-1fbc4f3c4612,SPY,3.0,buy,market,day,accepted,2026-07-07 05:40:08.246650+00:00,state_session=afternoon + state_slope=downtrend,entry,2026-07-07T05:40:07.995123+00:00,,,,2026-07-02 20:00:00+00:00,1h,
 e69dc387-a633-4bcb-992c-005a8eb77d9d,SPY,1.0,buy,limit,day,accepted,2026-07-07 06:25:54.088896+00:00,manual_test,entry,2026-07-07T06:25:54.136309+00:00,,,,,,100.0
 5b8e9d85-32ab-4214-a808-de79798bf937,XLK,13.0,buy,limit,day,pending_new,2026-07-07 08:39:09.836164+00:00,cross_TLT_state_slope=uptrend + state_ext=neutral,entry,2026-07-07T08:39:09.846060+00:00,,,,2026-07-06 00:00:00+00:00,1d,183.57
+8fb79b85-0b95-47e3-94c3-40c1d9cd3c6d,XLK,13.0,sell,stop,gtc,pending_new,2026-07-07 13:33:06.835058+00:00,,protective_stop_submit,2026-07-07T13:33:06.891389+00:00,167.84,,,,,
