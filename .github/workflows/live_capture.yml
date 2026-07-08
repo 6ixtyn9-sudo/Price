@@ -1,8 +1,17 @@
 name: Live Capture
 
 on:
+  # GitHub scheduled workflows are often delayed or dropped at the top of the hour.
+  # Run at minute 17 instead of minute 0 to avoid the busiest scheduler window.
+  #
+  # UTC schedule:
+  #   13:17-21:17 UTC, Monday-Friday
+  #
+  # South Africa time:
+  #   15:17-23:17 SAST, Monday-Friday
   schedule:
-    - cron: "0 13-21 * * 1-5"
+    - cron: "17 13-21 * * 1-5"
+
   workflow_dispatch:
 
 concurrency:
@@ -13,6 +22,7 @@ jobs:
   live-capture:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+
     permissions:
       contents: write
 
@@ -50,7 +60,7 @@ jobs:
           PYTHONPATH=src python3 scripts/capture_bars.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC --timeframes 15m --days 365
           PYTHONPATH=src python3 scripts/build_warehouse.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC
 
-      - name: Run paper_trade (Using Repository Monitor List)
+      - name: Run paper_trade Using Repository Monitor List
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
@@ -77,10 +87,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           # delta-spike-guard: block auto-commit on runaway row-count growth
           python3 scripts/delta_spike_guard.py
+
           # Sync everything back to the IDE except the warehouse
           git add localdata/*.csv localdata/*.json
-          if git diff --cached --quiet; then exit 0; fi
+
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+
           git commit -m "chore(live-capture): update workflow output [skip ci]"
           git push
