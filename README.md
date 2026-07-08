@@ -65,3 +65,8 @@ Initial timeframes:
 - dashboards
 - cloud persistence sprawl
 - governance/council layers
+
+## Operator cadence
+cd ~/Price
+git pull --ff-only
+PYTHONPATH=src python3 scripts/attribute_pnl.py
