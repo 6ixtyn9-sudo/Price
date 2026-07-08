@@ -1,22 +1,26 @@
 name: Live Capture
 
 on:
-  # GitHub scheduled workflows are often delayed or dropped at the top of the hour.
-  # Run at minute 17 instead of minute 0 to avoid the busiest scheduler window.
+  # GitHub scheduled workflows are best-effort and can be delayed.
+  # Run away from minute 0 to avoid the busiest scheduler window.
   #
-  # UTC schedule:
-  #   13:17-21:17 UTC, Monday-Friday
-  #
-  # South Africa time:
-  #   15:17-23:17 SAST, Monday-Friday
+  # UTC schedule: 13:17-21:17 UTC, Monday-Friday
+  # SAST schedule: 15:17-23:17 SAST, Monday-Friday
   schedule:
     - cron: "17 13-21 * * 1-5"
-
   workflow_dispatch:
 
 concurrency:
   group: live-capture
   cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+  LIVE_SYMBOLS: "SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC"
 
 jobs:
   live-capture:
@@ -28,46 +32,62 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.13"
           cache: "pip"
           cache-dependency-path: requirements.lock
 
-      - name: Cache Warehouse Data
-        uses: actions/cache@v4
+      - name: Restore warehouse cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: localdata/warehouse
-          key: warehouse-v2-${{ runner.os }}-${{ github.run_id }}
+          key: warehouse-v3-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            warehouse-v2-${{ runner.os }}-
+            warehouse-v3-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
 
-      - name: Ingest Universe Data
+      - name: Verify required secrets
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Use the 'allowlist' tier to keep the bot in sync with your local IDE
-          PYTHONPATH=src python3 scripts/capture_bars.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC --timeframes 1d --days 1825
-          PYTHONPATH=src python3 scripts/capture_bars.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC --timeframes 15m --days 365
-          PYTHONPATH=src python3 scripts/build_warehouse.py --symbols SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+          : "${TIINGO_API_KEY:?Missing repository secret TIINGO_API_KEY}"
 
-      - name: Run paper_trade Using Repository Monitor List
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked by git. Remove it with: git rm --cached .env"
+            exit 1
+          fi
+
+      - name: Ingest universe data
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # The bot now uses the monitored_slices.csv you pushed from your IDE!
-          PYTHONPATH=src python3 scripts/paper_trade.py \
+          python scripts/capture_bars.py --symbols $LIVE_SYMBOLS --timeframes 1d --days 1825
+          python scripts/capture_bars.py --symbols $LIVE_SYMBOLS --timeframes 15m --days 365
+          python scripts/build_warehouse.py --symbols $LIVE_SYMBOLS
+
+      - name: Run paper trade using repository monitor list
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          python scripts/paper_trade.py \
             --max-notional 2500 --max-open 7 --max-daily-loss 500 \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
             --exit-horizon 5 --max-per-group 2 --stop-atr-mult 2.0 \
@@ -81,22 +101,29 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          PYTHONPATH=src python3 scripts/live_forward_returns.py --universe-source monitored
+          python scripts/live_forward_returns.py --universe-source monitored
 
-      - name: Commit any changes
+      - name: Commit workflow outputs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # delta-spike-guard: block auto-commit on runaway row-count growth
-          python3 scripts/delta_spike_guard.py
+          # Block auto-commit on runaway row-count growth.
+          python scripts/delta_spike_guard.py
 
-          # Sync everything back to the IDE except the warehouse
+          # Sync generated intelligence/artifacts only. Never add secrets or warehouse blobs.
           git add localdata/*.csv localdata/*.json
 
           if git diff --cached --quiet; then
+            echo "No workflow output changes to commit." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+
+          {
+            echo "## Live capture output changes"
+            echo
+            git diff --cached --stat
+          } >> "$GITHUB_STEP_SUMMARY"
 
           git commit -m "chore(live-capture): update workflow output [skip ci]"
           git push

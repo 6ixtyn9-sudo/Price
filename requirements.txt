@@ -11,6 +11,7 @@ python-dotenv==1.2.2
 pandas_market_calendars==5.4.0
 requests==2.33.0
 lightgbm==4.6.0
+scikit-learn==1.9.0
 # Compatibility pins for the workflow's Python 3.11 environment.
 numpy==2.4.6
 scipy==1.17.1
