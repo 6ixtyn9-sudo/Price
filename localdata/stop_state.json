@@ -1,16 +1,30 @@
 {
+  "XLK": {
+    "symbol": "XLK",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 179.98,
+    "initial_stop_price": 167.83691657314284,
+    "current_stop_price": 167.83691657314284,
+    "r_per_share": 12.14308342685715,
+    "stage": "initial",
+    "extreme_price": 179.98,
+    "stop_order_id": "8fb79b85-0b95-47e3-94c3-40c1d9cd3c6d",
+    "opened_at": "2026-07-07T13:33:06.659370+00:00",
+    "updated_at": "2026-07-07T13:33:06.659370+00:00"
+  },
   "XOP": {
     "symbol": "XOP",
     "side": "long",
     "qty": 16.0,
     "entry_price": 154.47,
-    "initial_stop_price": 147.1779694108,
-    "current_stop_price": 147.1779694108,
-    "r_per_share": 7.292030589199998,
+    "initial_stop_price": 147.18,
+    "current_stop_price": 147.18,
+    "r_per_share": 7.289999999999992,
     "stage": "initial",
     "extreme_price": 154.47,
     "stop_order_id": "19362c3e-9eac-474f-aae0-e4d7296b3347",
-    "opened_at": "2026-07-06T19:02:26.445718+00:00",
-    "updated_at": "2026-07-06T19:02:26.445718+00:00"
+    "opened_at": "",
+    "updated_at": ""
   }
 }
