@@ -201,11 +201,24 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
                 ent_qty = _get(ent_row, "qty", 0.0)
                 if ent_qty <= 0:
                     continue
-                ent_price = _get(ent_row, "avg_entry_price",
-                                 _get(ent_row, "price", 0.0))
-                # Entry journal rows carry avg_entry_price only on exit rows;
-                # entries typically have no fill price recorded. Best-effort:
-                ent_price = _get(ent_row, "price", ent_price)
+                # Entry rows created at submit-time do not always know the
+                # eventual fill price. For close_position exits, the exit row's
+                # avg_entry_price is the broker/account average entry basis and
+                # is the best available source for reconstructing realized P&L.
+                # Never allow a missing entry fill to become 0.0, because that
+                # turns notional value into fake profit.
+                ent_price = _get(ent_row, "avg_entry_price", 0.0)
+                if ent_price <= 0:
+                    ent_price = _get(exit_row, "avg_entry_price", 0.0)
+                if ent_price <= 0:
+                    ent_price = _get(ent_row, "price", 0.0)
+                if ent_price <= 0:
+                    ent_price = _get(ent_row, "limit_price", 0.0)
+                if ent_price <= 0:
+                    # Cannot price this round-trip honestly; skip it rather
+                    # than fabricating P&L from a zero entry.
+                    continue
+
                 matched_qty = min(ent_qty, exit_qty_remaining)
                 exit_qty_remaining -= matched_qty
 

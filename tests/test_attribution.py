@@ -78,6 +78,26 @@ def test_single_round_trip_long():
     assert abs(rt.gross_return - 0.02) < 1e-9
 
 
+def test_round_trip_uses_exit_avg_entry_when_entry_fill_missing():
+    """Limit entry submit row may lack fill price; exit row has account basis."""
+    j = _journal([
+        {"symbol": "XLK", "qty": 13, "side": "buy", "action": "entry",
+         "submitted_at": "2026-07-07T08:39:09Z", "order_type": "limit",
+         "status": "pending_new", "limit_price": 183.57,
+         "slice_label": "cross_TLT_state_slope=uptrend + state_ext=neutral"},
+        {"symbol": "XLK", "qty": 13, "side": "close", "action": "exit",
+         "submitted_at": "2026-07-07T21:17:38Z", "status": "accepted",
+         "avg_entry_price": 179.98, "current_price": 179.33},
+    ])
+    rts = reconstruct_round_trips(j)
+    assert len(rts) == 1
+    rt = rts[0]
+    assert rt.entry_price == 179.98
+    assert rt.exit_price == 179.33
+    assert round(rt.gross_pnl, 2) == -8.45
+    assert abs(rt.gross_return - ((179.33 - 179.98) / 179.98)) < 1e-9
+
+
 def test_short_round_trip_signs_correctly():
     j = _journal([
         {"symbol": "TLT", "qty": 5, "side": "sell", "action": "entry",
