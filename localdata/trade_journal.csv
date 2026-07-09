@@ -15,3 +15,4 @@ b6d6bfed-a64b-4c6f-928e-01441c95fab2,XLK,13.0,close,,,accepted,2026-07-07 21:17:
 19362c3e-9eac-474f-aae0-e4d7296b3347,,,,,,cancel_requested,,,order_cancel,2026-07-07T21:17:39.708094+00:00,,,,,,
 67114cfa-4aaf-4bcf-b7f1-c1eb1742334a,XOP,16.0,close,,,accepted,2026-07-07 21:17:40.875933+00:00,,exit,2026-07-07T21:17:40.916150+00:00,,154.47,157.36,,,
 fb1aeee2-53c6-4762-b27d-f286156c4e6e,XLK,14.0,buy,limit,day,pending_new,2026-07-08 16:26:23.668579+00:00,cross_USO_state_vol=mid_vol + state_ext=stretched_down,entry,2026-07-08T16:26:23.687071+00:00,,,,2026-07-08 15:00:00+00:00,1h,177.81
+f31a246e-c0bc-4ae3-a4b6-7eeae243ae17,KLAC,10.0,buy,limit,day,accepted,2026-07-09 21:46:17.516782+00:00,state_ext=stretched_down + state_slope=downtrend,entry,2026-07-09T21:46:17.526849+00:00,,,,2026-07-09 00:00:00+00:00,1d,229.52
