@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,11 +54,33 @@ def _coverage(symbols) -> dict:
     return out
 
 
-def _new_daily_bars(previous: dict, current: dict) -> int:
-    return sum(
-        max(0, int(values.get("count", 0)) - int(previous.get(symbol, {}).get("count", 0)))
+def _daily_bar_deltas(previous: dict, current: dict) -> dict:
+    return {
+        symbol: max(
+            0,
+            int(values.get("count", 0))
+            - int(previous.get(symbol, {}).get("count", 0)),
+        )
         for symbol, values in current.items()
-    )
+    }
+
+
+def _new_daily_bars(previous: dict, current: dict) -> int:
+    """Aggregate delta for telemetry only; never use this for discovery gating."""
+    return sum(_daily_bar_deltas(previous, current).values())
+
+
+def _eligible_discovery_symbols(previous: dict, current: dict, min_new_daily_bars: int) -> list[str]:
+    """Return symbols with enough genuinely fresh daily observations.
+
+    The gate is per-symbol, not aggregate: 60 new bars across 236 symbols
+    would otherwise be reached in a day and would not represent a quarter of
+    fresh evidence for any individual candidate.
+    """
+    if not previous:
+        return []
+    deltas = _daily_bar_deltas(previous, current)
+    return sorted(symbol for symbol, delta in deltas.items() if delta >= min_new_daily_bars)
 
 
 def _load_state() -> dict:
@@ -82,16 +105,35 @@ def run_refresh(
     condition_symbols=("USO", "TLT"),
     enable_auto_promotion: bool = False,
     apply_monitored_slices: bool = False,
+    allow_unsharded_discovery: bool = False,
 ) -> dict:
     symbols = list(symbols or SYMBOLS)
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
     previous = _load_state().get("daily_coverage", {})
     current = _coverage(symbols)
     new_bars = _new_daily_bars(previous, current)
-    # The first refresh establishes the coverage baseline; it must not use
-    # the entire historical warehouse as "new" evidence. Discovery becomes
-    # eligible only on a later refresh after the required fresh-bar delta.
-    discovery_allowed = bool(allow_discovery and previous and new_bars >= min_new_daily_bars)
+    eligible_symbols = _eligible_discovery_symbols(
+        previous, current, min_new_daily_bars
+    )
+    # The first refresh establishes the coverage baseline. On later refreshes,
+    # require fresh evidence for at least 80% of the active universe before
+    # re-running the full grid; otherwise discovery remains skipped.
+    required_symbols = max(1, math.ceil(len(symbols) * 0.80))
+    discovery_allowed = bool(
+        allow_discovery
+        and len(eligible_symbols) >= required_symbols
+    )
+    discovery_block_reason = None
+    if (
+        discovery_allowed
+        and len(symbols) > 50
+        and len(timeframes) > 1
+        and not allow_unsharded_discovery
+    ):
+        discovery_allowed = False
+        discovery_block_reason = (
+            "full-universe multi-timeframe discovery requires sharded workflow"
+        )
 
     # Always produce coverage and existing-paper opportunity telemetry.
     coverage = build_coverage(symbols, ("1d", "1h"))
@@ -107,7 +149,7 @@ def run_refresh(
         discover_slices.DISCOVERED_SLICES_PATH = str(DISCOVERED_PATH)
         for timeframe in timeframes:
             discover_slices.run_discovery(
-                target_symbols=symbols,
+                target_symbols=eligible_symbols,
                 timeframe=timeframe,
                 min_samples=15,
                 append=DISCOVERED_PATH.exists(),
@@ -149,9 +191,13 @@ def run_refresh(
         "timeframes": list(timeframes),
         "daily_coverage": current,
         "new_daily_bars_since_previous_refresh": new_bars,
+        "eligible_discovery_symbols": eligible_symbols,
+        "eligible_discovery_symbol_count": len(eligible_symbols),
+        "required_discovery_symbol_count": required_symbols,
         "min_new_daily_bars": min_new_daily_bars,
         "discovery_requested": bool(allow_discovery),
         "discovery_allowed": discovery_allowed,
+        "discovery_block_reason": discovery_block_reason,
         "discovery_ran": discovery_ran,
         "regime_tracks_ran": regime_tracks_ran,
         "orders_placed": False,
@@ -172,6 +218,11 @@ def main() -> int:
     parser.add_argument("--condition-on", nargs="+", default=["USO", "TLT"])
     parser.add_argument("--enable-auto-promotion", action="store_true")
     parser.add_argument("--apply-monitored-slices", action="store_true")
+    parser.add_argument(
+        "--allow-unsharded-discovery",
+        action="store_true",
+        help="Override the safety guard for a deliberately small/unsharded research run.",
+    )
     args = parser.parse_args()
     run_refresh(
         symbols=args.symbols,
@@ -181,6 +232,7 @@ def main() -> int:
         condition_symbols=tuple(args.condition_on),
         enable_auto_promotion=args.enable_auto_promotion,
         apply_monitored_slices=args.apply_monitored_slices,
+        allow_unsharded_discovery=args.allow_unsharded_discovery,
     )
     return 0
 
