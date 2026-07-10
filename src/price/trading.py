@@ -360,14 +360,29 @@ def get_order_fill_info(order_id: str) -> dict:
         order = client.get_order_by_id(order_id)
         filled_qty = getattr(order, "filled_qty", None)
         filled_avg_price = getattr(order, "filled_avg_price", None)
+        filled_at = getattr(order, "filled_at", None)
+
+        def _optional_float(value):
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return None
+            return value if value == value else None
+
+        def _optional_text(value):
+            if value is None:
+                return None
+            text = str(value).strip()
+            return None if text.lower() in ("", "none", "nan") else text
+
         return {
             "order_id": str(order.id),
             "symbol": str(order.symbol).upper(),
             "status": _enum_value(order.status),
             "side": _enum_value(order.side),
-            "filled_qty": float(filled_qty) if filled_qty is not None else None,
-            "filled_avg_price": float(filled_avg_price) if filled_avg_price is not None else None,
-            "filled_at": str(getattr(order, "filled_at", "")),
+            "filled_qty": _optional_float(filled_qty),
+            "filled_avg_price": _optional_float(filled_avg_price),
+            "filled_at": _optional_text(filled_at),
         }
     except Exception as e:  # noqa: BLE001 - callers must degrade gracefully
         return {"error": str(e)}
@@ -408,12 +423,28 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
         text = str(value).strip()
         return None if not text or text.lower() in ("nan", "none") else text
 
+    def _normalised(value):
+        if value is None:
+            return None
+        try:
+            if pd.isna(value):
+                return None
+        except (TypeError, ValueError):
+            pass
+        text = str(value).strip()
+        if text.lower() in ("", "none", "nan"):
+            return None
+        try:
+            number = float(value)
+            if number == number and number not in (float("inf"), float("-inf")):
+                return ("number", round(number, 12))
+        except (TypeError, ValueError):
+            pass
+        return ("text", text)
+
     def _same(a, b):
-        if a is None or (isinstance(a, float) and pd.isna(a)):
-            return b is None or (isinstance(b, float) and pd.isna(b))
-        if b is None or (isinstance(b, float) and pd.isna(b)):
-            return False
-        return str(a) == str(b)
+        """Compare broker/CSV scalar values without None/NaN churn."""
+        return _normalised(a) == _normalised(b)
 
     for idx, row in journal.iterrows():
         order_id = _clean_id(row.get("order_id"))

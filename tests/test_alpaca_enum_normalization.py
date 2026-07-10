@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 SRC = Path(__file__).resolve().parent.parent / "src"
@@ -381,3 +382,37 @@ def test_get_order_fill_info_never_raises(monkeypatch):
 
     info = trading.get_order_fill_info("nonexistent")
     assert "error" in info
+
+
+def test_reconcile_trade_journal_is_idempotent_for_unchanged_state(tmp_path):
+    """A repeated identical broker reconciliation must not rewrite the CSV."""
+    path = tmp_path / "trade_journal.csv"
+    pd.DataFrame([{
+        "order_id": "order-1",
+        "symbol": "XLE",
+        "qty": 9.0,
+        "side": "buy",
+        "status": "accepted",
+        "action": "entry",
+        "timestamp_utc": "2026-07-10T00:00:00Z",
+    }]).to_csv(path, index=False)
+
+    def _fill_info(order_id):
+        assert order_id == "order-1"
+        return {
+            "status": "canceled",
+            "filled_qty": 0.0,
+            "filled_avg_price": None,
+            "filled_at": None,
+        }
+
+    trading.reconcile_trade_journal(path=path, get_order_fill_info_fn=_fill_info)
+    first_bytes = path.read_bytes()
+    first_timestamp = pd.read_csv(path).loc[0, "reconciled_at_utc"]
+
+    trading.reconcile_trade_journal(path=path, get_order_fill_info_fn=_fill_info)
+    second_bytes = path.read_bytes()
+    second_timestamp = pd.read_csv(path).loc[0, "reconciled_at_utc"]
+
+    assert second_bytes == first_bytes
+    assert second_timestamp == first_timestamp
