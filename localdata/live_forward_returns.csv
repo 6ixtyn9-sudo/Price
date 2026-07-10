@@ -1,5 +1,5 @@
 symbol,timeframe,slice_combination,signal_ts_utc,signal_close,fwd_ret_5b,fwd_ret_20b,row_key,bin_mode,signal_close_adj,captured_at_utc,exit_close_5b,exit_close_20b,partial_data
-KLAC,1d,state_ext=stretched_down + state_slope=downtrend,2026-07-09 00:00:00+00:00,,,,KLAC|1d|state_ext=stretched_down + state_slope=downtrend|2026-07-09,insample,229.52,2026-07-10T15:41:34.195347+00:00,,,True
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,2026-07-09 00:00:00+00:00,,,,KLAC|1d|state_ext=stretched_down + state_slope=downtrend|2026-07-09,insample,229.52,2026-07-10T16:18:30.060501+00:00,,,True
 SPY,1h,state_session=afternoon + state_slope=downtrend,2026-07-02 20:00:00+00:00,,0.0105433628556452,0.0016261910841721,SPY|1h|state_session=afternoon + state_slope=downtrend|2026-07-02 20:00:00+00:00,insample,744.07,2026-07-09T21:46:19.128496+00:00,751.915,745.28,False
 SPY,1h,state_session=afternoon + state_slope=downtrend,2026-07-08 19:00:00+00:00,,0.0084934521253756,,SPY|1h|state_session=afternoon + state_slope=downtrend|2026-07-08 19:00:00+00:00,insample,745.28,2026-07-09T21:46:21.639576+00:00,751.61,,True
 XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,2026-07-06 00:00:00+00:00,,,,XLK|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|2026-07-06,insample,183.57,2026-07-09T21:46:19.998806+00:00,,,True
