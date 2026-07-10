@@ -4,19 +4,12 @@ __pycache__/
 .venv/
 .env
 
-# Ignore heavy data only
-localdata/warehouse/
-*.parquet
-*.duckdb
-*.duckdb.wal
-*.log
-
-# Allow intelligence/artifacts
-!localdata/*.csv
-!localdata/*.json
-!.gitkeep
-
-# OS/editor
+# Editor/OS/backup files (never track stale backup/swap files)
+*.bak
+*.orig
+*.swp
+*.swo
+*~
 .DS_Store
 .vscode/
 .idea/
@@ -24,3 +17,34 @@ localdata/warehouse/
 # Environment files
 .env.*
 !.env.example
+
+# Ignore heavy data (warehouse parquet/duckdb, logs)
+localdata/warehouse/
+*.parquet
+*.duckdb
+*.duckdb.wal
+*.log
+
+# ---- Operational state (broker / runtime) ----
+# These files reflect in-memory broker state and must NOT be committed.
+# They are persisted across GitHub Actions runs via the live-ops-state-v1 cache.
+localdata/stop_state.json
+localdata/cooldown_journal.json
+localdata/stopout_journal.json
+localdata/HALT_TRADING.flag
+localdata/trade_journal.csv
+localdata/paper_trade_log.csv
+
+# Allow intelligence/artifacts (research CSVs/JSONs and curated config)
+!localdata/*.csv
+!localdata/*.json
+!.gitkeep
+
+# Re-exclude the operational-state files explicitly (after the broad un-ignore
+# above, since gitignore last-matching-pattern wins).
+localdata/stop_state.json
+localdata/cooldown_journal.json
+localdata/stopout_journal.json
+localdata/HALT_TRADING.flag
+localdata/trade_journal.csv
+localdata/paper_trade_log.csv
