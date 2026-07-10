@@ -4182,9 +4182,7 @@ The remaining pytest warnings are non-blocking: an external websockets deprecati
 
 Local warehouse smoke test
 
-The first local capture attempt incorrectly passed the entire symbol list as one zsh argument, producing an invalid combined symbol. This was corrected by using a zsh array with "${LIVE_SYMBOLS[@]}".
-
-The corrected targeted capture succeeded for:
+A corrected targeted capture succeeded for:
 
 13 monitored/conditioning symbols
 approximately 1,254 daily bars per symbol
