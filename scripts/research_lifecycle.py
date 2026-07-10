@@ -131,8 +131,17 @@ def build_registry(
             "valid_excess_vs_best_parent": row.get("valid_excess_vs_best_parent"),
             "leverage_gate_pass": leverage_gate,
             "leverage_gate_reason": (
-                "risk data unavailable or overnight scenario not proven"
+                "risk data unavailable: lifecycle has no per-candidate ATR/R input; "
+                "auto-promotion remains disabled until that evidence source exists"
                 if not leverage_gate else "1x/2x risk scenarios pass"
+            ),
+            "auto_promotion_block_reason": (
+                "disabled_without_enable_auto_promotion_flag"
+                if eligible and leverage_gate and not enable_auto_promotion
+                else "missing_leverage_risk_evidence"
+                if eligible and not leverage_gate
+                else "strict_research_gate_failed"
+                if not eligible else ""
             ),
             **leverage,
         })

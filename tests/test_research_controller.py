@@ -87,3 +87,31 @@ def test_discovery_gate_is_per_symbol_not_aggregate():
     previous = {"SPY": {"count": 1254}, "QQQ": {"count": 1254}, "IWM": {"count": 1254}}
     current = {"SPY": {"count": 1314}, "QQQ": {"count": 1255}, "IWM": {"count": 1254}}
     assert _eligible_discovery_symbols(previous, current, 60) == ["SPY"]
+
+
+def test_research_refresh_separates_fresh_gate_from_sharded_discovery(monkeypatch, tmp_path):
+    import research_refresh as rr
+
+    monkeypatch.chdir(tmp_path)
+    previous = {f"S{i}": {"count": 100} for i in range(60)}
+    current = {f"S{i}": {"count": 160, "last_bar": "2026-07-10"} for i in range(60)}
+    monkeypatch.setattr(rr, "_load_state", lambda: {"daily_coverage": previous})
+    monkeypatch.setattr(rr, "_coverage", lambda symbols: current)
+    monkeypatch.setattr(rr, "build_coverage", lambda symbols, tfs: pd.DataFrame())
+    monkeypatch.setattr(rr, "build_regime_opportunity_rates", lambda: pd.DataFrame())
+    written = {}
+    monkeypatch.setattr(rr, "_write_state", lambda payload: written.update(payload))
+
+    state = rr.run_refresh(
+        symbols=list(current),
+        timeframes=("1d", "1h", "15m"),
+        allow_discovery=True,
+        min_new_daily_bars=60,
+    )
+
+    assert state["fresh_data_gate_open"] is True
+    assert state["sharded_discovery_required"] is True
+    assert state["unsharded_discovery_allowed"] is False
+    assert state["discovery_allowed"] is False
+    assert state["discovery_ran"] is False
+    assert written["sharded_discovery_required"] is True

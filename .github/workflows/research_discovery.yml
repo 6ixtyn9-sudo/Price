@@ -50,9 +50,14 @@ jobs:
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           import os
+          import re
 
+          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
           payload = json.load(open("localdata/explicit_allowlist.json"))
-          symbols = payload["all"]
+          symbols = [str(s).strip().upper() for s in payload["all"]]
+          invalid = [s for s in symbols if not symbol_pattern.fullmatch(s)]
+          if invalid:
+              raise SystemExit("Invalid symbols in explicit_allowlist.json: " + ", ".join(invalid[:10]))
           batch_size = int(os.environ["BATCH_SIZE"])
           include = []
           for timeframe in ("1d", "1h", "15m"):
@@ -62,7 +67,7 @@ jobs:
                   include.append({
                       "shard_id": f"{timeframe}-{index:02d}",
                       "timeframe": timeframe,
-                      "symbols": " ".join(batch),
+                      "symbols_json": json.dumps(batch, separators=(",", ":")),
                   })
           print("matrix=" + json.dumps({"include": include}, separators=(",", ":")))
           print("shard_ids=" + json.dumps([item["shard_id"] for item in include]))
@@ -97,11 +102,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
       - name: Run isolated shard
+        env:
+          SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
         run: |
           python scripts/research_shard.py \
             --shard-id "${{ matrix.shard_id }}" \
             --timeframe "${{ matrix.timeframe }}" \
-            --symbols ${{ matrix.symbols }} \
+            --symbols-json "$SHARD_SYMBOLS_JSON" \
             --output-dir "localdata/research/shards/${{ matrix.shard_id }}" \
             --condition-on USO TLT \
             --bin-mode rolling
@@ -158,4 +165,11 @@ jobs:
             exit 0
           fi
           git commit -m "chore(research-discovery): merge complete shard set [skip ci]"
-          git push
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push && break
+            if [ "$attempt" = 3 ]; then
+              echo "::error::git push failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done

@@ -21,6 +21,7 @@ ever reach trading.submit_entry(). See HANDOVER.md,
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
+import re
 
 import numpy as np
 import pandas as pd
@@ -51,6 +52,14 @@ DEFAULT_MONITORED_SLICES: List[dict] = [
 ]
 CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
 MONITORED_SLICES_PATH = DATA_DIR / "monitored_slices.csv"
+SYMBOL_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
+VALID_TIMEFRAMES = {"1d", "1h", "15m"}
+VALID_BIN_MODES = {"insample", "rolling"}
+VALID_SIDES = {"long", "short"}
+
+
+def _valid_symbol_text(value) -> bool:
+    return bool(SYMBOL_PATTERN.fullmatch(str(value).strip().upper()))
 
 
 def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
@@ -120,15 +129,30 @@ def _load_explicit_monitored_slices() -> Optional[List[dict]]:
         return None
 
     out = []
-    for _, row in rows.iterrows():
+    for idx, row in rows.iterrows():
+        symbol = str(row["symbol"]).strip().upper()
+        timeframe = str(row["timeframe"]).strip()
+        slice_combination = str(row["slice_combination"]).strip()
         side = str(row.get("side", "long") or "long").lower()
-        if side not in ("long", "short"):
-            side = "long"
+        if not _valid_symbol_text(symbol):
+            print(f"monitored_slices.csv row {idx}: invalid symbol {symbol!r}; skipping")
+            continue
+        if timeframe not in VALID_TIMEFRAMES:
+            print(f"monitored_slices.csv row {idx}: invalid timeframe {timeframe!r}; skipping")
+            continue
+        if side not in VALID_SIDES:
+            print(f"monitored_slices.csv row {idx}: invalid side {side!r}; skipping")
+            continue
+        try:
+            parse_slice_combination(slice_combination)
+        except ValueError as exc:
+            print(f"monitored_slices.csv row {idx}: invalid slice_combination: {exc}; skipping")
+            continue
 
         record = {
-            "symbol": str(row["symbol"]).upper(),
-            "timeframe": str(row["timeframe"]),
-            "slice_combination": str(row["slice_combination"]),
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "slice_combination": slice_combination,
             "side": side,
         }
         # Optional deployment metadata. `regime_symbol` is functional: the
@@ -140,7 +164,10 @@ def _load_explicit_monitored_slices() -> Optional[List[dict]]:
                 if value:
                     record[optional_col] = value.upper() if optional_col == "regime_symbol" else value
         bin_mode = str(row.get("bin_mode", "insample") or "insample").lower()
-        record["bin_mode"] = bin_mode if bin_mode in ("insample", "rolling") else "insample"
+        if bin_mode not in VALID_BIN_MODES:
+            print(f"monitored_slices.csv row {idx}: invalid bin_mode {bin_mode!r}; skipping")
+            continue
+        record["bin_mode"] = bin_mode
         out.append(record)
 
     return out or None
@@ -456,7 +483,10 @@ def scan_all_slices(
     # trip on every scan). Never crashes the scan on a fetch failure --
     # the margin-cushion check fails open when buying_power is None.
     buying_power = None
-    if getattr(limits, "target_leverage_multiple", 1.0) != 1.0 or getattr(limits, "margin_cushion_pct", None):
+    if (
+        getattr(limits, "target_leverage_multiple", 1.0) != 1.0
+        and getattr(limits, "margin_cushion_pct", None)
+    ):
         try:
             from price.trading import get_account_info
             buying_power = get_account_info().get("buying_power")
@@ -511,20 +541,19 @@ def scan_all_slices(
     # the stop is a resting order at the broker, not just a check that only
     # runs when this scan happens to run. See HANDOVER.md's R-based stop
     # design (2026-07-06).
-    if open_positions_list:
-        try:
-            stop_intents = reconcile_stops(open_positions_df, limits, dry_run=dry_run)
-        except Exception as e:  # noqa: BLE001 - stop reconciliation must never crash the scan
-            print(f"  stop-reconciliation failed: {e}")
-            stop_intents = []
-        for intent in stop_intents:
-            print(f"  [STOP:{intent.get('action', '?').upper()}] {intent.get('symbol', '')}: "
-                  f"{intent.get('reason', '')}")
-            signals.append({
-                "kind": "stop_intent",
-                **intent,
-                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            })
+    try:
+        stop_intents = reconcile_stops(open_positions_df, limits, dry_run=dry_run)
+    except Exception as e:  # noqa: BLE001 - stop reconciliation must never crash the scan
+        print(f"  stop-reconciliation failed: {e}")
+        stop_intents = []
+    for intent in stop_intents:
+        print(f"  [STOP:{intent.get('action', '?').upper()}] {intent.get('symbol', '')}: "
+              f"{intent.get('reason', '')}")
+        signals.append({
+            "kind": "stop_intent",
+            **intent,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        })
 
     # Snapshot of every position's current tracked R-state, used below by
     # the aggregate open-risk budget check (the leverage prerequisite): a

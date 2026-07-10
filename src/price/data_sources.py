@@ -1,4 +1,5 @@
 import time
+from urllib.parse import quote
 import requests
 import pandas as pd
 from datetime import datetime, timedelta, timezone
@@ -184,18 +185,18 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
     start_str = start_dt.strftime('%Y-%m-%d')
     end_str = end_dt.strftime('%Y-%m-%d')
     
-    url = f"https://api.tiingo.com/tiingo/daily/{symbol}/prices"
+    url = f"https://api.tiingo.com/tiingo/daily/{quote(symbol, safe='')}/prices"
     params = {
         "startDate": start_str,
         "endDate": end_str,
-        "token": TIINGO_API_KEY
     }
+    headers = {"Authorization": f"Token {TIINGO_API_KEY}"}
     
     retries = 3
     data = None
     while retries > 0:
         try:
-            response = requests.get(url, params=params, timeout=15)
+            response = requests.get(url, params=params, headers=headers, timeout=15)
             response.raise_for_status()
             data = response.json()
             break

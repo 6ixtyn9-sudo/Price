@@ -119,21 +119,27 @@ def run_refresh(
     # require fresh evidence for at least 80% of the active universe before
     # re-running the full grid; otherwise discovery remains skipped.
     required_symbols = max(1, math.ceil(len(symbols) * 0.80))
-    discovery_allowed = bool(
-        allow_discovery
-        and len(eligible_symbols) >= required_symbols
-    )
-    discovery_block_reason = None
-    if (
-        discovery_allowed
+    fresh_data_gate_open = bool(len(eligible_symbols) >= required_symbols)
+    discovery_requested = bool(allow_discovery)
+    sharded_discovery_required = bool(
+        discovery_requested
+        and fresh_data_gate_open
         and len(symbols) > 50
         and len(timeframes) > 1
         and not allow_unsharded_discovery
-    ):
-        discovery_allowed = False
+    )
+    discovery_allowed = bool(
+        discovery_requested
+        and fresh_data_gate_open
+        and not sharded_discovery_required
+    )
+    discovery_block_reason = None
+    if sharded_discovery_required:
         discovery_block_reason = (
             "full-universe multi-timeframe discovery requires sharded workflow"
         )
+    elif discovery_requested and not fresh_data_gate_open:
+        discovery_block_reason = "fresh-data gate closed"
 
     # Always produce coverage and existing-paper opportunity telemetry.
     coverage = build_coverage(symbols, ("1d", "1h"))
@@ -195,7 +201,10 @@ def run_refresh(
         "eligible_discovery_symbol_count": len(eligible_symbols),
         "required_discovery_symbol_count": required_symbols,
         "min_new_daily_bars": min_new_daily_bars,
-        "discovery_requested": bool(allow_discovery),
+        "discovery_requested": discovery_requested,
+        "fresh_data_gate_open": fresh_data_gate_open,
+        "sharded_discovery_required": sharded_discovery_required,
+        "unsharded_discovery_allowed": discovery_allowed,
         "discovery_allowed": discovery_allowed,
         "discovery_block_reason": discovery_block_reason,
         "discovery_ran": discovery_ran,

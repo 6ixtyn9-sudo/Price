@@ -24,7 +24,9 @@ jobs:
     timeout-minutes: 180
     permissions:
       contents: write
-      actions: write
+    outputs:
+      should_dispatch_discovery: ${{ steps.dispatch_gate.outputs.should_dispatch }}
+      cache_key: ${{ steps.cache_key.outputs.key }}
 
     steps:
       - name: Checkout
@@ -49,6 +51,19 @@ jobs:
           key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
+
+      - name: Restore operational paper state cache for telemetry
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-research-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -92,8 +107,15 @@ jobs:
           mapfile -t ACTIVE_SYMBOLS < <(
             python - <<'PY'
             import json
+            MAX_SCHEDULED_SYMBOLS = 500
             payload = json.load(open("localdata/explicit_allowlist.json"))
-            for symbol in payload["all"]:
+            symbols = payload["all"]
+            if len(symbols) > MAX_SCHEDULED_SYMBOLS:
+                raise SystemExit(
+                    f"Refusing scheduled research refresh for {len(symbols)} symbols "
+                    f"> cap {MAX_SCHEDULED_SYMBOLS}; split/approve this expansion explicitly."
+                )
+            for symbol in symbols:
                 print(symbol)
             PY
           )
@@ -105,14 +127,13 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Daily maintenance is intentionally discovery-free. The prior
-          # full 236-symbol, 1d/1h/15m discovery+validation pass took ~72h;
-          # it must never run inside this daily workflow. A future sharded
-          # research-discovery workflow will run only after the fresh-data
-          # gate and will merge isolated shard outputs.
+          # Daily maintenance is discovery-gated. Full-universe multi-timeframe
+          # discovery is never run directly here; when the fresh-data gate opens,
+          # this job dispatches the sharded research_discovery workflow below.
           python scripts/research_refresh.py \
             --timeframes 1d 1h 15m \
             --min-new-daily-bars 60 \
+            --allow-discovery \
             --condition-on USO TLT
 
       - name: Build research manifest
@@ -133,32 +154,29 @@ jobs:
           state_path.write_text(json.dumps(state, indent=2) + "\n")
           PY
 
+      - name: Compute discovery dispatch gate
+        id: dispatch_gate
+        run: |
+          should_dispatch=$(python - <<'PY'
+          import json
+          from pathlib import Path
+          state_path = Path("localdata/research/refresh_state.json")
+          state = json.loads(state_path.read_text()) if state_path.exists() else {}
+          print("true" if (
+              state.get("fresh_data_gate_open")
+              and state.get("sharded_discovery_required")
+              and not state.get("discovery_ran")
+          ) else "false")
+          PY
+          )
+          echo "should_dispatch=$should_dispatch" >> "$GITHUB_OUTPUT"
+          echo "Discovery dispatch gate: $should_dispatch"
+
       - name: Save refreshed research warehouse
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
-
-      - name: Remove superseded research warehouse caches
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CURRENT_CACHE_KEY: ${{ steps.cache_key.outputs.key }}
-        run: |
-          gh cache list --limit 100 --json id,key > /tmp/research-caches.json
-          python - <<'PY'
-          import json
-          import os
-          import subprocess
-
-          current = os.environ["CURRENT_CACHE_KEY"]
-          payload = json.load(open("/tmp/research-caches.json"))
-          prefix = "research-warehouse-v4-"
-          for item in payload:
-              key = item.get("key", "")
-              cache_id = item.get("id")
-              if cache_id and key.startswith(prefix) and key != current:
-                  subprocess.run(["gh", "cache", "delete", str(cache_id), "--confirm"], check=True)
-          PY
 
       - name: Commit isolated research outputs only
         run: |
@@ -176,23 +194,58 @@ jobs:
             exit 0
           fi
           git commit -m "chore(research-refresh): update full-universe research state [skip ci]"
-          git push
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push && break
+            if [ "$attempt" = 3 ]; then
+              echo "::error::git push failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
-      - name: Trigger sharded discovery only when the fresh-data gate opens
+  cache-maintenance:
+    needs: research-refresh
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Remove superseded research warehouse caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
+        run: |
+          gh cache list --limit 100 --json id,key > /tmp/research-caches.json
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          current = os.environ["CURRENT_CACHE_KEY"]
+          payload = json.load(open("/tmp/research-caches.json"))
+          prefix = "research-warehouse-v4-"
+          for item in payload:
+              key = item.get("key", "")
+              cache_id = item.get("id")
+              if cache_id and key.startswith(prefix) and key != current:
+                  subprocess.run(["gh", "cache", "delete", str(cache_id), "--confirm"], check=True)
+          PY
+
+  dispatch-discovery:
+    needs: research-refresh
+    if: ${{ needs.research-refresh.outputs.should_dispatch_discovery == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch sharded discovery
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if python - <<'PY'
-          import json
-          from pathlib import Path
-          state_path = Path("localdata/research/refresh_state.json")
-          state = json.loads(state_path.read_text()) if state_path.exists() else {}
-          raise SystemExit(0 if state.get("discovery_allowed") else 1)
-          PY
-          then
-            gh workflow run research_discovery.yml \
-              --ref main \
-              -f parent_run_id="$GITHUB_RUN_ID"
-          else
-            echo "Discovery gate closed; no sharded discovery dispatched."
-          fi
+          gh workflow run research_discovery.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f parent_run_id="$GITHUB_RUN_ID"

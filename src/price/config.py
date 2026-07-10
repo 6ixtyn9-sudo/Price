@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -9,6 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "localdata"
 WAREHOUSE_DIR = DATA_DIR / "warehouse"
 ALLOWLIST_CACHE_PATH = DATA_DIR / "explicit_allowlist.json"
+SYMBOL_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 WAREHOUSE_DIR.mkdir(parents=True, exist_ok=True)
@@ -133,8 +135,15 @@ def is_equity(symbol: str) -> bool:
 def _coerce_symbol_list(value) -> list:
     if not isinstance(value, list):
         return []
-    return [str(s).strip().upper() if "/" not in str(s) else str(s).strip().upper()
-            for s in value if str(s).strip()]
+    out = []
+    for s in value:
+        symbol = str(s).strip().upper()
+        if not symbol:
+            continue
+        if not SYMBOL_PATTERN.fullmatch(symbol):
+            raise ValueError(f"Invalid symbol in generated allowlist: {symbol!r}")
+        out.append(symbol)
+    return out
 
 
 def _load_generated_allowlist() -> dict:

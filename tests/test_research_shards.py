@@ -61,3 +61,8 @@ def test_merge_writes_registry_only_after_complete_shards(tmp_path):
     assert (tmp_path / "merged" / "candidate_registry.csv").exists()
     manifest = json.loads((tmp_path / "merged" / "merge_manifest.json").read_text())
     assert manifest["monitored_slices_modified"] is False
+
+
+def test_split_symbols_rejects_shell_metacharacters():
+    with pytest.raises(ValueError, match="invalid research symbol"):
+        split_symbols(["SPY", "BAD; echo pwned"], batch_size=2)

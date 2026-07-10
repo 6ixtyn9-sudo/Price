@@ -1,25 +1,38 @@
 import pandas as pd
 from datetime import datetime, timezone
 
-from price.config import WAREHOUSE_DIR, is_crypto
+from price.config import WAREHOUSE_DIR, SYMBOL_PATTERN, is_crypto
 
 def _sanitize_symbol(symbol: str) -> str:
     """
     Filesystem-safe symbol encoding.
     - 'BTC/USD' -> 'BTC-USD'
     - Keeps uppercase
-    - Replaces / : \\ and spaces
+    - Rejects anything outside the market-symbol grammar before path use.
     """
-    s = symbol.upper()
-    return s.replace("/", "-").replace(":", "-").replace("\\", "-").replace(" ", "_")
+    s = str(symbol).strip().upper()
+    if not SYMBOL_PATTERN.fullmatch(s):
+        raise ValueError(f"Invalid symbol for warehouse path: {symbol!r}")
+    return s.replace("/", "-")
 
 def _desanitize_symbol(safe: str) -> str:
     # best-effort reverse - mainly for display
     # Note: ambiguous if original contained '-', but we store true symbol in data
     return safe.replace("-", "/")
 
+VALID_TIMEFRAMES = {"1d", "1h", "15m"}
+
+
+def _validate_timeframe(timeframe: str) -> str:
+    tf = str(timeframe).strip()
+    if tf not in VALID_TIMEFRAMES:
+        raise ValueError(f"Invalid warehouse timeframe: {timeframe!r}")
+    return tf
+
+
 def load_from_warehouse(symbol: str, timeframe: str) -> pd.DataFrame:
     safe_sym = _sanitize_symbol(symbol)
+    timeframe = _validate_timeframe(timeframe)
     partition_dir = WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
     if not partition_dir.exists():
         return pd.DataFrame()
@@ -39,8 +52,9 @@ def save_to_warehouse(df: pd.DataFrame):
         
     groups = df.groupby(["symbol", "timeframe"])
     for (symbol, timeframe), group in groups:
-        symbol = symbol.upper()
+        symbol = str(symbol).strip().upper()
         safe_sym = _sanitize_symbol(symbol)
+        timeframe = _validate_timeframe(timeframe)
         partition_dir = WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
         partition_dir.mkdir(parents=True, exist_ok=True)
         

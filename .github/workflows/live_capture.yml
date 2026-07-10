@@ -49,6 +49,19 @@ jobs:
           restore-keys: |
             warehouse-v3-${{ runner.os }}-
 
+      - name: Restore operational paper state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -103,6 +116,37 @@ jobs:
         run: |
           python scripts/live_forward_returns.py --universe-source monitored
 
+      - name: Check operational paper state cache content
+        id: ops_state
+        run: |
+          shopt -s nullglob
+          files=(
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          )
+          echo "has_state=false" >> "$GITHUB_OUTPUT"
+          for f in "${files[@]}"; do
+            if [ -s "$f" ]; then
+              echo "has_state=true" >> "$GITHUB_OUTPUT"
+              break
+            fi
+          done
+
+      - name: Save operational paper state cache
+        if: ${{ steps.ops_state.outputs.has_state == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-${{ github.run_id }}
+
       - name: Commit workflow outputs
         run: |
           git config user.name "github-actions[bot]"
@@ -111,8 +155,20 @@ jobs:
           # Block auto-commit on runaway row-count growth.
           python scripts/delta_spike_guard.py
 
-          # Sync generated intelligence/artifacts only. Never add secrets or warehouse blobs.
-          git add localdata/*.csv localdata/*.json
+          # Sync generated intelligence/artifacts only. Operational broker/paper
+          # state is persisted via the live-ops cache above, not committed.
+          files=(
+            localdata/live_forward_returns.csv
+            localdata/monitored_edge_metrics.csv
+            localdata/monitored_slices.csv
+          )
+          existing=()
+          for f in "${files[@]}"; do
+            [ -e "$f" ] && existing+=("$f")
+          done
+          if ((${#existing[@]})); then
+            git add "${existing[@]}"
+          fi
 
           if git diff --cached --quiet; then
             echo "No workflow output changes to commit." | tee -a "$GITHUB_STEP_SUMMARY"
@@ -126,4 +182,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           git commit -m "chore(live-capture): update workflow output [skip ci]"
-          git push
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push && break
+            if [ "$attempt" = 3 ]; then
+              echo "::error::git push failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done

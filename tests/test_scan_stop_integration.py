@@ -174,3 +174,27 @@ def test_aggregate_open_risk_state_available_to_entry_gate(
     states = load_stop_states(path=state_path)
     total_risk = aggregate_open_risk_dollars(states)
     assert total_risk > 0  # fresh stop -> genuinely at risk
+
+
+def test_scan_reconciles_stale_stop_state_even_when_account_flat(isolated_stop_files, monkeypatch):
+    from price.stops import StopState, save_stop_states, load_stop_states
+
+    state_path, _ = isolated_stop_files
+    save_stop_states({
+        "XOP": StopState(
+            symbol="XOP", side="long", qty=1, entry_price=100,
+            initial_stop_price=95, current_stop_price=95, r_per_share=5,
+            stop_order_id="stop-1",
+        )
+    }, path=state_path)
+
+    monkeypatch.setattr("price.monitor.get_open_positions", lambda: pd.DataFrame())
+    monkeypatch.setattr("price.monitor.get_open_orders", lambda: pd.DataFrame())
+    monkeypatch.setattr("price.monitor.get_today_realized_pnl", lambda: 0.0)
+    monkeypatch.setattr("price.trading.load_trade_journal", lambda: pd.DataFrame())
+    monkeypatch.setattr("price.trading.get_order_fill_info", lambda order_id: {"status": "canceled"})
+
+    signals = scan_all_slices(slices=[], limits=RiskLimits(), dry_run=False)
+
+    assert any(s.get("kind") == "stop_intent" and s.get("action") == "stop_state_cleared" for s in signals)
+    assert load_stop_states(path=state_path) == {}
