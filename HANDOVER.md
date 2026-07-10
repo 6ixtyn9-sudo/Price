@@ -4191,6 +4191,18 @@ approximately 1,751–1,753 locally resampled 1h bars per symbol
 
 The subsequent dry-run completed with no state-unavailable rows and no orders submitted. Only the KLAC 1d stretched_down + downtrend slice matched the current local state. Because --dry-run intentionally bypasses live risk authorization for audit visibility, its "tradable: dry_run" message is not an authorization to trade.
 
+Current Scheduling Model (2026-07-10)
+
+Scheduling has been moved entirely to cron-job.org for reliability:
+
+Native GitHub Actions schedule: triggers have been removed from all workflows.
+live_capture.yml and research_refresh.yml now only accept workflow_dispatch.
+Two cron jobs on cron-job.org:
+Price Live Capture: hourly at :17 (Mon–Fri, 15:17–23:17 SAST)
+Price Research Refresh: daily at 00:00 SAST
+Research Discovery is only ever triggered by Research Refresh (via gh workflow run).
+Both research_refresh.yml and research_discovery.yml have timeout-minutes: 360 (6 hours — GitHub maximum).
+This configuration gives research jobs the longest possible uninterrupted window and eliminates GitHub scheduler unreliability.
 Current operating decision
 
 The operator has explicitly chosen to pause rather than expand the system immediately. This is the correct decision. Keep:
