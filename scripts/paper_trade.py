@@ -414,6 +414,16 @@ def main() -> int:
     print(f"Cost model: {cost_model.to_dict()}")
 
     def _one_pass() -> Dict[str, int]:
+        # Reconcile submission-time journal rows with Alpaca before reading
+        # exposure, exit context, or risk state. This is read-only and never
+        # places/cancels/replaces orders, but it prevents accepted/pending/
+        # expired entries from masquerading as fills.
+        try:
+            from price.trading import reconcile_trade_journal
+            reconcile_trade_journal()
+        except Exception as exc:  # noqa: BLE001 - the scan remains fail-safe
+            print(f"WARNING: broker order reconciliation failed: {exc}")
+
         signals = scan_all_slices(
             limits=limits, dry_run=args.dry_run, exit_policy=exit_policy,
             cost_model=cost_model, regime_filter_enabled=args.regime_filter,

@@ -29,6 +29,7 @@ from price.attribution import (  # noqa: E402
     attribute_pnl,
     format_report,
     load_expected_returns,
+    identity_key,
     measure_realized_slippage,
     reconstruct_round_trips,
 )
@@ -78,8 +79,8 @@ def test_single_round_trip_long():
     assert abs(rt.gross_return - 0.02) < 1e-9
 
 
-def test_round_trip_uses_exit_avg_entry_when_entry_fill_missing():
-    """Limit entry submit row may lack fill price; exit row has account basis."""
+def test_unfilled_pending_entry_is_not_a_round_trip():
+    """An accepted/pending order is not a fill until broker reconciliation."""
     j = _journal([
         {"symbol": "XLK", "qty": 13, "side": "buy", "action": "entry",
          "submitted_at": "2026-07-07T08:39:09Z", "order_type": "limit",
@@ -89,13 +90,7 @@ def test_round_trip_uses_exit_avg_entry_when_entry_fill_missing():
          "submitted_at": "2026-07-07T21:17:38Z", "status": "accepted",
          "avg_entry_price": 179.98, "current_price": 179.33},
     ])
-    rts = reconstruct_round_trips(j)
-    assert len(rts) == 1
-    rt = rts[0]
-    assert rt.entry_price == 179.98
-    assert rt.exit_price == 179.33
-    assert round(rt.gross_pnl, 2) == -8.45
-    assert abs(rt.gross_return - ((179.33 - 179.98) / 179.98)) < 1e-9
+    assert reconstruct_round_trips(j) == []
 
 
 def test_short_round_trip_signs_correctly():
@@ -172,8 +167,9 @@ def test_load_expected_returns(tmp_path):
     p = tmp_path / "lb.csv"
     lb.to_csv(p, index=False)
     exp = load_expected_returns(p)
-    assert "state_ext=stretched_down + state_slope=downtrend" in exp
-    assert abs(exp["state_ext=stretched_down + state_slope=downtrend"] - 0.0468) < 1e-9
+    key = identity_key("KLAC", "1d", "state_ext=stretched_down + state_slope=downtrend")
+    assert key in exp
+    assert abs(exp[key] - 0.0468) < 1e-9
 
 
 def test_load_expected_returns_missing_file():
@@ -201,7 +197,8 @@ def test_measure_slippage_long_adverse_fill():
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False, mode="w") as f:
         log.to_csv(f.name, index=False)
         slip = measure_realized_slippage(rts, paper_log_path=Path(f.name))
-    assert abs(slip["sl"] - 30.0) < 1e-6
+    key = identity_key("XLF", "", "sl", "long", "insample")
+    assert abs(slip[key] - 30.0) < 1e-6
 
 
 def test_measure_slippage_empty_round_trips():
@@ -221,16 +218,59 @@ def test_attribute_pnl_zero_round_trips_graceful():
     report = attribute_pnl(journal=j)
     assert report["summary"]["n_round_trips"] == 0
     assert report["summary"]["total_realized_pnl"] == 0.0
-    assert report["summary"]["n_open_positions"] == 1
-    assert any("No completed round-trips" in n for n in report["notes"])
+    assert report["summary"]["n_open_positions"] is None
+    assert report["summary"]["open_positions_source"] == "unavailable"
+    assert any("--sync-broker" in n for n in report["notes"])
     assert report["by_slice"] == []
+
+
+def test_broker_positions_are_authoritative_for_exposure():
+    j = _journal([
+        {"symbol": "KLAC", "qty": 10, "side": "buy", "action": "entry",
+         "status": "accepted", "submitted_at": "2026-07-01T10:00:00Z"},
+    ])
+    report = attribute_pnl(journal=j, broker_positions=pd.DataFrame())
+    assert report["summary"]["n_open_positions"] == 0
+    assert report["summary"]["open_positions_source"] == "alpaca"
+
+
+def test_same_slice_different_symbols_do_not_collide(tmp_path):
+    slice_text = "state_ext=stretched_down + state_slope=downtrend"
+    j = _journal([
+        {"symbol": "XOP", "qty": 2, "side": "buy", "action": "entry",
+         "status": "filled", "avg_entry_price": 100.0, "timeframe": "1d",
+         "submitted_at": "2026-07-01T10:00:00Z", "slice_label": slice_text},
+        {"symbol": "XOP", "qty": 2, "side": "sell", "action": "exit",
+         "status": "filled", "current_price": 101.0,
+         "submitted_at": "2026-07-02T10:00:00Z"},
+        {"symbol": "KLAC", "qty": 2, "side": "buy", "action": "entry",
+         "status": "filled", "avg_entry_price": 200.0, "timeframe": "1d",
+         "submitted_at": "2026-07-01T11:00:00Z", "slice_label": slice_text},
+        {"symbol": "KLAC", "qty": 2, "side": "sell", "action": "exit",
+         "status": "filled", "current_price": 202.0,
+         "submitted_at": "2026-07-02T11:00:00Z"},
+    ])
+    lb = pd.DataFrame([
+        {"symbol": "XOP", "timeframe": "1d", "slice_combination": slice_text,
+         "valid_mean_ret_costadj": 0.01},
+        {"symbol": "KLAC", "timeframe": "1d", "slice_combination": slice_text,
+         "valid_mean_ret_costadj": 0.02},
+    ])
+    lbp = tmp_path / "lb.csv"
+    lb.to_csv(lbp, index=False)
+    report = attribute_pnl(journal=j, leaderboard_path=lbp)
+    assert len(report["by_slice"]) == 2
+    by_symbol = {row["symbol"]: row for row in report["by_slice"]}
+    assert by_symbol["XOP"]["expected_return"] == 0.01
+    assert by_symbol["KLAC"]["expected_return"] == 0.02
 
 
 def test_attribute_pnl_with_round_trips_and_expected(tmp_path):
     j = _journal([
         {"symbol": "KLAC", "qty": 10, "side": "buy", "action": "entry",
          "submitted_at": "2026-07-01T10:00:00Z", "avg_entry_price": 100.0,
-         "slice_label": "state_ext=stretched_down + state_slope=downtrend"},
+         "timeframe": "1d", "slice_label": "state_ext=stretched_down + state_slope=downtrend"},
+
         {"symbol": "KLAC", "qty": 10, "side": "sell", "action": "exit",
          "submitted_at": "2026-07-06T10:00:00Z", "current_price": 104.0,
          "slice_label": "state_ext=stretched_down + state_slope=downtrend"},
@@ -287,7 +327,7 @@ def test_format_report_with_slice():
     }
     txt = format_report(report)
     assert "PER-SLICE ATTRIBUTION" in txt
-    assert "KLAC" not in txt  # symbol not in the per-slice table; slice is
+    assert "KLAC" in txt
     assert "state_ext=stretched_down" in txt
     assert "4.68%" in txt  # expected return
     assert "*" in txt  # preliminary flag

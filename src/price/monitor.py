@@ -374,6 +374,24 @@ def _load_open_position_slice_labels() -> Dict[str, str]:
     if entries.empty:
         return {}
 
+    # Only confirmed broker fills can supply slice context for a live
+    # position. Submission-time accepted/pending/expired/canceled rows are
+    # not positions and must not label current exposure.
+    status_series = entries["broker_status"] if "broker_status" in entries.columns else entries.get(
+        "status", pd.Series("", index=entries.index)
+    )
+    status = status_series.astype(str).str.lower()
+    entries = entries[status.isin({"filled", "partially_filled", "closed"})].copy()
+    if entries.empty:
+        return {}
+    if "filled_qty" in entries.columns:
+        qty = pd.to_numeric(entries["filled_qty"], errors="coerce").fillna(0)
+    else:
+        qty = pd.to_numeric(entries.get("qty", 0), errors="coerce").fillna(0)
+    entries = entries[qty > 0].copy()
+    if entries.empty:
+        return {}
+
     entries["ts"] = pd.to_datetime(entries["timestamp_utc"], errors="coerce", utc=True)
     entries = entries.sort_values("ts").dropna(subset=["ts"])
     if entries.empty:

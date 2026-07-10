@@ -60,6 +60,12 @@ def get_today_realized_pnl(journal: Optional[pd.DataFrame] = None) -> float:
     exits = journal[journal["action"] == "exit"].copy()
     if exits.empty:
         return 0.0
+    status_series = exits["broker_status"] if "broker_status" in exits.columns else exits.get(
+        "status", pd.Series("", index=exits.index)
+    )
+    exits = exits[status_series.astype(str).str.lower().isin({"filled", "partially_filled", "closed"})].copy()
+    if exits.empty:
+        return 0.0
 
     def is_today(ts: str) -> bool:
         try:
@@ -76,9 +82,13 @@ def get_today_realized_pnl(journal: Optional[pd.DataFrame] = None) -> float:
 
     pnl: float = 0.0
     for _, r in exits.iterrows():
-        cur = r.get("current_price")
+        cur = r.get("filled_avg_price")
+        if cur is None or pd.isna(cur):
+            cur = r.get("current_price")
         entry = r.get("avg_entry_price")
-        qty = r.get("qty")
+        qty = r.get("filled_qty")
+        if qty is None or pd.isna(qty):
+            qty = r.get("qty")
         if cur is None or entry is None or qty is None:
             continue
         try:
@@ -214,8 +224,20 @@ def _load_entry_context() -> Dict[str, dict]:
     entries = journal[journal["action"] == "entry"].copy()
     if entries.empty:
         return {}
-    if "status" in entries.columns:
-        entries = entries[entries["status"].astype(str).str.lower() != "rejected"]
+    # Exit context must come from confirmed fills, never from an order that
+    # was merely accepted, pending, expired, or canceled.
+    status_series = entries["broker_status"] if "broker_status" in entries.columns else entries.get(
+        "status", pd.Series("", index=entries.index)
+    )
+    status = status_series.astype(str).str.lower()
+    entries = entries[status.isin({"filled", "partially_filled", "closed"})].copy()
+    if entries.empty:
+        return {}
+    if "filled_qty" in entries.columns:
+        qty = pd.to_numeric(entries["filled_qty"], errors="coerce").fillna(0)
+    else:
+        qty = pd.to_numeric(entries.get("qty", 0), errors="coerce").fillna(0)
+    entries = entries[qty > 0].copy()
     if entries.empty:
         return {}
 
