@@ -373,6 +373,82 @@ def get_order_fill_info(order_id: str) -> dict:
         return {"error": str(e)}
 
 
+def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=None) -> pd.DataFrame:
+    """Reconcile journaled orders with Alpaca's authoritative order state.
+
+    Submission-time journal rows are intentionally retained for audit history,
+    but their ``status``/fill fields can be stale because Alpaca resolves DAY
+    orders asynchronously. This read-only reconciliation updates rows with
+    broker-confirmed status, filled quantity, average fill price, and fill
+    time. It never submits, cancels, or replaces an order.
+
+    Rows are written only when broker state changes, so calling this at the
+    start of every scheduled scan does not create needless git diffs.
+    """
+    journal_path = Path(path) if path else Path(TRADE_JOURNAL_PATH)
+    if not journal_path.exists():
+        return pd.DataFrame()
+    try:
+        journal = pd.read_csv(journal_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return pd.DataFrame()
+    if journal.empty or "order_id" not in journal.columns:
+        return journal
+
+    if get_order_fill_info_fn is None:
+        get_order_fill_info_fn = get_order_fill_info
+
+    now = datetime.now(timezone.utc).isoformat()
+    changed = False
+    cache = {}
+
+    def _clean_id(value):
+        if value is None:
+            return None
+        text = str(value).strip()
+        return None if not text or text.lower() in ("nan", "none") else text
+
+    def _same(a, b):
+        if a is None or (isinstance(a, float) and pd.isna(a)):
+            return b is None or (isinstance(b, float) and pd.isna(b))
+        if b is None or (isinstance(b, float) and pd.isna(b)):
+            return False
+        return str(a) == str(b)
+
+    for idx, row in journal.iterrows():
+        order_id = _clean_id(row.get("order_id"))
+        if order_id is None:
+            continue
+        if order_id not in cache:
+            try:
+                cache[order_id] = get_order_fill_info_fn(order_id) or {}
+            except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
+                cache[order_id] = {"error": str(exc)}
+        info = cache[order_id]
+        if not info or info.get("error") or not info.get("status"):
+            continue
+
+        updates = {
+            "status": info.get("status"),
+            "broker_status": info.get("status"),
+            "filled_qty": info.get("filled_qty"),
+            "filled_avg_price": info.get("filled_avg_price"),
+            "filled_at": info.get("filled_at"),
+        }
+        row_changed = any(not _same(row.get(col), value) for col, value in updates.items())
+        if not row_changed:
+            continue
+        for col, value in updates.items():
+            journal.loc[idx, col] = value
+        journal.loc[idx, "reconciled_at_utc"] = now
+        changed = True
+
+    if changed:
+        journal_path.parent.mkdir(parents=True, exist_ok=True)
+        journal.to_csv(journal_path, index=False)
+    return journal
+
+
 def get_orders_for_symbol(symbol: str, status: str = "open") -> pd.DataFrame:
     """Open (or all) orders for one symbol, including stop orders, so the
     caller can find a position's resting protective stop by symbol."""
