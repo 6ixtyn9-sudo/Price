@@ -1,0 +1,145 @@
+name: Research Refresh
+
+on:
+  # Weekend-only, outside the weekday live-capture window.
+  schedule:
+    - cron: "0 8 * * 6"
+  workflow_dispatch:
+
+concurrency:
+  group: research-refresh
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  research-refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Restore research warehouse cache (read-only)
+        id: warehouse
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: localdata/warehouse
+          key: warehouse-v3-${{ runner.os }}-research-${{ github.run_id }}
+          restore-keys: |
+            warehouse-v3-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+          : "${TIINGO_API_KEY:?Missing repository secret TIINGO_API_KEY}"
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked by git"
+            exit 1
+          fi
+
+      - name: Capture full active universe
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          # The allowlist is resolved from explicit_allowlist.json. The
+          # capture client already chunks requests and applies deterministic
+          # 0.35s pacing plus exponential backoff.
+          python scripts/capture_bars.py \
+            --tier allowlist \
+            --timeframes 1d \
+            --days 1825
+          python scripts/capture_bars.py \
+            --tier allowlist \
+            --timeframes 15m \
+            --days 365
+          mapfile -t ACTIVE_SYMBOLS < <(
+            python - <<'PY'
+            import json
+            payload = json.load(open("localdata/explicit_allowlist.json"))
+            for symbol in payload["all"]:
+                print(symbol)
+            PY
+          )
+          python scripts/build_warehouse.py --symbols "${ACTIVE_SYMBOLS[@]}"
+
+      - name: Run autonomous research controller
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          # Discovery is requested, but the controller permits it only after
+          # >=60 new daily bars since the previous refresh. Until then it
+          # still produces universe regime coverage and opportunity telemetry.
+          python scripts/research_refresh.py \
+            --timeframes 1d 1h 15m \
+            --min-new-daily-bars 60 \
+            --allow-discovery \
+            --condition-on USO TLT
+
+      - name: Build research manifest
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          state_path = Path("localdata/research/refresh_state.json")
+          state = json.loads(state_path.read_text()) if state_path.exists() else {}
+          state.update({
+              "workflow": "research_refresh",
+              "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+              "orders_placed": False,
+              "monitored_slices_modified": False,
+              "automatic_promotion_enabled": False,
+          })
+          state_path.write_text(json.dumps(state, indent=2) + "\n")
+          PY
+
+      - name: Commit isolated research outputs only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          shopt -s nullglob
+          files=(localdata/research/*.csv localdata/research/*.json)
+          if ((${#files[@]} == 0)); then
+            echo "No research outputs were produced."
+            exit 0
+          fi
+          git add "${files[@]}"
+          if git diff --cached --quiet; then
+            echo "No research output changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(research-refresh): update full-universe research state [skip ci]"
+          git push
