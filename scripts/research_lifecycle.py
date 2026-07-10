@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from price.research_leverage import evaluate_candidate_leverage
+
 
 DEFAULT_REGISTRY = Path("localdata/research/candidate_registry.csv")
 MONITORED_PATH = Path("localdata/monitored_slices.csv")
@@ -100,11 +102,15 @@ def build_registry(
         bin_mode = _clean(row.get("bin_mode"), "insample")
         key = "|".join([symbol, timeframe, combo, bin_mode])
         eligible = _strict_candidate(row)
+        leverage = evaluate_candidate_leverage(row)
+        leverage_gate = bool(leverage["leverage_auto_promotion_gate"])
         is_decaying = key in decay
         if is_decaying:
             status = "decaying_suspended"
+        elif eligible and enable_auto_promotion and leverage_gate:
+            status = "auto_approved"
         elif eligible:
-            status = "auto_approved" if enable_auto_promotion else "paper_proposal"
+            status = "paper_proposal"
         else:
             status = "research_only"
         rows.append({
@@ -123,6 +129,12 @@ def build_registry(
             "search_wide_bh_pass": row.get("search_wide_bh_pass"),
             "valid_excess_vs_baseline": row.get("valid_excess_vs_baseline"),
             "valid_excess_vs_best_parent": row.get("valid_excess_vs_best_parent"),
+            "leverage_gate_pass": leverage_gate,
+            "leverage_gate_reason": (
+                "risk data unavailable or overnight scenario not proven"
+                if not leverage_gate else "1x/2x risk scenarios pass"
+            ),
+            **leverage,
         })
     result = pd.DataFrame(rows).sort_values(["status", "symbol", "timeframe"]).reset_index(drop=True)
     output_path.parent.mkdir(parents=True, exist_ok=True)
