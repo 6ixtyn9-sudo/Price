@@ -4036,61 +4036,61 @@ Why these three, in this order
 The three changes target three distinct failure modes that were visible in
 the live workflow log over the last week:
 
-1. The live workflow called live_forward_returns.py --universe-source auto,
-   which silently fell through from candidate_leaderboard.csv to
-   monitored_slices.csv when the leaderboard was empty or stale. The HANDOVER
-   had explicitly recorded this as wrong ("An implicit fallback from
-   leaderboard -> monitored_slices.csv is NOT the cleanest answer, because
-   it can mask a broken/missing leaderboard during research runs"), but the
-   workflow was still using it. Patch 1 --universe-source monitored fixes
-   the inconsistency with the HANDOVER's own doctrine.
+The live workflow called live_forward_returns.py --universe-source auto,
+which silently fell through from candidate_leaderboard.csv to
+monitored_slices.csv when the leaderboard was empty or stale. The HANDOVER
+had explicitly recorded this as wrong ("An implicit fallback from
+leaderboard -> monitored_slices.csv is NOT the cleanest answer, because
+it can mask a broken/missing leaderboard during research runs"), but the
+workflow was still using it. Patch 1 --universe-source monitored fixes
+the inconsistency with the HANDOVER's own doctrine.
 
-2. monitor.get_default_monitored_slices() had a three-level silent fallback
-   chain (explicit -> dynamic -> hardcoded). On the happy path it did the
-   right thing; on the unhappy path there was no signal that the monitor
-   was reading a stale or empty set. Patch 2 adds a print() at each
-   fallback level so future agents (and the operator) can see which source
-   the monitor is actually using. Behavior is unchanged on the happy path;
-   visibility is added on the unhappy path.
+monitor.get_default_monitored_slices() had a three-level silent fallback
+chain (explicit -> dynamic -> hardcoded). On the happy path it did the
+right thing; on the unhappy path there was no signal that the monitor
+was reading a stale or empty set. Patch 2 adds a print() at each
+fallback level so future agents (and the operator) can see which source
+the monitor is actually using. Behavior is unchanged on the happy path;
+visibility is added on the unhappy path.
 
-3. The auto-commit step in live_capture.yml had no guard against silent
-   corruption. A stuck loop or a runaway append could write 10k+ spurious
-   rows to a critical CSV and the workflow would happily commit it. The
-   HANDOVER's "Scheduled Live Capture" section had flagged this as an open
-   question ("A future change to the layer should consider whether this
-   policy is still right"). Patch 3 closes that question with a small,
-   opt-in guard.
+The auto-commit step in live_capture.yml had no guard against silent
+corruption. A stuck loop or a runaway append could write 10k+ spurious
+rows to a critical CSV and the workflow would happily commit it. The
+HANDOVER's "Scheduled Live Capture" section had flagged this as an open
+question ("A future change to the layer should consider whether this
+policy is still right"). Patch 3 closes that question with a small,
+opt-in guard.
 
 What was added
 
 .github/workflows/live_capture.yml:
-  --universe-source auto changed to --universe-source monitored (matches
-  HANDOVER doctrine; closes the silent-fallback gap).
-  New line: `python3 scripts/delta_spike_guard.py` runs immediately before
-  the auto-commit step.
+--universe-source auto changed to --universe-source monitored (matches
+HANDOVER doctrine; closes the silent-fallback gap).
+New line: python3 scripts/delta_spike_guard.py runs immediately before
+the auto-commit step.
 
 src/price/monitor.py:
-  get_default_monitored_slices() now prints a one-line message at each
-  fallback level (explicit -> dynamic -> hardcoded). Behavior is identical
-  on the happy path; the new thing is visibility of the unhappy path so
-  a future agent reading the scan output knows which source is in use.
+get_default_monitored_slices() now prints a one-line message at each
+fallback level (explicit -> dynamic -> hardcoded). Behavior is identical
+on the happy path; the new thing is visibility of the unhappy path so
+a future agent reading the scan output knows which source is in use.
 
 scripts/delta_spike_guard.py (new file):
-  Refuses to allow auto-commit if any of the 5 guarded CSVs grew by more
-  than SPIKE_FACTOR=10x AND SPIKE_MIN_DELTA=50 rows versus the previously
-  committed version. Guarded files:
-    localdata/live_forward_returns.csv
-    localdata/trade_journal.csv
-    localdata/paper_trade_log.csv
-    localdata/candidate_leaderboard.csv
-    localdata/monitored_slices.csv
-  Exits 0 on healthy, 1 on detected spike. Never raises; a transient
-  filesystem error is logged and treated as "cannot compare, allow commit"
-  (fail-open, consistent with the project's other data-dependent gates).
-  The thresholds (10x and 50 rows together) are deliberately conservative:
-  a normal weekly forward-return run adds a handful of rows, so the guard
-  will not trip on legitimate growth. Tune both constants in the script
-  if a future workload needs a different policy.
+Refuses to allow auto-commit if any of the 5 guarded CSVs grew by more
+than SPIKE_FACTOR=10x AND SPIKE_MIN_DELTA=50 rows versus the previously
+committed version. Guarded files:
+localdata/live_forward_returns.csv
+localdata/trade_journal.csv
+localdata/paper_trade_log.csv
+localdata/candidate_leaderboard.csv
+localdata/monitored_slices.csv
+Exits 0 on healthy, 1 on detected spike. Never raises; a transient
+filesystem error is logged and treated as "cannot compare, allow commit"
+(fail-open, consistent with the project's other data-dependent gates).
+The thresholds (10x and 50 rows together) are deliberately conservative:
+a normal weekly forward-return run adds a handful of rows, so the guard
+will not trip on legitimate growth. Tune both constants in the script
+if a future workload needs a different policy.
 
 Graceful degradation (the safety property)
 The new guard is opt-in via the workflow change. A hypothetical external
@@ -4126,3 +4126,95 @@ remains a trading-side fix; the regime-stratified validation diagnostic
 remains diagnostic-only. The path to a real-money deployment still runs
 through Phase 4 of the locked roadmap above. No patch in this section
 should be read as moving the project toward that gate.
+
+Current State Update — Broker Ledger Hardening, Evidence Collection, and Local Smoke (2026-07-10)
+
+This section records the post-2026-07-07 execution-ledger hardening work and is the current operational state. It does not change the promotion doctrine: no slice is promoted and no real-money deployment is authorized.
+
+Broker-authoritative attribution
+
+The local execution journal was previously capable of treating accepted, pending, expired, or canceled orders as fills and of reporting stale snapshot prices as realized exits. That issue has now been closed through the following execution-ledger changes:
+
+broker order status, filled quantity, average fill price, and fill time are reconciled by exact order_id
+attribution reconstructs round-trips only from confirmed fill statuses
+open-position count is sourced from Alpaca when --sync-broker is used, not inferred from stale journal entries
+attribution identity includes symbol, timeframe, slice_combination, side, and bin_mode
+signal-to-fill joins use the exact entry order_id when available, preventing cross-symbol slice contamination
+favorable signal-to-fill movement is not counted as negative execution cost
+legacy entry metadata is backfilled from paper_trade_log.csv by exact order_id
+reconciliation normalizes null/NaN values and is idempotent; repeated unchanged syncs do not rewrite the journal
+reconciliation health is exposed to the monitor
+new entries fail closed when broker order reconciliation is incomplete; exits and protective-stop handling remain available
+
+Current paper-account evidence
+
+The paper account is flat: 0 open broker positions.
+
+Three broker-confirmed completed round-trips have been reconstructed:
+
+XOP 1d stretched_down + downtrend: +$101.60, entry $154.47, exit $160.82
+XLK cross_USO 1h: +$5.38
+XLK cross_TLT 1d: -$12.32
+
+Total gross realized P&L: +$94.66.
+
+All three slice samples remain preliminary because each has n=1. The result is not evidence of a stable edge, income, or promotion eligibility.
+
+Exact signal-to-fill diagnostics from the current sample:
+
+XLK cross_USO 1h: +161.2 bps adverse signal-to-fill gap
+XLK cross_TLT 1d: -195.6 bps signed gap, favorable for the long entry and therefore 0 bps adverse cost
+XOP 1d: -16.2 bps signed gap, favorable for the long entry and therefore 0 bps adverse cost
+
+Do not calibrate the CostModel from these observations. The sample is too small, and signal-to-fill movement also contains overnight/session gap effects rather than pure spread/slippage.
+
+Verification status
+
+The current hardening state has been verified on the operator machine:
+
+389 tests passed
+ruff check src scripts tests passed
+broker reconciliation targeted tests passed
+full syntax checks passed
+idempotency and fail-closed reconciliation tests passed
+
+The remaining pytest warnings are non-blocking: an external websockets deprecation, synthetic NumPy warnings in position-manager fixtures, and two existing source tests that return DataFrames instead of using assertions.
+
+Local warehouse smoke test
+
+The first local capture attempt incorrectly passed the entire symbol list as one zsh argument, producing an invalid combined symbol. This was corrected by using a zsh array with "${LIVE_SYMBOLS[@]}".
+
+The corrected targeted capture succeeded for:
+
+13 monitored/conditioning symbols
+approximately 1,254 daily bars per symbol
+approximately 6,259–6,509 15m bars per symbol
+approximately 1,751–1,753 locally resampled 1h bars per symbol
+
+The subsequent dry-run completed with no state-unavailable rows and no orders submitted. Only the KLAC 1d stretched_down + downtrend slice matched the current local state. Because --dry-run intentionally bypasses live risk authorization for audit visibility, its "tradable: dry_run" message is not an authorization to trade.
+
+Current operating decision
+
+The operator has explicitly chosen to pause rather than expand the system immediately. This is the correct decision. Keep:
+
+paper execution only
+no live capital
+no leverage
+current monitored slices unchanged
+no cost-model recalibration
+no slice promotion
+
+The current evidence target remains at least five confirmed completed round-trips per monitored slice before interpreting realized statistics. Full coverage across the monitored set may take weeks to months because signal occurrence, limit-order fills, regime gates, and exits are all required.
+
+Outstanding improvements from the roadmap
+
+Continue Phase 1 out-of-sample evidence accumulation and empirical execution-cost measurement.
+Build the separate research_refresh.yml workflow, outside live_capture.yml, with dedicated concurrency, cache preservation, deterministic API throttling, diagnostics-first behavior, the approximately 60-new-daily-bars anti-snooping gate, and isolated rolling-bin artifacts.
+Build regime-specific candidate tracks as research-only outputs and measure opportunity, risk-block, order, fill, and completed-trade rates separately. Do not auto-deploy those tracks.
+Defer pyramiding/multi-unit ledger work until the base paper evidence is adequate.
+Defer true 4x intraday leverage until a same-day force-flatten mode exists; overnight-hold leverage remains off by default.
+Do not approach the Phase 4 real-money readiness gate until multi-month paper evidence survives empirical fill friction and adverse macro drawdown testing.
+
+Practical conclusion
+
+The system's accounting, broker reconciliation, metadata backfill, idempotency, and fail-closed entry behavior are now materially stronger. The correct next action is observation, not additional strategy complexity: let the paper system accumulate clean out-of-sample evidence before changing execution, sizing, costs, regime tracks, or promotion status.
