@@ -429,7 +429,7 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
                 for _, signal in paper_log.iterrows():
                     signal_id_value = signal.get("order_id")
                     signal_id = None if pd.isna(signal_id_value) else str(signal_id_value).strip()
-                    if signal_id.lower() in ("", "nan", "none"):
+                    if signal_id is None or signal_id.lower() in ("", "nan", "none"):
                         signal_id = None
                     action = str(signal.get("action", "")).lower()
                     if signal_id and action == "enter":
