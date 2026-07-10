@@ -17,7 +17,7 @@ env:
 jobs:
   research-refresh:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 360
     permissions:
       contents: write
     outputs:
