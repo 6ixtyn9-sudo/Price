@@ -417,6 +417,26 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
     changed = False
     cache = {}
 
+    # Legacy entries may predate timeframe/entry-bar journaling. The paper
+    # audit log carries those fields keyed by the exact submitted order_id;
+    # use it only to fill missing metadata, never to overwrite operator data.
+    signal_metadata = {}
+    paper_log_path = Path(DATA_DIR) / "paper_trade_log.csv"
+    if paper_log_path.exists():
+        try:
+            paper_log = pd.read_csv(paper_log_path)
+            if "order_id" in paper_log.columns:
+                for _, signal in paper_log.iterrows():
+                    signal_id_value = signal.get("order_id")
+                    signal_id = None if pd.isna(signal_id_value) else str(signal_id_value).strip()
+                    if signal_id.lower() in ("", "nan", "none"):
+                        signal_id = None
+                    action = str(signal.get("action", "")).lower()
+                    if signal_id and action == "enter":
+                        signal_metadata[signal_id] = signal.to_dict()
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            signal_metadata = {}
+
     def _clean_id(value):
         if value is None:
             return None
@@ -456,16 +476,30 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
             except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
                 cache[order_id] = {"error": str(exc)}
         info = cache[order_id]
-        if not info or info.get("error") or not info.get("status"):
-            continue
+        updates = {}
+        if info and not info.get("error") and info.get("status"):
+            updates.update({
+                "status": info.get("status"),
+                "broker_status": info.get("status"),
+                "filled_qty": info.get("filled_qty"),
+                "filled_avg_price": info.get("filled_avg_price"),
+                "filled_at": info.get("filled_at"),
+            })
 
-        updates = {
-            "status": info.get("status"),
-            "broker_status": info.get("status"),
-            "filled_qty": info.get("filled_qty"),
-            "filled_avg_price": info.get("filled_avg_price"),
-            "filled_at": info.get("filled_at"),
-        }
+        metadata = signal_metadata.get(order_id) if str(row.get("action", "")).lower() == "entry" else None
+        if metadata:
+            metadata_fields = {
+                "slice_label": metadata.get("slice_combination"),
+                "entry_bar_ts": metadata.get("bar_ts_utc"),
+                "timeframe": metadata.get("timeframe"),
+                "bin_mode": metadata.get("bin_mode", "insample"),
+            }
+            for col, value in metadata_fields.items():
+                if _normalised(row.get(col)) is None and _normalised(value) is not None:
+                    updates[col] = value
+
+        if not updates:
+            continue
         row_changed = any(not _same(row.get(col), value) for col, value in updates.items())
         if not row_changed:
             continue

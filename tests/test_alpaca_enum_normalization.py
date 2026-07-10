@@ -416,3 +416,43 @@ def test_reconcile_trade_journal_is_idempotent_for_unchanged_state(tmp_path):
 
     assert second_bytes == first_bytes
     assert second_timestamp == first_timestamp
+
+
+def test_reconcile_trade_journal_backfills_legacy_entry_metadata(tmp_path, monkeypatch):
+    """Legacy fills recover timeframe/signal context by exact order_id."""
+    journal_path = tmp_path / "trade_journal.csv"
+    pd.DataFrame([{
+        "order_id": "order-legacy",
+        "symbol": "XOP",
+        "qty": 16.0,
+        "side": "buy",
+        "status": "accepted",
+        "action": "entry",
+        "slice_label": "state_ext=stretched_down + state_slope=downtrend",
+        "timestamp_utc": "2026-07-10T00:00:00Z",
+    }]).to_csv(journal_path, index=False)
+    pd.DataFrame([{
+        "order_id": "order-legacy",
+        "action": "enter",
+        "symbol": "XOP",
+        "slice_combination": "state_ext=stretched_down + state_slope=downtrend",
+        "bar_ts_utc": "2026-07-02 04:00:00+00:00",
+        "timeframe": "1d",
+        "bin_mode": "insample",
+    }]).to_csv(tmp_path / "paper_trade_log.csv", index=False)
+    monkeypatch.setattr(trading, "DATA_DIR", tmp_path)
+
+    trading.reconcile_trade_journal(
+        path=journal_path,
+        get_order_fill_info_fn=lambda order_id: {
+            "status": "filled",
+            "filled_qty": 16.0,
+            "filled_avg_price": 154.47,
+            "filled_at": "2026-07-06T13:30:57Z",
+        },
+    )
+    row = pd.read_csv(journal_path).iloc[0]
+    assert row["timeframe"] == "1d"
+    assert row["entry_bar_ts"] == "2026-07-02 04:00:00+00:00"
+    assert row["bin_mode"] == "insample"
+    assert row["broker_status"] == "filled"
