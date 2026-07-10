@@ -409,6 +409,8 @@ def scan_all_slices(
     exit_policy: Optional[ExitPolicy] = None,
     cost_model=None,
     regime_filter_enabled: bool = False,
+    entry_sync_blocked: bool = False,
+    reconciliation_health: Optional[dict] = None,
 ) -> List[dict]:
     """Scan all monitored slices; emit tradable signals + exit intents.
 
@@ -709,26 +711,50 @@ def scan_all_slices(
                     open_positions_notional=open_positions_notional,
                     buying_power=buying_power,
                 )
+                gate_reasons = list(risk_result.reasons)
                 tradable = risk_result.allowed
                 if regime_blocked:
                     tradable = False
-                    risk_result.reasons.insert(
+                    gate_reasons.insert(
                         0,
                         f"regime hostile ({regime_state.regime} on "
                         f"{regime_state.symbol}); entry blocked",
                     )
+                if entry_sync_blocked:
+                    tradable = False
+                    gate_reasons.insert(
+                        0,
+                        "broker reconciliation incomplete; new entry blocked",
+                    )
                 status_label = "MATCH  " if tradable else "BLOCKED"
-                reasons_str = ", ".join(risk_result.reasons) if risk_result.reasons else "risk gate passed"
+                reasons_str = ", ".join(gate_reasons) if gate_reasons else "risk gate passed"
                 risk_payload = {
-                    "allowed": risk_result.allowed,
-                    "reasons": risk_result.reasons,
-                    "details": risk_result.details,
+                    "allowed": tradable,
+                    "reasons": gate_reasons,
+                    "details": {
+                        **risk_result.details,
+                        "reconciliation_health": reconciliation_health,
+                    },
                 }
             else:
-                tradable = not regime_blocked
-                status_label = "MATCH  "
-                reasons_str = "dry_run"
-                risk_payload = {"allowed": True, "reasons": ["dry_run"], "details": {}}
+                gate_reasons = ["dry_run"]
+                tradable = not regime_blocked and not entry_sync_blocked
+                if regime_blocked:
+                    gate_reasons.append(
+                        f"regime hostile ({regime_state.regime} on "
+                        f"{regime_state.symbol}); entry blocked",
+                    )
+                if entry_sync_blocked:
+                    gate_reasons.append(
+                        "broker reconciliation incomplete; new entry blocked",
+                    )
+                status_label = "MATCH  " if tradable else "BLOCKED"
+                reasons_str = ", ".join(gate_reasons)
+                risk_payload = {
+                    "allowed": tradable,
+                    "reasons": gate_reasons,
+                    "details": {"reconciliation_health": reconciliation_health},
+                }
 
             signal = {
                 "kind": "entry_signal",

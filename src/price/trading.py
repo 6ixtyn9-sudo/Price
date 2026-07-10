@@ -388,7 +388,11 @@ def get_order_fill_info(order_id: str) -> dict:
         return {"error": str(e)}
 
 
-def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=None) -> pd.DataFrame:
+def reconcile_trade_journal(
+    path: Optional[Path] = None,
+    get_order_fill_info_fn=None,
+    health_out: Optional[dict] = None,
+) -> pd.DataFrame:
     """Reconcile journaled orders with Alpaca's authoritative order state.
 
     Submission-time journal rows are intentionally retained for audit history,
@@ -400,14 +404,31 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
     Rows are written only when broker state changes, so calling this at the
     start of every scheduled scan does not create needless git diffs.
     """
+    def _set_health(ok, total=0, resolved=0, unresolved=None, errors=None, reason=None):
+        if health_out is None:
+            return
+        health_out.clear()
+        health_out.update({
+            "ok": bool(ok),
+            "total_order_ids": int(total),
+            "resolved_order_ids": int(resolved),
+            "unresolved_order_ids": list(unresolved or []),
+            "errors": list(errors or []),
+        })
+        if reason:
+            health_out["reason"] = reason
+
     journal_path = Path(path) if path else Path(TRADE_JOURNAL_PATH)
     if not journal_path.exists():
+        _set_health(True, reason="journal_missing")
         return pd.DataFrame()
     try:
         journal = pd.read_csv(journal_path)
-    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+    except (pd.errors.EmptyDataError, pd.errors.ParserError) as exc:
+        _set_health(False, errors=[str(exc)], reason="journal_unreadable")
         return pd.DataFrame()
     if journal.empty or "order_id" not in journal.columns:
+        _set_health(True, reason="no_orders_to_reconcile")
         return journal
 
     if get_order_fill_info_fn is None:
@@ -416,6 +437,9 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
     now = datetime.now(timezone.utc).isoformat()
     changed = False
     cache = {}
+    order_ids_seen = set()
+    unresolved_order_ids = set()
+    reconciliation_errors = []
 
     # Legacy entries may predate timeframe/entry-bar journaling. The paper
     # audit log carries those fields keyed by the exact submitted order_id;
@@ -470,12 +494,19 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
         order_id = _clean_id(row.get("order_id"))
         if order_id is None:
             continue
+        order_ids_seen.add(order_id)
         if order_id not in cache:
             try:
                 cache[order_id] = get_order_fill_info_fn(order_id) or {}
             except Exception as exc:  # noqa: BLE001 - reconciliation is best effort
                 cache[order_id] = {"error": str(exc)}
         info = cache[order_id]
+        if not info or info.get("error") or not info.get("status"):
+            unresolved_order_ids.add(order_id)
+            error = (info or {}).get("error") if isinstance(info, dict) else None
+            reconciliation_errors.append(
+                f"{order_id}: {error or 'missing broker status'}"
+            )
         updates = {}
         if info and not info.get("error") and info.get("status"):
             updates.update({
@@ -511,6 +542,16 @@ def reconcile_trade_journal(path: Optional[Path] = None, get_order_fill_info_fn=
     if changed:
         journal_path.parent.mkdir(parents=True, exist_ok=True)
         journal.to_csv(journal_path, index=False)
+
+    unresolved = sorted(unresolved_order_ids)
+    _set_health(
+        not unresolved,
+        total=len(order_ids_seen),
+        resolved=len(order_ids_seen) - len(unresolved),
+        unresolved=unresolved,
+        errors=reconciliation_errors,
+        reason="ok" if not unresolved else "unresolved_orders",
+    )
     return journal
 
 

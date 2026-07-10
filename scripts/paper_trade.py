@@ -418,15 +418,28 @@ def main() -> int:
         # exposure, exit context, or risk state. This is read-only and never
         # places/cancels/replaces orders, but it prevents accepted/pending/
         # expired entries from masquerading as fills.
+        reconciliation_health = {"ok": True, "total_order_ids": 0, "unresolved_order_ids": []}
         try:
             from price.trading import reconcile_trade_journal
-            reconcile_trade_journal()
-        except Exception as exc:  # noqa: BLE001 - the scan remains fail-safe
-            print(f"WARNING: broker order reconciliation failed: {exc}")
+            reconcile_trade_journal(health_out=reconciliation_health)
+        except Exception as exc:  # noqa: BLE001 - entries fail closed below
+            reconciliation_health.update({
+                "ok": False,
+                "errors": [str(exc)],
+                "unresolved_order_ids": ["reconciliation_exception"],
+            })
+        if not reconciliation_health.get("ok", False):
+            print(
+                "WARNING: broker order reconciliation incomplete; "
+                "new entries will be blocked: "
+                f"{reconciliation_health}"
+            )
 
         signals = scan_all_slices(
             limits=limits, dry_run=args.dry_run, exit_policy=exit_policy,
             cost_model=cost_model, regime_filter_enabled=args.regime_filter,
+            entry_sync_blocked=not reconciliation_health.get("ok", False),
+            reconciliation_health=reconciliation_health,
         )
         counts = _handle_signals(signals, dry_run=args.dry_run)
         print("\n=== pass summary ===")
