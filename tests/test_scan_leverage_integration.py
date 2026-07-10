@@ -147,3 +147,35 @@ def test_leverage_on_margin_cushion_breached_blocks_entry(
     sig = _entry_signal(signals)
     assert sig["tradable"] is False
     assert any("margin cushion" in r for r in sig["risk_check"]["reasons"])
+
+
+def test_incomplete_broker_reconciliation_blocks_new_entry(
+    isolated_stop_files, synthetic_warehouse, monkeypatch
+):
+    """A stale/unresolved order ledger must fail closed for new entries."""
+    _patch_common(monkeypatch, buying_power=None)
+    limits = RiskLimits(
+        max_notional_per_position=100000.0,
+        account_equity_for_sizing=1000.0,
+        conviction_sizing_enabled=False,
+    )
+
+    health = {
+        "ok": False,
+        "total_order_ids": 1,
+        "resolved_order_ids": 0,
+        "unresolved_order_ids": ["order-timeout"],
+        "errors": ["broker timeout"],
+    }
+    signals = scan_all_slices(
+        slices=SLICE,
+        limits=limits,
+        dry_run=False,
+        entry_sync_blocked=True,
+        reconciliation_health=health,
+    )
+    sig = _entry_signal(signals)
+    assert sig["tradable"] is False
+    assert sig["risk_check"]["allowed"] is False
+    assert any("reconciliation incomplete" in r for r in sig["risk_check"]["reasons"])
+    assert sig["risk_check"]["details"]["reconciliation_health"] == health

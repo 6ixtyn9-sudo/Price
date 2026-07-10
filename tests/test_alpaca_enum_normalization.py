@@ -456,3 +456,30 @@ def test_reconcile_trade_journal_backfills_legacy_entry_metadata(tmp_path, monke
     assert row["entry_bar_ts"] == "2026-07-02 04:00:00+00:00"
     assert row["bin_mode"] == "insample"
     assert row["broker_status"] == "filled"
+
+
+def test_reconcile_trade_journal_reports_unresolved_orders(tmp_path):
+    """Broker lookup failures are observable so callers can fail closed."""
+    path = tmp_path / "trade_journal.csv"
+    pd.DataFrame([{
+        "order_id": "order-timeout",
+        "symbol": "XOP",
+        "qty": 1.0,
+        "side": "buy",
+        "status": "accepted",
+        "action": "entry",
+        "timestamp_utc": "2026-07-10T00:00:00Z",
+    }]).to_csv(path, index=False)
+    health = {}
+
+    trading.reconcile_trade_journal(
+        path=path,
+        get_order_fill_info_fn=lambda order_id: {"error": "broker timeout"},
+        health_out=health,
+    )
+
+    assert health["ok"] is False
+    assert health["total_order_ids"] == 1
+    assert health["resolved_order_ids"] == 0
+    assert health["unresolved_order_ids"] == ["order-timeout"]
+    assert "broker timeout" in health["errors"][0]
