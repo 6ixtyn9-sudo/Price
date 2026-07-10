@@ -4260,7 +4260,7 @@ The research_refresh.yml MVP has now been expanded toward this controller:
 
 it captures the full explicit active allowlist rather than only the 13-symbol live subset
 it builds daily, 15m, and locally resampled 1h research coverage
-it restores the warehouse cache read-only and uses its own research-refresh concurrency group
+it restores the latest research warehouse cache, saves one refreshed rolling cache after a successful run, removes superseded research cache entries, and uses its own research-refresh concurrency group
 it runs the research_refresh.py controller
 it writes only isolated localdata/research artifacts
 it never modifies monitored_slices.csv in the current build

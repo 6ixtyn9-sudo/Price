@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 180
     permissions:
       contents: write
+      actions: write
 
     steps:
       - name: Checkout
@@ -35,14 +36,18 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
-      - name: Restore research warehouse cache (read-only)
+      - name: Compute research warehouse cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${RUNNER_OS}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore latest research warehouse cache
         id: warehouse
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: localdata/warehouse
-          key: warehouse-v3-${{ runner.os }}-research-${{ github.run_id }}
+          key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
-            warehouse-v3-${{ runner.os }}-
+            research-warehouse-v4-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -124,6 +129,33 @@ jobs:
               "automatic_promotion_enabled": False,
           })
           state_path.write_text(json.dumps(state, indent=2) + "\n")
+          PY
+
+      - name: Save refreshed research warehouse
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+
+      - name: Remove superseded research warehouse caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_CACHE_KEY: ${{ steps.cache_key.outputs.key }}
+        run: |
+          gh cache list --limit 100 --json id,key > /tmp/research-caches.json
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          current = os.environ["CURRENT_CACHE_KEY"]
+          payload = json.load(open("/tmp/research-caches.json"))
+          prefix = "research-warehouse-v4-"
+          for item in payload:
+              key = item.get("key", "")
+              cache_id = item.get("id")
+              if cache_id and key.startswith(prefix) and key != current:
+                  subprocess.run(["gh", "cache", "delete", str(cache_id), "--confirm"], check=True)
           PY
 
       - name: Commit isolated research outputs only
