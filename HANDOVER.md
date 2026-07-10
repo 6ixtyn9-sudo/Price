@@ -4224,7 +4224,7 @@ A small non-deploying research-refresh MVP has been added:
 scripts/research_observations.py
 tests/test_research_observations.py
 
-The workflow is weekend-only (Saturday 08:00 UTC), has its own research-refresh concurrency group, and does not call capture_bars.py, paper_trade.py, discovery, monitored-slice synchronization, or any order-placement path.
+The workflow runs twice weekly (Tuesday and Saturday at 08:00 UTC), has its own research-refresh concurrency group, and does not call paper_trade.py, monitored-slice synchronization, or any order-placement path. It captures the full active allowlist and invokes discovery only when the per-symbol fresh-data gate is satisfied.
 
 Current MVP behavior:
 

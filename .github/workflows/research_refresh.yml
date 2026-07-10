@@ -3,7 +3,8 @@ name: Research Refresh
 on:
   # Weekend-only, outside the weekday live-capture window.
   schedule:
-    - cron: "0 8 * * 6"
+    # Twice weekly, outside the weekday live-capture window.
+    - cron: "0 8 * * 2,6"
   workflow_dispatch:
 
 concurrency:

@@ -12,7 +12,7 @@ for path in (SRC, SCRIPTS):
         sys.path.insert(0, str(path))
 
 from research_lifecycle import apply_registry_to_monitored, build_registry  # noqa: E402
-from research_refresh import _new_daily_bars  # noqa: E402
+from research_refresh import _eligible_discovery_symbols, _new_daily_bars  # noqa: E402
 from research_regime_coverage import _regime_series  # noqa: E402
 
 
@@ -81,3 +81,9 @@ def test_auto_apply_demotes_only_explicit_decay_and_adds_approved(tmp_path):
     assert ("OLD", "old") not in keys
     assert ("KEEP", "keep") in keys
     assert ("NEW", "new") in keys
+
+
+def test_discovery_gate_is_per_symbol_not_aggregate():
+    previous = {"SPY": {"count": 1254}, "QQQ": {"count": 1254}, "IWM": {"count": 1254}}
+    current = {"SPY": {"count": 1314}, "QQQ": {"count": 1255}, "IWM": {"count": 1254}}
+    assert _eligible_discovery_symbols(previous, current, 60) == ["SPY"]
