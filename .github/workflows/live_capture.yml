@@ -1,13 +1,6 @@
 name: Live Capture
 
 on:
-  # GitHub scheduled workflows are best-effort and can be delayed.
-  # Run away from minute 0 to avoid the busiest scheduler window.
-  #
-  # UTC schedule: 13:17-21:17 UTC, Monday-Friday
-  # SAST schedule: 15:17-23:17 SAST, Monday-Friday
-  schedule:
-    - cron: "17 13-21 * * 1-5"
   workflow_dispatch:
 
 concurrency:
