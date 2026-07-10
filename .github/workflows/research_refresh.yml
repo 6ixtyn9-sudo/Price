@@ -177,3 +177,22 @@ jobs:
           fi
           git commit -m "chore(research-refresh): update full-universe research state [skip ci]"
           git push
+
+      - name: Trigger sharded discovery only when the fresh-data gate opens
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if python - <<'PY'
+          import json
+          from pathlib import Path
+          state_path = Path("localdata/research/refresh_state.json")
+          state = json.loads(state_path.read_text()) if state_path.exists() else {}
+          raise SystemExit(0 if state.get("discovery_allowed") else 1)
+          PY
+          then
+            gh workflow run research_discovery.yml \
+              --ref main \
+              -f parent_run_id="$GITHUB_RUN_ID"
+          else
+            echo "Discovery gate closed; no sharded discovery dispatched."
+          fi
