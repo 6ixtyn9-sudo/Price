@@ -23,6 +23,23 @@ def _desanitize_symbol(safe: str) -> str:
 VALID_TIMEFRAMES = {"1d", "1h", "15m"}
 
 
+def _assert_within_warehouse(path):
+    """Belt-and-suspenders containment check for warehouse paths.
+
+    Symbol/timeframe validation should make traversal impossible. This check
+    still verifies the resolved path is under the configured WAREHOUSE_DIR so a
+    future sanitizer regression or symlink/path trick fails closed before any
+    read, write, or unlink.
+    """
+    root = WAREHOUSE_DIR.resolve()
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"Warehouse path escapes root: {path}") from exc
+    return path
+
+
 def _validate_timeframe(timeframe: str) -> str:
     tf = str(timeframe).strip()
     if tf not in VALID_TIMEFRAMES:
@@ -30,29 +47,12 @@ def _validate_timeframe(timeframe: str) -> str:
     return tf
 
 
-def _assert_within_warehouse(path) -> None:
-    """Belt-and-suspenders containment check.
-
-    The symbol whitelist in _sanitize_symbol already prevents path
-    traversal at the source, but resolve+relative_to defends in depth
-    against any future sanitizer regression or symlink trickery. A path
-    that escapes WAREHOUSE_DIR raises ValueError (fail-closed).
-    """
-    resolved = path.resolve()
-    root = WAREHOUSE_DIR.resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise ValueError(
-            f"Warehouse path escapes WAREHOUSE_DIR: {path} -> {resolved}"
-        ) from exc
-
-
 def load_from_warehouse(symbol: str, timeframe: str) -> pd.DataFrame:
     safe_sym = _sanitize_symbol(symbol)
     timeframe = _validate_timeframe(timeframe)
-    partition_dir = WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
-    _assert_within_warehouse(partition_dir)
+    partition_dir = _assert_within_warehouse(
+        WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
+    )
     if not partition_dir.exists():
         return pd.DataFrame()
     
@@ -74,8 +74,9 @@ def save_to_warehouse(df: pd.DataFrame):
         symbol = str(symbol).strip().upper()
         safe_sym = _sanitize_symbol(symbol)
         timeframe = _validate_timeframe(timeframe)
-        partition_dir = WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
-        _assert_within_warehouse(partition_dir)
+        partition_dir = _assert_within_warehouse(
+            WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
+        )
         partition_dir.mkdir(parents=True, exist_ok=True)
         
         existing_df = load_from_warehouse(symbol, timeframe)
