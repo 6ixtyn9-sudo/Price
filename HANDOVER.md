@@ -4216,3 +4216,71 @@ Do not approach the Phase 4 real-money readiness gate until multi-month paper ev
 Practical conclusion
 
 The system's accounting, broker reconciliation, metadata backfill, idempotency, and fail-closed entry behavior are now materially stronger. The correct next action is observation, not additional strategy complexity: let the paper system accumulate clean out-of-sample evidence before changing execution, sizing, costs, regime tracks, or promotion status.
+Research Refresh MVP — Diagnostic-Only Workflow (2026-07-10)
+
+A small non-deploying research-refresh MVP has been added:
+
+.github/workflows/research_refresh.yml
+scripts/research_observations.py
+tests/test_research_observations.py
+
+The workflow is weekend-only (Saturday 08:00 UTC), has its own research-refresh concurrency group, and does not call capture_bars.py, paper_trade.py, discovery, monitored-slice synchronization, or any order-placement path.
+
+Current MVP behavior:
+
+restores the existing warehouse cache read-only
+runs incumbent date-range diagnostics into localdata/research/date_range_diagnostics_rolling.csv
+runs incumbent regime-stratified diagnostics into localdata/research/regime_stratified_diagnostics_rolling.csv
+uses bin_mode=rolling for diagnostic outputs
+summarizes existing paper audit/journal data into localdata/research/regime_opportunity_rates.csv
+records the non-deployment contract in localdata/research/refresh_manifest.json
+never modifies monitored_slices.csv or operational candidate artifacts
+
+The opportunity summary is keyed by symbol, timeframe, slice, bin mode, and observed regime, and reports observed signal bars, matched opportunities, risk-blocked opportunities, submitted orders, filled orders, completed round-trips, and the corresponding rates. Repeated observations of the same signal bar are collapsed before counting opportunities.
+
+The approximately 60-new-daily-bars anti-snooping gate is represented in the manifest and enforced in the MVP by keeping discovery disabled entirely. A future research-refresh extension may add a measured data-delta gate before permitting any discovery command; it must not remove the isolation or deployment boundary.
+
+No regime-specific candidate track is automatically promoted or written to monitored_slices.csv. The current output is research telemetry only. Paper execution remains 1x/no-live-capital, and the live_capture workflow is unchanged.
+
+Autonomous Full-Universe Research Controller — Build Direction (2026-07-10)
+
+The operator clarified that the long-term goal is a hands-off system that can maintain its own research and edge lifecycle without relying on the original operator for routine upkeep. The target is not a weekend report; it is a separated autonomous control loop:
+
+full active-universe ingestion
+historical bull/bear/neutral regime coverage
+rolling-bin candidate discovery after a fresh-data gate
+full validation, walk-forward, parent-baseline, cost, and multiple-testing checks
+regime-stratified candidate diagnostics
+candidate lifecycle registry with proposal, paper, decay, suspension, and approval states
+opportunity/fill/completion telemetry
+automatic promotion/demotion capability behind explicit production activation
+live execution remaining protected by broker reconciliation, stops, risk caps, and fail-closed behavior
+
+The research_refresh.yml MVP has now been expanded toward this controller:
+
+it captures the full explicit active allowlist rather than only the 13-symbol live subset
+it builds daily, 15m, and locally resampled 1h research coverage
+it restores the warehouse cache read-only and uses its own research-refresh concurrency group
+it runs the research_refresh.py controller
+it writes only isolated localdata/research artifacts
+it never modifies monitored_slices.csv in the current build
+it never places orders
+
+New research controller components:
+
+scripts/research_refresh.py: full-universe coverage state, fresh-daily-bar accounting, discovery gate, isolated rolling discovery/validation orchestration, regime diagnostics, opportunity telemetry, and refresh state
+scripts/research_regime_coverage.py: per-symbol/timeframe bull, bear, neutral, warmup, and current-regime coverage report
+scripts/research_lifecycle.py: deterministic candidate registry, strict eligibility/decay classification, and an explicit apply_registry_to_monitored capability; the workflow default is proposal-only and does not alter the live monitored set
+scripts/research_observations.py: regime/opportunity/order/fill/completion rates from existing paper logs
+
+tests/test_research_observations.py: deterministic telemetry coverage without network or broker calls
+
+The first full-universe refresh establishes a daily coverage baseline and does not run discovery. Discovery is eligible only on a later refresh after at least 60 newly observed daily bars across the active universe. This prevents the existing historical warehouse from being miscounted as fresh out-of-sample evidence.
+
+Automatic promotion policy
+
+The eventual policy is fully automatic promotion and demotion after the production activation gate is explicitly enabled. Until that activation gate is enabled, the controller may generate research proposals and classify decay, but it must not write monitored_slices.csv or authorize live deployment.
+
+Fully automatic operation still means fail-closed operation. The controller must suspend new entries when data is stale, reconciliation is incomplete, artifacts are malformed, risk limits cannot be evaluated, or protective stops cannot be verified. A decaying or uncertain candidate is suspended rather than silently traded.
+
+This controller build is an engineering foundation, not a claim that the current candidates are profitable. The paper evidence gate remains unchanged: at least five confirmed completed round-trips per monitored slice, multi-month out-of-sample survival, empirical execution-cost measurement, and adverse-regime drawdown review before real-money activation.
