@@ -233,16 +233,19 @@ jobs:
       contents: read
       actions: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
       - name: Remove superseded research warehouse caches
         env:
           GH_TOKEN: ${{ github.token }}
           CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
         run: |
           sleep 5
-          gh cache list --limit 100 --json id,key > /tmp/research-caches.json
+          gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/research-caches.json
           jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
             if [ -n "$cache_id" ]; then
-              gh cache delete "$cache_id" --confirm
+              gh cache delete "$cache_id" --confirm --repo "$GITHUB_REPOSITORY"
             fi
           done
 
