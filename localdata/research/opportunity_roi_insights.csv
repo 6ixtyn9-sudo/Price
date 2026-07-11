@@ -1,0 +1,2 @@
+symbol,timeframe,slice_combination,regime,matched_opportunities,risk_blocked_opportunities,risk_block_rate,valid_mean_ret_costadj,potential_missed_pnl
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,gate_disabled,2,2,1.0,0.0448829936008367,0.0897659872016734
