@@ -230,6 +230,12 @@ def propagate_adjustment_factors(symbol: str):
         else:
             df_tf['market_date'] = df_tf['bar_ts_utc'].dt.tz_convert('America/New_York').dt.date
 
+        # Drop stale adj columns from intraday before merge to avoid
+        # pandas suffix collision (_x / _y).  The merge replaces them.
+        for drop_col in ('adj_factor', 'split_factor', 'dividend_cash'):
+            if drop_col in df_tf.columns:
+                df_tf = df_tf.drop(columns=[drop_col])
+
         # Vectorized merge: join adjustment factors by market_date instead of
         # row-wise Python apply. This is the critical performance fix — the
         # old apply() path called a Python function per row (thousands of
