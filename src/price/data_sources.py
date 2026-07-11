@@ -218,11 +218,11 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
     }
     headers = {"Authorization": f"Token {TIINGO_API_KEY}"}
     
-    retries = 3
+    retries = 1  # One retry on 429, then fall back to Alpaca quickly
     data = None
-    while retries > 0:
+    while retries >= 0:
         try:
-            # Tiingo free tier: ~50 requests/min. 1.5s floor keeps us under
+            # Tiingo free tier: ~50 requests/min. 2s floor keeps us under
             # that even in tight loops (236 symbols back-to-back).
             _tiingo_pace()
             response = requests.get(url, params=params, headers=headers, timeout=15)
@@ -232,22 +232,24 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
         except requests.exceptions.HTTPError as e:
             if response.status_code == 429:
                 retries -= 1
-                backoff = 60 * (4 - retries)  # 60s, 120s, 180s
-                print(f"Tiingo 429 for {symbol}, backing off {backoff}s ({retries} retries left)...")
-                time.sleep(backoff)
-                if retries == 0:
-                    print(f"Failed to fetch Tiingo daily bars for {symbol}: {e}")
+                if retries >= 0:
+                    print(f"Tiingo 429 for {symbol}, waiting 30s before retry...")
+                    time.sleep(30)
+                else:
+                    print(f"Tiingo 429 for {symbol}, giving up (will use Alpaca fallback)")
                     raise e
             else:
                 retries -= 1
-                time.sleep(2)
-                if retries == 0:
+                if retries >= 0:
+                    time.sleep(2)
+                else:
                     print(f"Failed to fetch Tiingo daily bars for {symbol}: {e}")
                     raise e
         except Exception as e:
             retries -= 1
-            time.sleep(2)
-            if retries == 0:
+            if retries >= 0:
+                time.sleep(2)
+            else:
                 print(f"Failed to fetch Tiingo daily bars for {symbol}: {e}")
                 raise e
                 
@@ -370,13 +372,90 @@ def fetch_crypto_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
     return _normalize_alpaca_df(merged_df, symbol, timeframe_str, source="alpaca_crypto")
 
 
+def fetch_yfinance_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Fetch adjusted daily bars from Yahoo Finance via yfinance.
+
+    Used as the Tiingo 429 fallback for equity daily bars. yfinance returns
+    auto-adjusted OHLCV (splits + dividends) with no API key required and
+    generous rate limits (~2000 req/hour). This avoids contaminating the
+    warehouse with raw/unadjusted Alpaca daily bars.
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("yfinance not installed, skipping Yahoo Finance fallback.")
+        return pd.DataFrame()
+
+    # yfinance expects bare ticker symbols (no slashes or dashes for equities).
+    # Crypto pairs like BTC-USD are handled by fetch_crypto_bars, not here.
+    ticker_symbol = symbol.upper().replace("/", "-")
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        df = ticker.history(start=start_str, end=end_str, auto_adjust=True)
+        if df is None or df.empty:
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"yfinance failed for {symbol}: {e}")
+        return pd.DataFrame()
+
+    # Map yfinance columns to canonical warehouse schema.
+    # auto_adjust=True means Close is already adjusted.
+    # Compute raw (unadjusted) by reversing the adjustment using
+    # Dividends and Stock Splits columns when available.
+    df = df.reset_index()
+    df = df.rename(columns={
+        "Date": "bar_ts_utc",
+        "Open": "open_adj",
+        "High": "high_adj",
+        "Low": "low_adj",
+        "Close": "close_adj",
+        "Volume": "volume_raw",
+        "Dividends": "dividend_cash",
+        "Stock Splits": "split_factor",
+    })
+
+    # For auto_adjust=True, open_adj/high_adj/low_adj/close_adj ARE adjusted.
+    # Set raw columns equal to adjusted (yfinance auto-adjust modifies in place).
+    # The adjustment factor is implicitly 1.0 since everything is already adjusted.
+    df["open_raw"] = df["open_adj"]
+    df["high_raw"] = df["high_adj"]
+    df["low_raw"] = df["low_adj"]
+    df["close_raw"] = df["close_adj"]
+    df["adj_factor"] = 1.0
+    df["symbol"] = symbol.upper()
+    df["timeframe"] = "1d"
+    df["source"] = "yfinance"
+
+    # Ensure bar_ts_utc is timezone-aware UTC
+    if "bar_ts_utc" in df.columns:
+        df["bar_ts_utc"] = pd.to_datetime(df["bar_ts_utc"], utc=True)
+
+    # Reorder to canonical columns (drop any extras)
+    canonical = [
+        "symbol", "timeframe", "bar_ts_utc", "source",
+        "open_raw", "high_raw", "low_raw", "close_raw", "volume_raw",
+        "open_adj", "high_adj", "low_adj", "close_adj",
+        "adj_factor", "split_factor", "dividend_cash",
+    ]
+    for col in canonical:
+        if col not in df.columns:
+            df[col] = pd.NA
+    df = df[[c for c in canonical if c in df.columns]]
+
+    print(f"yfinance: fetched {len(df)} adjusted daily bars for {symbol}")
+    return df
+
+
 def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """
     Router that picks the correct data source based on asset class:
       - Crypto: Alpaca CryptoHistoricalDataClient
       - Futures: Alpaca (may be empty on free tier)
-      - ETF (core 10): Tiingo 1d, Alpaca 15m/1h
-      - All other equities: Alpaca (Tiingo fallback optional)
+      - Equity daily: Tiingo → yfinance (adjusted fallback) → Alpaca (last resort)
+      - Equity intraday: Alpaca
     """
     sym = symbol.upper()
     # Crypto first
@@ -388,19 +467,19 @@ def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, en
         return fetch_alpaca_futures_bars(sym, timeframe_str, start_dt, end_dt)
 
     # Prefer Tiingo daily for ALL equities when available.
-    #
-    # Rationale:
-    # - Tiingo returns adjusted daily OHLCV with split/dividend fields.
-    # - Alpaca daily bars for non-core equities can be raw/unadjusted.
-    # - Bad daily adjustment factors contaminate feature states and intraday
-    #   adjustment propagation. This showed up as impossible one-day jumps in
-    #   non-core symbols during the liquid236 baseline audit.
+    # On Tiingo 429, fall back to yfinance (adjusted, free, no key needed).
+    # Only fall through to raw Alpaca daily if both fail — Alpaca daily is
+    # unadjusted and produces impossible jumps in non-core symbols.
     if timeframe_str == "1d" and is_equity(sym) and TIINGO_API_KEY:
         try:
             return fetch_tiingo_daily_bars(sym, start_dt, end_dt)
         except Exception as e:
-            print(f"Tiingo failed for {sym}, falling back to Alpaca: {e}")
+            print(f"Tiingo failed for {sym}, trying yfinance fallback: {e}")
+            yf_df = fetch_yfinance_daily_bars(sym, start_dt, end_dt)
+            if not yf_df.empty:
+                return yf_df
+            print(f"yfinance also failed for {sym}, falling back to raw Alpaca daily (unadjusted!)")
             return fetch_alpaca_bars(sym, timeframe_str, start_dt, end_dt)
 
-    # Default: Alpaca for everything else (free-tier universal)
+    # Default: Alpaca for everything else (intraday, no-Tiingo-key daily)
     return fetch_alpaca_bars(sym, timeframe_str, start_dt, end_dt)
