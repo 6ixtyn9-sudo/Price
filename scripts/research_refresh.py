@@ -158,6 +158,57 @@ def run_refresh(
     observations = build_regime_opportunity_rates()
     observations.to_csv(RESEARCH_DIR / "regime_opportunity_rates.csv", index=False)
 
+    # --- DAILY regime tracks for monitored slices (always, not gated) ---
+    try:
+        monitored_path = Path("localdata/monitored_slices.csv")
+        if monitored_path.exists() and monitored_path.stat().st_size > 0:
+            validate_slices.run_regime_stratified_diagnostics(
+                slices_path=str(monitored_path),
+                output_path=str(RESEARCH_DIR / "regime_stratified_diagnostics_rolling.csv"),
+                diagnostic_scope="leaderboard-top",
+                top_n=50,
+                bin_mode="rolling",
+            )
+            validate_slices.run_date_range_diagnostics(
+                slices_path=str(monitored_path),
+                output_path=str(RESEARCH_DIR / "date_range_diagnostics_rolling.csv"),
+                diagnostic_scope="leaderboard-top",
+                top_n=50,
+                bin_mode="rolling",
+            )
+            try:
+                import pandas as pd
+                leaderboard_path = RESEARCH_DIR / "candidate_leaderboard_rolling.csv"
+                if not leaderboard_path.exists():
+                    leaderboard_path = Path("localdata/candidate_leaderboard.csv")
+                if leaderboard_path.exists():
+                    lb = pd.read_csv(leaderboard_path)
+                    if not lb.empty and not observations.empty and "valid_mean_ret_costadj" in lb.columns:
+                        lb_map = lb.set_index(["symbol", "timeframe", "slice_combination"])["valid_mean_ret_costadj"].to_dict()
+                        rows = []
+                        for _, r in observations.iterrows():
+                            key = (r["symbol"], r["timeframe"], r["slice_combination"])
+                            mr = lb_map.get(key)
+                            if mr is None:
+                                continue
+                            blocked = int(r.get("risk_blocked_opportunities", 0) or 0)
+                            if blocked>0:
+                                rows.append({
+                                    "symbol": r["symbol"], "timeframe": r["timeframe"],
+                                    "slice_combination": r["slice_combination"], "regime": r["regime"],
+                                    "matched_opportunities": int(r.get("matched_opportunities",0) or 0),
+                                    "risk_blocked_opportunities": blocked,
+                                    "risk_block_rate": r.get("risk_block_rate"),
+                                    "valid_mean_ret_costadj": float(mr),
+                                    "potential_missed_pnl": blocked*float(mr),
+                                })
+                        if rows:
+                            pd.DataFrame(rows).sort_values("potential_missed_pnl", ascending=False).to_csv(RESEARCH_DIR / "opportunity_roi_insights.csv", index=False)
+            except Exception as e:
+                print(f"ROI insights failed: {e}")
+    except Exception as e:
+        print(f"Daily diagnostics failed: {e}")
+
     discovery_ran = False
     regime_tracks_ran = False
     if discovery_allowed:
