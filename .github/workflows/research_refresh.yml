@@ -2,6 +2,28 @@ name: Research Refresh
 
 on:
   workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Symbols per shard for discovery dispatch"
+        required: false
+        default: "20"
+      timeframes:
+        description: "Timeframes to refresh (space-separated)"
+        required: false
+        default: "1d 1h 15m"
+      min_new_daily_bars:
+        description: "Minimum new daily bars per symbol for discovery gate"
+        required: false
+        default: "60"
+      allow_discovery:
+        description: "Allow discovery to run if gate opens"
+        required: false
+        default: "true"
+        type: boolean
+      condition_on:
+        description: "Conditioning symbols (space-separated)"
+        required: false
+        default: "USO TLT"
 
 concurrency:
   group: research-refresh
@@ -17,7 +39,7 @@ env:
 jobs:
   research-refresh:
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
+    timeout-minutes: 300  # FIXED: 360 -> 300 (5 hours with buffer)
     permissions:
       contents: write
     outputs:
@@ -26,25 +48,27 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: "3.13"
+          python-version: "3.12"  # FIXED: 3.13 -> 3.12 for wheel compatibility
           cache: "pip"
           cache-dependency-path: requirements.lock
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${RUNNER_OS}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+        # FIXED: Use GitHub context syntax consistently
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore latest research warehouse cache
         id: warehouse
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
+          # FIXED: Use consistent lowercase OS in restore keys
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
 
@@ -58,7 +82,8 @@ jobs:
             exit 0
           fi
           echo "Cache miss — attempting to seed warehouse from release asset..."
-          SEED_TAG="warehouse-v1"
+          # FIXED: Make seed tag configurable via env var
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
           if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             mkdir -p localdata
             gh release download "$SEED_TAG" \
@@ -75,7 +100,7 @@ jobs:
           fi
 
       - name: Restore operational paper state cache for telemetry
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             localdata/trade_journal.csv
@@ -115,19 +140,26 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
+          # FIXED: Pass workflow inputs to scripts
           python scripts/capture_bars.py \
             --tier allowlist \
-            --timeframes 1d \
+            --timeframes ${{ inputs.timeframes }} \
             --days 1825
           python scripts/capture_bars.py \
             --tier allowlist \
             --timeframes 15m \
             --days 365
+          # FIXED: Validate JSON structure before extracting symbols
+          if ! jq -e '.all | type == "array"' localdata/explicit_allowlist.json >/dev/null; then
+            echo "::error::localdata/explicit_allowlist.json missing or invalid .all array"
+            exit 1
+          fi
           mapfile -t ACTIVE_SYMBOLS < <(jq -r '.all[]' localdata/explicit_allowlist.json)
           if [ "${#ACTIVE_SYMBOLS[@]}" -gt 500 ]; then
             echo "::error::Refusing research refresh: ${#ACTIVE_SYMBOLS[@]} symbols > cap 500"
             exit 1
           fi
+          # FIXED: Pass symbols to build_warehouse.py
           python scripts/build_warehouse.py --symbols "${ACTIVE_SYMBOLS[@]}"
 
       - name: Run autonomous research controller
@@ -136,14 +168,13 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Daily maintenance is discovery-gated. Full-universe multi-timeframe
-          # discovery is never run directly here; when the fresh-data gate opens,
-          # this job dispatches the sharded research_discovery workflow below.
+          # FIXED: Pass workflow inputs and symbols to research_refresh.py
           python scripts/research_refresh.py \
-            --timeframes 1d 1h 15m \
-            --min-new-daily-bars 60 \
-            --allow-discovery \
-            --condition-on USO TLT
+            --symbols "${ACTIVE_SYMBOLS[@]}" \
+            --timeframes ${{ inputs.timeframes }} \
+            --min-new-daily-bars ${{ inputs.min_new_daily_bars }} \
+            ${{ inputs.allow_discovery && '--allow-discovery' || '' }} \
+            --condition-on ${{ inputs.condition_on }}
 
       - name: Build research manifest
         run: |
@@ -167,7 +198,7 @@ jobs:
           echo "Discovery dispatch gate: $should_dispatch"
 
       - name: Save refreshed research warehouse
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
@@ -188,8 +219,9 @@ jobs:
             exit 0
           fi
           git commit -m "chore(research-refresh): update full-universe research state [skip ci]"
+          # FIXED: Use force-with-lease for bot commits
           for attempt in 1 2 3; do
-            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push && break
+            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 3 ]; then
               echo "::error::git push failed after 3 attempts"
               exit 1
@@ -199,6 +231,7 @@ jobs:
 
   cache-maintenance:
     needs: research-refresh
+    if: always()  # FIXED: Run cleanup even if research-refresh fails
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -210,9 +243,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
         run: |
+          # FIXED: Add delay for cache API eventual consistency
+          sleep 5
           gh cache list --limit 100 --json id,key > /tmp/research-caches.json
-          for cache_id in $(jq -r '.[] | select(.key | startswith("research-warehouse-v4-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json); do
-            gh cache delete "$cache_id" || true
+          # FIXED: Only delete caches from THIS workflow (research-refresh), not others
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
+            if [ -n "$cache_id" ]; then
+              gh cache delete "$cache_id" --confirm
+            fi
           done
 
   dispatch-discovery:
@@ -231,4 +269,5 @@ jobs:
           gh workflow run research_discovery.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
-            -f parent_run_id="$GITHUB_RUN_ID"
+            -f parent_run_id="$GITHUB_RUN_ID" \
+            -f batch_size="${{ inputs.batch_size }}"

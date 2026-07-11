@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,21 +39,25 @@ LEADERBOARD_PATH = RESEARCH_DIR / "candidate_leaderboard_rolling.csv"
 REGIME_DIAGNOSTICS_PATH = RESEARCH_DIR / "regime_stratified_diagnostics_rolling.csv"
 
 
-def _coverage(symbols) -> dict:
+def _coverage(symbols, timeframes=("1d", "1h")) -> dict:
+    """Build coverage dict for all symbols/timeframes in one pass."""
     out = {}
     for symbol in symbols:
-        df = load_from_warehouse(symbol, "1d")
-        if df is None or df.empty:
-            out[symbol] = {"count": 0, "last_bar": None}
-            continue
-        out[symbol] = {
-            "count": int(len(df)),
-            "last_bar": str(df["bar_ts_utc"].max()),
-        }
+        for tf in timeframes:
+            key = f"{symbol}:{tf}"
+            df = load_from_warehouse(symbol, tf)
+            if df is None or df.empty:
+                out[key] = {"count": 0, "last_bar": None}
+                continue
+            out[key] = {
+                "count": int(len(df)),
+                "last_bar": str(df["bar_ts_utc"].max()),
+            }
     return out
 
 
 def _daily_bar_deltas(previous: dict, current: dict) -> dict:
+    """Compute per-symbol daily bar deltas from coverage dicts."""
     return {
         symbol: max(
             0,
@@ -106,19 +109,28 @@ def run_refresh(
     enable_auto_promotion: bool = False,
     apply_monitored_slices: bool = False,
     allow_unsharded_discovery: bool = False,
+    force_discovery: bool = False,  # NEW: force discovery on first run
 ) -> dict:
     symbols = list(symbols or SYMBOLS)
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Build coverage for daily timeframe only (used for discovery gate)
     previous = _load_state().get("daily_coverage", {})
-    current = _coverage(symbols)
+    current = _coverage(symbols, ("1d",))  # Only 1d for gate
     new_bars = _new_daily_bars(previous, current)
-    eligible_symbols = _eligible_discovery_symbols(
-        previous, current, min_new_daily_bars
-    )
+
+    # FIXED: Support force_discovery flag for first run
+    if force_discovery:
+        eligible_symbols = symbols
+    else:
+        eligible_symbols = _eligible_discovery_symbols(
+            previous, current, min_new_daily_bars
+        )
+
     # The first refresh establishes the coverage baseline. On later refreshes,
     # require fresh evidence for at least 80% of the active universe before
     # re-running the full grid; otherwise discovery remains skipped.
-    required_symbols = max(1, math.ceil(len(symbols) * 0.80))
+    required_symbols = max(1, int(len(symbols) * 0.80))
     fresh_data_gate_open = bool(len(eligible_symbols) >= required_symbols)
     discovery_requested = bool(allow_discovery)
     sharded_discovery_required = bool(
@@ -232,6 +244,11 @@ def main() -> int:
         action="store_true",
         help="Override the safety guard for a deliberately small/unsharded research run.",
     )
+    parser.add_argument(
+        "--force-discovery",
+        action="store_true",
+        help="Force discovery on first run (bypass fresh-data gate).",
+    )
     args = parser.parse_args()
     run_refresh(
         symbols=args.symbols,
@@ -242,6 +259,7 @@ def main() -> int:
         enable_auto_promotion=args.enable_auto_promotion,
         apply_monitored_slices=args.apply_monitored_slices,
         allow_unsharded_discovery=args.allow_unsharded_discovery,
+        force_discovery=args.force_discovery,
     )
     return 0
 

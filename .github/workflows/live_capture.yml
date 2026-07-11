@@ -2,6 +2,11 @@ name: Live Capture
 
 on:
   workflow_dispatch:
+    inputs:
+      live_symbols:
+        description: "Symbols to capture (space-separated)"
+        required: false
+        default: "SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC"
 
 concurrency:
   group: live-capture
@@ -13,29 +18,27 @@ defaults:
 
 env:
   PYTHONPATH: src
-  LIVE_SYMBOLS: "SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC"
 
 jobs:
   live-capture:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-
     permissions:
       contents: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: "3.13"
+          python-version: "3.12"  # FIXED: 3.13 -> 3.12
           cache: "pip"
           cache-dependency-path: requirements.lock
 
       - name: Restore warehouse cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: localdata/warehouse
           key: research-warehouse-v4-${{ runner.os }}-live-capture-${{ github.run_id }}
@@ -43,7 +46,7 @@ jobs:
             research-warehouse-v4-${{ runner.os }}-
 
       - name: Restore operational paper state cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             localdata/trade_journal.csv
@@ -83,9 +86,11 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          python scripts/capture_bars.py --symbols $LIVE_SYMBOLS --timeframes 1d --days 1825
-          python scripts/capture_bars.py --symbols $LIVE_SYMBOLS --timeframes 15m --days 365
-          python scripts/build_warehouse.py --symbols $LIVE_SYMBOLS
+          # FIXED: Use workflow input for symbols
+          SYMBOLS="${{ inputs.live_symbols }}"
+          python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 1825
+          python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
+          python scripts/build_warehouse.py --symbols $SYMBOLS
 
       - name: Run paper trade using repository monitor list
         env:
@@ -130,7 +135,7 @@ jobs:
 
       - name: Save operational paper state cache
         if: ${{ steps.ops_state.outputs.has_state == 'true' }}
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             localdata/trade_journal.csv
@@ -175,8 +180,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           git commit -m "chore(live-capture): update workflow output [skip ci]"
+          # FIXED: Use force-with-lease for bot commits
           for attempt in 1 2 3; do
-            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push && break
+            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 3 ]; then
               echo "::error::git push failed after 3 attempts"
               exit 1

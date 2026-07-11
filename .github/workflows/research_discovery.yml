@@ -41,7 +41,8 @@ jobs:
       shard_ids: ${{ steps.plan.outputs.shard_ids }}
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
       - name: Build shard plan
         id: plan
         env:
@@ -53,7 +54,12 @@ jobs:
           import re
 
           symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
+          # FIXED: Validate file exists and has correct structure
+          if not os.path.exists("localdata/explicit_allowlist.json"):
+              raise SystemExit("localdata/explicit_allowlist.json not found")
           payload = json.load(open("localdata/explicit_allowlist.json"))
+          if "all" not in payload or not isinstance(payload["all"], list):
+              raise SystemExit("explicit_allowlist.json missing '.all' array")
           symbols = [str(s).strip().upper() for s in payload["all"]]
           invalid = [s for s in symbols if not symbol_pattern.fullmatch(s)]
           if invalid:
@@ -83,24 +89,29 @@ jobs:
     timeout-minutes: 360
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: "3.13"
+          python-version: "3.12"  # FIXED: 3.13 -> 3.12 for wheel compatibility
           cache: "pip"
           cache-dependency-path: requirements.lock
+
       - name: Restore research warehouse cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: localdata/warehouse
+          # FIXED: Use consistent key format with research_refresh.yml
           key: research-warehouse-v4-${{ runner.os }}-research-discovery-${{ github.run_id }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
       - name: Run isolated shard
         env:
           SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
@@ -112,8 +123,9 @@ jobs:
             --output-dir "localdata/research/shards/${{ matrix.shard_id }}" \
             --condition-on USO TLT \
             --bin-mode rolling
+
       - name: Upload shard output
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: research-shard-${{ matrix.shard_id }}
           path: localdata/research/shards/${{ matrix.shard_id }}
@@ -128,33 +140,39 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: "3.13"
+          python-version: "3.12"  # FIXED: 3.13 -> 3.12
           cache: "pip"
           cache-dependency-path: requirements.lock
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
       - name: Download all completed shards
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           pattern: research-shard-*
           path: localdata/research/shards
           merge-multiple: false
+
       - name: Write expected shard manifest
         env:
           SHARD_IDS: ${{ needs.plan.outputs.shard_ids }}
         run: echo '{"shard_ids":'"$SHARD_IDS"'}' > localdata/research/expected_shards.json
+
       - name: Merge complete shard set
         run: |
           python scripts/research_merge.py \
             --shard-root localdata/research/shards \
             --expected-shards localdata/research/expected_shards.json \
             --output-dir localdata/research/merged
+
       - name: Commit merged research outputs only
         run: |
           git config user.name "github-actions[bot]"
@@ -165,8 +183,9 @@ jobs:
             exit 0
           fi
           git commit -m "chore(research-discovery): merge complete shard set [skip ci]"
+          # FIXED: Use force-with-lease for bot commits
           for attempt in 1 2 3; do
-            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push && break
+            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 3 ]; then
               echo "::error::git push failed after 3 attempts"
               exit 1

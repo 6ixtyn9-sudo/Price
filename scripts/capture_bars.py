@@ -35,21 +35,23 @@ def _needs_resample_and_propagate(symbol: str, tf: str, source: str) -> bool:
 def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365, use_universal_router=True):
     symbols = target_symbols or SYMBOLS
     timeframes = target_timeframes or ["1d", "15m", "1h"]
-    
+
     end_dt = datetime.now(timezone.utc)
-    
+
     print(f"🌐 Universe tier: {UNIVERSE_TIER} | symbols in batch: {len(symbols)} | max_cap: {UNIVERSE_MAX_SYMBOLS}")
     print(f"   Sample: {symbols[:10]}")
-    
+
     # ── Phase 1: Fetch all timeframes ────────────────────────────────────
     # With yfinance as primary for equity 1d + 1h, the 1h bars come directly
     # (no 15m→1h resample). The 1h timeframe is no longer skipped.
+    failed = []  # Track failures for proper exit code
+
     for symbol in symbols:
         symbol = symbol.upper() if "/" not in symbol else symbol  # keep BTC/USD case
         for tf in timeframes:
             if tf not in ["1d", "15m", "1h"]:
                 continue
-                
+
             # Determine source for logging using the same routing rules as
             # fetch_universal_bars.
             if use_universal_router:
@@ -64,7 +66,7 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
                 source = "alpaca"
 
             print(f"\n🚀 Ingesting {symbol} ({tf}) from {source.upper()}...")
-            
+
             existing_df = load_from_warehouse(symbol, tf)
             if not existing_df.empty:
                 latest_ts = pd.to_datetime(existing_df['bar_ts_utc'].max())
@@ -73,11 +75,11 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
             else:
                 start_dt = end_dt - timedelta(days=days_lookback)
                 print(f"No existing data. Querying history of {days_lookback} days (starting at {start_dt}).")
-                
+
             if start_dt >= end_dt:
                 print("Warehouse is already up to date.")
                 continue
-                
+
             try:
                 if use_universal_router:
                     df = fetch_universal_bars(symbol, tf, start_dt, end_dt)
@@ -91,14 +93,15 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
                         df = fetch_tiingo_daily_bars(symbol, start_dt, end_dt)
                     else:
                         df = fetch_alpaca_bars(symbol, tf, start_dt, end_dt)
-                    
+
                 if df is not None and not df.empty:
                     print(f"Successfully fetched {len(df)} bars.")
                     save_to_warehouse(df)
                 else:
                     print("No new bars returned.")
             except Exception as e:
-                print(f"❌ Error: {e}")
+                print(f"❌ Error fetching {symbol} ({tf}) from {source}: {e}")
+                failed.append((symbol, tf, source, str(e)))
 
     # ── Phase 2: Post-process 15m-derived data ───────────────────────────
     # Only symbols that still use Alpaca 15m need the resample+propagate step.
@@ -125,6 +128,7 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
                 resample_15m_to_1h(symbol)
             except Exception as re:
                 print(f"  1h resample warning: {re}")
+                failed.append((symbol, "1h_resample", "resample_15m_to_1h", str(re)))
 
         # Propagate adjustment factors for equities from daily bars.
         # yfinance 1h already has adj columns; only 15m and Alpaca-derived
@@ -135,8 +139,16 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
                 propagate_adjustment_factors(symbol)
             except Exception as pe:
                 print(f"  adj propagate warning: {pe}")
+                failed.append((symbol, "adj_propagate", "propagate_adjustment_factors", str(pe)))
 
+    # Summary and exit code
     print("\n✅ Capture complete.")
+    if failed:
+        print(f"\n⚠️  {len(failed)} operation(s) failed:")
+        for sym, tf, op, err in failed:
+            print(f"  - {sym} ({tf}) [{op}]: {err}")
+        print("Exiting with code 1 due to failures.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
@@ -148,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-symbols", type=int, help="Cap universe size")
     parser.add_argument("--universe", action="store_true", help="Print resolved universe and exit")
     parser.add_argument("--no-router", action="store_true", help="Disable universal router (legacy)")
-    
+
     args = parser.parse_args()
 
     # tier override
@@ -173,7 +185,7 @@ if __name__ == "__main__":
             print(f"  ... +{len(syms)-50} more")
         import sys
         sys.exit(0)
-    
+
     capture_bars(
         target_symbols=target_symbols,
         target_timeframes=args.timeframes,
