@@ -471,12 +471,23 @@ def fetch_yfinance_hourly_bars(symbol: str, start_dt: datetime, end_dt: datetime
     15m→1h resample window (365 days), with no API key, no rate limits, and
     no resample step needed. Bars are already in RTH (yfinance only returns
     regular trading hours for equities).
+
+    If start_dt is more than 730 days in the past, the request is clamped
+    to 730 days so yfinance returns what it can instead of failing entirely.
+    The caller (Alpaca fallback) will cover the older gap.
     """
     try:
         import yfinance as yf
     except ImportError:
         print("yfinance not installed, skipping Yahoo Finance hourly fetch.")
         return pd.DataFrame()
+
+    # yfinance 1h only covers the last 730 days. Clamp the start date so
+    # the request succeeds instead of failing with "1h data not available".
+    _YFINANCE_1H_MAX_DAYS = 730
+    min_start = end_dt - timedelta(days=_YFINANCE_1H_MAX_DAYS)
+    if start_dt < min_start:
+        start_dt = min_start
 
     ticker_symbol = symbol.upper().replace("/", "-")
     start_str = start_dt.strftime("%Y-%m-%d")
