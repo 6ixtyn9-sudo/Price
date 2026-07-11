@@ -18,7 +18,7 @@ on:
       allow_discovery:
         description: "Allow discovery to run if gate opens"
         required: false
-        default: "true"
+        default: true
         type: boolean
       condition_on:
         description: "Conditioning symbols (space-separated)"
