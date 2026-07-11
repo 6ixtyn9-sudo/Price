@@ -4296,3 +4296,91 @@ The eventual policy is fully automatic promotion and demotion after the producti
 Fully automatic operation still means fail-closed operation. The controller must suspend new entries when data is stale, reconciliation is incomplete, artifacts are malformed, risk limits cannot be evaluated, or protective stops cannot be verified. A decaying or uncertain candidate is suspended rather than silently traded.
 
 This controller build is an engineering foundation, not a claim that the current candidates are profitable. The paper evidence gate remains unchanged: at least five confirmed completed round-trips per monitored slice, multi-month out-of-sample survival, empirical execution-cost measurement, and adverse-regime drawdown review before real-money activation.
+2026-07-11 — YAML Remediation + Weekly Gate + Daily Regime Tracks (Code Truth Update)
+This section brings HANDOVER in line with current code after a week of CI failures and operator request for fresher discovery.
+
+1) YAML Failures Root Cause and Fix
+Broken files: .github/workflows/live_capture.yml, research_discovery.yml, research_refresh.yml
+
+Failures:
+
+python-version: "3.12" cache: "pip" concatenated on same line (missing newline) — line 36 live_capture, 96/145 discovery, 55 refresh
+timeout-minutes: 300 permissions: same line (research_refresh:42)
+if: always() runs-on: same line (research_refresh:226)
+~15 lines inside run: | blocks indented 20 spaces instead of 10 (SYMBOLS=, SEED_TAG=, jq, printf, mapfile, for attempt) causing YAML to think block ended
+Fix: fdb365d fix(ci): repair YAML concatenation and run-block indent — split concatenated keys, normalize run blocks to 10 spaces, validated with yaml.safe_load.
+
+Runtime follow-on failures after YAML fix:
+
+cache-maintenance job: missing checkout → gh cache list failed fatal: not a git repository. Fixed b39a34c + dcec51b adds checkout.
+cache-maintenance: gh cache delete --confirm → unknown flag: --confirm per gh CLI help. Fixed c39140e removes --confirm and dedupes --repo flag.
+Divergent branches due to GitHub Actions auto-committing localdata/research/*.json while operator fixed YAML locally → resolved via 17093c6 Merge branch 'main'.
+Current state as of 13628b1: all 3 workflows parse OK, live_capture hourly green, research_refresh daily green.
+
+2) Data Source Truth — yfinance Primary
+src/price/data_sources.py now:
+
+Equity daily: yfinance → Tiingo → Alpaca raw (last resort) — yfinance primary, no API key, no rate limits, raw+adjusted
+Equity 1h: yfinance → Alpaca 15m resample — yfinance provides up to 730 days 1h, no resample needed, RTH-only
+Equity 15m: Alpaca (yfinance 15m only covers 60 days)
+_YFINANCE_1H_MAX_DAYS = 725 clamped to prevent request rejection
+This makes weekly full-universe discovery free of Alpaca/Tiingo quota, unblocking the operator's request for fresher discovery.
+
+3) Fresh-Data Gate — From 60 Bars / 80% → 5 Bars / 50% Weekly
+Previous doctrine (60-new-daily-bars anti-snooping gate):
+
+min_new_daily_bars = 60, required_symbols = 80% * len(symbols) = ~188
+Discovery runs after 60 new daily bars per symbol across 80% of universe → ~3 months lock
+Intent: prevent same 1255-bar history being miscounted as fresh out-of-sample
+Current code truth (weekly):
+
+scripts/research_refresh.py:106 min_new_daily_bars = 5 # weekly (was 60) = 1 trading week
+required_symbols = len(symbols) * 0.50 # weekly was 0.80 = ~118 symbols
+Workflow input default 60 → 5
+Commit 99b4ae2 feat(research): weekly discovery gate
+Operator explicitly requested: "i wanted it to discover fresh/stale slices everyday so we always trade fresh" — compromise is weekly, not daily, to balance overfitting vs freshness. Daily full discovery would test 360 combinations × 365 days = 131k tests on 99% overlapping data, inflating false positives beyond per-run BH correction.
+
+Gate evaluation from refresh_state.json:
+
+new_daily_bars_since_previous_refresh: 0, eligible: 0/118, fresh_data_gate_open: false, discovery_block_reason: fresh-data gate closed → dispatch-discovery skipped is expected, not failure.
+4) Regime-Specific Tracks as Research-Only — Now Daily
+Previous: research_refresh.py only produced universe_regime_coverage.csv + regime_opportunity_rates.csv daily; regime_stratified_diagnostics_rolling.csv and date_range_diagnostics_rolling.csv only when discovery ran (when gate open).
+
+Current code truth (13628b1):
+
+research_refresh.py now always runs, even when gate closed:
+universe_regime_coverage.csv — bull/bear/neutral counts per symbol/timeframe — daily
+regime_opportunity_rates.csv — observed_signal_bars, matched, risk_blocked, orders_submitted/filled, completed_round_trips, risk_block_rate, order_fill_rate, completion_rate keyed by symbol/timeframe/slice/bin_mode/regime — daily
+regime_stratified_diagnostics_rolling.csv — regime edge per monitored slice (bull vs bear) using bin_mode=rolling, slices_path=monitored_slices.csv, diagnostic_scope=leaderboard-top top_n=50 — now daily, not gated
+date_range_diagnostics_rolling.csv — same for date windows (6m/12m freshness) — now daily
+opportunity_roi_insights.csv — NEW: joins risk_blocked_opportunities * valid_mean_ret_costadj = potential_missed_pnl to surface ROI left on table due to risk blocks. Current example: KLAC 1d 2 matched, 2 risk_blocked, 100% block rate.
+This satisfies HANDOVER's "Build regime-specific candidate tracks as research-only outputs and measure opportunity, risk-block, order, fill, and completed-trade rates separately. Do not auto-deploy those tracks."
+
+No orders placed, no monitored_slices.csv modification, automatic_promotion_enabled=false still.
+
+5) P&L Attribution Truth
+scripts/attribute_pnl.py run 2026-07-11:
+
+Completed round-trips: 3 (preliminary, <5 threshold)
+Total realized P&L: $94.66
+XOP 1d stretched_down+downtrend: 1, +4.11%, +$101.60
+XLK 1h cross_USO: 1, +0.23%, +$5.38, 161.2 bps adverse signal-to-fill
+XLK 1d cross_TLT: 1, -0.53%, -$12.32
+All marked preliminary, <5 round-trips, should not be interpreted as stable.
+Empirical slippage 161bps on XLK 1h vs cost model 5bps slippage + 1.5bps spread — cost realism lever deferred per operating decision.
+
+6) Current Scheduling Truth
+live_capture.yml and research_refresh.yml only workflow_dispatch — no schedule: in YAML — intentional, GitHub scheduler unreliable.
+cron-job.org:
+Live Capture: hourly at :17 Mon-Fri 15:17–23:17 SAST
+Research Refresh: daily at 00:00 SAST
+Research Discovery only triggered by Research Refresh via gh workflow run
+Timeouts: research_refresh and research_discovery 360 min (GitHub max)
+7) Operating Decision Still Paused
+As of this update, operator's pause decision stands:
+
+paper execution only, no live capital, no leverage
+monitored slices unchanged (7 slices), no auto-promotion
+no cost-model recalibration until ≥5 round-trips per slice
+weekly discovery enabled, but automatic promotion still gated
+next ROI lever after evidence accumulates is allocation (correlation-aware), not yet built
