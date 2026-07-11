@@ -82,7 +82,7 @@ jobs:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 36
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -171,6 +171,26 @@ jobs:
             --shard-root localdata/research/shards \
             --expected-shards localdata/research/expected_shards.json \
             --output-dir localdata/research/merged
+
+      - name: Run regime diagnostics on merged top 25 (full validation cycle)
+        run: |
+          python scripts/validate_slices.py \
+            --slices-path localdata/research/merged/candidate_leaderboard_merged.csv \
+            --regime-stratified-diagnostics \
+            --regime-stratified-output localdata/research/merged/regime_stratified_diagnostics_merged.csv \
+            --diagnostic-scope leaderboard-top \
+            --top-n 25 \
+            --bin-mode rolling
+
+      - name: Run date-range diagnostics on merged top 25 (full validation cycle)
+        run: |
+          python scripts/validate_slices.py \
+            --slices-path localdata/research/merged/candidate_leaderboard_merged.csv \
+            --date-range-diagnostics \
+            --date-range-diagnostics-output localdata/research/merged/date_range_diagnostics_merged.csv \
+            --diagnostic-scope leaderboard-top \
+            --top-n 25 \
+            --bin-mode rolling
 
       - name: Commit merged research outputs only
         run: |
