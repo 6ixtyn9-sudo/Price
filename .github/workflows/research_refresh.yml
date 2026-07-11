@@ -48,6 +48,32 @@ jobs:
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
 
+      - name: Seed warehouse from release if cache is empty
+        if: steps.warehouse.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
+            echo "Warehouse already populated from cache restore. Skipping seed."
+            exit 0
+          fi
+          echo "Cache miss — attempting to seed warehouse from release asset..."
+          SEED_TAG="warehouse-v1"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern 'warehouse-research.tar.gz' \
+              --dir /tmp \
+              --clobber
+            tar xzf /tmp/warehouse-research.tar.gz -C localdata
+            rm /tmp/warehouse-research.tar.gz
+            PARQUET_COUNT=$(find localdata/warehouse -name '*.parquet' | wc -l)
+            echo "Seeded warehouse: $PARQUET_COUNT parquet partitions."
+          else
+            echo "No warehouse release found ($SEED_TAG). Will fetch from APIs."
+          fi
+
       - name: Restore operational paper state cache for telemetry
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
