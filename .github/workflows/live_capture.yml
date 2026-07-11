@@ -180,7 +180,7 @@ jobs:
 
           git commit -m "chore(live-capture): update workflow output [skip ci]"
           for attempt in 1 2 3; do
-            git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 3 ]; then
               echo "::error::git push failed after 3 attempts"
               exit 1
