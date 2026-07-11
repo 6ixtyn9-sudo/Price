@@ -134,8 +134,9 @@ jobs:
             symbols = payload["all"]
             if len(symbols) > MAX_SCHEDULED_SYMBOLS:
                 raise SystemExit(
-                    f"Refusing scheduled research refresh for {len(symbols)} symbols "
-                    f"> cap {MAX_SCHEDULED_SYMBOLS}; split/approve this expansion explicitly."
+                    "Refusing scheduled research refresh for %d symbols "
+                    "> cap %d; split/approve this expansion explicitly."
+                    % (len(symbols), MAX_SCHEDULED_SYMBOLS)
                 )
             for symbol in symbols:
                 print(symbol)
