@@ -117,25 +117,28 @@ if __name__ == "__main__":
                 print(f"Date {row['date']}: Alpaca Vol = {int(row['alpaca_volume']):,}, Tiingo Vol = {int(row['tiingo_volume']):,}, IEX Share = {ratio:.2f}%")
 
 
-def test_resolve_universal_source_uses_tiingo_for_all_equity_daily(monkeypatch):
-    """The daily equity router was broadened from core ETFs to all equities;
+def test_resolve_universal_source_uses_yfinance_for_equity_daily(monkeypatch):
+    """yfinance is the primary source for equity daily and hourly bars;
     the source-label helper must match that path so workflow logs don't lie."""
     import price.data_sources as ds
 
     monkeypatch.setattr(ds, "TIINGO_API_KEY", "dummy-token")
 
-    assert ds.resolve_universal_source("XOP", "1d") == "tiingo"
-    assert ds.resolve_universal_source("KLAC", "1d") == "tiingo"
+    assert ds.resolve_universal_source("XOP", "1d") == "yfinance"
+    assert ds.resolve_universal_source("KLAC", "1d") == "yfinance"
+    assert ds.resolve_universal_source("XOP", "1h") == "yfinance"
     assert ds.resolve_universal_source("XOP", "15m") == "alpaca"
     assert ds.resolve_universal_source("BTC/USD", "1d") == "alpaca_crypto"
 
 
-def test_resolve_universal_source_falls_back_without_tiingo_key(monkeypatch):
+def test_resolve_universal_source_yfinance_works_without_tiingo_key(monkeypatch):
+    """yfinance does not require a Tiingo key — it remains primary even when
+    the Tiingo key is absent (Tiingo is only a fallback now)."""
     import price.data_sources as ds
 
     monkeypatch.setattr(ds, "TIINGO_API_KEY", None)
 
-    assert ds.resolve_universal_source("XOP", "1d") == "alpaca"
+    assert ds.resolve_universal_source("XOP", "1d") == "yfinance"
 
 
 def test_capture_bars_logs_universal_router_source(monkeypatch, capsys):
