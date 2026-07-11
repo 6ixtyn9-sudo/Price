@@ -119,7 +119,7 @@ def run_refresh(
     current = _coverage(symbols, ("1d",))  # Only 1d for gate
     new_bars = _new_daily_bars(previous, current)
 
-        if force_discovery:
+    if force_discovery:
         eligible_symbols = symbols
     else:
         eligible_symbols = _eligible_discovery_symbols(
