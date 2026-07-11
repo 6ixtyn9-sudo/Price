@@ -482,9 +482,10 @@ def fetch_yfinance_hourly_bars(symbol: str, start_dt: datetime, end_dt: datetime
         print("yfinance not installed, skipping Yahoo Finance hourly fetch.")
         return pd.DataFrame()
 
-    # yfinance 1h only covers the last 730 days. Clamp the start date so
-    # the request succeeds instead of failing with "1h data not available".
-    _YFINANCE_1H_MAX_DAYS = 730
+    # yfinance 1h only covers the last 730 days, but the boundary is strict —
+    # requesting exactly 730 days sometimes gets rejected. Use 725 as a safe
+    # margin so the request always succeeds.
+    _YFINANCE_1H_MAX_DAYS = 725
     min_start = end_dt - timedelta(days=_YFINANCE_1H_MAX_DAYS)
     if start_dt < min_start:
         start_dt = min_start
