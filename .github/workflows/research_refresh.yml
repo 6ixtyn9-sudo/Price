@@ -115,9 +115,6 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # The allowlist is resolved from explicit_allowlist.json. The
-          # capture client already chunks requests and applies deterministic
-          # 0.35s pacing plus exponential backoff.
           python scripts/capture_bars.py \
             --tier allowlist \
             --timeframes 1d \
@@ -126,22 +123,11 @@ jobs:
             --tier allowlist \
             --timeframes 15m \
             --days 365
-          mapfile -t ACTIVE_SYMBOLS < <(
-            python - <<'PY'
-            import json
-            MAX_SCHEDULED_SYMBOLS = 500
-            payload = json.load(open("localdata/explicit_allowlist.json"))
-            symbols = payload["all"]
-            if len(symbols) > MAX_SCHEDULED_SYMBOLS:
-                raise SystemExit(
-                    "Refusing scheduled research refresh for %d symbols "
-                    "> cap %d; split/approve this expansion explicitly."
-                    % (len(symbols), MAX_SCHEDULED_SYMBOLS)
-                )
-            for symbol in symbols:
-                print(symbol)
-            PY
-          )
+          mapfile -t ACTIVE_SYMBOLS < <(jq -r '.all[]' localdata/explicit_allowlist.json)
+          if [ "${#ACTIVE_SYMBOLS[@]}" -gt 500 ]; then
+            echo "::error::Refusing research refresh: ${#ACTIVE_SYMBOLS[@]} symbols > cap 500"
+            exit 1
+          fi
           python scripts/build_warehouse.py --symbols "${ACTIVE_SYMBOLS[@]}"
 
       - name: Run autonomous research controller
@@ -161,37 +147,22 @@ jobs:
 
       - name: Build research manifest
         run: |
-          python - <<'PY'
-          import json
-          from datetime import datetime, timezone
-          from pathlib import Path
-          state_path = Path("localdata/research/refresh_state.json")
-          state = json.loads(state_path.read_text()) if state_path.exists() else {}
-          state.update({
-              "workflow": "research_refresh",
-              "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-              "orders_placed": False,
-              "monitored_slices_modified": False,
-              "automatic_promotion_enabled": False,
-          })
-          state_path.write_text(json.dumps(state, indent=2) + "\n")
-          PY
+          mkdir -p localdata/research
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+          MERGE='{"workflow":"research_refresh","generated_at_utc":"'"$NOW"'","orders_placed":false,"monitored_slices_modified":false,"automatic_promotion_enabled":false}'
+          if [ -f localdata/research/refresh_state.json ]; then
+            jq '. + '"$MERGE" localdata/research/refresh_state.json > /tmp/_rs.json && mv /tmp/_rs.json localdata/research/refresh_state.json
+          else
+            echo "$MERGE" | jq . > localdata/research/refresh_state.json
+          fi
 
       - name: Compute discovery dispatch gate
         id: dispatch_gate
         run: |
-          should_dispatch=$(python - <<'PY'
-          import json
-          from pathlib import Path
-          state_path = Path("localdata/research/refresh_state.json")
-          state = json.loads(state_path.read_text()) if state_path.exists() else {}
-          print("true" if (
-              state.get("fresh_data_gate_open")
-              and state.get("sharded_discovery_required")
-              and not state.get("discovery_ran")
-          ) else "false")
-          PY
-          )
+          should_dispatch=$(jq -r '
+            if .fresh_data_gate_open == true and .sharded_discovery_required == true and (.discovery_ran // false) != true
+            then "true" else "false" end
+          ' localdata/research/refresh_state.json 2>/dev/null || echo "false")
           echo "should_dispatch=$should_dispatch" >> "$GITHUB_OUTPUT"
           echo "Discovery dispatch gate: $should_dispatch"
 
@@ -240,20 +211,9 @@ jobs:
           CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
         run: |
           gh cache list --limit 100 --json id,key > /tmp/research-caches.json
-          python - <<'PY'
-          import json
-          import os
-          import subprocess
-
-          current = os.environ["CURRENT_CACHE_KEY"]
-          payload = json.load(open("/tmp/research-caches.json"))
-          prefix = "research-warehouse-v4-"
-          for item in payload:
-              key = item.get("key", "")
-              cache_id = item.get("id")
-              if cache_id and key.startswith(prefix) and key != current:
-                  subprocess.run(["gh", "cache", "delete", str(cache_id), "--confirm"], check=True)
-          PY
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
+            gh cache delete "$cache_id" --confirm
+          done
 
   dispatch-discovery:
     needs: research-refresh
