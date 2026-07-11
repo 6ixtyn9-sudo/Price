@@ -245,7 +245,7 @@ jobs:
           gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/research-caches.json
           jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
             if [ -n "$cache_id" ]; then
-              gh cache delete "$cache_id" --confirm --repo "$GITHUB_REPOSITORY"
+              gh cache delete "$cache_id" --confirm --repo "$GITHUB_REPOSITORY" --repo "$GITHUB_REPOSITORY"
             fi
           done
 
