@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import argparse
-from price.config import SYMBOLS, is_futures, is_equity
+from price.config import SYMBOLS, is_futures
 from price.warehouse import resample_15m_to_1h, propagate_adjustment_factors, load_from_warehouse
 
 
