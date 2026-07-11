@@ -1,0 +1,2 @@
+symbol,timeframe,slice_combination,bin_mode,regime,regime_symbol,observed_signal_bars,matched_opportunities,risk_blocked_opportunities,orders_submitted,orders_filled,completed_round_trips,risk_block_rate,order_fill_rate,completion_rate
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,insample,gate_disabled,KLAC,2,2,2,0,0,0,1.0,,
