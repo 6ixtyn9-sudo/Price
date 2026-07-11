@@ -39,7 +39,8 @@ env:
 jobs:
   research-refresh:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300      permissions:
+    timeout-minutes: 300
+    permissions:
       contents: write
     outputs:
       should_dispatch_discovery: ${{ steps.dispatch_gate.outputs.should_dispatch }}
@@ -52,12 +53,14 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: "3.12"            cache: "pip"
+          python-version: "3.12"
+          cache: "pip"
           cache-dependency-path: requirements.lock
 
       - name: Compute research warehouse cache key
         id: cache_key
-                run: echo "key=research-warehouse-v4-${{ runner.os }}-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "key=research-warehouse-v4-${{ runner.os }}-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore latest research warehouse cache
         id: warehouse
@@ -65,7 +68,7 @@ jobs:
         with:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
-                    restore-keys: |
+          restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
 
       - name: Seed warehouse from release if cache is empty
@@ -78,7 +81,7 @@ jobs:
             exit 0
           fi
           echo "Cache miss — attempting to seed warehouse from release asset..."
-                    SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
           if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             mkdir -p localdata
             gh release download "$SEED_TAG" \
@@ -135,7 +138,7 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-                    python scripts/capture_bars.py \
+          python scripts/capture_bars.py \
             --tier allowlist \
             --timeframes ${{ inputs.timeframes }} \
             --days 1825
@@ -143,7 +146,7 @@ jobs:
             --tier allowlist \
             --timeframes 15m \
             --days 365
-                    if ! jq -e '.all | type == "array"' localdata/explicit_allowlist.json >/dev/null; then
+          if ! jq -e '.all | type == "array"' localdata/explicit_allowlist.json >/dev/null; then
             echo "::error::localdata/explicit_allowlist.json missing or invalid .all array"
             exit 1
           fi
@@ -152,8 +155,8 @@ jobs:
             echo "::error::Refusing research refresh: ${#ACTIVE_SYMBOLS[@]} symbols > cap 500"
             exit 1
           fi
-                    printf '%s\n' "${ACTIVE_SYMBOLS[@]}" > localdata/active_symbols.txt
-                    python scripts/build_warehouse.py --symbols "${ACTIVE_SYMBOLS[@]}"
+          printf '%s\n' "${ACTIVE_SYMBOLS[@]}" > localdata/active_symbols.txt
+          python scripts/build_warehouse.py --symbols "${ACTIVE_SYMBOLS[@]}"
 
       - name: Run autonomous research controller
         env:
@@ -161,8 +164,8 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-                    mapfile -t ACTIVE_SYMBOLS < localdata/active_symbols.txt
-                    python scripts/research_refresh.py \
+          mapfile -t ACTIVE_SYMBOLS < localdata/active_symbols.txt
+          python scripts/research_refresh.py \
             --symbols "${ACTIVE_SYMBOLS[@]}" \
             --timeframes ${{ inputs.timeframes }} \
             --min-new-daily-bars ${{ inputs.min_new_daily_bars }} \
@@ -212,7 +215,7 @@ jobs:
             exit 0
           fi
           git commit -m "chore(research-refresh): update full-universe research state [skip ci]"
-                    for attempt in 1 2 3; do
+          for attempt in 1 2 3; do
             git pull --rebase origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 3 ]; then
               echo "::error::git push failed after 3 attempts"
@@ -223,7 +226,8 @@ jobs:
 
   cache-maintenance:
     needs: research-refresh
-    if: always()      runs-on: ubuntu-24.04
+    if: always()
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -234,9 +238,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
         run: |
-                    sleep 5
+          sleep 5
           gh cache list --limit 100 --json id,key > /tmp/research-caches.json
-                    jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
             if [ -n "$cache_id" ]; then
               gh cache delete "$cache_id" --confirm
             fi
