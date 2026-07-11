@@ -42,14 +42,15 @@ def resolve_universal_source(symbol: str, timeframe_str: str) -> str:
 
     This is intentionally kept next to the router so operator/logging code
     cannot drift from the actual data path. It is a first-attempt source: the
-    yfinance daily route may still fall back to Tiingo or Alpaca if yfinance fails.
+    yfinance daily/hourly route may still fall back to Tiingo or Alpaca if
+    yfinance fails.
     """
     sym = symbol.upper()
     if is_crypto(sym):
         return "alpaca_crypto"
     if is_futures(sym):
         return "alpaca_futures"
-    if timeframe_str == "1d" and is_equity(sym):
+    if timeframe_str in ("1d", "1h") and is_equity(sym):
         return "yfinance"
     return "alpaca"
 
@@ -372,44 +373,17 @@ def fetch_crypto_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
     return _normalize_alpaca_df(merged_df, symbol, timeframe_str, source="alpaca_crypto")
 
 
-def fetch_yfinance_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
-    """Fetch adjusted + raw daily bars from Yahoo Finance via yfinance.
+def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str) -> pd.DataFrame:
+    """Shared normalizer for yfinance daily and hourly equity bars.
 
-    Uses auto_adjust=False so we get both raw (Close) and adjusted (Adj Close)
-    prices, plus Dividends and Stock Splits — the same schema as Tiingo.
-    No API key required. Rate limit ~2000 req/hr (effectively unlimited for
-    a 236-symbol daily capture).
+    Handles the common column rename, adj_factor computation, and canonical
+    reordering.  Both daily and hourly yfinance output share the same schema
+    when auto_adjust=False: raw OHLCV + Adj Close + Dividends + Stock Splits.
     """
-    try:
-        import yfinance as yf
-    except ImportError:
-        print("yfinance not installed, skipping Yahoo Finance fallback.")
-        return pd.DataFrame()
-
-    # yfinance expects bare ticker symbols (no slashes or dashes for equities).
-    # Crypto pairs like BTC-USD are handled by fetch_crypto_bars, not here.
-    ticker_symbol = symbol.upper().replace("/", "-")
-    start_str = start_dt.strftime("%Y-%m-%d")
-    end_str = end_dt.strftime("%Y-%m-%d")
-
-    try:
-        ticker = yf.Ticker(ticker_symbol)
-        # auto_adjust=False: raw OHLCV + Adj Close column + Dividends + Stock Splits
-        df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
-        if df is None or df.empty:
-            return pd.DataFrame()
-    except Exception as e:
-        print(f"yfinance failed for {symbol}: {e}")
-        return pd.DataFrame()
-
-    # Map yfinance columns to canonical warehouse schema.
-    # With auto_adjust=False:
-    #   Open/High/Low/Close = RAW (unadjusted)
-    #   Adj Close = ADJUSTED close
-    #   adj_factor = Adj Close / Close
     df = df.reset_index()
     df = df.rename(columns={
         "Date": "bar_ts_utc",
+        "Datetime": "bar_ts_utc",
         "Open": "open_raw",
         "High": "high_raw",
         "Low": "low_raw",
@@ -420,13 +394,21 @@ def fetch_yfinance_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime)
         "Stock Splits": "split_factor",
     })
 
+    # Drop columns yfinance may include but we don't use (e.g. Capital Gains)
+    drop_cols = [c for c in df.columns if c not in {
+        "bar_ts_utc", "open_raw", "high_raw", "low_raw", "close_raw",
+        "volume_raw", "close_adj", "dividend_cash", "split_factor",
+    }]
+    if drop_cols:
+        df = df.drop(columns=drop_cols, errors="ignore")
+
     # Compute adj_factor and derive adjusted OHLCV from it
     df["adj_factor"] = df["close_adj"] / df["close_raw"]
     df["open_adj"] = df["open_raw"] * df["adj_factor"]
     df["high_adj"] = df["high_raw"] * df["adj_factor"]
     df["low_adj"] = df["low_raw"] * df["adj_factor"]
     df["symbol"] = symbol.upper()
-    df["timeframe"] = "1d"
+    df["timeframe"] = timeframe_str
     df["source"] = "yfinance"
 
     # Ensure bar_ts_utc is timezone-aware UTC
@@ -445,8 +427,73 @@ def fetch_yfinance_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime)
             df[col] = pd.NA
     df = df[[c for c in canonical if c in df.columns]]
 
-    print(f"yfinance: fetched {len(df)} adjusted daily bars for {symbol}")
     return df
+
+
+def fetch_yfinance_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Fetch adjusted + raw daily bars from Yahoo Finance via yfinance.
+
+    Uses auto_adjust=False so we get both raw (Close) and adjusted (Adj Close)
+    prices, plus Dividends and Stock Splits — the same schema as Tiingo.
+    No API key required. Rate limit ~2000 req/hr (effectively unlimited for
+    a 236-symbol daily capture).
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("yfinance not installed, skipping Yahoo Finance fallback.")
+        return pd.DataFrame()
+
+    ticker_symbol = symbol.upper().replace("/", "-")
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
+        if df is None or df.empty:
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"yfinance failed for {symbol}: {e}")
+        return pd.DataFrame()
+
+    result = _build_yfinance_canonical(df, symbol, "1d")
+    print(f"yfinance: fetched {len(result)} adjusted daily bars for {symbol}")
+    return result
+
+
+def fetch_yfinance_hourly_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Fetch adjusted + raw hourly bars from Yahoo Finance via yfinance.
+
+    Uses auto_adjust=False to get raw + Adj Close (same schema as daily).
+    yfinance provides up to 730 days of 1h history — 2× the current Alpaca
+    15m→1h resample window (365 days), with no API key, no rate limits, and
+    no resample step needed. Bars are already in RTH (yfinance only returns
+    regular trading hours for equities).
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("yfinance not installed, skipping Yahoo Finance hourly fetch.")
+        return pd.DataFrame()
+
+    ticker_symbol = symbol.upper().replace("/", "-")
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        df = ticker.history(start=start_str, end=end_str, interval="1h", auto_adjust=False)
+        if df is None or df.empty:
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"yfinance 1h failed for {symbol}: {e}")
+        return pd.DataFrame()
+
+    result = _build_yfinance_canonical(df, symbol, "1h")
+    # yfinance hourly bars are already RTH-only for equities; no need to filter.
+    print(f"yfinance: fetched {len(result)} adjusted hourly bars for {symbol}")
+    return result
 
 
 def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
@@ -454,8 +501,9 @@ def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, en
     Router that picks the correct data source based on asset class:
       - Crypto: Alpaca CryptoHistoricalDataClient
       - Futures: Alpaca (may be empty on free tier)
-      - Equity daily: Tiingo → yfinance (adjusted fallback) → Alpaca (last resort)
-      - Equity intraday: Alpaca
+      - Equity daily: yfinance → Tiingo → Alpaca raw (last resort)
+      - Equity 1h:   yfinance → Alpaca 15m resample (fallback)
+      - Equity 15m:  Alpaca (yfinance 15m only covers 60 days)
     """
     sym = symbol.upper()
     # Crypto first
@@ -482,5 +530,14 @@ def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, en
             print(f"yfinance failed for {sym}, no Tiingo key, falling back to raw Alpaca daily (unadjusted!)")
         return fetch_alpaca_bars(sym, timeframe_str, start_dt, end_dt)
 
-    # Default: Alpaca for everything else (intraday, no-Tiingo-key daily)
+    # Equity 1h: yfinance primary (up to 730 days, no resample needed).
+    # Alpaca 1h as fallback (IEX feed, resampled from 15m in capture_bars path).
+    if timeframe_str == "1h" and is_equity(sym):
+        yf_df = fetch_yfinance_hourly_bars(sym, start_dt, end_dt)
+        if not yf_df.empty:
+            return yf_df
+        print(f"yfinance 1h failed for {sym}, falling back to Alpaca 1h.")
+        return fetch_alpaca_bars(sym, timeframe_str, start_dt, end_dt)
+
+    # Default: Alpaca for everything else (equity 15m, no-key daily)
     return fetch_alpaca_bars(sym, timeframe_str, start_dt, end_dt)

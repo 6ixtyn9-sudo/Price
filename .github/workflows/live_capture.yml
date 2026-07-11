@@ -38,9 +38,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: localdata/warehouse
-          key: warehouse-v3-${{ runner.os }}-${{ github.run_id }}
+          key: research-warehouse-v4-${{ runner.os }}-live-capture-${{ github.run_id }}
           restore-keys: |
-            warehouse-v3-${{ runner.os }}-
+            research-warehouse-v4-${{ runner.os }}-
 
       - name: Restore operational paper state cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

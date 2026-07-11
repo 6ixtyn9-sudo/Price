@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 from price.config import SYMBOLS
-from price.discovery import discover_market_slices
+from price.discovery import discover_market_slices, precompute_binned_frame, clear_cond_bins_cache
 
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 
@@ -43,6 +43,10 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
 
     all_slices = []
     
+    # Clear the cross-asset conditioning cache at the start of each timeframe
+    # so stale frames from a different timeframe don't leak.
+    clear_cond_bins_cache()
+    
     for symbol in symbols:
         symbol = symbol.upper()
         if cond_symbols and symbol in [s.upper() for s in cond_symbols]:
@@ -50,10 +54,37 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
             continue
         print(f"\n[search] Exploring state slices for {symbol} ({timeframe})...")
         
+        # KEY OPTIMISATION: compute features + bins + cross-asset states ONCE
+        # per (symbol, timeframe), then reuse the cached frame for every
+        # combination.  Previously each combination triggered a full
+        # load→feature→bin→attach cycle — 13× redundant compute per symbol.
+        # Cross-asset conditioning frames (USO, TLT) are cached globally
+        # across all primary symbols, so they're loaded+featured+binned
+        # exactly once, not once per primary symbol.
+        try:
+            binned_frame = precompute_binned_frame(
+                symbol, timeframe,
+                cond_symbols=cond_symbols,
+                bin_mode=bin_mode,
+            )
+        except Exception as e:
+            print(f"  [error] Failed to precompute features for {symbol}: {e}")
+            continue
+        
+        if binned_frame.empty:
+            print(f"  No data for {symbol} ({timeframe}); skipping.")
+            continue
+        
         for fields in combinations:
             print(f"Testing state-space combination: {fields}")
             try:
-                slices = discover_market_slices(symbol, timeframe, fields, min_samples=min_samples, cond_symbols=cond_symbols, bin_mode=bin_mode)
+                slices = discover_market_slices(
+                    symbol, timeframe, fields,
+                    min_samples=min_samples,
+                    cond_symbols=cond_symbols,
+                    bin_mode=bin_mode,
+                    _precomputed_binned=binned_frame,
+                )
                 if not slices.empty:
                     print(f"  -> Discovered {len(slices)} slices satisfying sample floor.")
                     all_slices.append(slices)

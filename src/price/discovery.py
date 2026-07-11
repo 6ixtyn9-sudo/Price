@@ -341,27 +341,46 @@ def discover_market_slices(
     min_samples: int = 15,
     cond_symbols: List[str] = None,
     bin_mode: str = "insample",
+    _precomputed_binned: pd.DataFrame = None,
 ) -> pd.DataFrame:
-    df_raw = load_from_warehouse(symbol, timeframe)
-    if df_raw.empty:
-        print(f"No warehouse data found for {symbol} ({timeframe}).")
-        return pd.DataFrame()
+    """Discover market-state slices for a single symbol/timeframe.
 
-    df_feat = compute_price_features(df_raw)
-    df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
+    Parameters
+    ----------
+    _precomputed_binned : pd.DataFrame, optional
+        A pre-computed, binned, cross-asset-attached frame. When provided,
+        the expensive load→feature→bin→attach pipeline is skipped entirely.
+        This is the critical performance optimisation for discovery loops
+        that test multiple field combinations on the same (symbol, timeframe):
+        features and bins are computed ONCE, then each combination is tested
+        against the cached frame.  Without this, a 13-combination search on
+        236 symbols triggers 3,068 feature computations (each loading the
+        full warehouse partition and recomputing all rolling features).
+        With this, it triggers 236.
+    """
+    if _precomputed_binned is not None:
+        df_binned = _precomputed_binned
+    else:
+        df_raw = load_from_warehouse(symbol, timeframe)
+        if df_raw.empty:
+            print(f"No warehouse data found for {symbol} ({timeframe}).")
+            return pd.DataFrame()
 
-    # Optional cross-asset conditioning: attach each conditioning symbol's
-    # most-recent-completed state (backward as-of, no look-ahead) as
-    # cross_<SYM>_state_* columns so slice_fields can reference them.
-    if cond_symbols:
-        for cond_sym in cond_symbols:
-            df_binned = attach_cross_asset_states(
-                df_binned,
-                cond_sym,
-                timeframe,
-                ["state_ext", "state_slope", "state_vol"],
-                bin_mode=bin_mode,
-            )
+        df_feat = compute_price_features(df_raw)
+        df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
+
+        # Optional cross-asset conditioning: attach each conditioning symbol's
+        # most-recent-completed state (backward as-of, no look-ahead) as
+        # cross_<SYM>_state_* columns so slice_fields can reference them.
+        if cond_symbols:
+            for cond_sym in cond_symbols:
+                df_binned = attach_cross_asset_states(
+                    df_binned,
+                    cond_sym,
+                    timeframe,
+                    ["state_ext", "state_slope", "state_vol"],
+                    bin_mode=bin_mode,
+                )
 
     eval_df = df_binned[df_binned['label_eligible']]
     if eval_df.empty:
@@ -477,3 +496,75 @@ def attach_cross_asset_states(primary_df, cond_symbol, timeframe, fields, bin_mo
     cond_feat = compute_price_features(cond_raw)
     cond_binned = apply_state_bins(cond_feat, bin_mode=bin_mode)
     return align_cross_asset_states(primary_df, cond_binned, cond_symbol, fields)
+
+
+# ── Pre-computation helpers for discovery loops ─────────────────────────
+#
+# When discover_slices.py iterates over many field combinations per symbol,
+# it was previously calling discover_market_slices() once per combination,
+# each time reloading from warehouse + recomputing features + bins + cross-asset
+# states.  For 236 symbols × 13 combinations that's 3,068 redundant
+# feature computations.  These helpers let the caller build the binned frame
+# ONCE per (symbol, timeframe) and pass it to discover_market_slices via
+# the _precomputed_binned parameter, cutting compute by ~12×.
+
+# Module-level cache for conditioning symbols' binned state frames.
+# Keyed by (cond_symbol, timeframe, bin_mode).  Populated by
+# precompute_binned_frame and reused across all primary symbols that share
+# the same conditioning symbols (e.g. USO and TLT are loaded once, not 236×).
+_COND_BINS_CACHE: Dict[tuple, pd.DataFrame] = {}
+
+
+def precompute_binned_frame(
+    symbol: str,
+    timeframe: str,
+    cond_symbols: List[str] = None,
+    bin_mode: str = "insample",
+    rolling_min_periods: int = DEFAULT_ROLLING_MIN_PERIODS,
+) -> pd.DataFrame:
+    """Load, feature-compute, bin, and attach cross-asset states for one
+    (symbol, timeframe) pair.  Returns the fully-prepared frame that
+    discover_market_slices can accept via _precomputed_binned.
+
+    Cross-asset conditioning frames are cached globally so USO/TLT are
+    loaded+featured+binned only once per (symbol, timeframe, bin_mode)
+    regardless of how many primary symbols reference them.
+    """
+    df_raw = load_from_warehouse(symbol, timeframe)
+    if df_raw.empty:
+        return pd.DataFrame()
+
+    df_feat = compute_price_features(df_raw)
+    df_binned = apply_state_bins(df_feat, bin_mode=bin_mode,
+                                  rolling_min_periods=rolling_min_periods)
+
+    if cond_symbols:
+        for cond_sym in cond_symbols:
+            cache_key = (cond_sym.upper(), timeframe, bin_mode)
+            if cache_key not in _COND_BINS_CACHE:
+                cond_raw = load_from_warehouse(cond_sym, timeframe)
+                if cond_raw.empty:
+                    _COND_BINS_CACHE[cache_key] = pd.DataFrame()
+                else:
+                    cond_feat = compute_price_features(cond_raw)
+                    cond_binned = apply_state_bins(
+                        cond_feat, bin_mode=bin_mode,
+                        rolling_min_periods=rolling_min_periods,
+                    )
+                    _COND_BINS_CACHE[cache_key] = cond_binned
+
+            cond_binned = _COND_BINS_CACHE[cache_key]
+            if not cond_binned.empty:
+                df_binned = align_cross_asset_states(
+                    df_binned, cond_binned, cond_sym,
+                    ["state_ext", "state_slope", "state_vol"],
+                )
+
+    return df_binned
+
+
+def clear_cond_bins_cache():
+    """Clear the cross-asset conditioning cache.  Call between research
+    shards or when switching timeframes to avoid stale cache entries.
+    """
+    _COND_BINS_CACHE.clear()

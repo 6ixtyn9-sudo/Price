@@ -231,8 +231,8 @@ TIMEFRAMES = ["15m", "1h", "1d"]
 
 PRIMARY_SOURCES = {
     "15m": "alpaca",
-    "1h": "resampled",
-    "1d": "tiingo"
+    "1h": "yfinance",     # yfinance primary for equity 1h; Alpaca resample fallback
+    "1d": "yfinance",     # yfinance primary for equity daily; Tiingo fallback
 }
 
 ALPACA_RATE_LIMIT = 200

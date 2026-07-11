@@ -17,6 +17,21 @@ from price.data_sources import (
 )
 from price.warehouse import save_to_warehouse, load_from_warehouse, resample_15m_to_1h, propagate_adjustment_factors
 
+
+def _needs_resample_and_propagate(symbol: str, tf: str, source: str) -> bool:
+    """Return True if this (symbol, tf, source) combo still needs the old
+    15m→1h resample + adjustment-propagation pipeline.
+
+    yfinance 1h provides adjusted bars directly (no resample, no propagation).
+    Alpaca 1h / 15m are raw-only and still need the resample + propagate step.
+    """
+    if tf != "15m":
+        return False
+    # If the source is alpaca (the old path), 15m needs resample+propagate.
+    # yfinance doesn't serve 15m beyond 60 days, so 15m is always Alpaca.
+    return True
+
+
 def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365, use_universal_router=True):
     symbols = target_symbols or SYMBOLS
     timeframes = target_timeframes or ["1d", "15m", "1h"]
@@ -26,18 +41,17 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
     print(f"🌐 Universe tier: {UNIVERSE_TIER} | symbols in batch: {len(symbols)} | max_cap: {UNIVERSE_MAX_SYMBOLS}")
     print(f"   Sample: {symbols[:10]}")
     
+    # ── Phase 1: Fetch all timeframes ────────────────────────────────────
+    # With yfinance as primary for equity 1d + 1h, the 1h bars come directly
+    # (no 15m→1h resample). The 1h timeframe is no longer skipped.
     for symbol in symbols:
         symbol = symbol.upper() if "/" not in symbol else symbol  # keep BTC/USD case
         for tf in timeframes:
-            if tf == "1h":
-                # 1h is resampled locally from 15m – skip direct fetch
-                continue
             if tf not in ["1d", "15m", "1h"]:
                 continue
                 
             # Determine source for logging using the same routing rules as
-            # fetch_universal_bars. This is a first-attempt label: Tiingo daily
-            # equities may still fall back to Alpaca if Tiingo raises.
+            # fetch_universal_bars.
             if use_universal_router:
                 source = resolve_universal_source(symbol, tf)
             elif is_crypto(symbol):
@@ -81,22 +95,49 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
                 if df is not None and not df.empty:
                     print(f"Successfully fetched {len(df)} bars.")
                     save_to_warehouse(df)
-                    # resample 1h if we just ingested 15m
-                    if tf == "15m":
-                        try:
-                            resample_15m_to_1h(symbol)
-                        except Exception as re:
-                            print(f"  1h resample warning: {re}")
-                        # propagate adjustment factors for equities only
-                        if is_equity(symbol) and not is_futures(symbol) and "/" not in symbol:
-                            try:
-                                propagate_adjustment_factors(symbol)
-                            except Exception as pe:
-                                print(f"  adj propagate warning: {pe}")
                 else:
                     print("No new bars returned.")
             except Exception as e:
                 print(f"❌ Error: {e}")
+
+    # ── Phase 2: Post-process 15m-derived data ───────────────────────────
+    # Only symbols that still use Alpaca 15m need the resample+propagate step.
+    # yfinance 1h bars arrive with adj columns already filled — no propagation.
+    # This eliminates the double-save cascade where capture_bars and
+    # build_warehouse both did resample+propagate.
+    for symbol in symbols:
+        symbol = symbol.upper() if "/" not in symbol else symbol
+
+        # Check if 15m data exists (Alpaca path) and needs 1h resample
+        df_15m = load_from_warehouse(symbol, "15m")
+        if df_15m.empty:
+            continue
+
+        # Resample 15m→1h only if there's no yfinance 1h data already
+        df_1h = load_from_warehouse(symbol, "1h")
+        needs_resample = df_1h.empty or (
+            "source" in df_1h.columns
+            and df_1h["source"].astype(str).str.contains("alpaca").any()
+        )
+        if needs_resample:
+            print(f"\n🔧 Resampling 15m→1h for {symbol} (Alpaca 1h path)...")
+            try:
+                resample_15m_to_1h(symbol)
+            except Exception as re:
+                print(f"  1h resample warning: {re}")
+
+        # Propagate adjustment factors for equities from daily bars.
+        # yfinance 1h already has adj columns; only 15m and Alpaca-derived
+        # 1h need propagation.
+        if is_equity(symbol) and not is_futures(symbol) and "/" not in symbol:
+            print(f"🔧 Propagating adjustment factors for {symbol}...")
+            try:
+                propagate_adjustment_factors(symbol)
+            except Exception as pe:
+                print(f"  adj propagate warning: {pe}")
+
+    print("\n✅ Capture complete.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest historical OHLCV bar data - universal Alpaca free-tier")
