@@ -103,7 +103,7 @@ def _write_state(payload: dict) -> None:
 def run_refresh(
     symbols=None,
     timeframes=("1d", "1h", "15m"),
-    min_new_daily_bars: int = 60,
+    min_new_daily_bars: int = 5, # weekly
     allow_discovery: bool = False,
     condition_symbols=("USO", "TLT"),
     enable_auto_promotion: bool = False,
@@ -129,7 +129,7 @@ def run_refresh(
     # The first refresh establishes the coverage baseline. On later refreshes,
     # require fresh evidence for at least 80% of the active universe before
     # re-running the full grid; otherwise discovery remains skipped.
-    required_symbols = max(1, int(len(symbols) * 0.80))
+    required_symbols = max(1, int(len(symbols) * 0.50)) # weekly was 80%
     fresh_data_gate_open = bool(len(eligible_symbols) >= required_symbols)
     discovery_requested = bool(allow_discovery)
     sharded_discovery_required = bool(

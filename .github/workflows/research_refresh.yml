@@ -14,7 +14,7 @@ on:
       min_new_daily_bars:
         description: "Minimum new daily bars per symbol for discovery gate"
         required: false
-        default: "60"
+        default: "5"
       allow_discovery:
         description: "Allow discovery to run if gate opens"
         required: false
