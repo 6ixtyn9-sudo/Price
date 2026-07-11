@@ -211,8 +211,8 @@ jobs:
           CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
         run: |
           gh cache list --limit 100 --json id,key > /tmp/research-caches.json
-          jq -r '.[] | select(.key | startswith("research-warehouse-v4-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
-            gh cache delete "$cache_id" --confirm
+          for cache_id in $(jq -r '.[] | select(.key | startswith("research-warehouse-v4-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json); do
+            gh cache delete "$cache_id" || true
           done
 
   dispatch-discovery:
