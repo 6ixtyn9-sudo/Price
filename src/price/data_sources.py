@@ -10,6 +10,33 @@ from alpaca.data.enums import DataFeed
 
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY, is_crypto, is_futures, is_equity
 
+# ---------------------------------------------------------------------------
+# Rate-limit pacing for external APIs
+# ---------------------------------------------------------------------------
+_TIINGO_MIN_INTERVAL = 1.5   # seconds between Tiingo requests (≈40/min, under 50/min free tier)
+_ALPACA_MIN_INTERVAL = 0.35  # seconds between Alpaca requests (≈170/min, under 200/min cap)
+_tiingo_last_request = 0.0
+_alpaca_last_request = 0.0
+
+
+def _tiingo_pace():
+    """Sleep just long enough to keep Tiingo requests under the free-tier rate limit."""
+    global _tiingo_last_request
+    elapsed = time.monotonic() - _tiingo_last_request
+    if elapsed < _TIINGO_MIN_INTERVAL:
+        time.sleep(_TIINGO_MIN_INTERVAL - elapsed)
+    _tiingo_last_request = time.monotonic()
+
+
+def _alpaca_pace():
+    """Sleep just long enough to keep Alpaca requests under the 200/min cap."""
+    global _alpaca_last_request
+    elapsed = time.monotonic() - _alpaca_last_request
+    if elapsed < _ALPACA_MIN_INTERVAL:
+        time.sleep(_ALPACA_MIN_INTERVAL - elapsed)
+    _alpaca_last_request = time.monotonic()
+
+
 def resolve_universal_source(symbol: str, timeframe_str: str) -> str:
     """Return the source label fetch_universal_bars will try first.
 
@@ -135,8 +162,7 @@ def fetch_alpaca_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
     
     # Use 90-day chunks to prevent huge queries and easy retry caching
     for chunk_start, chunk_end in get_date_chunks(start_dt, end_dt, 90):
-        # Respect basic rate limit (roughly 3 calls per second is very safe for 200/min cap)
-        time.sleep(0.35)
+        _alpaca_pace()
         
         request_params = StockBarsRequest(
             symbol_or_symbols=symbol,
@@ -196,10 +222,28 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
     data = None
     while retries > 0:
         try:
+            # Tiingo free tier: ~50 requests/min. 1.5s floor keeps us under
+            # that even in tight loops (236 symbols back-to-back).
+            _tiingo_pace()
             response = requests.get(url, params=params, headers=headers, timeout=15)
             response.raise_for_status()
             data = response.json()
             break
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 429:
+                retries -= 1
+                backoff = 30 * (4 - retries)  # 30s, 60s, 90s
+                print(f"Tiingo 429 for {symbol}, backing off {backoff}s ({retries} retries left)...")
+                time.sleep(backoff)
+                if retries == 0:
+                    print(f"Failed to fetch Tiingo daily bars for {symbol}: {e}")
+                    raise e
+            else:
+                retries -= 1
+                time.sleep(2)
+                if retries == 0:
+                    print(f"Failed to fetch Tiingo daily bars for {symbol}: {e}")
+                    raise e
         except Exception as e:
             retries -= 1
             time.sleep(2)
@@ -292,7 +336,7 @@ def fetch_crypto_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_d
 
     all_dfs = []
     for chunk_start, chunk_end in get_date_chunks(start_dt, end_dt, 90):
-        time.sleep(0.35)
+        _alpaca_pace()
         request_params = CryptoBarsRequest(
             symbol_or_symbols=symbol,
             timeframe=tf,
