@@ -13,7 +13,7 @@ from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY, is_c
 # ---------------------------------------------------------------------------
 # Rate-limit pacing for external APIs
 # ---------------------------------------------------------------------------
-_TIINGO_MIN_INTERVAL = 1.5   # seconds between Tiingo requests (≈40/min, under 50/min free tier)
+_TIINGO_MIN_INTERVAL = 2.0   # seconds between Tiingo requests (≈30/min, conservatively under free tier)
 _ALPACA_MIN_INTERVAL = 0.35  # seconds between Alpaca requests (≈170/min, under 200/min cap)
 _tiingo_last_request = 0.0
 _alpaca_last_request = 0.0
@@ -232,7 +232,7 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
         except requests.exceptions.HTTPError as e:
             if response.status_code == 429:
                 retries -= 1
-                backoff = 30 * (4 - retries)  # 30s, 60s, 90s
+                backoff = 60 * (4 - retries)  # 60s, 120s, 180s
                 print(f"Tiingo 429 for {symbol}, backing off {backoff}s ({retries} retries left)...")
                 time.sleep(backoff)
                 if retries == 0:
