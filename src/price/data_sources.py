@@ -410,6 +410,7 @@ def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str)
     df["symbol"] = symbol.upper()
     df["timeframe"] = timeframe_str
     df["source"] = "yfinance"
+    df["ingested_at_utc"] = datetime.now(timezone.utc)
 
     # Ensure bar_ts_utc is timezone-aware UTC
     if "bar_ts_utc" in df.columns:
@@ -417,7 +418,7 @@ def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str)
 
     # Reorder to canonical columns
     canonical = [
-        "symbol", "timeframe", "bar_ts_utc", "source",
+        "symbol", "timeframe", "bar_ts_utc", "source", "ingested_at_utc",
         "open_raw", "high_raw", "low_raw", "close_raw", "volume_raw",
         "open_adj", "high_adj", "low_adj", "close_adj",
         "adj_factor", "split_factor", "dividend_cash",

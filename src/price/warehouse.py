@@ -83,6 +83,12 @@ def save_to_warehouse(df: pd.DataFrame):
         
         if not existing_df.empty:
             combined = pd.concat([existing_df, group]).reset_index(drop=True)
+            # ingested_at_utc may be missing from old yfinance partitions;
+            # fill with a sentinel so sort doesn't KeyError.
+            if "ingested_at_utc" not in combined.columns:
+                combined["ingested_at_utc"] = pd.NaT
+            else:
+                combined["ingested_at_utc"] = combined["ingested_at_utc"].fillna(pd.NaT)
             combined = combined.sort_values("ingested_at_utc")
             combined = combined.drop_duplicates(subset=["bar_ts_utc"], keep="last")
             final_df = combined.sort_values("bar_ts_utc").reset_index(drop=True)
