@@ -170,7 +170,9 @@ jobs:
           python scripts/research_merge.py \
             --shard-root localdata/research/shards \
             --expected-shards localdata/research/expected_shards.json \
-            --output-dir localdata/research/merged
+            --output-dir localdata/research/merged \
+            --promote-proposals \
+            --apply-monitored-slices
 
       - name: Run regime diagnostics on merged top 25 (full validation cycle)
         run: |
@@ -196,12 +198,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add localdata/research/merged localdata/research/expected_shards.json
+          git add localdata/research/merged localdata/research/expected_shards.json localdata/monitored_slices.csv
           if git diff --cached --quiet; then
             echo "No merged research changes to commit."
             exit 0
           fi
-          git commit -m "chore(research-discovery): merge complete shard set [skip ci]"
+          git commit -m "chore(research-discovery): merge complete shard set and update monitored book [skip ci]"
           for attempt in 1 2 3; do
             git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 3 ]; then
