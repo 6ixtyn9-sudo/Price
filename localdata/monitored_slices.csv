@@ -1,8 +1,23 @@
-symbol,timeframe,slice_combination,side,source_note
-XLB,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_1d_tiingo_clean_survivor_wf_strong_rank_1
-XOP,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_1d_tiingo_clean_survivor_wf_strong_rank_2
-KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_1d_tiingo_clean_survivor_wf_strong_rank_3
-SPY,1h,state_session=afternoon + state_slope=downtrend,long,deployed_existing
-XLK,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,deployed_existing
-XLK,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,deployed_existing
-XLF,1d,state_ext=stretched_up + state_slope=flat,long,deployed_existing_and_corrected_tier1
+symbol,timeframe,slice_combination,side,source_note,bin_mode
+ABBV,1d,cross_USO_state_slope=flat + cross_TLT_state_slope=uptrend + state_ext=stretched_up,long,auto_promoted_strict_candidate,insample
+AFRM,1h,state_session=afternoon + state_ext=neutral + state_slope=flat,short,auto_promoted_strict_candidate,insample
+AVGO,1h,cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up,long,auto_promoted_strict_candidate,insample
+AXP,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_strict_candidate,insample
+CBOE,1d,cross_USO_state_slope=flat + state_ext=neutral,long,auto_promoted_strict_candidate,insample
+DE,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,long,auto_promoted_strict_candidate,insample
+ETN,1d,state_ext=neutral + state_vol=mid_vol,long,auto_promoted_strict_candidate,insample
+ETN,1h,cross_TLT_state_slope=flat + state_slope=downtrend,long,auto_promoted_strict_candidate,insample
+GD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_strict_candidate,insample
+HOOD,1d,cross_TLT_state_ext=stretched_up + state_ext=stretched_up,long,auto_promoted_strict_candidate,insample
+HUM,1h,cross_USO_state_ext=neutral + state_ext=stretched_up,long,auto_promoted_strict_candidate,insample
+HUM,1h,cross_TLT_state_slope=flat + state_ext=stretched_up,long,auto_promoted_strict_candidate,insample
+HUM,1h,cross_USO_state_slope=downtrend + cross_TLT_state_slope=flat + state_ext=stretched_up,long,auto_promoted_strict_candidate,insample
+IVV,1d,state_ext=neutral + state_slope=uptrend,long,auto_promoted_strict_candidate,insample
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_strict_candidate,insample
+MRVL,1h,cross_TLT_state_slope=flat + state_slope=downtrend,long,auto_promoted_strict_candidate,insample
+PSX,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,insample
+PSX,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,insample
+SCHW,1d,cross_USO_state_slope=downtrend + state_slope=uptrend,long,auto_promoted_strict_candidate,insample
+SHOP,1d,cross_USO_state_slope=flat + state_ext=stretched_down,long,auto_promoted_strict_candidate,insample
+VLO,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,insample
+XLE,1h,state_session=afternoon + state_slope=flat,long,auto_promoted_strict_candidate,insample
