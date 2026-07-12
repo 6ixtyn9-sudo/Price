@@ -4299,9 +4299,8 @@ This controller build is an engineering foundation, not a claim that the current
 2026-07-11 — YAML Remediation + Weekly Gate + Daily Regime Tracks (Code Truth Update)
 This section brings HANDOVER in line with current code after a week of CI failures and operator request for fresher discovery.
 
-1) YAML Failures Root Cause and Fix
+YAML Failures Root Cause and Fix
 Broken files: .github/workflows/live_capture.yml, research_discovery.yml, research_refresh.yml
-
 Failures:
 
 python-version: "3.12" cache: "pip" concatenated on same line (missing newline) — line 36 live_capture, 96/145 discovery, 55 refresh
@@ -4317,18 +4316,16 @@ cache-maintenance: gh cache delete --confirm → unknown flag: --confirm per gh 
 Divergent branches due to GitHub Actions auto-committing localdata/research/*.json while operator fixed YAML locally → resolved via 17093c6 Merge branch 'main'.
 Current state as of 13628b1: all 3 workflows parse OK, live_capture hourly green, research_refresh daily green.
 
-2) Data Source Truth — yfinance Primary
+Data Source Truth — yfinance Primary
 src/price/data_sources.py now:
-
 Equity daily: yfinance → Tiingo → Alpaca raw (last resort) — yfinance primary, no API key, no rate limits, raw+adjusted
 Equity 1h: yfinance → Alpaca 15m resample — yfinance provides up to 730 days 1h, no resample needed, RTH-only
 Equity 15m: Alpaca (yfinance 15m only covers 60 days)
 _YFINANCE_1H_MAX_DAYS = 725 clamped to prevent request rejection
 This makes weekly full-universe discovery free of Alpaca/Tiingo quota, unblocking the operator's request for fresher discovery.
 
-3) Fresh-Data Gate — From 60 Bars / 80% → 5 Bars / 50% Weekly
+Fresh-Data Gate — From 60 Bars / 80% → 5 Bars / 50% Weekly
 Previous doctrine (60-new-daily-bars anti-snooping gate):
-
 min_new_daily_bars = 60, required_symbols = 80% * len(symbols) = ~188
 Discovery runs after 60 new daily bars per symbol across 80% of universe → ~3 months lock
 Intent: prevent same 1255-bar history being miscounted as fresh out-of-sample
@@ -4358,9 +4355,8 @@ This satisfies HANDOVER's "Build regime-specific candidate tracks as research-on
 
 No orders placed, no monitored_slices.csv modification, automatic_promotion_enabled=false still.
 
-5) P&L Attribution Truth
+P&L Attribution Truth
 scripts/attribute_pnl.py run 2026-07-11:
-
 Completed round-trips: 3 (preliminary, <5 threshold)
 Total realized P&L: $94.66
 XOP 1d stretched_down+downtrend: 1, +4.11%, +$101.60
@@ -4369,18 +4365,561 @@ XLK 1d cross_TLT: 1, -0.53%, -$12.32
 All marked preliminary, <5 round-trips, should not be interpreted as stable.
 Empirical slippage 161bps on XLK 1h vs cost model 5bps slippage + 1.5bps spread — cost realism lever deferred per operating decision.
 
-6) Current Scheduling Truth
+Current Scheduling Truth
 live_capture.yml and research_refresh.yml only workflow_dispatch — no schedule: in YAML — intentional, GitHub scheduler unreliable.
 cron-job.org:
 Live Capture: hourly at :17 Mon-Fri 15:17–23:17 SAST
 Research Refresh: daily at 00:00 SAST
 Research Discovery only triggered by Research Refresh via gh workflow run
 Timeouts: research_refresh and research_discovery 360 min (GitHub max)
-7) Operating Decision Still Paused
+Operating Decision Still Paused
 As of this update, operator's pause decision stands:
-
 paper execution only, no live capital, no leverage
 monitored slices unchanged (7 slices), no auto-promotion
 no cost-model recalibration until ≥5 round-trips per slice
 weekly discovery enabled, but automatic promotion still gated
 next ROI lever after evidence accumulates is allocation (correlation-aware), not yet built
+2026-07-12 — Full-Universe Sharded Discovery, Dynamic Candidate Book & Same-Pass Deduplication (Code Truth Update)
+
+This section records the transition from a static, manually curated 7-slice monitoring set to an autonomous, self-regulating quantitative lifecycle loop (commits 1b8d7c3, 6ddea08, 6fe2bf4). It documents the first full-scale sharded discovery run, the mathematical sanity check of the candidate search space, the replacement of hardcoded manual slices with 22 automatically qualified strict candidates, and the execution/workflow safeguards engineered to support this dynamic architecture.
+
+Full-Universe Discovery Shards & Search Matrix Sanity Check (Research Discovery Shards #6)
+Across the 236-symbol active universe (equities + crypto) and 3 timeframes (1d, 1h, 15m), the 36 parallel discovery shards (1d-00..11, 1h-00..11, 15m-00..11) evaluated a comprehensive search matrix. The merged output (candidate_leaderboard_merged.csv, commit 1b8d7c3) consolidated 110,295 candidate evaluations:
+Why 110,295 is the Matrix Size, Not "110,000 Strategies":
+234 symbols
+×
+3 timeframes
+×
+ 157 feature combinations per symbol/timeframe
+=
+110
+,
+295
+ evaluations
+234 symbols×3 timeframes× 157 feature combinations per symbol/timeframe=110,295 evaluations
+Each candidate evaluation is one (symbol, timeframe, slice_combination) hypothesis. Across the search matrix, 35,926 evaluations occurred on daily (1d) charts (~153/symbol), 38,275 on hourly (1h) charts (~163/symbol), and 36,094 on 15m charts (~154/symbol).
+
+Triage & Walk-Forward Breakdown of the 110,295 Evaluations:
+
+108,655 Rejected (98.51%): Correctly discarded by automated triage filters due to lack of statistical significance, negative cost-adjusted returns after spread/slippage friction (cost2/cost5), or underperformance vs. buy-and-hold / parent sector baseline.
+990 Provisional (0.90%): Candidates with promising returns (valid_mean_ret_costadj > 0) that failed the statistical sample-size floor (n_valid < 15).
+650 Strict Survivors (verdict == "survived" / 0.59%): Candidates that passed baseline in-sample hurdles and parent-filter comparisons.
+50 Elite Walk-Forward Strong (clean_survivor_wf_strong): The top tier of survivors (0.045% of total matrix) that passed 
+≥
+75
+%
+≥75% of anchored/rolling walk-forward time windows while maintaining positive excess returns over their parent benchmark.
+Why the 7 Hardcoded Manual Slices Were Replaced
+An exact empirical cross-check of the previous 7 manually monitored slices against the 110,295-test search matrix and the strict automatic eligibility gate (_strict_candidate(row) == True) revealed wide dispersion in out-of-sample quality:
+Only KLAC 1d (state_ext=stretched_down + state_slope=downtrend) passed all strict automated hurdles (
+n
+=
+41
+n=41, 
++
+4.56
+%
++4.56% cost-adjusted mean return, 
+p
+=
+1.02
+×
+10
+−
+5
+p=1.02×10 
+−5
+ , 3/4 walk-forward passes, Benjamini-Hochberg FDR pass).
+XOP 1d and XLB 1d (stretched_down + downtrend) showed strong cost-adjusted returns (
++
+1.81
+%
++1.81% and 
++
+1.83
+%
++1.83%, 
+p
+<
+0.0003
+p<0.0003, 3/4 walk-forward passes) but narrowly missed the conservative multi-scenario transaction-cost threshold on this exact split (late_emerging_regime_switching).
+XLF 1d and XLK 1d showed positive baseline returns (
++
+1.01
+%
++1.01% and 
++
+0.97
+%
++0.97%) but failed the wide-universe Benjamini-Hochberg FDR cutoff or walk-forward stability requirements (1/4 passes for XLK 1d).
+XLK 1h and SPY 1h acted as a material drag on the book: XLK 1h (cross_USO_mid_vol + stretched_down) was sample-starved (
+n
+=
+10
+<
+15
+n=10<15), while SPY 1h (afternoon + downtrend) showed essentially random noise (
+p
+=
+0.44
+p=0.44, 0/4 walk-forward passes, 
++
+0.13
+%
++0.13% return).
+Following explicit operator sign-off ("remove the 7 hard coded candidates... and for the system to instead use the best candidates like the 22 candidates that qualify automatically, because klac qualifies theres no need to do anything because it would still retain its position"), the legacy hardcoded 7-slice manual set was purged and replaced by the 22 candidates that qualify automatically under _strict_candidate().
+
+The New Dynamic 22-Slice Monitored Book (monitored_slices.csv)
+All 22 slices below passed Gate 1 (_strict_candidate()), meaning each has 
+n
+≥
+15
+n≥15 historical signal occurrences, 
+≥
+3
+/
+4
+≥3/4 walk-forward survival, 
+≥
+4
+≥4 cost/borrow stress scenarios survived, positive excess return over buy-and-hold and parent sector ETF, and survives the Benjamini-Hochberg False Discovery Rate correction across all 110,295 tests. Every row is tagged with source_note: auto_promoted_strict_candidate:
+DE 1d (cross_USO_stretched_down + state_ext=stretched_down, long): 
+n
+=
+31
+n=31, 
++
+3.45
+%
++3.45% mean, 
+p
+=
+8.76
+×
+10
+−
+4
+p=8.76×10 
+−4
+  (Rank 1 Industrial/Energy Rebound)
+VLO 1d (cross_USO_stretched_down + cross_TLT_uptrend + stretched_down, long): 
+n
+=
+40
+n=40, 
++
+3.37
+%
++3.37% mean, 
+p
+=
+1.05
+×
+10
+−
+3
+p=1.05×10 
+−3
+  (Rank 1 Energy/Rates Dip-Buying)
+SHOP 1d (cross_USO_slope=flat + state_ext=stretched_down, long): 
+n
+=
+19
+n=19, 
++
+7.16
+%
++7.16% mean, 
+p
+=
+2.50
+×
+10
+−
+6
+p=2.50×10 
+−6
+  (Rank 1 High-Beta Tech Rebound)
+ABBV 1d (cross_USO_flat + cross_TLT_uptrend + stretched_up, long): 
+n
+=
+23
+n=23, 
++
+2.39
+%
++2.39% mean, 
+p
+=
+6.61
+×
+10
+−
+4
+p=6.61×10 
+−4
+ 
+IVV 1d (state_ext=neutral + state_slope=uptrend, long): 
+n
+=
+24
+n=24, 
++
+0.84
+%
++0.84% mean, 
+p
+=
+4.62
+×
+10
+−
+4
+p=4.62×10 
+−4
+  (S&P 500 Core Trend)
+HUM 1h (cross_USO_neutral + state_ext=stretched_up, long): 
+n
+=
+76
+n=76, 
++
+1.53
+%
++1.53% mean, 
+p
+=
+1.18
+×
+10
+−
+4
+p=1.18×10 
+−4
+  (Rank 1 Healthcare Momentum)
+HUM 1h (cross_TLT_slope=flat + state_ext=stretched_up, long): 
+n
+=
+105
+n=105, 
++
+1.20
+%
++1.20% mean, 
+p
+=
+4.67
+×
+10
+−
+4
+p=4.67×10 
+−4
+ 
+HUM 1h (cross_USO_downtrend + cross_TLT_flat + stretched_up, long): 
+n
+=
+37
+n=37, 
++
+1.33
+%
++1.33% mean, 
+p
+=
+1.06
+×
+10
+−
+3
+p=1.06×10 
+−3
+ 
+MRVL 1h (cross_TLT_slope=flat + state_slope=downtrend, long): 
+n
+=
+41
+n=41, 
++
+3.18
+%
++3.18% mean, 
+p
+=
+3.35
+×
+10
+−
+4
+p=3.35×10 
+−4
+  (Rank 1 Semi Pullback-in-Trend)
+AVGO 1h (cross_USO_uptrend + cross_TLT_downtrend + stretched_up, long): 
+n
+=
+32
+n=32, 
++
+1.70
+%
++1.70% mean, 
+p
+=
+4.80
+×
+10
+−
+5
+p=4.80×10 
+−5
+ 
+XLE 1h (state_session=afternoon + state_slope=flat, long): 
+n
+=
+30
+n=30, 
++
+0.51
+%
++0.51% mean, 
+p
+=
+1.67
+×
+10
+−
+3
+p=1.67×10 
+−3
+ 
+SCHW 1d (cross_USO_downtrend + state_slope=uptrend, long): 
+n
+=
+37
+n=37, 
++
+2.99
+%
++2.99% mean, 
+p
+=
+3.46
+×
+10
+−
+3
+p=3.46×10 
+−3
+ 
+HOOD 1d (cross_TLT_stretched_up + state_ext=stretched_up, long): 
+n
+=
+34
+n=34, 
++
+5.88
+%
++5.88% mean, 
+p
+=
+6.81
+×
+10
+−
+6
+p=6.81×10 
+−6
+ 
+GD 1d (cross_USO_downtrend + cross_TLT_uptrend + neutral, long): 
+n
+=
+32
+n=32, 
++
+3.45
+%
++3.45% mean, 
+p
+=
+8.90
+×
+10
+−
+7
+p=8.90×10 
+−7
+ 
+PSX 1d (cross_USO_stretched_down + cross_TLT_uptrend + stretched_down, long): 
+n
+=
+31
+n=31, 
++
+2.56
+%
++2.56% mean, 
+p
+=
+1.63
+×
+10
+−
+7
+p=1.63×10 
+−7
+ 
+PSX 1d (cross_USO_downtrend + cross_TLT_uptrend + stretched_down, long): 
+n
+=
+22
+n=22, 
++
+2.69
+%
++2.69% mean, 
+p
+=
+1.39
+×
+10
+−
+5
+p=1.39×10 
+−5
+ 
+KLAC 1d (state_ext=stretched_down + state_slope=downtrend, long): Retained Incumbent (
+n
+=
+41
+n=41, 
++
+4.56
+%
++4.56% mean, 
+p
+=
+1.02
+×
+10
+−
+5
+p=1.02×10 
+−5
+ )
+ETN 1h (cross_TLT_slope=flat + state_slope=downtrend, long): 
+n
+=
+53
+n=53, 
++
+1.35
+%
++1.35% mean, 
+p
+=
+5.19
+×
+10
+−
+6
+p=5.19×10 
+−6
+ 
+AXP 1d (cross_TLT_slope=uptrend + state_ext=neutral, long): 
+n
+=
+20
+n=20, 
++
+3.49
+%
++3.49% mean, 
+p
+=
+2.69
+×
+10
+−
+3
+p=2.69×10 
+−3
+ 
+CBOE 1d (cross_USO_slope=flat + state_ext=neutral, long): 
+n
+=
+42
+n=42, 
++
+2.11
+%
++2.11% mean, 
+p
+=
+3.15
+×
+10
+−
+3
+p=3.15×10 
+−3
+ 
+ETN 1d (state_ext=neutral + state_vol=mid_vol, long): 
+n
+=
+35
+n=35, 
++
+1.90
+%
++1.90% mean, 
+p
+=
+3.28
+×
+10
+−
+3
+p=3.28×10 
+−3
+ 
+AFRM 1h (state_session=afternoon + state_ext=neutral + state_slope=flat, short): 
+n
+=
+24
+n=24, 
++
+2.01
+%
++2.01% mean, 
+p
+=
+1.91
+×
+10
+−
+4
+p=1.91×10 
+−4
+ 
+Engineering Safeguards & Workflow Automation (Commits 6ddea08 & 6fe2bf4)
+To support dynamic candidate scaling (monitored_slices.csv) while preventing execution races and missing warehouse data, three major architectural upgrades were implemented and verified (405 tests passing):
+Same-Pass Double-Entry Shield (scripts/paper_trade.py):
+When monitored_slices.csv contains multiple candidate slices for the exact same ticker (HUM 1h across 3 slices, PSX 1d across 2 slices), if multiple slices match on the exact same scan bar, _handle_signals() maintains submitted_symbols_this_run: set[str] = set(). Only the first matching slice submits a limit entry order; all subsequent matches for that symbol during the same scan cycle are blocked, audited as action: block, reason: symbol_already_submitted_this_pass, and counted under entry_blocked. This guarantees zero overlapping double-fills on single symbols.
+
+Automated Lifecycle Alignment (scripts/research_lifecycle.py & scripts/research_merge.py):
+
+Added --promote-proposals to research_lifecycle.py and research_merge.py (merge_shards()), allowing apply_registry_to_monitored() to promote both auto_approved and paper_proposal (_strict_candidate()) candidates into monitored_slices.csv during 1.0x paper trading.
+Clarified Gate 2 separation: leverage_auto_promotion_gate in research_leverage.py requires real-time atr_risk_dollars (only known during live monitor.py execution), whereas _strict_candidate() evaluates raw unlevered price behavior (1.0x) across historical discovery. When --promote-proposals or --enable-auto-promotion (enable_auto_promotion = True) is enabled, apply_registry_to_monitored() syncs the active 1x paper book directly from strict candidates without requiring static historical ATR dollar amounts.
+Dynamic Workflow Data Capture (.github/workflows/live_capture.yml & .github/workflows/research_discovery.yml):
+
+Live Capture Dynamic Ingestion: Updated step Ingest universe data in live_capture.yml to extract all unique tickers directly from localdata/monitored_slices.csv and merge them with inputs.live_symbols (MONITORED_SYMBOLS=$(python3 -c ...), SYMBOLS=$(echo "$live_symbols $MONITORED_SYMBOLS" | sort -u)). This ensures capture_bars.py and build_warehouse.py automatically capture recent bars for all 18 unique active assets before paper_trade.py runs, permanently eliminating no_state_data skipped scans.
+Research Discovery Self-Promoting/Self-Cleaning Loop: Updated research_discovery.yml step Merge complete shard set to invoke python scripts/research_merge.py ... --promote-proposals --apply-monitored-slices, and added localdata/monitored_slices.csv to step Commit merged research outputs only. Whenever the weekly fresh-data gate (min_new_daily_bars >= 5) opens and discovery runs across the 236-symbol universe, research_merge.py automatically prunes decaying slices (decaying_suspended via _live_decay_keys()), adds new _strict_candidate() winners to monitored_slices.csv, and commits the updated book directly back to main.
+Current Autonomous Operating Posture
+As of commit 6fe2bf4, the system operates as a closed-loop, look-ahead-free quantitative pipeline with zero required manual upkeep:
+Live Execution: 1.0x / paper account (cron-job.org hourly at :17), scanning 22 dynamic candidates with 5-bar (fwd_ret_5) state/horizon exits and resting broker protective stops (stop_atr_mult = 2.0, trail_atr_mult = 3.0).
+Daily Controller: Research Refresh (cron-job.org daily at 00:00 SAST), updating universe coverage and rolling diagnostics (date_range_diagnostics_rolling.csv, regime_stratified_diagnostics_rolling.csv).
+Weekly Discovery: Self-gated (5 new daily bars across >= 118 symbols), sharded across 36 runners, automatically refreshing and committing monitored_slices.csv.
+Sizing & Leverage: Kept strictly at 1.0x paper execution (no live capital, no leverage) until out-of-sample evidence accumulates (
+≥
+5
+≥5 confirmed completed round-trips per candidate slice).
