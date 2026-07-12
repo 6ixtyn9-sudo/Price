@@ -461,6 +461,7 @@ def align_cross_asset_states(primary_df, cond_state_df, cond_symbol, fields):
 
     cond = cond_state_df[["bar_ts_utc", *fields]].rename(columns=rename)
     cond = cond.sort_values("bar_ts_utc").reset_index(drop=True)
+    cond["_cond_ts"] = cond["bar_ts_utc"]
 
     primary = primary_df.copy()
     primary["_orig_order"] = range(len(primary))
@@ -473,16 +474,16 @@ def align_cross_asset_states(primary_df, cond_state_df, cond_symbol, fields):
         direction="backward",
     )
 
-    MAX_CROSS_STALENESS = pd.Timedelta(hours=2)
+    MAX_CROSS_STALENESS = pd.Timedelta(days=5)
     stale_mask = (
-        primary_sorted["bar_ts_utc"] - merged["bar_ts_utc"]
+        primary_sorted["bar_ts_utc"] - merged["_cond_ts"]
     ) > MAX_CROSS_STALENESS
     cross_cols = [c for c in merged.columns if c.startswith(f"cross_{cond_symbol.upper()}_")]
     if stale_mask.any() and cross_cols:
         merged.loc[stale_mask, cross_cols] = np.nan
 
     merged = merged.sort_values("_orig_order").reset_index(drop=True)
-    merged = merged.drop(columns=["_orig_order"])
+    merged = merged.drop(columns=["_orig_order", "_cond_ts"], errors="ignore")
     return merged
 
 
