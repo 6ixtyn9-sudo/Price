@@ -237,6 +237,7 @@ def compute_conviction(
     validity = _clip(0.5 + 0.5 * min(1.0, edge.excess_vs_parent / EXCESS_REF), 0.0, 1.0)
 
     conviction = magnitude * robustness * validity
+    conviction = _clip(conviction, KNOWN_CONVICTION_FLOOR, 1.0)
 
     bonus = 1.0
     mt_note = "none"
@@ -246,9 +247,7 @@ def compute_conviction(
     elif edge.search_wide_bh_pass:
         bonus = BONUS_BH
         mt_note = "bh"
-    conviction *= bonus
-
-    conviction = _clip(conviction, KNOWN_CONVICTION_FLOOR, 1.0)
+    conviction = min(conviction * bonus, 1.0)
 
     components = {
         "magnitude": round(magnitude, 5),

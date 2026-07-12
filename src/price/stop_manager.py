@@ -267,7 +267,14 @@ def reconcile_stops(
         if symbol in open_symbols:
             continue
         fill_info = None
-        if not dry_run:
+        api_error = False
+        if not dry_run and states[symbol].stop_order_id:
+            try:
+                raw_fill = get_order_fill_info_fn(states[symbol].stop_order_id)
+                api_error = bool(raw_fill.get("error"))
+            except Exception:
+                api_error = True
+        if not dry_run and not api_error:
             fill_info = _journal_autonomous_stopout(
                 symbol, states[symbol], get_order_fill_info_fn, append_synthetic_exit_fn,
             )
@@ -278,7 +285,7 @@ def reconcile_stops(
             "autonomous_fill_journaled": fill_info is not None,
             "fill_price": fill_info.get("filled_avg_price") if fill_info else None,
         })
-        if not dry_run:
+        if not dry_run and not api_error:
             # Only a confirmed autonomous broker-side stop fill is a
             # stop-out. A position can also disappear because close_position()
             # exited it for a horizon/state-break and canceled the stop; those
@@ -340,6 +347,13 @@ def reconcile_stops(
                     stop_orders = broker_orders[broker_orders["type"] == "stop"]
                     if not stop_orders.empty:
                         adopted = stop_orders.iloc[0]
+                        # Cancel any extra resting stop orders beyond the adopted one.
+                        for _, dup_row in stop_orders.iloc[1:].iterrows():
+                            try:
+                                from price.trading import cancel_order as _co
+                                _co(str(dup_row["order_id"]))
+                            except Exception:  # noqa: BLE001
+                                pass
             except Exception:  # noqa: BLE001 - reconciliation must never crash the scan
                 adopted = None
 
