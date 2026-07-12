@@ -67,3 +67,23 @@ def test_multiple_stop_intents_all_counted():
     ]
     counts = paper_trade._handle_signals(signals, dry_run=False)
     assert counts["stop_actions"] == 3
+
+
+def test_same_pass_duplicate_symbol_blocked(tmp_path, monkeypatch):
+    """If multiple slices match for the exact same symbol on one scan pass,
+    only the first enters; subsequent ones are blocked cleanly."""
+    calls = []
+    monkeypatch.setattr(paper_trade, "submit_entry", lambda *a, **k: calls.append(k.get("symbol")) or {"status": "accepted", "order_id": "123"})
+    monkeypatch.setattr(paper_trade, "record_entry", lambda *a, **k: None)
+
+    signals = [
+        {"kind": "entry_signal", "symbol": "HUM", "timeframe": "1h", "slice_combination": "slice_a", "matched": True, "tradable": True, "suggested_qty": 10, "close_adj": 500.0},
+        {"kind": "entry_signal", "symbol": "HUM", "timeframe": "1h", "slice_combination": "slice_b", "matched": True, "tradable": True, "suggested_qty": 10, "close_adj": 500.0},
+    ]
+    counts = paper_trade._handle_signals(signals, dry_run=False)
+    assert counts["entry_submitted"] == 1
+    assert counts["entry_blocked"] == 1
+    assert len(calls) == 1
+    log = pd.read_csv(paper_trade.AUDIT_LOG_PATH)
+    assert (log["reason"] == "symbol_already_submitted_this_pass").any()
+

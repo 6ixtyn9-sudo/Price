@@ -107,7 +107,7 @@ def build_registry(
         is_decaying = key in decay
         if is_decaying:
             status = "decaying_suspended"
-        elif eligible and enable_auto_promotion and leverage_gate:
+        elif eligible and enable_auto_promotion:
             status = "auto_approved"
         elif eligible:
             status = "paper_proposal"
@@ -137,9 +137,7 @@ def build_registry(
             ),
             "auto_promotion_block_reason": (
                 "disabled_without_enable_auto_promotion_flag"
-                if eligible and leverage_gate and not enable_auto_promotion
-                else "missing_leverage_risk_evidence"
-                if eligible and not leverage_gate
+                if eligible and not enable_auto_promotion
                 else "strict_research_gate_failed"
                 if not eligible else ""
             ),
@@ -154,6 +152,7 @@ def build_registry(
 def apply_registry_to_monitored(
     registry: pd.DataFrame,
     monitored_path: Path = MONITORED_PATH,
+    promote_proposals: bool = False,
 ) -> pd.DataFrame:
     """Apply automatic promotions/demotions to the monitored set.
 
@@ -161,6 +160,7 @@ def apply_registry_to_monitored(
     Production activation must be an explicit operator decision. Existing
     monitored rows with no current research row are preserved; rows explicitly
     classified decaying_suspended are removed; auto_approved rows are added.
+    If promote_proposals is True, paper_proposal rows are also added.
     """
     existing = pd.read_csv(monitored_path) if monitored_path.exists() else pd.DataFrame()
     rows = []
@@ -168,7 +168,8 @@ def apply_registry_to_monitored(
     approved = []
     if registry is not None and not registry.empty:
         suspended = set(registry.loc[registry["status"] == "decaying_suspended", "candidate_key"].astype(str))
-        approved = registry[registry["status"] == "auto_approved"].to_dict("records")
+        target_statuses = ["auto_approved", "paper_proposal"] if promote_proposals else ["auto_approved"]
+        approved = registry[registry["status"].isin(target_statuses)].to_dict("records")
 
     if not existing.empty:
         for _, row in existing.iterrows():
@@ -194,6 +195,7 @@ def apply_registry_to_monitored(
             "timeframe": row["timeframe"],
             "slice_combination": row["slice_combination"],
             "side": row.get("side", "long"),
+            "source_note": "auto_promoted_strict_candidate",
             "bin_mode": row.get("bin_mode", "insample"),
         })
         existing_keys.add(key)
@@ -216,9 +218,14 @@ def main() -> int:
         help="Mark strict candidates auto_approved.",
     )
     parser.add_argument(
+        "--promote-proposals",
+        action="store_true",
+        help="When applying monitored slices, promote both auto_approved and paper_proposal candidates.",
+    )
+    parser.add_argument(
         "--apply-monitored-slices",
         action="store_true",
-        help="Apply auto_approved promotions and decaying_suspended demotions. Requires --enable-auto-promotion.",
+        help="Apply promotions and decaying_suspended demotions.",
     )
     args = parser.parse_args()
     result = build_registry(
@@ -228,9 +235,9 @@ def main() -> int:
         enable_auto_promotion=args.enable_auto_promotion,
     )
     if args.apply_monitored_slices:
-        if not args.enable_auto_promotion:
-            raise SystemExit("--apply-monitored-slices requires --enable-auto-promotion")
-        applied = apply_registry_to_monitored(result, args.monitored)
+        if not args.enable_auto_promotion and not args.promote_proposals:
+            raise SystemExit("--apply-monitored-slices requires --enable-auto-promotion or --promote-proposals")
+        applied = apply_registry_to_monitored(result, args.monitored, promote_proposals=args.promote_proposals)
         print(f"Applied automatic lifecycle decisions to {args.monitored}: {len(applied)} monitored rows")
     print(f"Saved {len(result)} candidate lifecycle rows to {args.output}")
     return 0

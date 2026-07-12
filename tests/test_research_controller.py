@@ -96,7 +96,7 @@ def test_research_refresh_separates_fresh_gate_from_sharded_discovery(monkeypatc
     previous = {f"S{i}": {"count": 100} for i in range(60)}
     current = {f"S{i}": {"count": 160, "last_bar": "2026-07-10"} for i in range(60)}
     monkeypatch.setattr(rr, "_load_state", lambda: {"daily_coverage": previous})
-    monkeypatch.setattr(rr, "_coverage", lambda symbols: current)
+    monkeypatch.setattr(rr, "_coverage", lambda symbols, *args, **kwargs: current)
     monkeypatch.setattr(rr, "build_coverage", lambda symbols, tfs: pd.DataFrame())
     monkeypatch.setattr(rr, "build_regime_opportunity_rates", lambda: pd.DataFrame())
     written = {}

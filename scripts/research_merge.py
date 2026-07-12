@@ -27,6 +27,9 @@ def merge_shards(
     shard_root: Path,
     expected_shard_ids: set[str],
     output_dir: Path,
+    enable_auto_promotion: bool = False,
+    promote_proposals: bool = False,
+    apply_monitored_slices: bool = False,
 ) -> dict:
     manifests = discover_manifests(shard_root)
     found_ids = {str(manifest.get("shard_id")) for _, manifest in manifests}
@@ -87,10 +90,17 @@ def merge_shards(
     leaderboard.to_csv(leaderboard_path, index=False)
 
     registry_path = output_dir / "candidate_registry.csv"
+    registry = pd.DataFrame()
     if not leaderboard.empty:
-        build_registry(leaderboard_path, output_path=registry_path)
+        registry = build_registry(leaderboard_path, output_path=registry_path, enable_auto_promotion=enable_auto_promotion)
     else:
         pd.DataFrame().to_csv(registry_path, index=False)
+
+    monitored_modified = False
+    if apply_monitored_slices and not registry.empty:
+        from research_lifecycle import apply_registry_to_monitored
+        apply_registry_to_monitored(registry, promote_proposals=promote_proposals)
+        monitored_modified = True
 
     manifest = {
         "status": "success",
@@ -99,8 +109,8 @@ def merge_shards(
         "merged_shard_count": len(manifests),
         "discovered_rows": len(discovered),
         "leaderboard_rows": len(leaderboard),
-        "automatic_promotion_applied": False,
-        "monitored_slices_modified": False,
+        "automatic_promotion_applied": bool(enable_auto_promotion or promote_proposals) if monitored_modified else False,
+        "monitored_slices_modified": monitored_modified,
     }
     (output_dir / "merge_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
@@ -112,9 +122,19 @@ def main() -> int:
     parser.add_argument("--expected-shards", type=Path, required=True,
                         help="JSON file containing {\"shard_ids\": [...]}.")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--enable-auto-promotion", action="store_true")
+    parser.add_argument("--promote-proposals", action="store_true")
+    parser.add_argument("--apply-monitored-slices", action="store_true")
     args = parser.parse_args()
     expected = set(json.loads(args.expected_shards.read_text())["shard_ids"])
-    result = merge_shards(args.shard_root, expected, args.output_dir)
+    result = merge_shards(
+        args.shard_root,
+        expected,
+        args.output_dir,
+        enable_auto_promotion=args.enable_auto_promotion,
+        promote_proposals=args.promote_proposals,
+        apply_monitored_slices=args.apply_monitored_slices,
+    )
     print(json.dumps(result, indent=2))
     return 0
 

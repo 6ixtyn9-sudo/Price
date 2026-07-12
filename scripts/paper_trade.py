@@ -94,6 +94,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
         "no_state_data": 0,
         "stop_actions": 0,
     }
+    submitted_symbols_this_run: set[str] = set()
 
     for sig in signals:
         kind = sig.get("kind")
@@ -172,7 +173,18 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 })
                 continue
 
+            if symbol in submitted_symbols_this_run:
+                counts["entry_blocked"] += 1
+                _append_audit({
+                    "action": "block",
+                    "reason": "symbol_already_submitted_this_pass",
+                    "blocked_reasons": f"already submitted an entry order for {symbol} on another matching slice in this scan pass",
+                    **_strip_known_keys(sig, ["action"]),
+                })
+                continue
+
             if dry_run:
+                submitted_symbols_this_run.add(symbol)
                 _append_audit({
                     "action": "would_enter",
                     "reason": "dry_run",
@@ -194,6 +206,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 timeframe=sig.get("timeframe"),
             )
             if result.get("status") != "rejected":
+                submitted_symbols_this_run.add(symbol)
                 record_entry(symbol)
                 counts["entry_submitted"] += 1
             _append_audit({
