@@ -274,6 +274,7 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
         exit_q.sort(key=lambda x: x[0])
 
         pending_entries = list(entry_q)  # FIFO queue
+        pending_residuals: dict = {}
         for exit_ts, exit_row in exit_q:
             exit_qty_remaining = _get(exit_row, "resolved_qty", 0.0)
             if exit_qty_remaining <= 0:
@@ -282,7 +283,7 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
 
             while exit_qty_remaining > 1e-9 and pending_entries:
                 ent_ts, ent_row = pending_entries.pop(0)
-                ent_qty = _get(ent_row, "resolved_qty", 0.0)
+                ent_qty = pending_residuals.pop(id(ent_row), _get(ent_row, "resolved_qty", 0.0))
                 if ent_qty <= 0:
                     continue
                 ent_price = _get(ent_row, "resolved_price", 0.0)
@@ -327,7 +328,9 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
                 ))
 
                 # If entry had leftover qty, push it back (partial fill).
-                if ent_qty - matched_qty > 1e-9:
+                residual = ent_qty - matched_qty
+                if residual > 1e-9:
+                    pending_residuals[id(ent_row)] = residual
                     pending_entries.insert(0, (ent_ts, ent_row))
 
     return round_trips
