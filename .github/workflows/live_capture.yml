@@ -108,7 +108,7 @@ jobs:
             --exit-horizon 5 --max-per-group 2 --stop-atr-mult 2.0 \
             --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.03 --whipsaw-limit 2 \
-            --cost-spread-bps 1.5 --cost-slippage-bps 5.0
+            --cost-spread-bps 1.5 --cost-slippage-bps 5.0 --allow-shorts
 
       - name: Run live forward-return capture
         env:
