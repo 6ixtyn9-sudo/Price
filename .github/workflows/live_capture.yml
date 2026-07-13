@@ -93,6 +93,9 @@ jobs:
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
           python scripts/build_warehouse.py --symbols $SYMBOLS
 
+      - name: Sync monitored slices from latest registry
+        run: python3 scripts/sync_monitored.py
+
       - name: Run paper trade using repository monitor list
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}

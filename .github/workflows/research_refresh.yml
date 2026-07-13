@@ -183,6 +183,9 @@ jobs:
             echo "$MERGE" | jq . > localdata/research/refresh_state.json
           fi
 
+      - name: Sync monitored slices from registry
+        run: python3 scripts/sync_monitored.py
+
       - name: Compute discovery dispatch gate
         id: dispatch_gate
         run: |
