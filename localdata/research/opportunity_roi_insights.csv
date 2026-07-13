@@ -1,2 +1,6 @@
 symbol,timeframe,slice_combination,regime,matched_opportunities,risk_blocked_opportunities,risk_block_rate,valid_mean_ret_costadj,potential_missed_pnl
-KLAC,1d,state_ext=stretched_down + state_slope=downtrend,gate_disabled,2,2,1.0,0.0448829936008367,0.0897659872016734
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,gate_disabled,3,3,1.0,0.0455615166868862,0.1366845500606586
+MRVL,1h,cross_TLT_state_slope=flat + state_slope=downtrend,gate_disabled,3,2,0.6666666666666666,0.0191140389716625,0.038228077943325
+SCHW,1d,cross_USO_state_slope=downtrend + state_slope=uptrend,gate_disabled,1,1,1.0,0.0299422588935157,0.0299422588935157
+HUM,1h,cross_TLT_state_slope=flat + state_ext=stretched_up,gate_disabled,3,2,0.6666666666666666,0.0119174670925523,0.0238349341851046
+AFRM,1h,state_session=afternoon + state_ext=neutral + state_slope=flat,gate_disabled,2,1,0.5,0.0204022605190315,0.0204022605190315
