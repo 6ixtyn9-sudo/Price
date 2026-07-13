@@ -1436,6 +1436,7 @@ def run_candidate_leaderboard(
                 "rank_symbol": row["symbol"],
                 "rank_timeframe": row["timeframe"],
                 "slice_combination": row["slice_combination"],
+                "bin_mode": bin_mode,
                 "side": row.get("side", "long"),
                 "verdict": verdict,
                 "triage_bucket": triage_bucket,
