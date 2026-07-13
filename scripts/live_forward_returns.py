@@ -87,6 +87,44 @@ def _load_clean_survivor_universe(leaderboard_path: Optional[Path] = None) -> Se
     }
 
 
+def _load_side_map(
+    leaderboard_path: Optional[Path] = None,
+    monitored_path: Optional[Path] = None,
+    universe_source: str = "leaderboard",
+) -> Dict[UniverseKey, str]:
+    """Return the execution side for each watched identity.
+
+    The historical universe key remains four fields for backward
+    compatibility, while side is carried separately so old callers/tests do
+    not break. Forward-return diagnostics and decay logic use this map to
+    produce direction-adjusted returns for short candidates.
+    """
+    path = Path(monitored_path) if universe_source == "monitored" and monitored_path else (
+        Path(leaderboard_path) if leaderboard_path else LEADERBOARD_PATH
+    )
+    if not path.exists():
+        return {}
+    try:
+        rows = pd.read_csv(path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return {}
+    if rows.empty:
+        return {}
+    out: Dict[UniverseKey, str] = {}
+    for _, row in rows.iterrows():
+        if universe_source == "leaderboard" and not str(row.get("triage_bucket", "")).startswith("clean_survivor"):
+            continue
+        key = (
+            str(row.get("symbol", "")),
+            str(row.get("timeframe", "")),
+            str(row.get("slice_combination", "")),
+            _norm_bin_mode(row.get("bin_mode", "insample")),
+        )
+        side = str(row.get("side", "long") or "long").lower()
+        out[key] = side if side in {"long", "short"} else "long"
+    return out
+
+
 def _load_monitored_universe(monitored_path: Optional[Path] = None) -> Set[UniverseKey]:
     """Return the explicit deployment/watch universe from monitored_slices.csv.
 
@@ -361,8 +399,14 @@ def run_live_capture(
         existing = _load_existing_live_returns(output_path)
         return existing
 
+    side_by_key: Dict[UniverseKey, str] = {}
     if universe is None:
         universe_source = str(universe_source or "leaderboard").lower()
+        side_by_key = _load_side_map(
+            leaderboard_path=leaderboard_path,
+            monitored_path=monitored_path,
+            universe_source=universe_source,
+        )
         if universe_source == "leaderboard":
             universe = _load_clean_survivor_universe(leaderboard_path)
             if not universe:
@@ -445,6 +489,10 @@ def run_live_capture(
         bin_mode = _norm_bin_mode(sig.get("_bin_mode", sig.get("bin_mode", "insample")))
         signal_ts = str(sig["bar_ts_utc"])
         signal_close = float(sig["close_adj"])
+        identity = (symbol, timeframe, slice_combo, bin_mode)
+        side = side_by_key.get(identity, str(sig.get("side", "long") or "long").lower())
+        if side not in {"long", "short"}:
+            side = "long"
         key = str(sig.get("_row_key") or _row_key(symbol, timeframe, slice_combo, signal_ts, bin_mode))
 
         row: Dict = {
@@ -452,6 +500,7 @@ def run_live_capture(
             "symbol": symbol,
             "timeframe": timeframe,
             "slice_combination": slice_combo,
+            "side": side,
             "bin_mode": bin_mode,
             "signal_ts_utc": signal_ts,
             "signal_close_adj": signal_close,
@@ -462,9 +511,14 @@ def run_live_capture(
             exit_close, partial = _get_exit_close(symbol, timeframe, signal_ts, h)
             row[f"exit_close_{h}b"] = exit_close
             if exit_close is not None and not partial and signal_close > 0:
-                row[f"fwd_ret_{h}b"] = (exit_close / signal_close) - 1.0
+                raw_return = (exit_close / signal_close) - 1.0
+                row[f"fwd_ret_{h}b"] = raw_return
+                # Preserve the historical raw return column while adding a
+                # direction-adjusted field for lifecycle decay analysis.
+                row[f"tradeable_fwd_ret_{h}b"] = -raw_return if side == "short" else raw_return
             else:
                 row[f"fwd_ret_{h}b"] = None
+                row[f"tradeable_fwd_ret_{h}b"] = None
             if partial:
                 any_partial = True
         row["partial_data"] = any_partial
@@ -484,7 +538,10 @@ def run_live_capture(
             keep_mask = ~out["row_key"].astype(str).isin(
                 set(r["row_key"] for r in update_rows)
             )
-            out = pd.concat([out[keep_mask], update_df], ignore_index=True)
+            # Avoid concatenating an all-NA legacy frame directly; this keeps
+            # column dtypes stable across future pandas releases.
+            retained = out.loc[keep_mask].copy()
+            out = pd.concat([retained, update_df], ignore_index=True)
     if new_rows:
         out = pd.concat([out, pd.DataFrame(new_rows)], ignore_index=True)
 

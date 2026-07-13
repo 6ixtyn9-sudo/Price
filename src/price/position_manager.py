@@ -24,7 +24,7 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from price.discovery import bin_features
+from price.discovery import apply_state_bins
 from price.features import compute_price_features
 from price.trading import load_trade_journal
 from price.validation import parse_slice_combination
@@ -46,9 +46,9 @@ def split_filter(slice_filter: Dict[str, str]) -> tuple:
 def get_today_realized_pnl(journal: Optional[pd.DataFrame] = None) -> float:
     """Sum of realized P&L for the current UTC day, from the trade journal.
 
-    Approximated as sum of (current_price - avg_entry_price) * qty for
-    each 'exit' row in the journal where the timestamp is today (UTC).
-    Coarse but enough to drive the daily-loss kill switch.
+    Approximated from confirmed exit rows on the current UTC day. Direction
+    is recovered from the most recent confirmed entry for the same symbol so
+    short exits are not sign-inverted in the daily-loss kill switch.
     """
     if journal is None:
         journal = load_trade_journal()
@@ -80,6 +80,14 @@ def get_today_realized_pnl(journal: Optional[pd.DataFrame] = None) -> float:
     if exits.empty:
         return 0.0
 
+    entries = journal[journal["action"] == "entry"].copy()
+    if not entries.empty:
+        entry_status = entries["broker_status"] if "broker_status" in entries.columns else entries.get(
+            "status", pd.Series("", index=entries.index)
+        )
+        entries = entries[entry_status.astype(str).str.lower().isin({"filled", "partially_filled", "closed"})].copy()
+        entries["_entry_ts"] = pd.to_datetime(entries.get("timestamp_utc"), errors="coerce", utc=True)
+
     pnl: float = 0.0
     for _, r in exits.iterrows():
         cur = r.get("filled_avg_price")
@@ -92,7 +100,18 @@ def get_today_realized_pnl(journal: Optional[pd.DataFrame] = None) -> float:
         if cur is None or entry is None or qty is None:
             continue
         try:
-            pnl += (float(cur) - float(entry)) * float(qty)
+            exit_ts = pd.to_datetime(r.get("timestamp_utc"), errors="coerce", utc=True)
+            side = "long"
+            if not entries.empty and pd.notna(exit_ts):
+                candidates = entries[
+                    (entries["symbol"].astype(str).str.upper() == str(r.get("symbol", "")).upper())
+                    & (entries["_entry_ts"] <= exit_ts)
+                ].sort_values("_entry_ts")
+                if not candidates.empty:
+                    entry_side = str(candidates.iloc[-1].get("side", "buy")).lower()
+                    side = "short" if entry_side in {"sell", "short"} else "long"
+            direction = -1.0 if side == "short" else 1.0
+            pnl += direction * (float(cur) - float(entry)) * abs(float(qty))
         except (ValueError, TypeError):
             continue
     return pnl
@@ -268,6 +287,7 @@ def _load_entry_context() -> Dict[str, dict]:
         out[sym] = {
             "slice_combination": str(r.get("slice_label", "") or ""),
             "timeframe": _clean(tf),
+            "bin_mode": _clean(r.get("bin_mode"), "insample"),
             "entry_bar_ts": _clean(ebt),
             "submitted_at": _clean(r.get("submitted_at")),
         }
@@ -399,13 +419,18 @@ def check_exits(
         bars_held = _count_bars_after(entry_bar_ts, df)
 
         df_feat = compute_price_features(df)
-        df_binned = bin_features(df_feat)
+        bin_mode = str(ctx.get("bin_mode", "insample") or "insample").lower()
+        if bin_mode not in {"insample", "rolling"}:
+            bin_mode = "insample"
+        df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
 
         cross_fields = _extract_cross_symbols_from_stable(stable)
         if cross_fields:
             from price.discovery import attach_cross_asset_states
             for cs, fields in cross_fields.items():
-                df_binned = attach_cross_asset_states(df_binned, cs, timeframe, fields)
+                df_binned = attach_cross_asset_states(
+                    df_binned, cs, timeframe, fields, bin_mode=bin_mode
+                )
 
         current = df_binned.iloc[-1:]
         current_state = current_state_to_dict(current)

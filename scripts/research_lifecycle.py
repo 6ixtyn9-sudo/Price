@@ -60,19 +60,23 @@ def _live_decay_keys(path: Path = LIVE_FORWARD_PATH, min_completed: int = 5) -> 
         df = pd.read_csv(path)
     except (pd.errors.EmptyDataError, pd.errors.ParserError):
         return set()
-    if df.empty or "fwd_ret_5b" not in df.columns:
+    if df.empty or ("fwd_ret_5b" not in df.columns and "tradeable_fwd_ret_5b" not in df.columns):
         return set()
-    df["fwd_ret_5b"] = pd.to_numeric(df["fwd_ret_5b"], errors="coerce")
+    # New capture rows carry side-adjusted returns for short candidates. Keep
+    # the raw-column fallback for legacy artifacts created before this field
+    # existed.
+    return_col = "tradeable_fwd_ret_5b" if "tradeable_fwd_ret_5b" in df.columns else "fwd_ret_5b"
+    df[return_col] = pd.to_numeric(df[return_col], errors="coerce")
     if "bin_mode" not in df.columns:
         df["bin_mode"] = "insample"
-    df = df.dropna(subset=["fwd_ret_5b"])
+    df = df.dropna(subset=[return_col])
     if df.empty:
         return set()
     grouped = df.groupby(["symbol", "timeframe", "slice_combination", "bin_mode"])
     return {
         "|".join(map(str, key))
         for key, group in grouped
-        if len(group) >= min_completed and group["fwd_ret_5b"].mean() <= 0
+        if len(group) >= min_completed and group[return_col].mean() <= 0
     }
 
 
@@ -124,9 +128,14 @@ def build_registry(
             "strict_gate_pass": eligible,
             "live_decay_flag": is_decaying,
             "valid_n": row.get("valid_n"),
+            "valid_mean_ret_costadj": row.get("valid_mean_ret_costadj"),
+            "valid_p_value_nw": row.get("valid_p_value_nw"),
+            "walk_forward_folds": row.get("validation_n_folds", row.get("walk_forward_folds")),
             "walk_forward_pass_count": row.get("walk_forward_pass_count"),
+            "walk_forward_pass_pattern": row.get("walk_forward_pass_pattern"),
             "scenario_survived_count": row.get("scenario_survived_count"),
             "search_wide_bh_pass": row.get("search_wide_bh_pass"),
+            "search_wide_bonferroni_pass": row.get("search_wide_bonferroni_pass"),
             "valid_excess_vs_baseline": row.get("valid_excess_vs_baseline"),
             "valid_excess_vs_best_parent": row.get("valid_excess_vs_best_parent"),
             "leverage_gate_pass": leverage_gate,

@@ -204,6 +204,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 limit_price=limit_price,
                 entry_bar_ts=sig.get("bar_ts_utc"),
                 timeframe=sig.get("timeframe"),
+                bin_mode=sig.get("bin_mode", "insample"),
             )
             if result.get("status") != "rejected":
                 submitted_symbols_this_run.add(symbol)

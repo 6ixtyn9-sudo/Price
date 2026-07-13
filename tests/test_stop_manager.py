@@ -427,3 +427,35 @@ def test_dry_run_never_force_closes_even_under_leverage(tmp_path, monkeypatch):
     assert intents[0]["action"] == "stop_pending"
     assert "dry run" in intents[0]["reason"]
     assert close_fn.calls == []
+
+
+def test_existing_stop_quantity_reconciles_after_partial_fill(tmp_path, monkeypatch):
+    """A later fill must expand the resting stop quantity, even when its
+    price has not yet ratcheted."""
+    state_path = tmp_path / "stop_state.json"
+    existing = new_stop_state(
+        "XOP", "long", qty=5, entry_price=100.0, atr=3.0,
+        stop_order_id="order-1",
+    )
+    save_stop_states({"XOP": existing}, path=state_path)
+    monkeypatch.setattr(stop_manager, "_resolve_atr_for_symbol", lambda sym, tf: None)
+    calls = []
+
+    def replace_fn(order_id, new_stop_price, qty=None):
+        calls.append((order_id, new_stop_price, qty))
+        return {"order_id": order_id, "status": "replaced"}
+
+    positions = _positions_df([
+        {"symbol": "XOP", "side": "long", "qty": 8,
+         "avg_entry_price": 100.0, "current_price": 102.0},
+    ])
+    intents = stop_manager.reconcile_stops(
+        positions, _Limits(), entry_context={},
+        submit_protective_stop_fn=_fake_submit_factory(),
+        replace_protective_stop_fn=replace_fn,
+        stop_state_path=state_path,
+    )
+
+    assert intents[0]["action"] == "stop_ratcheted"
+    assert calls == [("order-1", pytest.approx(94.0), 8.0)]
+    assert load_stop_states(path=state_path)["XOP"].qty == 8.0

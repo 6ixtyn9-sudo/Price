@@ -141,6 +141,7 @@ def submit_entry(
     limit_price: Optional[float] = None,
     entry_bar_ts: Optional[str] = None,
     timeframe: Optional[str] = None,
+    bin_mode: Optional[str] = None,
 ) -> dict:
     """Submit a market or limit entry order and journal it.
 
@@ -149,7 +150,9 @@ def submit_entry(
 
     entry_bar_ts / timeframe are recorded so the exit policy can count bars
     held in the position's own timeframe (faithful to the fwd_ret_5 horizon).
-    Both optional for backward compatibility; older callers still work.
+    All metadata arguments are optional for backward compatibility; older
+    callers still work. bin_mode is persisted so exits can evaluate the same
+    state-binning contract that authorized the entry.
     """
     client = get_trading_client()
     order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
@@ -190,6 +193,7 @@ def submit_entry(
             "slice_label": slice_label,
             "entry_bar_ts": entry_bar_ts,
             "timeframe": timeframe,
+            "bin_mode": bin_mode,
         }
     except Exception as e:
         result = {
@@ -204,6 +208,7 @@ def submit_entry(
             "slice_label": slice_label,
             "entry_bar_ts": entry_bar_ts,
             "timeframe": timeframe,
+            "bin_mode": bin_mode,
         }
 
     _append_journal(result, action="entry")
@@ -288,8 +293,16 @@ def submit_protective_stop(
     return result
 
 
-def replace_protective_stop(order_id: str, new_stop_price: float) -> dict:
+def replace_protective_stop(
+    order_id: str,
+    new_stop_price: float,
+    qty: Optional[float] = None,
+) -> dict:
     """Move an existing resting stop order to `new_stop_price` (ratchet).
+
+    When ``qty`` is supplied, reconcile the broker stop quantity at the same
+    time as its price. This covers partial limit fills that occur after the
+    initial protective stop was attached.
 
     Uses Alpaca's replace-order endpoint so the SAME order_id persists
     (no cancel/resubmit race where the position would be briefly
@@ -305,14 +318,18 @@ def replace_protective_stop(order_id: str, new_stop_price: float) -> dict:
     client = get_trading_client()
     rounded_stop_price = round(float(new_stop_price), 2 if new_stop_price >= 1.0 else 4)
     try:
+        replace_kwargs = {"stop_price": rounded_stop_price}
+        if qty is not None:
+            replace_kwargs["qty"] = abs(float(qty))
         order = client.replace_order_by_id(
             order_id,
-            ReplaceOrderRequest(stop_price=rounded_stop_price),
+            ReplaceOrderRequest(**replace_kwargs),
         )
         result = {
             "order_id": str(order.id),
             "prior_order_id": str(order_id),
             "stop_price": rounded_stop_price,
+            "qty": abs(float(qty)) if qty is not None else None,
             "status": _enum_value(order.status),
         }
         if result["status"] == "rejected":

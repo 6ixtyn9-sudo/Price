@@ -35,6 +35,7 @@ Graceful degradation (safety property, mirrors every other lever):
     audit row with action='error'; it never aborts the whole scan.
 """
 
+from dataclasses import replace
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -443,16 +444,28 @@ def reconcile_stops(
             breakeven_trigger_r=breakeven_r,
         )
 
-        if updated.current_stop_price == existing.current_stop_price and updated.stage == existing.stage:
+        qty_changed = abs(float(existing.qty) - qty) > 1e-9
+        price_or_stage_changed = (
+            updated.current_stop_price != existing.current_stop_price
+            or updated.stage != existing.stage
+        )
+        if not price_or_stage_changed and not qty_changed:
             intents.append({
                 "action": "stop_unchanged", "symbol": symbol,
                 "stop_price": round(existing.current_stop_price, 4),
                 "stage": existing.stage,
+                "qty": qty,
                 "unrealized_r": (
                     round(r, 3) if (r := existing.unrealized_r_multiple(current_price)) is not None else None
                 ),
             })
             continue
+
+        # Keep the local state quantity synchronized with the broker position
+        # even when only a partial-fill quantity changed and the stop price did
+        # not need to ratchet.
+        if qty_changed:
+            updated = replace(updated, qty=qty)
 
         if dry_run:
             intents.append({
@@ -464,7 +477,24 @@ def reconcile_stops(
             continue
 
         if existing.stop_order_id:
-            result = replace_protective_stop_fn(existing.stop_order_id, updated.current_stop_price)
+            if qty_changed:
+                try:
+                    result = replace_protective_stop_fn(
+                        existing.stop_order_id,
+                        updated.current_stop_price,
+                        qty,
+                    )
+                except TypeError:
+                    # Backward-compatible injected test/legacy functions that
+                    # only accept (order_id, stop_price). The price ratchet is
+                    # still preserved; the real trading implementation accepts
+                    # the third quantity argument.
+                    result = replace_protective_stop_fn(
+                        existing.stop_order_id,
+                        updated.current_stop_price,
+                    )
+            else:
+                result = replace_protective_stop_fn(existing.stop_order_id, updated.current_stop_price)
             if result.get("status") == "rejected":
                 intents.append({
                     "action": "stop_ratchet_failed", "symbol": symbol,
@@ -492,6 +522,8 @@ def reconcile_stops(
             "old_stop_price": round(existing.current_stop_price, 4),
             "new_stop_price": round(updated.current_stop_price, 4),
             "stage": updated.stage,
+            "qty": updated.qty,
+            "qty_changed": qty_changed,
             "order_id": updated.stop_order_id,
         })
 

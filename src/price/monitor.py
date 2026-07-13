@@ -424,9 +424,27 @@ def _load_open_position_slice_labels() -> Dict[str, str]:
     if entries.empty:
         return {}
     last_per_symbol = entries.groupby("symbol").tail(1)
+    labels = {
+        str(r["symbol"]).upper(): str(r.get("slice_label", "") or "")
+        for _, r in last_per_symbol.iterrows()
+    }
 
-    return {str(r["symbol"]).upper(): str(r.get("slice_label", ""))
-            for _, r in last_per_symbol.iterrows()}
+    # Broker positions do not carry their originating slice. If the local
+    # journal has lost only the slice metadata, recover it conservatively from
+    # the explicit monitored book when exactly one slice exists for a symbol.
+    # Never guess when a symbol has multiple active slices (e.g. HUM).
+    try:
+        explicit = _load_explicit_monitored_slices() or []
+        by_symbol: Dict[str, List[dict]] = {}
+        for record in explicit:
+            by_symbol.setdefault(str(record["symbol"]).upper(), []).append(record)
+        for symbol, candidates in by_symbol.items():
+            if not labels.get(symbol) and len(candidates) == 1:
+                labels[symbol] = str(candidates[0]["slice_combination"])
+    except Exception:  # noqa: BLE001 - recovery must never break scanning
+        pass
+
+    return labels
 
 
 def scan_all_slices(

@@ -80,6 +80,12 @@ jobs:
             exit 1
           fi
 
+      # Sync first so any candidate book change from the latest research merge
+      # is included in this run's warehouse capture, not delayed until the
+      # next hourly pass.
+      - name: Sync monitored slices and edge metrics before capture
+        run: python3 scripts/sync_monitored.py
+
       - name: Ingest universe data
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
@@ -92,9 +98,6 @@ jobs:
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 1825
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
           python scripts/build_warehouse.py --symbols $SYMBOLS
-
-      - name: Sync monitored slices from latest registry
-        run: python3 scripts/sync_monitored.py
 
       - name: Run paper trade using repository monitor list
         env:

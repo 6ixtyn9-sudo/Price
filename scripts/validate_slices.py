@@ -621,6 +621,7 @@ def run_walk_forward_diagnostics(
         n_folds=n_folds,
         min_samples=min_samples,
         p_threshold=p_threshold,
+        bin_mode=bin_mode,
     )
 
     rows = []
@@ -766,6 +767,7 @@ def select_diagnostic_targets(
     n_folds: int = 4,
     min_samples: int = 15,
     p_threshold: float = 0.05,
+    bin_mode: str = "insample",
 ) -> list[tuple[str, str, str, str]]:
     """Select candidate targets for diagnostic commands.
 
@@ -792,6 +794,7 @@ def select_diagnostic_targets(
             n_folds=n_folds,
             min_samples=min_samples,
             p_threshold=p_threshold,
+            bin_mode=bin_mode,
         )
 
     if leaderboard.empty:
@@ -881,6 +884,7 @@ def run_date_range_diagnostics(
         n_folds=n_folds,
         min_samples=min_samples,
         p_threshold=p_threshold,
+        bin_mode=bin_mode,
     )
 
     rows = []
@@ -1173,6 +1177,7 @@ def run_regime_stratified_diagnostics(
         n_folds=n_folds,
         min_samples=min_samples,
         p_threshold=p_threshold,
+        bin_mode=bin_mode,
     )
 
     rows = []
@@ -1437,6 +1442,7 @@ def run_candidate_leaderboard(
                 "rank_timeframe": row["timeframe"],
                 "slice_combination": row["slice_combination"],
                 "bin_mode": bin_mode,
+                "validation_n_folds": int(row.get("walk_forward_folds", n_folds) or n_folds),
                 "side": row.get("side", "long"),
                 "verdict": verdict,
                 "triage_bucket": triage_bucket,
@@ -1492,6 +1498,7 @@ def run_candidate_leaderboard(
             n_folds=n_folds,
             min_samples=min_samples,
             p_threshold=p_threshold,
+            bin_mode=bin_mode,
         )
 
     print(f"Saved candidate leaderboard to {output_path}")
@@ -1624,6 +1631,7 @@ def run_scenario_grid(
             n_folds=n_folds,
             min_samples=min_samples,
             p_threshold=p_threshold,
+            bin_mode=bin_mode,
         )
 
     print(f"Saved scenario-grid diagnostics to {output_path}")

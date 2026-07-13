@@ -375,3 +375,46 @@ def test_existing_duplicate_live_rows_are_compacted_on_update(temp_workspace):
     assert len(out) == 1
     assert out["row_key"].nunique() == 1
     assert out.iloc[0]["captured_at_utc"] != "2026-07-01T00:00:00+00:00"
+
+
+def test_short_forward_return_is_direction_adjusted(temp_workspace):
+    """Short candidates must decay on tradeable P&L, not raw long returns."""
+    paths = temp_workspace
+    monitored_path = paths["log_path"].parent / "monitored_slices.csv"
+    combo = "state_ext=stretched_up + state_slope=flat"
+
+    pd.DataFrame([{
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": combo,
+        "side": "short",
+        "bin_mode": "insample",
+    }]).to_csv(monitored_path, index=False)
+
+    warehouse_file = paths["warehouse_dir"] / "symbol=XLF" / "timeframe=1d" / "data.parquet"
+    bars = pd.read_parquet(warehouse_file)
+    bars.loc[19, "close_adj"] = 50.0  # below signal close: profitable short
+    bars.to_parquet(warehouse_file, index=False)
+
+    pd.DataFrame([{
+        "kind": "entry_signal",
+        "matched": True,
+        "tradable": True,
+        "symbol": "XLF",
+        "timeframe": "1d",
+        "slice_combination": combo,
+        "bar_ts_utc": "2026-06-15T00:00:00+00:00",
+        "close_adj": 51.6,
+    }]).to_csv(paths["log_path"], index=False)
+
+    out = lfr.run_live_capture(
+        log_path=paths["log_path"],
+        monitored_path=monitored_path,
+        output_path=paths["out_path"],
+        universe_source="monitored",
+    )
+
+    row = out.iloc[0]
+    assert row["side"] == "short"
+    assert row["fwd_ret_5b"] < 0
+    assert row["tradeable_fwd_ret_5b"] > 0
