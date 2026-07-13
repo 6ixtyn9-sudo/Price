@@ -25,6 +25,7 @@ if str(SRC) not in sys.path:
 from price.position_manager import (  # noqa: E402
     ExitPolicy,
     _count_bars_after,
+    _load_entry_context,
     _parse_ts,
     check_exits,
 )
@@ -255,3 +256,28 @@ def test_horizon_uses_own_timeframe_bar_count(monkeypatch):
     intent = check_exits(_positions_df(), {"XLF": SLICE})[0]
     assert intent["bars_held"] == 9
     assert intent["action"] == "exit"  # 9 >= 5
+
+
+def test_entry_context_bin_mode_defaults_without_type_error(monkeypatch):
+    """Legacy journals without bin_mode must still produce usable exit
+    context; adding the default must not call the cleaner with two args."""
+    import price.trading as trading
+
+    monkeypatch.setattr(
+        trading,
+        "load_trade_journal",
+        lambda: pd.DataFrame([{
+            "action": "entry",
+            "symbol": "XLF",
+            "broker_status": "filled",
+            "filled_qty": 10,
+            "timestamp_utc": "2026-07-13T15:00:00+00:00",
+            "slice_label": SLICE,
+            "timeframe": "1d",
+            "entry_bar_ts": "2026-07-13T00:00:00+00:00",
+            "submitted_at": "2026-07-13T15:00:00+00:00",
+        }]),
+    )
+
+    context = _load_entry_context()
+    assert context["XLF"]["bin_mode"] == "insample"

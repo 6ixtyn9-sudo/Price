@@ -51,6 +51,22 @@ LIVE_FORWARD_RETURNS_PATH: Path = DATA_DIR / "live_forward_returns.csv"
 HORIZONS_BARS: List[int] = [5, 20]
 
 
+def _append_rows(left: pd.DataFrame, right: pd.DataFrame) -> pd.DataFrame:
+    """Append CSV-shaped rows without pandas' all-NA concat warning.
+
+    The live ledger is intentionally small, and constructing records here
+    preserves the idempotent row-update behavior while remaining stable across
+    future pandas dtype changes.
+    """
+    if left is None or left.empty:
+        return right.copy()
+    if right is None or right.empty:
+        return left.copy()
+    return pd.DataFrame.from_records(
+        left.to_dict("records") + right.to_dict("records")
+    )
+
+
 # Watched-universe key. bin_mode matters because the same symbol/timeframe/
 # slice text can be evaluated under different state-binning semantics.
 UniverseKey = Tuple[str, str, str, str]  # symbol, timeframe, slice_combination, bin_mode
@@ -538,12 +554,10 @@ def run_live_capture(
             keep_mask = ~out["row_key"].astype(str).isin(
                 set(r["row_key"] for r in update_rows)
             )
-            # Avoid concatenating an all-NA legacy frame directly; this keeps
-            # column dtypes stable across future pandas releases.
             retained = out.loc[keep_mask].copy()
-            out = pd.concat([retained, update_df], ignore_index=True)
+            out = _append_rows(retained, update_df)
     if new_rows:
-        out = pd.concat([out, pd.DataFrame(new_rows)], ignore_index=True)
+        out = _append_rows(out, pd.DataFrame(new_rows))
 
     if not out.empty:
         sort_cols = [c for c in ["symbol", "timeframe", "bin_mode", "slice_combination", "signal_ts_utc"] if c in out.columns]

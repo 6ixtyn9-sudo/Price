@@ -273,16 +273,16 @@ def _load_entry_context() -> Dict[str, dict]:
         tf = r.get("timeframe")
         ebt = r.get("entry_bar_ts")
 
-        def _clean(v):
+        def _clean(v, default=None):
             if v is None:
-                return None
+                return default
             try:
                 if pd.isna(v):
-                    return None
+                    return default
             except (TypeError, ValueError):
                 pass
             s = str(v)
-            return None if s.lower() in ("nan", "none", "") else s
+            return default if s.lower() in ("nan", "none", "") else s
 
         out[sym] = {
             "slice_combination": str(r.get("slice_label", "") or ""),
