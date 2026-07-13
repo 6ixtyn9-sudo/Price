@@ -39,17 +39,12 @@ attribution.py — FIFO round-trip reconstruction from confirmed fills. Signal-t
 cost_model.py — Decomposed cost: commission + spread + slippage per leg. Round-trip drag nets off edge before conviction sizing. Defaults conservative; designed to be calibrated from realized fills.
 
 Operator commands
-The live workflow auto-commits to main every hour. If you have local drift and git pull rejects you, don't think — just run the unstick command:
-
-text
+The live workflow auto-commits to main every hour. If git pull ever rejects you with "unstaged changes", that's just the workflow's auto-commit arriving. One command unsticks it:
 
 cd ~/Price && git stash && git pull --ff-only && git stash drop
-That stashes whatever local noise exists, fast-forwards to match remote, and drops the stash. Works every time. After that:
 
-text
-
-PYTHONPATH=src python3 scripts/paper_trade.py --dry-run   # see what the system would do
+PYTHONPATH=src python3 scripts/paper_trade.py --dry-run   # what the system would do
 PYTHONPATH=src python3 scripts/attribute_pnl.py           # realized P&L per slice
-python3 -m pytest -q                                      # run tests
+python3 -m pytest -q                                      # test suite
 Doctrine
 Price first, side second. Discovery before promotion, validation before execution. No slice is promoted without surviving the full gate. Every risk lever fails open on missing data. Paper account only — no live capital without multi-month out-of-sample survival. Read HANDOVER.md for the complete project history.
