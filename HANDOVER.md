@@ -96,7 +96,7 @@ Step 3 — research grain
 The atomic research row is not a signal, pick, or order.
 It is:
 
-one symbol  x  one bar timestamp  x  one forward evaluation window
+one symbol x one bar timestamp x one forward evaluation window
 Every row should eventually support:
 
 symbol
@@ -350,7 +350,7 @@ Open item requiring operator action before ingestion code is written:
 Register free API keys for Alpaca and Tiingo, store them in a local .env (already gitignored) — never paste keys into chat.
 Run one narrow manual pull (e.g. SPY, 1d, last 30 days) from each and diff adjusted closes, to confirm the free-tier IEX feed is acceptable.
 Canonical bar-state row schema (v1 draft)
-One row = one symbol  x  one timeframe  x  one bar timestamp. Forward-return/label columns are computed relative to that bar.
+One row = one symbol x one timeframe x one bar timestamp. Forward-return/label columns are computed relative to that bar.
 Identity / metadata:
 
 symbol (normalized, uppercase)
@@ -4335,7 +4335,7 @@ scripts/research_refresh.py:106 min_new_daily_bars = 5 # weekly (was 60) = 1 tra
 required_symbols = len(symbols) * 0.50 # weekly was 0.80 = ~118 symbols
 Workflow input default 60 → 5
 Commit 99b4ae2 feat(research): weekly discovery gate
-Operator explicitly requested: "i wanted it to discover fresh/stale slices everyday so we always trade fresh" — compromise is weekly, not daily, to balance overfitting vs freshness. Daily full discovery would test 360 combinations  x  365 days = 131k tests on 99% overlapping data, inflating false positives beyond per-run BH correction.
+Operator explicitly requested: "i wanted it to discover fresh/stale slices everyday so we always trade fresh" — compromise is weekly, not daily, to balance overfitting vs freshness. Daily full discovery would test 360 combinations x 365 days = 131k tests on 99% overlapping data, inflating false positives beyond per-run BH correction.
 
 Gate evaluation from refresh_state.json:
 
@@ -4547,7 +4547,7 @@ KLAC stop at $178.83 protecting the existing position
 All bin_mode tags still show insample on the scan output (cosmetic — the merged leaderboard on remote was generated before the validate_slices.py fix; will self-correct on next discovery run)
 Current operating posture (unchanged)
 
-Paper account only. 1.0x leverage. 22 dynamic slices across 18 symbols. Protective stops active (2.0 x  ATR initial, breakeven at +1R, 3.0 x  ATR trail). Hourly live capture. Daily research refresh. Weekly sharded discovery. No slice promoted. No real capital.
+Paper account only. 1.0x leverage. 22 dynamic slices across 18 symbols. Protective stops active (2.0 x ATR initial, breakeven at +1R, 3.0 x ATR trail). Hourly live capture. Daily research refresh. Weekly sharded discovery. No slice promoted. No real capital.
 
 Outstanding known items (not fixed, not missed)
 
@@ -4555,3 +4555,100 @@ bin_mode display tag on scan output is stale (insample in logs, rolling on disk)
 Cost model at 13bp round trip is pessimistic now that entries use limit orders. Will calibrate from realized fills when >=5 RTs per slice.
 Regime filter (--regime-filter) remains off by operator choice.
 Leverage (--target-leverage) remains off by operator choice.
+
+2026-07-14 — Rolling book state and lifecycle audit deployment
+Research Refresh #24
+Research Refresh #24 completed successfully from commit 33ed8e7:
+
+text
+
+run: 29322982879
+status: Success
+duration: 4m 34s
+The refresh captured the full active universe and ran the rolling regime diagnostics. The persisted state was:
+
+text
+
+regime_tracks_ran: true
+regime_tracks_bin_mode: rolling
+orders_placed: false
+monitored_slices_modified: false
+automatic_promotion_enabled: false
+automatic_promotion_enabled=false is correct for a refresh invocation; it does not mean the rolling book was never promoted. The completed rolling discovery merge had already applied paper-book promotion with:
+
+text
+
+automatic_promotion_applied: true
+monitored_slices_modified: true
+The current active paper book is dynamic and currently contains 20 rolling candidates. It is not a permanent 20-row book. A future qualifying discovery can add, remove, or replace candidates.
+
+Fresh-data gate
+Refresh #24 deliberately did not dispatch another discovery:
+
+text
+
+new_daily_bars_since_previous_refresh: 236
+eligible_discovery_symbol_count: 0
+required_discovery_symbol_count: 118
+fresh_data_gate_open: false
+discovery_allowed: false
+discovery_ran: false
+discovery_block_reason: fresh-data gate closed
+The 236 figure is aggregate new daily bars; no individual symbols met the required per-symbol freshness threshold for the discovery gate. No additional discovery run is required merely because the lifecycle audit was deployed.
+
+Dynamic monitored-book lifecycle audit
+Commit 88d0c38 deployed lifecycle tracking:
+
+text
+
+feat: add monitored book audit lifecycle tracking and reporting to sync_monitored workflow
+Changed files:
+
+text
+
+.github/workflows/research_discovery.yml
+scripts/research_lifecycle.py
+scripts/research_merge.py
+scripts/sync_monitored.py
+tests/test_research_controller.py
+The final monitored-book sync now records:
+
+text
+
+previous_book_count
+new_book_count
+added_candidates
+removed_candidates
+retained_candidates
+changed_sides_or_slices
+removal_reasons
+promotion_reasons
+discovery_run_id
+The generated report is:
+
+text
+
+localdata/research/monitored_book_lifecycle.json
+The discovery workflow passes DISCOVERY_RUN_ID=${{ github.run_id }} and commits the lifecycle report with the merged research outputs. The audit compares the true pre-discovery book with the final rebuilt book, rather than comparing only an intermediate merge state.
+
+Verification for the deployed patch:
+
+text
+
+411 tests passed
+Ruff clean
+compile check clean
+workflow YAML valid
+git diff --check clean
+Risk posture
+The active system remains:
+
+text
+
+paper-only
+1.0x leverage
+no futures
+no live capital
+regime diagnostics on with rolling binning
+regime trading filter (--regime-filter) off
+The regime filter will be evaluated separately in a paper-only shadow A/B comparison. It was not enabled together with the lifecycle audit so that future performance changes remain attributable.
