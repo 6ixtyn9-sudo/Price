@@ -1,0 +1,32 @@
+{
+  "previous_book_count": 20,
+  "new_book_count": 20,
+  "added_candidates": [],
+  "removed_candidates": [],
+  "retained_candidates": [
+    "ABBV|1d|cross_USO_state_slope=flat + cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
+    "AFRM|1h|state_session=afternoon + state_ext=neutral + state_slope=flat|short|rolling",
+    "AMC|1h|cross_TLT_state_slope=flat + state_slope=flat|short|rolling",
+    "AXP|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
+    "CBOE|1d|cross_USO_state_slope=flat + state_ext=neutral|long|rolling",
+    "DE|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
+    "ETN|1d|state_ext=neutral + state_vol=mid_vol|long|rolling",
+    "ETN|1h|cross_TLT_state_slope=flat + state_slope=downtrend|long|rolling",
+    "GD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
+    "HOOD|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_up|long|rolling",
+    "HUM|1h|cross_TLT_state_slope=flat + state_ext=stretched_up|long|rolling",
+    "HUM|1h|cross_USO_state_ext=neutral + state_ext=stretched_up|long|rolling",
+    "HUM|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=flat + state_ext=stretched_up|long|rolling",
+    "IVV|1d|state_ext=neutral + state_slope=uptrend|long|rolling",
+    "KLAC|1d|state_ext=stretched_down + state_slope=downtrend|long|rolling",
+    "PSX|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
+    "PSX|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
+    "SCHW|1d|cross_USO_state_slope=downtrend + state_slope=uptrend|long|rolling",
+    "SHOP|1d|cross_USO_state_slope=flat + state_ext=stretched_down|long|rolling",
+    "VLO|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling"
+  ],
+  "changed_sides_or_slices": [],
+  "removal_reasons": {},
+  "promotion_reasons": {},
+  "discovery_run_id": null
+}
