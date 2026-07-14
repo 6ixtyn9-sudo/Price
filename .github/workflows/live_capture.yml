@@ -95,9 +95,10 @@ jobs:
           MONITORED_SYMBOLS=$(python3 -c "import pandas as pd, os; print(' '.join(sorted(pd.read_csv('localdata/monitored_slices.csv')['symbol'].unique()))) if os.path.exists('localdata/monitored_slices.csv') else ''")
           SYMBOLS=$(echo "${{ inputs.live_symbols }} $MONITORED_SYMBOLS" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
           echo "Capturing data for active symbols: $SYMBOLS"
-          python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 1825
+          # Defer post-processing until the 15m pass; capture_bars owns the
+          # resample/adjustment phase, so no second build_warehouse pass is needed.
+          python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 1825 --skip-postprocess
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
-          python scripts/build_warehouse.py --symbols $SYMBOLS
 
       - name: Run paper trade using repository monitor list
         env:

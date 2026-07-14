@@ -788,6 +788,26 @@ def select_diagnostic_targets(
             "late-emerging, leaderboard-top"
         )
 
+    # The monitored book is already an explicit, validated deployment set.
+    # Do not rebuild an eight-scenario candidate leaderboard merely to select
+    # its rows for daily regime/date diagnostics. This avoids repeated feature
+    # and validation work during every research refresh.
+    if scope == "leaderboard-top" and Path(slices_path).name == "monitored_slices.csv":
+        try:
+            monitored = pd.read_csv(slices_path)
+        except (FileNotFoundError, pd.errors.EmptyDataError, pd.errors.ParserError):
+            return []
+        if monitored.empty:
+            return []
+        selected = monitored.head(top_n)
+        out = []
+        for _, row in selected.iterrows():
+            side = str(row.get("side", "long") or "long").lower()
+            if side not in ("long", "short"):
+                side = "long"
+            out.append((row["symbol"], row["timeframe"], row["slice_combination"], side))
+        return out
+
     with contextlib.redirect_stdout(io.StringIO()):
         leaderboard = run_candidate_leaderboard(
             slices_path=slices_path,

@@ -32,7 +32,13 @@ def _needs_resample_and_propagate(symbol: str, tf: str, source: str) -> bool:
     return True
 
 
-def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365, use_universal_router=True):
+def capture_bars(
+    target_symbols=None,
+    target_timeframes=None,
+    days_lookback=365,
+    use_universal_router=True,
+    post_process=True,
+):
     symbols = target_symbols or SYMBOLS
     timeframes = target_timeframes or ["1d", "15m", "1h"]
 
@@ -106,9 +112,11 @@ def capture_bars(target_symbols=None, target_timeframes=None, days_lookback=365,
     # ── Phase 2: Post-process 15m-derived data ───────────────────────────
     # Only symbols that still use Alpaca 15m need the resample+propagate step.
     # yfinance 1h bars arrive with adj columns already filled — no propagation.
-    # This eliminates the double-save cascade where capture_bars and
-    # build_warehouse both did resample+propagate.
-    for symbol in symbols:
+    # Callers that fetch multiple timeframes in separate passes can defer this
+    # phase until the pass that actually fetches 15m, avoiding repeated work.
+    if not post_process:
+        print("Skipping 15m post-processing for this capture pass.")
+    for symbol in (symbols if post_process else []):
         symbol = symbol.upper() if "/" not in symbol else symbol
 
         # Check if 15m data exists (Alpaca path) and needs 1h resample
@@ -160,6 +168,11 @@ if __name__ == "__main__":
     parser.add_argument("--max-symbols", type=int, help="Cap universe size")
     parser.add_argument("--universe", action="store_true", help="Print resolved universe and exit")
     parser.add_argument("--no-router", action="store_true", help="Disable universal router (legacy)")
+    parser.add_argument(
+        "--skip-postprocess",
+        action="store_true",
+        help="Fetch/save bars but defer 15m->1h resampling and adjustment propagation to a later capture pass.",
+    )
 
     args = parser.parse_args()
 
@@ -190,5 +203,6 @@ if __name__ == "__main__":
         target_symbols=target_symbols,
         target_timeframes=args.timeframes,
         days_lookback=args.days,
-        use_universal_router=not args.no_router
+        use_universal_router=not args.no_router,
+        post_process=not args.skip_postprocess,
     )

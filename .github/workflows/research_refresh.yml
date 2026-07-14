@@ -141,10 +141,13 @@ jobs:
           # Daily history can use the five-year lookback; 15m is deliberately
           # capped at one year to keep the research refresh inside its API and
           # runtime budget. The second command is the only 15m capture path.
+          # Defer post-processing until the 15m pass; capture_bars owns the
+          # resample/adjustment phase, so no second build_warehouse pass is needed.
           python scripts/capture_bars.py \
             --tier allowlist \
             --timeframes 1d 1h \
-            --days 1825
+            --days 1825 \
+            --skip-postprocess
           python scripts/capture_bars.py \
             --tier allowlist \
             --timeframes 15m \
@@ -159,7 +162,6 @@ jobs:
             exit 1
           fi
           printf '%s\n' "${ACTIVE_SYMBOLS[@]}" > localdata/active_symbols.txt
-          python scripts/build_warehouse.py --symbols "${ACTIVE_SYMBOLS[@]}"
 
       - name: Run autonomous research controller
         env:
