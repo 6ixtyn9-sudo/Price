@@ -15,6 +15,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
+
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 SCRIPTS = ROOT / "scripts"
@@ -100,6 +102,48 @@ def _write_state(payload: dict) -> None:
     STATE_PATH.write_text(json.dumps(payload, indent=2) + "\n")
 
 
+def _monitored_diagnostic_bin_mode(monitored_path: Path) -> str:
+    """Resolve the state-binning mode used by the active monitored book.
+
+    Diagnostics must not silently evaluate an insample book with rolling bins
+    (or vice versa). A single active mode is expected because one discovery
+    cycle produces one vocabulary. Mixed legacy rows fall back to insample and
+    are reported explicitly rather than pretending the diagnostic is uniform.
+    """
+    try:
+        monitored = pd.read_csv(monitored_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError, OSError):
+        return "insample"
+    if monitored.empty or "bin_mode" not in monitored.columns:
+        return "insample"
+    modes = {
+        str(value).strip().lower()
+        for value in monitored["bin_mode"].dropna().tolist()
+        if str(value).strip().lower() in {"insample", "rolling"}
+    }
+    if len(modes) == 1:
+        return next(iter(modes))
+    if len(modes) > 1:
+        print(
+            "Research diagnostics: mixed monitored bin_mode values detected; "
+            "using insample until the book is rebuilt from one discovery run."
+        )
+    return "insample"
+
+
+def _tag_diagnostic_output(path: Path, bin_mode: str) -> bool:
+    """Persist the binning provenance beside diagnostic rows."""
+    if not path.exists():
+        return False
+    try:
+        frame = pd.read_csv(path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError, OSError):
+        return False
+    frame["bin_mode"] = bin_mode
+    frame.to_csv(path, index=False)
+    return True
+
+
 def run_refresh(
     symbols=None,
     timeframes=("1d", "1h", "15m"),
@@ -158,24 +202,34 @@ def run_refresh(
     observations = build_regime_opportunity_rates()
     observations.to_csv(RESEARCH_DIR / "regime_opportunity_rates.csv", index=False)
 
+    discovery_ran = False
+    regime_tracks_ran = False
+    regime_tracks_bin_mode = None
+
     # --- DAILY regime tracks for monitored slices (always, not gated) ---
     try:
         monitored_path = Path("localdata/monitored_slices.csv")
         if monitored_path.exists() and monitored_path.stat().st_size > 0:
+            regime_tracks_bin_mode = _monitored_diagnostic_bin_mode(monitored_path)
+            regime_output = RESEARCH_DIR / "regime_stratified_diagnostics_rolling.csv"
+            date_output = RESEARCH_DIR / "date_range_diagnostics_rolling.csv"
             validate_slices.run_regime_stratified_diagnostics(
                 slices_path=str(monitored_path),
-                output_path=str(RESEARCH_DIR / "regime_stratified_diagnostics_rolling.csv"),
+                output_path=str(regime_output),
                 diagnostic_scope="leaderboard-top",
                 top_n=50,
-                bin_mode="rolling",
+                bin_mode=regime_tracks_bin_mode,
             )
             validate_slices.run_date_range_diagnostics(
                 slices_path=str(monitored_path),
-                output_path=str(RESEARCH_DIR / "date_range_diagnostics_rolling.csv"),
+                output_path=str(date_output),
                 diagnostic_scope="leaderboard-top",
                 top_n=50,
-                bin_mode="rolling",
+                bin_mode=regime_tracks_bin_mode,
             )
+            _tag_diagnostic_output(regime_output, regime_tracks_bin_mode)
+            _tag_diagnostic_output(date_output, regime_tracks_bin_mode)
+            regime_tracks_ran = regime_output.exists() and date_output.exists()
             try:
                 import pandas as pd
                 leaderboard_path = RESEARCH_DIR / "candidate_leaderboard_rolling.csv"
@@ -209,8 +263,6 @@ def run_refresh(
     except Exception as e:
         print(f"Daily diagnostics failed: {e}")
 
-    discovery_ran = False
-    regime_tracks_ran = False
     if discovery_allowed:
         if DISCOVERED_PATH.exists():
             DISCOVERED_PATH.unlink()
@@ -251,6 +303,7 @@ def run_refresh(
                         )
                     apply_registry_to_monitored(registry)
                 regime_tracks_ran = REGIME_DIAGNOSTICS_PATH.exists()
+                regime_tracks_bin_mode = "rolling"
             discovery_ran = True
 
     state = {
@@ -271,6 +324,7 @@ def run_refresh(
         "discovery_block_reason": discovery_block_reason,
         "discovery_ran": discovery_ran,
         "regime_tracks_ran": regime_tracks_ran,
+        "regime_tracks_bin_mode": regime_tracks_bin_mode,
         "orders_placed": False,
         "monitored_slices_modified": bool(apply_monitored_slices),
         "automatic_promotion_enabled": bool(enable_auto_promotion),

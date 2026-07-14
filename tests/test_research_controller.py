@@ -12,7 +12,11 @@ for path in (SRC, SCRIPTS):
         sys.path.insert(0, str(path))
 
 from research_lifecycle import apply_registry_to_monitored, build_registry  # noqa: E402
-from research_refresh import _eligible_discovery_symbols, _new_daily_bars  # noqa: E402
+from research_refresh import (  # noqa: E402
+    _eligible_discovery_symbols,
+    _monitored_diagnostic_bin_mode,
+    _new_daily_bars,
+)
 from research_regime_coverage import _regime_series  # noqa: E402
 
 
@@ -115,3 +119,15 @@ def test_research_refresh_separates_fresh_gate_from_sharded_discovery(monkeypatc
     assert state["discovery_allowed"] is False
     assert state["discovery_ran"] is False
     assert written["sharded_discovery_required"] is True
+
+
+def test_diagnostic_bin_mode_follows_monitored_book(tmp_path):
+    monitored = tmp_path / "monitored_slices.csv"
+    pd.DataFrame([{"symbol": "XLF", "bin_mode": "rolling"}]).to_csv(monitored, index=False)
+    assert _monitored_diagnostic_bin_mode(monitored) == "rolling"
+
+    pd.DataFrame([
+        {"symbol": "XLF", "bin_mode": "insample"},
+        {"symbol": "XOP", "bin_mode": "rolling"},
+    ]).to_csv(monitored, index=False)
+    assert _monitored_diagnostic_bin_mode(monitored) == "insample"
