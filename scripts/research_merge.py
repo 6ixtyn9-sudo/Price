@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from research_lifecycle import build_registry
+from research_lifecycle import build_registry, normalize_walk_forward_patterns
 
 
 def _read_manifest(path: Path) -> dict:
@@ -69,6 +69,7 @@ def merge_shards(
 
     discovered = pd.concat(discovered_frames, ignore_index=True) if discovered_frames else pd.DataFrame()
     leaderboard = pd.concat(leaderboard_frames, ignore_index=True) if leaderboard_frames else pd.DataFrame()
+    leaderboard = normalize_walk_forward_patterns(leaderboard)
     if not discovered.empty:
         discovered = discovered.drop_duplicates(
             subset=[c for c in ["symbol", "timeframe", "slice_combination", "side", "bin_mode"] if c in discovered.columns]

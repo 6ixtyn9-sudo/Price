@@ -11,7 +11,11 @@ for path in (SRC, SCRIPTS):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from research_lifecycle import apply_registry_to_monitored, build_registry  # noqa: E402
+from research_lifecycle import (  # noqa: E402
+    apply_registry_to_monitored,
+    build_registry,
+    normalize_walk_forward_patterns,
+)
 from research_refresh import (  # noqa: E402
     _eligible_discovery_symbols,
     _monitored_diagnostic_bin_mode,
@@ -131,3 +135,12 @@ def test_diagnostic_bin_mode_follows_monitored_book(tmp_path):
         {"symbol": "XOP", "bin_mode": "rolling"},
     ]).to_csv(monitored, index=False)
     assert _monitored_diagnostic_bin_mode(monitored) == "insample"
+
+
+def test_walk_forward_patterns_preserve_fold_width():
+    frame = pd.DataFrame({
+        "validation_n_folds": [4, 4, 4, 4],
+        "walk_forward_pass_pattern": [1, 10, 101, 111],
+    })
+    fixed = normalize_walk_forward_patterns(frame)
+    assert fixed["walk_forward_pass_pattern"].tolist() == ["0001", "0010", "0101", "0111"]

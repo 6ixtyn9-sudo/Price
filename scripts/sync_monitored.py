@@ -57,7 +57,10 @@ def _sync_edge_metrics(monitored: pd.DataFrame) -> int:
         return 0
 
     try:
-        source = _normalise_identity(pd.read_csv(source_path))
+        from research_lifecycle import normalize_walk_forward_patterns
+        source = normalize_walk_forward_patterns(
+            _normalise_identity(pd.read_csv(source_path))
+        )
     except (pd.errors.EmptyDataError, pd.errors.ParserError):
         pd.DataFrame().to_csv(EDGE_METRICS, index=False)
         print(f"sync_monitored: {source_path} is unreadable; edge metrics empty")

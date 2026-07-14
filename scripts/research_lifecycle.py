@@ -33,6 +33,38 @@ def _truthy(value) -> bool:
     return str(value).strip().lower() in {"true", "1", "yes"}
 
 
+def normalize_walk_forward_patterns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Restore leading zeroes lost when binary fold patterns pass through CSV.
+
+    A four-fold pattern such as ``0010`` can be read by pandas as integer 10
+    and later serialized as ``10``. Fold-pattern triage must retain the exact
+    width, otherwise recent-only/regime-switching classifications become
+    ambiguous. The fold-count column is the width authority.
+    """
+    if frame is None or frame.empty or "walk_forward_pass_pattern" not in frame.columns:
+        return frame
+    out = frame.copy()
+    fold_col = "walk_forward_folds" if "walk_forward_folds" in out.columns else "validation_n_folds"
+
+    def _normalize(row):
+        value = row.get("walk_forward_pass_pattern")
+        if value is None or pd.isna(value):
+            return ""
+        text = str(value).strip()
+        if text.endswith(".0"):
+            text = text[:-2]
+        try:
+            width = int(float(row.get(fold_col, 0) or 0))
+        except (TypeError, ValueError):
+            width = 0
+        if width > 0 and text and set(text).issubset({"0", "1"}):
+            return text.zfill(width)[-width:]
+        return text
+
+    out["walk_forward_pass_pattern"] = out.apply(_normalize, axis=1)
+    return out
+
+
 def _clean(value, default="") -> str:
     if value is None:
         return default
@@ -95,6 +127,7 @@ def build_registry(
         return pd.DataFrame()
     if leaderboard.empty:
         return pd.DataFrame()
+    leaderboard = normalize_walk_forward_patterns(leaderboard)
 
     decay = _live_decay_keys(live_forward_path)
     rows = []
