@@ -6,6 +6,8 @@ monitored_edge_metrics.csv is rebuilt from the exact merged leaderboard so
 conviction sizing cannot silently fall back to equal-notional after a research
 refresh.
 """
+import json
+import os
 import sys
 from pathlib import Path
 import tempfile
@@ -21,6 +23,7 @@ REGISTRY = Path("localdata/research/merged/candidate_registry.csv")
 LEADERBOARD = Path("localdata/research/merged/candidate_leaderboard_merged.csv")
 MONITORED = Path("localdata/monitored_slices.csv")
 EDGE_METRICS = Path("localdata/monitored_edge_metrics.csv")
+BOOK_LIFECYCLE = Path("localdata/research/monitored_book_lifecycle.json")
 
 
 def _normalise_identity(frame: pd.DataFrame) -> pd.DataFrame:
@@ -101,7 +104,13 @@ def main() -> int:
         return 0
 
     reg = pd.read_csv(REGISTRY)
-    before = len(pd.read_csv(MONITORED)) if MONITORED.exists() else 0
+    baseline_path = BOOK_LIFECYCLE.parent / ".monitored_book_before.csv"
+    if baseline_path.exists():
+        before_frame = pd.read_csv(baseline_path)
+        baseline_path.unlink(missing_ok=True)
+    else:
+        before_frame = pd.read_csv(MONITORED) if MONITORED.exists() else pd.DataFrame()
+    before = len(before_frame)
 
     # Start from an empty slate so only registry-qualified slices survive.
     # apply_registry_to_monitored preserves rows absent from the registry;
@@ -124,6 +133,22 @@ def main() -> int:
     after = len(result)
     print(f"sync_monitored: {before} -> {after} ({after - before:+d})")
     result.to_csv(MONITORED, index=False)
+
+    from research_lifecycle import build_monitored_book_audit
+    lifecycle = build_monitored_book_audit(
+        before_frame,
+        result,
+        registry=reg,
+        discovery_run_id=os.getenv("DISCOVERY_RUN_ID") or None,
+    )
+    BOOK_LIFECYCLE.parent.mkdir(parents=True, exist_ok=True)
+    BOOK_LIFECYCLE.write_text(json.dumps(lifecycle, indent=2) + "\n")
+    print(
+        "sync_monitored: lifecycle "
+        f"added={len(lifecycle['added_candidates'])} "
+        f"removed={len(lifecycle['removed_candidates'])} "
+        f"retained={len(lifecycle['retained_candidates'])}"
+    )
     _sync_edge_metrics(result)
     return 0
 

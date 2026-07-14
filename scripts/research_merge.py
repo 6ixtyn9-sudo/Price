@@ -100,6 +100,11 @@ def merge_shards(
     monitored_modified = False
     if apply_monitored_slices and not registry.empty:
         from research_lifecycle import apply_registry_to_monitored
+        monitored_path = Path("localdata/monitored_slices.csv")
+        baseline_path = output_dir.parent / ".monitored_book_before.csv"
+        previous = pd.read_csv(monitored_path) if monitored_path.exists() else pd.DataFrame()
+        baseline_path.parent.mkdir(parents=True, exist_ok=True)
+        previous.to_csv(baseline_path, index=False)
         apply_registry_to_monitored(registry, promote_proposals=promote_proposals)
         monitored_modified = True
 

@@ -175,6 +175,8 @@ jobs:
             --apply-monitored-slices
 
       - name: Sync rolling monitored book and execution edge metrics
+        env:
+          DISCOVERY_RUN_ID: ${{ github.run_id }}
         run: python3 scripts/sync_monitored.py
 
       - name: Run regime diagnostics on merged top 25 (full validation cycle)
@@ -202,6 +204,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add localdata/research/merged localdata/research/expected_shards.json \
+            localdata/research/monitored_book_lifecycle.json \
             localdata/monitored_slices.csv localdata/monitored_edge_metrics.csv
           if git diff --cached --quiet; then
             echo "No merged research changes to commit."

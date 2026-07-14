@@ -13,6 +13,7 @@ for path in (SRC, SCRIPTS):
 
 from research_lifecycle import (  # noqa: E402
     apply_registry_to_monitored,
+    build_monitored_book_audit,
     build_registry,
     normalize_walk_forward_patterns,
 )
@@ -144,3 +145,33 @@ def test_walk_forward_patterns_preserve_fold_width():
     })
     fixed = normalize_walk_forward_patterns(frame)
     assert fixed["walk_forward_pass_pattern"].tolist() == ["0001", "0010", "0101", "0111"]
+
+
+def test_monitored_book_audit_records_changes_and_reasons():
+    before = pd.DataFrame([
+        {"symbol": "OLD", "timeframe": "1d", "slice_combination": "old", "side": "long", "bin_mode": "rolling"},
+        {"symbol": "KEEP", "timeframe": "1d", "slice_combination": "keep", "side": "long", "bin_mode": "rolling"},
+        {"symbol": "SIDE", "timeframe": "1h", "slice_combination": "same", "side": "long", "bin_mode": "rolling"},
+    ])
+    after = pd.DataFrame([
+        {"symbol": "KEEP", "timeframe": "1d", "slice_combination": "keep", "side": "long", "bin_mode": "rolling"},
+        {"symbol": "NEW", "timeframe": "1d", "slice_combination": "new", "side": "short", "bin_mode": "rolling"},
+        {"symbol": "SIDE", "timeframe": "1h", "slice_combination": "same", "side": "short", "bin_mode": "rolling"},
+    ])
+    registry = pd.DataFrame([
+        {"candidate_key": "OLD|1d|old|rolling", "status": "decaying_suspended"},
+        {"candidate_key": "NEW|1d|new|rolling", "status": "paper_proposal"},
+        {"candidate_key": "SIDE|1h|same|rolling", "status": "paper_proposal"},
+    ])
+
+    audit = build_monitored_book_audit(before, after, registry, discovery_run_id="123")
+
+    assert audit["previous_book_count"] == 3
+    assert audit["new_book_count"] == 3
+    assert audit["retained_candidates"] == ["KEEP|1d|keep|long|rolling"]
+    assert "OLD|1d|old|long|rolling" in audit["removed_candidates"]
+    assert "NEW|1d|new|short|rolling" in audit["added_candidates"]
+    assert audit["removal_reasons"]["OLD|1d|old|long|rolling"] == "decaying_suspended"
+    assert audit["promotion_reasons"]["NEW|1d|new|short|rolling"] == "paper_proposal"
+    assert audit["changed_sides_or_slices"][0]["symbol"] == "SIDE"
+    assert audit["discovery_run_id"] == "123"

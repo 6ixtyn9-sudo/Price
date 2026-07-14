@@ -1,9 +1,9 @@
 """Deterministic candidate lifecycle controller.
 
 This module turns research leaderboard rows and live forward evidence into an
-isolated registry. It does not alter monitored_slices.csv by default. Automatic
-promotion is an explicit activation mode for a future production deployment;
-the default is proposal-only.
+isolated registry. It does not alter monitored_slices.csv by default. Workflow
+callers may explicitly apply paper promotions and demotions, while production
+activation remains a separate decision.
 """
 
 from __future__ import annotations
@@ -70,6 +70,137 @@ def _clean(value, default="") -> str:
         return default
     text = str(value).strip()
     return default if text.lower() in {"", "nan", "none"} else text
+
+
+def _book_identity(row) -> str:
+    """Return the complete identity used by the monitored book."""
+    return "|".join([
+        _clean(row.get("symbol")).upper(),
+        _clean(row.get("timeframe")),
+        _clean(row.get("slice_combination")),
+        _clean(row.get("side"), "long").lower(),
+        _clean(row.get("bin_mode"), "insample").lower(),
+    ])
+
+
+def _book_base_identity(row) -> str:
+    """Return the symbol/timeframe identity used to detect replacements."""
+    return "|".join([
+        _clean(row.get("symbol")).upper(),
+        _clean(row.get("timeframe")),
+    ])
+
+
+def _registry_identity(row) -> str:
+    """Match the candidate key used by the lifecycle registry."""
+    return "|".join([
+        _clean(row.get("symbol")).upper(),
+        _clean(row.get("timeframe")),
+        _clean(row.get("slice_combination")),
+        _clean(row.get("bin_mode"), "insample").lower(),
+    ])
+
+
+def _book_identities(frame: pd.DataFrame | None) -> set[str]:
+    if frame is None or frame.empty:
+        return set()
+    return {_book_identity(row) for _, row in frame.iterrows()}
+
+
+def build_monitored_book_audit(
+    before: pd.DataFrame | None,
+    after: pd.DataFrame | None,
+    registry: pd.DataFrame | None = None,
+    discovery_run_id: str | None = None,
+) -> dict:
+    """Describe one monitored-book rewrite without changing lifecycle policy.
+
+    The final monitored book is rebuilt by ``sync_monitored.py``. Keeping the
+    audit here makes additions, removals, and replacements attributable even
+    when the active paper book is intentionally dynamic.
+    """
+    before = before if before is not None else pd.DataFrame()
+    after = after if after is not None else pd.DataFrame()
+    before_keys = _book_identities(before)
+    after_keys = _book_identities(after)
+    added = sorted(after_keys - before_keys)
+    removed = sorted(before_keys - after_keys)
+    retained = sorted(before_keys & after_keys)
+
+    before_by_base: dict[str, set[str]] = {}
+    after_by_base: dict[str, set[str]] = {}
+    for _, row in before.iterrows():
+        before_by_base.setdefault(_book_base_identity(row), set()).add(_book_identity(row))
+    for _, row in after.iterrows():
+        after_by_base.setdefault(_book_base_identity(row), set()).add(_book_identity(row))
+
+    changed = []
+    for base in sorted(set(before_by_base) & set(after_by_base)):
+        old = sorted(before_by_base[base] - after_by_base[base])
+        new = sorted(after_by_base[base] - before_by_base[base])
+        if old and new:
+            symbol, timeframe = base.split("|", 1)
+            changed.append({
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "previous": old,
+                "current": new,
+            })
+
+    registry_status: dict[str, str] = {}
+    if registry is not None and not registry.empty:
+        for _, row in registry.iterrows():
+            key = _clean(row.get("candidate_key")) or _registry_identity(row)
+            registry_status[key] = _clean(row.get("status"), "unknown")
+
+    changed_removed = {
+        key
+        for item in changed
+        for key in item["previous"]
+    }
+    removal_reasons = {}
+    for key in removed:
+        if key in changed_removed:
+            old_parts = key.split("|")
+            replacement = next(
+                (item for item in changed if key in item["previous"]),
+                None,
+            )
+            replacement_keys = replacement["current"] if replacement else []
+            reason = "replaced_candidate"
+            if replacement_keys:
+                new_parts = replacement_keys[0].split("|")
+                if old_parts[2] == new_parts[2] and old_parts[4] == new_parts[4] and old_parts[3] != new_parts[3]:
+                    reason = "side_changed"
+                elif old_parts[3] == new_parts[3] and old_parts[4] == new_parts[4] and old_parts[2] != new_parts[2]:
+                    reason = "slice_changed"
+            removal_reasons[key] = reason
+        else:
+            registry_key = "|".join(key.split("|")[:3] + [key.split("|")[4]])
+            status = registry_status.get(registry_key)
+            removal_reasons[key] = (
+                "decaying_suspended" if status == "decaying_suspended"
+                else "not_in_current_registry" if status is None
+                else f"registry_status:{status}"
+            )
+
+    promotion_reasons = {}
+    for key in added:
+        parts = key.split("|")
+        registry_key = "|".join(parts[:3] + [parts[4]])
+        promotion_reasons[key] = registry_status.get(registry_key, "added_by_sync")
+
+    return {
+        "previous_book_count": len(before_keys),
+        "new_book_count": len(after_keys),
+        "added_candidates": added,
+        "removed_candidates": removed,
+        "retained_candidates": retained,
+        "changed_sides_or_slices": changed,
+        "removal_reasons": removal_reasons,
+        "promotion_reasons": promotion_reasons,
+        "discovery_run_id": discovery_run_id,
+    }
 
 
 def _strict_candidate(row: pd.Series) -> bool:
