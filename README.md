@@ -48,3 +48,11 @@ PYTHONPATH=src python3 scripts/attribute_pnl.py           # realized P&L per sli
 python3 -m pytest -q                                      # test suite
 Doctrine
 Price first, side second. Discovery before promotion, validation before execution. No slice is promoted without surviving the full gate. Every risk lever fails open on missing data. Paper account only — no live capital without multi-month out-of-sample survival. Read HANDOVER.md for the complete project history.
+
+Operator’s cadence
+
+cd ~/Price
+
+git status --short
+git pull --ff-only
+git log --oneline --decorate -3
