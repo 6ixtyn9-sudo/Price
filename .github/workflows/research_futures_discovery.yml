@@ -45,10 +45,61 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
+      - name: Compute research warehouse cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore warehouse cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if cache empty
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
+            echo "Warehouse already populated"
+            exit 0
+          fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber
+            tar xzf /tmp/warehouse-research.tar.gz -C localdata
+            rm /tmp/warehouse-research.tar.gz
+            echo "Seeded $(find localdata/warehouse -name '*.parquet' | wc -l) parquet files"
+          else
+            echo "No seed release $SEED_TAG"
+          fi
+
+      - name: Restore operational paper state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-futures-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
 
       - name: Build futures shard plan
         id: plan
@@ -111,18 +162,42 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
+      - name: Compute research warehouse cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: localdata/warehouse
-          key: research-warehouse-v4-${{ runner.os }}-futures-discovery-${{ github.run_id }}
+          key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
+
+      - name: Restore operational paper state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-futures-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
 
       - name: Verify required secrets
         env:
@@ -138,9 +213,8 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
         run: |
-          SYMBOLS=$(python3 -c "import json,os; print(' '.join(json.loads(os.environ['SHARD_SYMBOLS_JSON'])))")
+          SYMBOLS=$(python3 -c "import json,os; print(' '.join(json.loads(os.environ['SHARD_SYMBOLS_JSON'])))" )
           echo "Capturing $SYMBOLS for timeframe ${{ matrix.timeframe }}"
-          # yfinance primary for both 1d and 1h futures, 365d lookback matches main
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes ${{ matrix.timeframe }} --days 365
 
       - name: Run futures shard
@@ -154,6 +228,32 @@ jobs:
             --output-dir "localdata/research/futures/shards/${{ matrix.shard_id }}" \
             --bin-mode rolling \
             --profile futures
+
+      - name: Check operational paper state cache content
+        id: ops_state
+        run: |
+          shopt -s nullglob
+          files=(localdata/trade_journal.csv localdata/paper_trade_log.csv localdata/stop_state.json localdata/stopout_journal.json localdata/cooldown_journal.json)
+          echo "has_state=false" >> "$GITHUB_OUTPUT"
+          for f in "${files[@]}"; do if [ -s "$f" ]; then echo "has_state=true" >> "$GITHUB_OUTPUT"; break; fi; done
+
+      - name: Save operational paper state cache
+        if: ${{ steps.ops_state.outputs.has_state == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-futures-${{ github.run_id }}
+
+      - name: Save research warehouse cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
 
       - name: Upload shard output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -181,10 +281,38 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
+      - name: Restore warehouse cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: research-warehouse-v4-${{ runner.os }}-futures-discovery-merged-${{ github.run_id }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Restore operational paper state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-futures-merged-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
 
       - name: Download shards
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -214,6 +342,13 @@ jobs:
             --timeframes ${{ inputs.timeframes }} \
             --regime-only \
             --output-dir localdata/research/futures
+
+      - name: Run date-range diagnostics on merged top 25 (main-like)
+        run: |
+          python scripts/validate_slices.py \
+            --slices-path localdata/research/futures/candidate_leaderboard_futures_rolling.csv \
+            --date-range-diagnostics \
+            --diagnostic-scope leaderboard-top --top-n 25 --bin-mode rolling
 
       - name: Upload merged futures research artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

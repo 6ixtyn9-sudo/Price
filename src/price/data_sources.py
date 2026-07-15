@@ -48,7 +48,7 @@ def resolve_universal_source(symbol: str, timeframe_str: str) -> str:
     """
     sym = symbol.upper()
     if is_crypto(sym):
-        return "alpaca_crypto"
+        return "yfinance_crypto"
     if is_futures(sym):
         return "yfinance_futures"
     if timeframe_str in ("1d", "1h") and is_equity(sym):
@@ -630,18 +630,76 @@ def fetch_yfinance_futures_bars(symbol: str, timeframe_str: str, start_dt: datet
     return result
 
 
+def fetch_yfinance_crypto_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Fetch crypto bars from Yahoo Finance (BTC-USD, ETH-USD etc) as primary.
+
+    yfinance provides crypto 24/7 without API key: 1d long history, 1h up to ~725d, 15m up to ~60d.
+    This makes crypto similar to futures and equity: yfinance first, Alpaca fallback.
+    Symbol mapping: BTC/USD -> BTC-USD, AAVE/USD -> AAVE-USD.
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("yfinance not installed, skipping Yahoo Finance crypto fetch.")
+        return pd.DataFrame()
+
+    # yfinance uses dash, not slash: BTC/USD -> BTC-USD
+    yahoo_symbol = symbol.upper().replace("/", "-")
+
+    interval = None
+    if timeframe_str == "1d":
+        interval = None
+    elif timeframe_str == "1h":
+        interval = "1h"
+        min_start = end_dt - timedelta(days=725)
+        if start_dt < min_start:
+            start_dt = min_start
+    elif timeframe_str == "15m":
+        interval = "15m"
+        min_start = end_dt - timedelta(days=59)
+        if start_dt < min_start:
+            start_dt = min_start
+    else:
+        raise ValueError(f"Unsupported crypto timeframe: {timeframe_str}")
+
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    try:
+        ticker = yf.Ticker(yahoo_symbol)
+        if interval is None:
+            df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
+        else:
+            df = ticker.history(start=start_str, end=end_str, interval=interval, auto_adjust=False)
+        if df is None or df.empty:
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"yfinance crypto failed for {symbol}: {e}")
+        return pd.DataFrame()
+
+    result = _build_yfinance_canonical(df, symbol, timeframe_str)
+    # Override source label to reflect crypto path
+    result["source"] = "yfinance_crypto"
+    print(f"yfinance: fetched {len(result)} crypto bars for {symbol} ({timeframe_str})")
+    return result
+
+
 def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """
     Router that picks the correct data source based on asset class:
-      - Crypto: Alpaca CryptoHistoricalDataClient
-      - Futures: yfinance -> Alpaca fallback
+      - Crypto: yfinance (BTC-USD etc, no key) -> Alpaca fallback
+      - Futures: yfinance (ES=F etc) -> Alpaca fallback
       - Equity daily: yfinance → Tiingo → Alpaca raw (last resort)
       - Equity 1h:   yfinance → Alpaca 15m resample (fallback)
       - Equity 15m:  Alpaca (yfinance 15m only covers 60 days)
     """
     sym = symbol.upper()
-    # Crypto first
+    # Crypto: yfinance primary (BTC-USD etc, no key, 24/7), Alpaca fallback.
+    # Same pattern as futures and equity now – free first, paid second.
     if is_crypto(sym):
+        yf_df = fetch_yfinance_crypto_bars(sym, timeframe_str, start_dt, end_dt)
+        if not yf_df.empty:
+            return yf_df
         return fetch_crypto_bars(sym, timeframe_str, start_dt, end_dt)
 
     # Futures: Yahoo Finance first (continuous futures symbols like ES=F,
