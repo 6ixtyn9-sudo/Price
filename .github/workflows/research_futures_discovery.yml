@@ -55,7 +55,7 @@ jobs:
           sys.path.insert(0, str(Path('src').resolve()))
           from price.futures_metadata import get_research_futures_symbols
 
-          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
+          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$\")
           if os.environ.get("INPUT_SYMBOLS", "").strip():
               symbols = [s.strip().upper() for s in os.environ["INPUT_SYMBOLS"].split() if s.strip()]
           else:
@@ -111,6 +111,25 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+
+      - name: Capture futures data (automatic for 1d and 1h)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
+        run: |
+          SYMBOLS=$(python3 -c "import json,os; print(' '.join(json.loads(os.environ['SHARD_SYMBOLS_JSON'])))")
+          echo "Capturing $SYMBOLS for timeframe ${{ matrix.timeframe }}"
+          # yfinance primary for both 1d and 1h futures, 365d lookback matches main
+          python scripts/capture_bars.py --symbols $SYMBOLS --timeframes ${{ matrix.timeframe }} --days 365
 
       - name: Run futures shard
         env:

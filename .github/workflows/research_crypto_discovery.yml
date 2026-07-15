@@ -67,7 +67,7 @@ jobs:
           sys.path.insert(0, str(Path('scripts').resolve()))
           from research_crypto import load_crypto_symbols
 
-          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
+          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$\")
           if os.environ.get("INPUT_SYMBOLS", "").strip():
               symbols = [s.strip().upper() for s in os.environ["INPUT_SYMBOLS"].split() if s.strip()]
           else:
@@ -123,6 +123,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+
+      - name: Capture crypto data (automatic for 1d and 1h)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
+        run: |
+          SYMBOLS=$(python3 -c "import json,os; print(' '.join(json.loads(os.environ['SHARD_SYMBOLS_JSON'])))")
+          echo "Capturing $SYMBOLS for timeframe ${{ matrix.timeframe }}"
+          if [ "${{ matrix.timeframe }}" = "1d" ]; then
+            python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 1825 --skip-postprocess
+          else
+            # For 1h/15m crypto, capture 15m 365d which auto-resamples to 1h, matching main's doctrine
+            python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
+          fi
 
       - name: Run crypto shard
         env:
