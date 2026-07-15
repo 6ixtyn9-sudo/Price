@@ -228,6 +228,35 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
             df_binned["feat_realized_vol_day_equiv"], ["vol_day_low", "vol_day_mid", "vol_day_high"], "vol_day_mid"
         )
 
+    # Ensure every state promised by STATE_LABELS / ML_FEATURE_TO_STATE exists even when the
+    # source feat_* column was absent (e.g. synthetic fixtures). This guarantees
+    # bin_features() always exposes the full state vocabulary the validation and ML
+    # bridge expect, with a neutral fallback where data is missing.
+    _fallback_state = {
+        "state_ext": np.nan,
+        "state_slope": "flat",
+        "state_vol": "mid_vol",
+        "state_session": np.nan,
+        "state_dow": np.nan,
+        "state_utc_session": np.nan,
+        "state_weekpart": np.nan,
+        "state_ret_1": "ret_flat",
+        "state_ret_3": "ret_flat",
+        "state_ret_5": "ret_flat",
+        "state_ret_10": "ret_flat",
+        "state_ret_20": "ret_flat",
+        "state_atr_ext": "atr_neutral",
+        "state_vol_regime": "vol_regime_mid",
+        "state_trend_strength": "mod_trend",
+        "state_gap": "gap_flat",
+        "state_range_pos": "range_mid",
+        "state_ret_day": "ret_day_flat",
+        "state_vol_day": "vol_day_mid",
+    }
+    for _state_col, _fallback in _fallback_state.items():
+        if _state_col not in df_binned.columns:
+            df_binned[_state_col] = _fallback
+
     return df_binned
 
 
@@ -364,6 +393,31 @@ def bin_features_rolling(
             df_binned["feat_realized_vol_day_equiv"],
             ["vol_day_low", "vol_day_mid", "vol_day_high"], min_periods, "vol_day_mid",
         )
+
+    _fallback_state = {
+        "state_ext": np.nan,
+        "state_slope": "flat",
+        "state_vol": "mid_vol",
+        "state_session": np.nan,
+        "state_dow": np.nan,
+        "state_utc_session": np.nan,
+        "state_weekpart": np.nan,
+        "state_ret_1": "ret_flat",
+        "state_ret_3": "ret_flat",
+        "state_ret_5": "ret_flat",
+        "state_ret_10": "ret_flat",
+        "state_ret_20": "ret_flat",
+        "state_atr_ext": "atr_neutral",
+        "state_vol_regime": "vol_regime_mid",
+        "state_trend_strength": "mod_trend",
+        "state_gap": "gap_flat",
+        "state_range_pos": "range_mid",
+        "state_ret_day": "ret_day_flat",
+        "state_vol_day": "vol_day_mid",
+    }
+    for _state_col, _fallback in _fallback_state.items():
+        if _state_col not in df_binned.columns:
+            df_binned[_state_col] = _fallback
 
     return df_binned
 

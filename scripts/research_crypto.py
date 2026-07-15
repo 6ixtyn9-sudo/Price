@@ -741,14 +741,35 @@ def build_monitored_candidates(
             "bin_mode",
         ] if c in leaderboard.columns
     ]
-    joined = regime_registry.merge(leaderboard[key_cols + lb_cols], on=key_cols, how="left")
+    # Avoid bin_mode collision: regime_registry already carries bin_mode (DEFAULT).
+    lb_cols_no_bin = [c for c in lb_cols if c != "bin_mode"]
+    joined = regime_registry.merge(
+        leaderboard[key_cols + lb_cols_no_bin] if lb_cols_no_bin else leaderboard[key_cols].head(0),
+        on=key_cols,
+        how="left",
+        suffixes=("", "_lb"),
+    )
+    if "bin_mode" not in joined.columns:
+        if "bin_mode_lb" in joined.columns:
+            joined["bin_mode"] = joined["bin_mode_lb"]
+        else:
+            joined["bin_mode"] = DEFAULT_BIN_MODE
+    else:
+        if "bin_mode_lb" in joined.columns:
+            joined["bin_mode"] = joined["bin_mode"].fillna(joined["bin_mode_lb"])
+        joined["bin_mode"] = joined["bin_mode"].fillna(DEFAULT_BIN_MODE)
+
     selected = joined[joined["overall_regime_status"].isin(PAPER_CANDIDATE_STATUSES)].copy()
     if selected.empty:
         empty.to_csv(out_path, index=False)
         return empty, empty_summary
 
     selected["source_note"] = selected["overall_regime_status"].astype(str)
-    selected["bin_mode"] = selected.get("bin_mode", DEFAULT_BIN_MODE).fillna(DEFAULT_BIN_MODE)
+    if "bin_mode" in selected.columns:
+        selected["bin_mode"] = selected["bin_mode"].astype(str).replace({"nan": DEFAULT_BIN_MODE, "None": DEFAULT_BIN_MODE, "": DEFAULT_BIN_MODE})
+        selected["bin_mode"] = selected["bin_mode"].fillna(DEFAULT_BIN_MODE)
+    else:
+        selected["bin_mode"] = DEFAULT_BIN_MODE
 
     status_priority = {
         "structural_candidate": 4,
