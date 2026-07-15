@@ -80,6 +80,42 @@ PAPER_CANDIDATE_STATUSES = (
 )
 
 
+def _resolve_effective_output_dir(output_dir: Path, timeframes: tuple[str, ...], regime_only: bool) -> Path:
+    """Choose a stable artifact namespace.
+
+    Full single-timeframe runs should not clobber artifacts from another
+    timeframe in the same substrate directory, so they default to
+    <output_dir>/<timeframe> unless the caller already gave a scoped path.
+
+    Regime-only reruns search for existing artifacts first:
+      1. base output_dir (used by merged shard workflows)
+      2. scoped <output_dir>/<timeframe> (used by local single-timeframe runs)
+    """
+    base = Path(output_dir)
+    if len(timeframes) != 1:
+        return base
+
+    tf = timeframes[0]
+    scoped = base / tf
+    if regime_only:
+        for candidate in (base, scoped):
+            if any(
+                (candidate / name).exists()
+                for name in (
+                    "candidate_leaderboard_crypto_rolling.csv",
+                    "candidate_leaderboard_merged.csv",
+                    "candidate_registry_crypto_rolling.csv",
+                    "candidate_registry.csv",
+                )
+            ):
+                return candidate
+        return scoped
+
+    if base.name == tf or base.name.endswith(f"_{tf}"):
+        return base
+    return scoped
+
+
 def _normalize_symbols(symbols: Iterable[str]) -> list[str]:
     seen = set()
     out: list[str] = []
@@ -221,6 +257,8 @@ def _top_rows(frame: pd.DataFrame, columns: list[str], n: int = 15) -> list[dict
         return []
     keep = [col for col in columns if col in frame.columns]
     out = frame[keep].head(n).copy()
+    if "walk_forward_pass_pattern" in out.columns:
+        out["walk_forward_pass_pattern"] = out["walk_forward_pass_pattern"].astype(str)
     return out.to_dict("records")
 
 
@@ -775,7 +813,7 @@ def run_crypto_research(
     max_monitored_candidates: int = DEFAULT_MAX_MONITORED_CANDIDATES,
     max_monitored_per_symbol: int = DEFAULT_MAX_MONITORED_PER_SYMBOL,
 ) -> dict:
-    output_dir = Path(output_dir)
+    output_dir = _resolve_effective_output_dir(Path(output_dir), timeframes, regime_only)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     target_symbols = _normalize_symbols(symbols or load_crypto_symbols())

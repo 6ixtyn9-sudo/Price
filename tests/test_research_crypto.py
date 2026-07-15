@@ -83,6 +83,20 @@ def test_build_discovery_batches_handles_single_condition_symbol():
     ]
 
 
+def test_resolve_effective_output_dir_scopes_single_timeframe_runs(tmp_path: Path):
+    base = tmp_path / "crypto"
+    resolved = research_crypto._resolve_effective_output_dir(base, ("1d",), regime_only=False)
+    assert resolved == base / "1d"
+
+
+def test_resolve_effective_output_dir_uses_existing_base_for_regime_only(tmp_path: Path):
+    base = tmp_path / "crypto"
+    base.mkdir(parents=True)
+    (base / "candidate_leaderboard_merged.csv").write_text("symbol,timeframe,slice_combination\nBTC/USD,1d,a\n")
+    resolved = research_crypto._resolve_effective_output_dir(base, ("1d",), regime_only=True)
+    assert resolved == base
+
+
 def test_select_regime_targets_caps_total_and_per_symbol():
     leaderboard = pd.DataFrame(
         [

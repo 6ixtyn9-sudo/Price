@@ -14,6 +14,12 @@ import pandas as pd
 import research_futures
 
 
+def test_resolve_effective_output_dir_scopes_single_timeframe_runs(tmp_path: Path):
+    base = tmp_path / "futures"
+    resolved = research_futures._resolve_effective_output_dir(base, ("1d",), regime_only=False)
+    assert resolved == base / "1d"
+
+
 def test_futures_defaults_are_research_only():
     assert research_futures.DEFAULT_BIN_MODE == "rolling"
     assert research_futures.DEFAULT_TIMEFRAMES == ("1d",)
