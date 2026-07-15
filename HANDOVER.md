@@ -4888,3 +4888,34 @@ plausible, but the operator still wants crypto and futures to be acceptable by
 main before merge. Futures daily still needs broader proof beyond the initial
 smoke, and crypto 1h still needs to be explored under the new cheaper regime
 selection path.
+
+Futures Regime-Confidence Pass (2026-07-15)
+
+To raise confidence that the isolated futures lane was not merely a tiny
+smoke-test artifact, regime-aware post-processing was added to
+scripts/research_futures.py.
+
+What changed:
+
+research_futures.py now derives explicit targets from the futures leaderboard,
+runs both date-range and regime-stratified diagnostics on that target set, and
+writes futures-specific regime artifacts:
+
+candidate_leaderboard_futures_bull.csv
+candidate_leaderboard_futures_bear.csv
+candidate_leaderboard_futures_neutral.csv
+candidate_registry_futures_regime.csv
+regime_counts_futures.csv
+regime_candidate_matrix_futures.csv
+
+The futures summary JSON now also carries regime_status_counts,
+regime_candidate_count, and top_regime_candidates, mirroring the crypto lane at
+a smaller scale. Unlike crypto, no target-subset throttling or regime-only mode
+was added here yet because the current futures leaderboard is still tiny and the
+main need was confidence, not runtime control.
+
+Interpretation:
+
+Futures remain research-only. The regime-aware pass exists to show whether the
+small current futures hints are coherent only inside certain macro states, not
+to relax the main deployment gate.
