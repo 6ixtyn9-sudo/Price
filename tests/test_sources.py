@@ -128,7 +128,8 @@ def test_resolve_universal_source_uses_yfinance_for_equity_daily(monkeypatch):
     assert ds.resolve_universal_source("KLAC", "1d") == "yfinance"
     assert ds.resolve_universal_source("XOP", "1h") == "yfinance"
     assert ds.resolve_universal_source("XOP", "15m") == "alpaca"
-    assert ds.resolve_universal_source("BTC/USD", "1d") == "alpaca_crypto"
+    assert ds.resolve_universal_source("BTC/USD", "1d") == "yfinance_crypto"
+    assert ds.resolve_universal_source("FUT/ES", "1d") == "yfinance_futures"
 
 
 def test_resolve_universal_source_yfinance_works_without_tiingo_key(monkeypatch):
