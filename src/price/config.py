@@ -2,7 +2,12 @@ import json
 import os
 import re
 from pathlib import Path
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional convenience only
+    def load_dotenv(*args, **kwargs):
+        return False
 
 load_dotenv()
 
@@ -111,6 +116,12 @@ CRYPTO_SYMBOLS = [
 def is_futures(symbol: str) -> bool:
     s = symbol.upper()
 
+    # Canonical namespaced futures symbols (e.g. FUT/ES) are unambiguous and
+    # should always route to the futures path, even when the active generated
+    # allowlist intentionally has futures=[] to exclude bare ambiguous roots.
+    if s.startswith("FUT/"):
+        return True
+
     # If a generated allowlist exists, only symbols explicitly listed under
     # its "futures" key should be treated as futures. This avoids ambiguous
     # roots like CL/ES/BTC being misrouted when the user intentionally set
@@ -127,6 +138,8 @@ def is_futures(symbol: str) -> bool:
 
 def is_crypto(symbol: str) -> bool:
     s = symbol.upper()
+    if s.startswith("FUT/"):
+        return False
     return "/" in s or s in CRYPTO_SYMBOLS
 
 def is_equity(symbol: str) -> bool:

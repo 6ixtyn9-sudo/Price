@@ -26,6 +26,8 @@ ML_FEATURE_TO_STATE: Dict[str, str] = {
     "feat_trend_strength_20": "state_trend_strength",
     "feat_gap": "state_gap",
     "feat_range_position": "state_range_pos",
+    "feat_ret_day_equiv": "state_ret_day",
+    "feat_realized_vol_day_equiv": "state_vol_day",
 }
 
 # Ordered state labels (low -> high) for the ML feature -> state mapping.
@@ -50,6 +52,10 @@ STATE_LABELS: Dict[str, tuple] = {
     "state_trend_strength": ("weak_trend", "mod_trend", "strong_trend"),
     "state_gap": ("gap_down", "gap_flat", "gap_up"),
     "state_range_pos": ("range_low", "range_mid", "range_high"),
+    "state_ret_day": ("ret_day_down", "ret_day_flat", "ret_day_up"),
+    "state_vol_day": ("vol_day_low", "vol_day_mid", "vol_day_high"),
+    "state_utc_session": ("utc_asia", "utc_europe", "utc_us"),
+    "state_weekpart": ("weekday", "weekend"),
 }
 
 
@@ -166,6 +172,18 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df_binned['state_dow'] = np.nan
 
+    utc_session_map = {0: "utc_asia", 1: "utc_europe", 2: "utc_us"}
+    if 'feat_utc_session_bucket' in df_binned.columns:
+        df_binned['state_utc_session'] = df_binned['feat_utc_session_bucket'].map(utc_session_map)
+    else:
+        df_binned['state_utc_session'] = np.nan
+
+    weekpart_map = {0: "weekday", 1: "weekend"}
+    if 'feat_weekpart' in df_binned.columns:
+        df_binned['state_weekpart'] = df_binned['feat_weekpart'].map(weekpart_map)
+    else:
+        df_binned['state_weekpart'] = np.nan
+
     # Additional state bins used by the ML discovery path. These translate
     # the raw feat_* features LightGBM ranks highly (notably the return
     # features that dominate ML candidate interactions) into the same
@@ -200,6 +218,14 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
     if "feat_range_position" in df_binned.columns:
         df_binned["state_range_pos"] = _qcut_state(
             df_binned["feat_range_position"], ["range_low", "range_mid", "range_high"], "range_mid"
+        )
+    if "feat_ret_day_equiv" in df_binned.columns:
+        df_binned["state_ret_day"] = _qcut_state(
+            df_binned["feat_ret_day_equiv"], ["ret_day_down", "ret_day_flat", "ret_day_up"], "ret_day_flat"
+        )
+    if "feat_realized_vol_day_equiv" in df_binned.columns:
+        df_binned["state_vol_day"] = _qcut_state(
+            df_binned["feat_realized_vol_day_equiv"], ["vol_day_low", "vol_day_mid", "vol_day_high"], "vol_day_mid"
         )
 
     return df_binned
@@ -284,6 +310,18 @@ def bin_features_rolling(
     else:
         df_binned["state_dow"] = np.nan
 
+    utc_session_map = {0: "utc_asia", 1: "utc_europe", 2: "utc_us"}
+    if "feat_utc_session_bucket" in df_binned.columns:
+        df_binned["state_utc_session"] = df_binned["feat_utc_session_bucket"].map(utc_session_map)
+    else:
+        df_binned["state_utc_session"] = np.nan
+
+    weekpart_map = {0: "weekday", 1: "weekend"}
+    if "feat_weekpart" in df_binned.columns:
+        df_binned["state_weekpart"] = df_binned["feat_weekpart"].map(weekpart_map)
+    else:
+        df_binned["state_weekpart"] = np.nan
+
     for _period in [1, 3, 5, 10, 20]:
         _feat = f"feat_ret_{_period}"
         if _feat in df_binned.columns:
@@ -315,6 +353,16 @@ def bin_features_rolling(
         df_binned["state_range_pos"] = _expanding_qcut(
             df_binned["feat_range_position"],
             ["range_low", "range_mid", "range_high"], min_periods, "range_mid",
+        )
+    if "feat_ret_day_equiv" in df_binned.columns:
+        df_binned["state_ret_day"] = _expanding_qcut(
+            df_binned["feat_ret_day_equiv"],
+            ["ret_day_down", "ret_day_flat", "ret_day_up"], min_periods, "ret_day_flat",
+        )
+    if "feat_realized_vol_day_equiv" in df_binned.columns:
+        df_binned["state_vol_day"] = _expanding_qcut(
+            df_binned["feat_realized_vol_day_equiv"],
+            ["vol_day_low", "vol_day_mid", "vol_day_high"], min_periods, "vol_day_mid",
         )
 
     return df_binned

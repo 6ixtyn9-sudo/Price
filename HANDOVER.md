@@ -4652,3 +4652,171 @@ no live capital
 regime diagnostics on with rolling binning
 regime trading filter (--regime-filter) off
 The regime filter will be evaluated separately in a paper-only shadow A/B comparison. It was not enabled together with the lifecycle audit so that future performance changes remain attributable.
+Crypto Isolation Track (2026-07-15)
+
+A first safe crypto-specific research lane has been added without touching the
+current live paper system.
+
+What was added:
+
+scripts/research_crypto.py
+
+Purpose:
+
+run discovery/validation on CRYPTO ONLY
+write outputs only under localdata/research/crypto/
+use rolling bins by default
+use BTC/USD and ETH/USD as the default conditioning symbols
+never modify monitored_slices.csv
+never place orders
+never overwrite the current mixed-universe discovered/validated/leaderboard files
+Safety / red-team design:
+
+The script temporarily redirects discover_slices.py and validate_slices.py
+output globals into localdata/research/crypto/ and restores them afterward,
+so the current live/research system cannot be clobbered by a crypto run.
+BTC/USD and ETH/USD are not silently skipped: self-conditioning is handled by
+batching, so alts run with BTC+ETH conditioning, BTC runs with ETH only, and
+ETH runs with BTC only.
+The current monitored paper book is unchanged.
+No live workflow, monitored-slice sync, or execution module was altered.
+Current intent:
+
+This is a substrate-isolation step, not a deployment step.
+It exists to answer whether crypto can produce credible candidates when judged
+inside its OWN search-wide family and with crypto-native conditioning, before
+any paper-book changes are considered.
+Futures remain deferred until after this crypto-specific lane is inspected.
+
+Crypto + Futures Isolation Foundation (2026-07-15)
+
+This session moved from a single small crypto patch to a fuller isolated-substrate
+foundation, while deliberately NOT touching the current live equity paper lane.
+
+What was added:
+
+src/price/market_profiles.py
+
+explicit substrate profiles: equity, crypto, futures
+profile defaults: conditioning symbols, bin mode, output directory, default timeframes
+intended for isolated lanes first, not for immediate live-lane rewiring
+src/price/futures_metadata.py
+
+canonical research namespace for futures:
+FUT/ES, FUT/NQ, FUT/RTY, FUT/YM, FUT/CL, FUT/GC, FUT/SI, FUT/ZB, FUT/ZN, FUT/NG
+provider/root mapping and research-only contract metadata
+execution_ready=False on every contract by design
+scripts/research_crypto.py
+
+crypto-only discovery/validation lane
+outputs isolated under localdata/research/crypto/
+default conditioning symbols: BTC/USD and ETH/USD
+uses profile=crypto discovery matrix
+never modifies monitored_slices.csv and never places orders
+scripts/research_futures.py
+
+futures-only research foundation
+outputs isolated under localdata/research/futures/
+daily-first by default
+never modifies monitored_slices.csv and never places orders
+.github/workflows/research_crypto.yml
+.github/workflows/research_futures.yml
+
+manual workflow_dispatch-only research lanes
+artifact upload only; no live-book sync and no order placement
+Shared additive feature/state expansion
+
+features.py now emits additive substrate-agnostic timing features used by the
+isolated crypto lane:
+feat_utc_hour
+feat_utc_session_bucket
+feat_weekpart
+feat_ret_day_equiv
+feat_realized_vol_day_equiv
+These DO NOT replace or change the meaning of the current equity-native
+feat_session_bucket/state_session contract.
+
+discovery.py now also emits additive state fields used by crypto-specific
+research:
+state_utc_session
+state_weekpart
+state_ret_day
+state_vol_day
+Again: additive only; existing equity discovery/monitoring semantics remain.
+
+Discovery matrix isolation
+
+discover_slices.py gained an optional profile argument:
+default = current system unchanged
+crypto = crypto-specific combinations
+futures = conservative futures combinations
+Current live/research system calls discover_slices without profile, so the
+existing mixed-equity path is unchanged.
+
+Important routing hardening
+
+config.is_futures now treats canonical FUT/* symbols as futures even when the
+active allowlist intentionally has futures=[].
+config.is_crypto explicitly excludes FUT/* so canonical futures are not
+misrouted to the crypto path simply because they contain a slash.
+data_sources.fetch_alpaca_futures_bars now maps canonical FUT/* symbols to
+provider/root symbols for the request while preserving canonical symbols in the
+warehouse.
+
+Safety / red-team design
+
+No current live workflow was changed.
+No current monitored book logic was changed.
+No current execution, sizing, stop, regime-gate, or attribution path was
+rewired for crypto/futures deployment.
+All new research lanes write only to isolated localdata/research/crypto/ or
+localdata/research/futures/ artifacts.
+validate_slices.py feature-cache schema version was bumped so new additive
+feature columns cannot be served stale from old cached frames.
+
+Practical intent
+
+Crypto is now a first-class isolated RESEARCH substrate, not yet a deployed
+paper substrate.
+Futures now have a canonical namespace and research-only foundation, but remain
+strictly non-executable.
+The current live equity paper lane remains the only active deployment lane.
+Any future crypto paper deployment should use a separate monitored book and a
+24/7-compatible execution workflow, not the current weekday equity loop.
+Any future futures deployment must wait for contract-aware risk/notional logic;
+this foundation is research-only.
+
+Isolation Foundation Hardening Update (2026-07-15)
+
+Follow-up hardening was applied immediately after the substrate foundation to
+address the most likely bug zones before any operator test cycle:
+
+Futures provider robustness
+
+Futures are no longer Alpaca-only in the research router.
+Canonical FUT/* symbols now use:
+
+yfinance continuous futures first (e.g. ES=F, CL=F, GC=F)
+Alpaca fallback second
+Tiingo remains metadata-extensible but is not wired as an active futures
+provider in this repo today.
+The warehouse identity remains canonical FUT/* even when the request uses a
+provider symbol, so futures cannot collide with equities or crypto-style names.
+
+External cron / job-collision posture
+
+The new crypto and futures workflows are workflow_dispatch-only and are intended
+for cron-job.org dispatch, consistent with the repo's current operating model.
+They do not auto-commit or modify monitored_slices.csv; they only upload
+artifacts. This is deliberate: by avoiding git writes entirely, the new lanes
+cannot race with live_capture.yml, research_refresh.yml, or research_discovery.yml
+on main-branch commits.
+Their workflow-level concurrency groups (research-crypto / research-futures)
+prevent self-overlap from repeated cron dispatches.
+
+Practical consequence
+
+The new crypto/futures lanes are now safer than the current main research/live
+loops in one important way: they are read-only against the repo state. They can
+compete for runner time or API quota, but they cannot corrupt the live paper
+book or collide on git pushes because they do not push.

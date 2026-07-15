@@ -12,19 +12,45 @@ from price.discovery import discover_market_slices, precompute_binned_frame, cle
 
 DISCOVERED_SLICES_PATH = "localdata/discovered_slices.csv"
 
-def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=False, cond_symbols=None, bin_mode="insample"):
-    symbols = target_symbols or SYMBOLS
-    
-    combinations = [
-        ["state_ext", "state_slope"],
-        ["state_ext", "state_vol"],
-    ]
-    
-    if timeframe in ["15m", "1h"]:
-        combinations.append(["state_session", "state_ext"])
-        combinations.append(["state_session", "state_slope"])
-        combinations.append(["state_session", "state_ext", "state_slope"])
-        
+
+def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None = None):
+    profile = (profile or "default").lower()
+
+    if profile == "crypto":
+        combinations = [
+            ["state_ext", "state_slope"],
+            ["state_ext", "state_vol"],
+            ["state_ret_day", "state_ext"],
+            ["state_weekpart", "state_ext"],
+        ]
+        if timeframe in ["15m", "1h"]:
+            combinations += [
+                ["state_utc_session", "state_ext"],
+                ["state_utc_session", "state_slope"],
+                ["state_utc_session", "state_ext", "state_slope"],
+                ["state_weekpart", "state_ext", "state_vol"],
+                ["state_ret_day", "state_ext", "state_slope"],
+            ]
+    elif profile == "futures":
+        combinations = [
+            ["state_ext", "state_slope"],
+            ["state_ext", "state_vol"],
+        ]
+        if timeframe in ["15m", "1h"]:
+            combinations += [
+                ["state_session", "state_ext"],
+                ["state_session", "state_slope"],
+            ]
+    else:
+        combinations = [
+            ["state_ext", "state_slope"],
+            ["state_ext", "state_vol"],
+        ]
+        if timeframe in ["15m", "1h"]:
+            combinations.append(["state_session", "state_ext"])
+            combinations.append(["state_session", "state_slope"])
+            combinations.append(["state_session", "state_ext", "state_slope"])
+
     if cond_symbols:
         for cs in [s.upper() for s in cond_symbols]:
             combinations = combinations + [
@@ -40,13 +66,20 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
                 [f"cross_{cs0}_state_ext", f"cross_{cs1}_state_slope", "state_ext"],
                 [f"cross_{cs0}_state_slope", f"cross_{cs1}_state_slope", "state_ext"],
             ]
+    return combinations
+
+
+def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=False, cond_symbols=None, bin_mode="insample", profile=None):
+    symbols = target_symbols or SYMBOLS
+
+    combinations = _build_combinations(timeframe, cond_symbols=cond_symbols, profile=profile)
 
     all_slices = []
-    
+
     # Clear the cross-asset conditioning cache at the start of each timeframe
     # so stale frames from a different timeframe don't leak.
     clear_cond_bins_cache()
-    
+
     for symbol in symbols:
         symbol = symbol.upper()
         if cond_symbols and symbol in [s.upper() for s in cond_symbols]:
@@ -156,6 +189,13 @@ if __name__ == "__main__":
         "quantiles (bar T's boundary uses only bars before T). Use 'rolling' end-to-end "
         "(discovery + validation + ML) for the overfit-kill.",
     )
+    parser.add_argument(
+        "--profile",
+        default=None,
+        choices=["default", "crypto", "futures"],
+        help="Optional substrate-specific discovery matrix. Omit/default preserves the current system. "
+        "Use 'crypto' for the isolated crypto lane and 'futures' for the research-only futures lane.",
+    )
 
     args = parser.parse_args()
     
@@ -166,4 +206,5 @@ if __name__ == "__main__":
         append=args.append,
         cond_symbols=args.condition_on,
         bin_mode=args.bin_mode,
+        profile=args.profile,
     )

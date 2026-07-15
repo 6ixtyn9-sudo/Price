@@ -91,6 +91,39 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
                 return 2
 
         df['feat_session_bucket'] = np.vectorize(get_session_bucket)(ny_time.dt.hour, ny_time.dt.minute)
+
+    # Additive substrate-agnostic timing features used by the isolated crypto
+    # lane. These do NOT change the meaning of the existing equity-native
+    # feat_session_bucket/state_session contract.
+    utc_time = ts.dt.tz_convert('UTC')
+    df['feat_utc_hour'] = utc_time.dt.hour
+
+    def get_utc_session_bucket(hour):
+        if hour < 8:
+            return 0
+        elif hour < 16:
+            return 1
+        return 2
+
+    df['feat_utc_session_bucket'] = np.vectorize(get_utc_session_bucket)(utc_time.dt.hour)
+    df['feat_weekpart'] = (utc_time.dt.dayofweek >= 5).astype(int)
+
+    bars_per_day = 1
+    if not is_daily and len(ts) >= 2:
+        if median_gap <= pd.Timedelta(minutes=20):
+            bars_per_day = 96
+        elif median_gap <= pd.Timedelta(minutes=70):
+            bars_per_day = 24
+        else:
+            approx = pd.Timedelta(days=1) / median_gap if median_gap > pd.Timedelta(0) else 1
+            bars_per_day = max(1, int(round(float(approx))))
+
+    if bars_per_day <= 1:
+        df['feat_ret_day_equiv'] = df['feat_ret_1']
+        df['feat_realized_vol_day_equiv'] = df['feat_realized_vol_20']
+    else:
+        df['feat_ret_day_equiv'] = close.pct_change(bars_per_day)
+        df['feat_realized_vol_day_equiv'] = ret_1.rolling(bars_per_day).std()
     
     df['feat_gap'] = (close / close.shift(1)) - 1.0
     df['feat_range_position'] = (close - low) / (high - low + 1e-8)
