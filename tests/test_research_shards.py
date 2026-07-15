@@ -2,6 +2,7 @@
 
 import json
 import sys
+import types
 from pathlib import Path
 
 import pandas as pd
@@ -12,6 +13,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from research_merge import merge_shards  # noqa: E402
+import research_shard  # noqa: E402
 from research_shard import split_symbols  # noqa: E402
 
 
@@ -66,3 +68,44 @@ def test_merge_writes_registry_only_after_complete_shards(tmp_path):
 def test_split_symbols_rejects_shell_metacharacters():
     with pytest.raises(ValueError, match="invalid research symbol"):
         split_symbols(["SPY", "BAD; echo pwned"], batch_size=2)
+
+
+def test_run_shard_passes_profile_to_discovery(monkeypatch, tmp_path: Path):
+    called = {}
+
+    fake_discover = types.SimpleNamespace(DISCOVERED_SLICES_PATH="")
+    fake_validate = types.SimpleNamespace(
+        DISCOVERED_SLICES_PATH="",
+        VALIDATED_SLICES_PATH="",
+        CANDIDATE_LEADERBOARD_PATH="",
+    )
+
+    def fake_run_discovery(**kwargs):
+        called.update(kwargs)
+        Path(fake_discover.DISCOVERED_SLICES_PATH).write_text(
+            "symbol,timeframe,slice_combination\nBTC/USD,1h,a\n"
+        )
+
+    def fake_run_candidate_leaderboard(**kwargs):
+        Path(kwargs["output_path"]).write_text(
+            "symbol,timeframe,slice_combination\nBTC/USD,1h,a\n"
+        )
+
+    fake_discover.run_discovery = fake_run_discovery
+    fake_validate.run_candidate_leaderboard = fake_run_candidate_leaderboard
+
+    monkeypatch.setitem(sys.modules, "discover_slices", fake_discover)
+    monkeypatch.setitem(sys.modules, "validate_slices", fake_validate)
+
+    manifest = research_shard.run_shard(
+        symbols=["BTC/USD"],
+        timeframe="1h",
+        shard_id="crypto-1h-00",
+        output_dir=tmp_path,
+        condition_symbols=("BTC/USD", "ETH/USD"),
+        bin_mode="rolling",
+        profile="crypto",
+    )
+
+    assert manifest["status"] == "success"
+    assert called["profile"] == "crypto"
