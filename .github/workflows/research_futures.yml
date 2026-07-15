@@ -1,0 +1,88 @@
+name: Research Futures
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Canonical futures symbols to refresh (space-separated, optional)"
+        required: false
+        default: ""
+      timeframes:
+        description: "Timeframes to research"
+        required: false
+        default: "1d"
+
+concurrency:
+  group: research-futures
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  research-futures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+
+      - name: Resolve futures symbols
+        id: symbols
+        run: |
+          if [ -n "${{ inputs.symbols }}" ]; then
+            echo "value=${{ inputs.symbols }}" >> "$GITHUB_OUTPUT"
+          else
+            FUTURES_SYMBOLS=$(python3 - <<'PY'
+            from price.futures_metadata import get_research_futures_symbols
+            print(" ".join(get_research_futures_symbols()))
+            PY
+            )
+            echo "value=$FUTURES_SYMBOLS" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Capture futures data
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          python scripts/capture_bars.py --symbols ${{ steps.symbols.outputs.value }} --timeframes ${{ inputs.timeframes }} --days 365
+
+      - name: Run isolated futures research
+        run: |
+          python scripts/research_futures.py --symbols ${{ steps.symbols.outputs.value }} --timeframes ${{ inputs.timeframes }}
+
+      - name: Upload futures research artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: research-futures-artifacts
+          path: localdata/research/futures
+          if-no-files-found: error
+          retention-days: 14
