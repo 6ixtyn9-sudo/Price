@@ -1,0 +1,10 @@
+regime,status,count
+bull,unsupported,1041
+bull,regime_switching_research_only,915
+bull,bull_regime_candidate,78
+bear,unsupported,1430
+bear,regime_switching_research_only,632
+bear,bear_regime_candidate,15
+neutral,unsupported,1120
+neutral,regime_switching_research_only,917
+neutral,neutral_regime_candidate,40

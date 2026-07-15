@@ -83,6 +83,51 @@ def test_build_discovery_batches_handles_single_condition_symbol():
     ]
 
 
+def test_select_regime_targets_caps_total_and_per_symbol():
+    leaderboard = pd.DataFrame(
+        [
+            {
+                "symbol": "BTC/USD",
+                "timeframe": "1d",
+                "slice_combination": f"btc_{i}",
+                "side": "long",
+                "triage_bucket": "clean_survivor_wf_mixed",
+                "search_wide_bh_pass": True,
+                "search_wide_bonferroni_pass": False,
+                "robustness_score": 100 - i,
+                "valid_mean_ret_costadj": 0.01,
+                "walk_forward_survival_rate": 0.5,
+            }
+            for i in range(4)
+        ]
+        + [
+            {
+                "symbol": "ETH/USD",
+                "timeframe": "1d",
+                "slice_combination": f"eth_{i}",
+                "side": "short",
+                "triage_bucket": "late_emerging_recent_only",
+                "search_wide_bh_pass": False,
+                "search_wide_bonferroni_pass": False,
+                "robustness_score": 50 - i,
+                "valid_mean_ret_costadj": 0.02,
+                "walk_forward_survival_rate": 0.25,
+            }
+            for i in range(4)
+        ]
+    )
+
+    selected, targets = research_crypto._select_regime_targets(
+        leaderboard,
+        max_targets=3,
+        max_per_symbol=2,
+    )
+
+    assert len(selected) == 3
+    assert len(targets) == 3
+    assert (selected["symbol"] == "BTC/USD").sum() <= 2
+
+
 def test_classify_regime_candidate_status_bull_candidate():
     row = pd.Series(
         {
@@ -98,6 +143,11 @@ def test_classify_regime_candidate_status_bull_candidate():
         }
     )
     assert research_crypto._classify_regime_candidate_status(row) == "bull_regime_candidate"
+
+
+def test_classify_regime_candidate_status_not_evaluated():
+    row = pd.Series({"not_regime_evaluated": True})
+    assert research_crypto._classify_regime_candidate_status(row) == "not_regime_evaluated"
 
 
 def test_build_regime_outputs_writes_regime_registry(tmp_path: Path):
@@ -172,3 +222,93 @@ def test_build_regime_outputs_writes_regime_registry(tmp_path: Path):
     assert (tmp_path / "candidate_leaderboard_crypto_bull.csv").exists()
     assert regime_registry.iloc[0]["overall_regime_status"] == "bull_regime_candidate"
     assert summary["regime_candidate_count"] == 1
+    assert summary["regime_target_count"] == 1
+
+
+def test_build_regime_outputs_marks_non_selected_as_not_regime_evaluated(tmp_path: Path):
+    leaderboard = pd.DataFrame(
+        [
+            {
+                "symbol": "BTC/USD",
+                "timeframe": "1d",
+                "slice_combination": "slice_a",
+                "side": "long",
+                "valid_mean_ret_costadj": 0.01,
+                "valid_p_value_nw": 0.04,
+                "walk_forward_pass_pattern": "0001",
+                "search_wide_bh_pass": False,
+                "search_wide_bonferroni_pass": False,
+            },
+            {
+                "symbol": "ETH/USD",
+                "timeframe": "1d",
+                "slice_combination": "slice_b",
+                "side": "short",
+                "valid_mean_ret_costadj": 0.02,
+                "valid_p_value_nw": 0.03,
+                "walk_forward_pass_pattern": "0001",
+                "search_wide_bh_pass": False,
+                "search_wide_bonferroni_pass": False,
+            },
+        ]
+    )
+    registry = pd.DataFrame(
+        [
+            {"symbol": "BTC/USD", "timeframe": "1d", "slice_combination": "slice_a", "strict_gate_pass": False, "status": "research_only", "live_decay_flag": False},
+            {"symbol": "ETH/USD", "timeframe": "1d", "slice_combination": "slice_b", "strict_gate_pass": False, "status": "research_only", "live_decay_flag": False},
+        ]
+    )
+    regime_diagnostics = pd.DataFrame(
+        [
+            {"symbol": "BTC/USD", "timeframe": "1d", "slice_combination": "slice_a", "regime": "all", "diagnostic_status": "ok", "slice_n": 20, "slice_mean_ret_costadj": 0.01, "slice_p_value_nw": 0.04, "slice_pass": True, "excess_vs_baseline": 0.01, "excess_vs_best_parent": 0.01},
+            {"symbol": "BTC/USD", "timeframe": "1d", "slice_combination": "slice_a", "regime": "bull", "diagnostic_status": "ok", "slice_n": 20, "slice_mean_ret_costadj": 0.03, "slice_p_value_nw": 0.01, "slice_pass": True, "excess_vs_baseline": 0.02, "excess_vs_best_parent": 0.01},
+        ]
+    )
+    selected_targets_df = leaderboard.iloc[[0]].copy()
+
+    regime_registry, summary = research_crypto.build_regime_outputs(
+        leaderboard,
+        registry,
+        regime_diagnostics,
+        output_dir=tmp_path,
+        selected_targets_df=selected_targets_df,
+    )
+
+    status_map = dict(zip(regime_registry["slice_combination"], regime_registry["overall_regime_status"]))
+    assert status_map["slice_a"] == "bull_regime_candidate"
+    assert status_map["slice_b"] == "not_regime_evaluated"
+    assert summary["regime_not_evaluated_count"] == 1
+
+
+def test_run_crypto_research_regime_only_reuses_existing_artifacts(tmp_path: Path, monkeypatch):
+    output_dir = tmp_path / "crypto"
+    output_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [{"symbol": "BTC/USD", "timeframe": "1d", "slice_combination": "slice_a", "side": "long", "triage_bucket": "clean_survivor_wf_mixed", "search_wide_bh_pass": True, "search_wide_bonferroni_pass": False, "robustness_score": 1.0, "valid_mean_ret_costadj": 0.01, "walk_forward_survival_rate": 0.5}]
+    ).to_csv(output_dir / "candidate_leaderboard_crypto_rolling.csv", index=False)
+    pd.DataFrame(
+        [{"symbol": "BTC/USD", "timeframe": "1d", "slice_combination": "slice_a"}]
+    ).to_csv(output_dir / "discovered_slices_crypto_rolling.csv", index=False)
+    pd.DataFrame(
+        [{"symbol": "BTC/USD", "timeframe": "1d", "slice_combination": "slice_a", "strict_gate_pass": False, "status": "research_only", "live_decay_flag": False}]
+    ).to_csv(output_dir / "candidate_registry_crypto_rolling.csv", index=False)
+
+    monkeypatch.setattr(research_crypto.validate_slices, "run_date_range_diagnostics", lambda **kwargs: pd.DataFrame())
+    monkeypatch.setattr(
+        research_crypto.validate_slices,
+        "run_regime_stratified_diagnostics",
+        lambda **kwargs: pd.DataFrame(
+            [{"symbol": "BTC/USD", "timeframe": "1d", "slice_combination": "slice_a", "regime": "all", "diagnostic_status": "ok", "slice_n": 20, "slice_mean_ret_costadj": 0.01, "slice_p_value_nw": 0.04, "slice_pass": True, "excess_vs_baseline": 0.01, "excess_vs_best_parent": 0.01}]
+        ),
+    )
+    monkeypatch.setattr(research_crypto, "build_regime_outputs", lambda *a, **k: (pd.DataFrame(), {"regime_status_counts": {}, "regime_leaderboard_rows": {"bull": 0, "bear": 0, "neutral": 0}, "regime_candidate_count": 0, "top_regime_candidates": []}))
+
+    result = research_crypto.run_crypto_research(
+        symbols=["BTC/USD"],
+        timeframes=("1d",),
+        output_dir=output_dir,
+        regime_only=True,
+    )
+
+    assert result["symbol_count"] == 1
+    assert result["leaderboard_rows"] == 1

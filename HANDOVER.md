@@ -4820,3 +4820,71 @@ The new crypto/futures lanes are now safer than the current main research/live
 loops in one important way: they are read-only against the repo state. They can
 compete for runner time or API quota, but they cannot corrupt the live paper
 book or collide on git pushes because they do not push.
+
+Crypto Regime-Aware Efficiency Pass (2026-07-15)
+
+After the first full 15-pair crypto 1d regime-aware run proved the idea but ran
+for multiple hours, the next patch focused on the biggest practical speedup:
+stop re-running the whole crypto pipeline just to test regime logic, and stop
+regime-processing the entire crypto leaderboard.
+
+What changed:
+
+scripts/research_crypto.py
+
+Added DEFAULT_MAX_REGIME_TARGETS=150 and DEFAULT_MAX_REGIME_PER_SYMBOL=15.
+Added DEFAULT_REGIME_TARGET_TRIAGE_BUCKETS so only the most relevant rows are
+regime-processed by default: clean_survivor* plus late_emerging* buckets.
+Added _load_existing_crypto_artifacts(output_dir) so a regime-only rerun can
+reuse the existing discovered/leaderboard/registry files instead of repeating
+the expensive discovery + all-regime leaderboard path.
+Added _select_regime_targets(...) to cap the regime-aware phase to a curated
+subset of the crypto leaderboard, sorted by search-wide significance,
+robustness_score, valid_mean_ret_costadj, and walk-forward survival, with a
+per-symbol cap.
+Added _write_regime_target_manifest(...) so the operator can see exactly which
+rows were selected for regime-aware processing.
+Added regime_only, max_regime_targets, and max_regime_per_symbol arguments to
+run_crypto_research() and to the CLI.
+Added stage logging so long runs no longer look silent/hung: full rebuild,
+discovery by timeframe, regime-target selection, date diagnostics, regime
+diagnostics, regime-registry build, and summary write are now printed
+explicitly.
+Added honest regime-registry status handling for skipped rows:
+not_regime_evaluated means a row was outside the selected target subset, not
+that it failed regime validation.
+
+scripts/validate_slices.py
+
+run_date_range_diagnostics(...) now accepts explicit targets so the crypto
+regime-aware pass can operate only on the selected subset instead of rebuilding
+default target selection.
+run_regime_stratified_diagnostics(...) already accepted explicit targets and a
+crypto regime-symbol policy; it now also uses per-call frame caching for the
+selected target set, reducing repeated build_eligible_frame work.
+
+Why this is the biggest practical win:
+
+The hot path sampled during the long crypto run was pandas rolling apply and
+NumPy/LAPACK work inside compute_price_features (especially rolling polyfit-like
+trend features). Repeating that across the full 2077-row crypto leaderboard was
+operationally too slow.
+The new path makes one expensive full-universe 1d run acceptable, then lets the
+operator iterate on regime-aware selection via:
+
+python3 scripts/research_crypto.py --timeframes 1d --regime-only
+using existing artifacts, rather than paying the full cost again.
+Research implication:
+
+The full 15-pair 1d run established that crypto is not empty: it produced
+multiple all-regime survivors and 131 regime-specific candidates (77 bull, 14
+bear, 40 neutral). However, strict_gate_pass_count remained 0, so crypto still
+fails the current main-grade paper-deployment bar. This remains research-only.
+Acceptable-by-main status after this patch:
+
+Improved materially, but not yet granted.
+The patch makes crypto regime-aware work far more practical and makes 1h
+plausible, but the operator still wants crypto and futures to be acceptable by
+main before merge. Futures daily still needs broader proof beyond the initial
+smoke, and crypto 1h still needs to be explored under the new cheaper regime
+selection path.

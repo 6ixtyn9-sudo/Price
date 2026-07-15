@@ -900,6 +900,7 @@ def run_date_range_diagnostics(
     n_folds: int = 4,
     short_cost_bps: float = 0.0,
     bin_mode: str = "insample",
+    targets: list[tuple[str, str, str, str]] | None = None,
 ) -> pd.DataFrame:
     """Run targeted date-range sensitivity diagnostics.
 
@@ -907,15 +908,16 @@ def run_date_range_diagnostics(
     whether their behavior is stable across calendar periods and recent-only
     windows. It is intentionally not a broad discovery expansion.
     """
-    targets = select_diagnostic_targets(
-        scope=diagnostic_scope,
-        top_n=top_n,
-        slices_path=slices_path,
-        n_folds=n_folds,
-        min_samples=min_samples,
-        p_threshold=p_threshold,
-        bin_mode=bin_mode,
-    )
+    if targets is None:
+        targets = select_diagnostic_targets(
+            scope=diagnostic_scope,
+            top_n=top_n,
+            slices_path=slices_path,
+            n_folds=n_folds,
+            min_samples=min_samples,
+            p_threshold=p_threshold,
+            bin_mode=bin_mode,
+        )
 
     rows = []
     frame_cache: dict = {}
@@ -1252,12 +1254,21 @@ def run_regime_stratified_diagnostics(
 
     for symbol, timeframe, combo, side in targets:
         slice_filter = parse_slice_combination(combo)
-        eligible_df = build_eligible_frame(
+        cross_symbols = cross_symbols_from_filter(slice_filter)
+        cache_key = (
             symbol,
             timeframe,
-            cross_symbols=cross_symbols_from_filter(slice_filter),
-            bin_mode=bin_mode,
+            tuple(sorted((s, tuple(f)) for s, f in cross_symbols.items())),
+            bin_mode,
         )
+        if cache_key not in frame_cache:
+            frame_cache[cache_key] = build_eligible_frame(
+                symbol,
+                timeframe,
+                cross_symbols=cross_symbols,
+                bin_mode=bin_mode,
+            )
+        eligible_df = frame_cache[cache_key]
         if eligible_df.empty:
             for r_label in regime_order:
                 rows.append({

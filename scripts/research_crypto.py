@@ -60,6 +60,16 @@ DEFAULT_OUTPUT_DIR = Path(_CRYPTO_PROFILE.default_output_dir)
 DEFAULT_BIN_MODE = _CRYPTO_PROFILE.default_bin_mode
 DEFAULT_TIMEFRAMES = _CRYPTO_PROFILE.default_timeframes
 DEFAULT_CONDITION_SYMBOLS = _CRYPTO_PROFILE.default_condition_symbols
+DEFAULT_MAX_REGIME_TARGETS = 150
+DEFAULT_MAX_REGIME_PER_SYMBOL = 15
+DEFAULT_REGIME_TARGET_TRIAGE_BUCKETS = (
+    "clean_survivor_wf_strong",
+    "clean_survivor_wf_mixed",
+    "clean_survivor_wf_failed",
+    "late_emerging_recent_only",
+    "late_emerging_regime_switching",
+    "late_emerging_valid_supported",
+)
 
 
 def _normalize_symbols(symbols: Iterable[str]) -> list[str]:
@@ -228,6 +238,82 @@ def _leaderboard_targets(leaderboard: pd.DataFrame) -> list[tuple[str, str, str,
     return out
 
 
+def _load_existing_crypto_artifacts(output_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    output_dir = Path(output_dir)
+    discovered_path = output_dir / "discovered_slices_crypto_rolling.csv"
+    leaderboard_path = output_dir / "candidate_leaderboard_crypto_rolling.csv"
+    registry_path = output_dir / "candidate_registry_crypto_rolling.csv"
+
+    missing = [
+        path.name for path in (discovered_path, leaderboard_path, registry_path)
+        if not path.exists()
+    ]
+    if missing:
+        raise FileNotFoundError(
+            "regime-only crypto run requires existing artifacts: " + ", ".join(missing)
+        )
+
+    def _read(path: Path) -> pd.DataFrame:
+        try:
+            return pd.read_csv(path)
+        except pd.errors.EmptyDataError:
+            return pd.DataFrame()
+
+    return _read(discovered_path), _read(leaderboard_path), _read(registry_path)
+
+
+def _select_regime_targets(
+    leaderboard: pd.DataFrame,
+    max_targets: int = DEFAULT_MAX_REGIME_TARGETS,
+    max_per_symbol: int = DEFAULT_MAX_REGIME_PER_SYMBOL,
+    allowed_buckets: tuple[str, ...] = DEFAULT_REGIME_TARGET_TRIAGE_BUCKETS,
+) -> tuple[pd.DataFrame, list[tuple[str, str, str, str]]]:
+    if leaderboard is None or leaderboard.empty:
+        return pd.DataFrame(), []
+
+    selected = leaderboard[
+        leaderboard["triage_bucket"].astype(str).isin(allowed_buckets)
+    ].copy()
+    if selected.empty:
+        return pd.DataFrame(), []
+
+    sort_cols = [
+        "search_wide_bonferroni_pass",
+        "search_wide_bh_pass",
+        "robustness_score",
+        "valid_mean_ret_costadj",
+        "walk_forward_survival_rate",
+    ]
+    selected = selected.sort_values(sort_cols, ascending=[False, False, False, False, False])
+
+    capped_rows = []
+    per_symbol_counts: dict[tuple[str, str], int] = {}
+    for _, row in selected.iterrows():
+        key = (str(row["symbol"]), str(row["timeframe"]))
+        if per_symbol_counts.get(key, 0) >= max_per_symbol:
+            continue
+        capped_rows.append(row)
+        per_symbol_counts[key] = per_symbol_counts.get(key, 0) + 1
+        if len(capped_rows) >= max_targets:
+            break
+
+    capped = pd.DataFrame(capped_rows).reset_index(drop=True)
+    return capped, _leaderboard_targets(capped)
+
+
+def _write_regime_target_manifest(selected: pd.DataFrame, output_dir: Path) -> None:
+    output_dir = Path(output_dir)
+    cols = [
+        col for col in [
+            "symbol", "timeframe", "slice_combination", "side",
+            "triage_bucket", "robustness_score",
+            "search_wide_bh_pass", "search_wide_bonferroni_pass",
+            "valid_mean_ret_costadj",
+        ] if col in selected.columns
+    ]
+    selected[cols].to_csv(output_dir / "regime_target_manifest.csv", index=False)
+
+
 def _annotate_regime_search_wide(frame: pd.DataFrame, p_threshold: float = 0.05) -> pd.DataFrame:
     if frame is None or frame.empty:
         return pd.DataFrame(columns=list(frame.columns) if frame is not None else [])
@@ -265,6 +351,9 @@ def _classify_regime_candidate_status(row: pd.Series, min_samples: int = 15) -> 
     if positive and bool(row.get("search_wide_bh_pass_regime", False)):
         return f"{row['regime']}_regime_candidate"
 
+    if bool(row.get("not_regime_evaluated", False)):
+        return "not_regime_evaluated"
+
     weak_positive = (
         int(row.get("slice_n", 0) or 0) >= min_samples
         and float(row.get("slice_mean_ret_costadj", 0) or 0) > 0
@@ -283,6 +372,7 @@ def build_regime_outputs(
     output_dir: Path,
     min_samples: int = 15,
     p_threshold: float = 0.05,
+    selected_targets_df: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     output_dir = Path(output_dir)
     regime_registry_path = output_dir / "candidate_registry_crypto_regime.csv"
@@ -305,9 +395,15 @@ def build_regime_outputs(
         return empty_registry, empty_summary
 
     key_cols = ["symbol", "timeframe", "slice_combination"]
+    selected_keys = set()
+    if selected_targets_df is not None and not selected_targets_df.empty:
+        for _, row in selected_targets_df.iterrows():
+            selected_keys.add((str(row["symbol"]), str(row["timeframe"]), str(row["slice_combination"])))
+
     registry_cols = [c for c in ["candidate_key", "strict_gate_pass", "status", "live_decay_flag"] if c in registry.columns]
     base = leaderboard.merge(registry[key_cols + registry_cols], on=key_cols, how="left")
     base["strict_gate_pass"] = base.get("strict_gate_pass", False).fillna(False)
+    base["not_regime_evaluated"] = False
 
     diag = regime_diagnostics.copy()
     diag = diag[diag.get("diagnostic_status", "") == "ok"].copy()
@@ -363,40 +459,49 @@ def build_regime_outputs(
 
     registry_rows = []
     for _, base_row in base.iterrows():
+        base_key = (str(base_row["symbol"]), str(base_row["timeframe"]), str(base_row["slice_combination"]))
         statuses = {}
         regime_rows = []
-        for regime, frame in per_regime_frames.items():
-            if frame.empty:
-                statuses[regime] = "unsupported"
-                continue
-            hit = frame[
-                (frame["symbol"] == base_row["symbol"])
-                & (frame["timeframe"] == base_row["timeframe"])
-                & (frame["slice_combination"] == base_row["slice_combination"])
-            ]
-            if hit.empty:
-                statuses[regime] = "unsupported"
-                continue
-            row = hit.iloc[0]
-            statuses[regime] = row["regime_candidate_status"]
-            regime_rows.append(row)
 
-        if bool(base_row.get("strict_gate_pass", False)):
-            overall_status = "structural_candidate"
+        if selected_keys and base_key not in selected_keys and not bool(base_row.get("strict_gate_pass", False)):
+            statuses = {"bull": "not_regime_evaluated", "bear": "not_regime_evaluated", "neutral": "not_regime_evaluated"}
             best_row = None
+            overall_status = "not_regime_evaluated"
+            base_row = base_row.copy()
+            base_row["not_regime_evaluated"] = True
         else:
-            candidate_rows = [r for r in regime_rows if str(r["regime_candidate_status"]).endswith("_regime_candidate")]
-            if candidate_rows:
-                best_row = max(candidate_rows, key=lambda r: (float(r["slice_mean_ret_costadj"]), -float(r["slice_p_value_nw"])))
-                overall_status = best_row["regime_candidate_status"]
+            for regime, frame in per_regime_frames.items():
+                if frame.empty:
+                    statuses[regime] = "unsupported"
+                    continue
+                hit = frame[
+                    (frame["symbol"] == base_row["symbol"])
+                    & (frame["timeframe"] == base_row["timeframe"])
+                    & (frame["slice_combination"] == base_row["slice_combination"])
+                ]
+                if hit.empty:
+                    statuses[regime] = "unsupported"
+                    continue
+                row = hit.iloc[0]
+                statuses[regime] = row["regime_candidate_status"]
+                regime_rows.append(row)
+
+            if bool(base_row.get("strict_gate_pass", False)):
+                overall_status = "structural_candidate"
+                best_row = None
             else:
-                weak_rows = [r for r in regime_rows if r["regime_candidate_status"] == "regime_switching_research_only"]
-                if weak_rows:
-                    best_row = max(weak_rows, key=lambda r: float(r["slice_mean_ret_costadj"]))
-                    overall_status = "regime_switching_research_only"
+                candidate_rows = [r for r in regime_rows if str(r["regime_candidate_status"]).endswith("_regime_candidate")]
+                if candidate_rows:
+                    best_row = max(candidate_rows, key=lambda r: (float(r["slice_mean_ret_costadj"]), -float(r["slice_p_value_nw"])))
+                    overall_status = best_row["regime_candidate_status"]
                 else:
-                    best_row = None
-                    overall_status = "unsupported"
+                    weak_rows = [r for r in regime_rows if r["regime_candidate_status"] == "regime_switching_research_only"]
+                    if weak_rows:
+                        best_row = max(weak_rows, key=lambda r: float(r["slice_mean_ret_costadj"]))
+                        overall_status = "regime_switching_research_only"
+                    else:
+                        best_row = None
+                        overall_status = "unsupported"
 
         registry_rows.append(
             {
@@ -449,6 +554,9 @@ def build_regime_outputs(
         "regime_status_counts": regime_registry["overall_regime_status"].value_counts().to_dict(),
         "regime_leaderboard_rows": {regime: int(len(frame)) for regime, frame in per_regime_frames.items()},
         "regime_candidate_count": int(len(top_candidates)),
+        "regime_target_count": int(len(selected_targets_df)) if selected_targets_df is not None else int(len(leaderboard)),
+        "regime_not_evaluated_count": int((regime_registry["overall_regime_status"] == "not_regime_evaluated").sum()),
+        "regime_evaluated_symbol_count": int(regime_registry.loc[regime_registry["overall_regime_status"] != "not_regime_evaluated", "symbol"].nunique()),
         "top_regime_candidates": _top_rows(
             top_candidates,
             [
@@ -514,6 +622,9 @@ def run_crypto_research(
     min_samples: int = 15,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     top_n_diagnostics: int = 25,
+    regime_only: bool = False,
+    max_regime_targets: int = DEFAULT_MAX_REGIME_TARGETS,
+    max_regime_per_symbol: int = DEFAULT_MAX_REGIME_PER_SYMBOL,
 ) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -524,85 +635,109 @@ def run_crypto_research(
     conds = _normalize_symbols(condition_symbols)
 
     batches = build_discovery_batches(target_symbols, conds)
-    if not batches:
+    if not batches and not regime_only:
         raise ValueError("No crypto discovery batches could be built.")
 
     with isolated_research_paths(output_dir) as paths:
-        for path in paths.values():
-            if path.exists():
-                path.unlink()
+        if not regime_only:
+            print(f"CRYPTO RESEARCH: full rebuild for {len(target_symbols)} symbols across {timeframes}")
+            for path in paths.values():
+                if path.exists():
+                    path.unlink()
 
-        for timeframe in timeframes:
-            for batch in batches:
-                discover_slices.run_discovery(
-                    target_symbols=batch["symbols"],
-                    timeframe=timeframe,
-                    min_samples=min_samples,
-                    append=paths["discovered"].exists(),
-                    cond_symbols=batch["condition_symbols"] or None,
-                    bin_mode=DEFAULT_BIN_MODE,
-                    profile="crypto",
-                )
+            for timeframe in timeframes:
+                print(f"CRYPTO RESEARCH: running discovery for timeframe={timeframe}")
+                for batch in batches:
+                    discover_slices.run_discovery(
+                        target_symbols=batch["symbols"],
+                        timeframe=timeframe,
+                        min_samples=min_samples,
+                        append=paths["discovered"].exists(),
+                        cond_symbols=batch["condition_symbols"] or None,
+                        bin_mode=DEFAULT_BIN_MODE,
+                        profile="crypto",
+                    )
 
-        if not paths["discovered"].exists():
-            discovered = pd.DataFrame()
-            leaderboard = pd.DataFrame()
-            registry = pd.DataFrame()
-            regime_registry = pd.DataFrame()
-            regime_summary = None
-        else:
-            try:
-                discovered = pd.read_csv(paths["discovered"])
-            except pd.errors.EmptyDataError:
+            if not paths["discovered"].exists():
                 discovered = pd.DataFrame()
-
-            if discovered.empty:
                 leaderboard = pd.DataFrame()
                 registry = pd.DataFrame()
                 regime_registry = pd.DataFrame()
                 regime_summary = None
-                pd.DataFrame().to_csv(paths["validated"], index=False)
-                pd.DataFrame().to_csv(paths["leaderboard"], index=False)
             else:
-                leaderboard = validate_slices.run_candidate_leaderboard(
-                    slices_path=str(paths["discovered"]),
-                    output_path=str(paths["leaderboard"]),
-                    bin_mode=DEFAULT_BIN_MODE,
-                )
-                registry = build_registry(
-                    paths["leaderboard"],
-                    output_path=output_dir / "candidate_registry_crypto_rolling.csv",
-                    enable_auto_promotion=False,
-                )
+                try:
+                    discovered = pd.read_csv(paths["discovered"])
+                except pd.errors.EmptyDataError:
+                    discovered = pd.DataFrame()
 
-                regime_registry = pd.DataFrame()
-                regime_summary = None
-                if not leaderboard.empty:
-                    validate_slices.run_date_range_diagnostics(
+                if discovered.empty:
+                    leaderboard = pd.DataFrame()
+                    registry = pd.DataFrame()
+                    regime_registry = pd.DataFrame()
+                    regime_summary = None
+                    pd.DataFrame().to_csv(paths["validated"], index=False)
+                    pd.DataFrame().to_csv(paths["leaderboard"], index=False)
+                else:
+                    leaderboard = validate_slices.run_candidate_leaderboard(
                         slices_path=str(paths["discovered"]),
-                        output_path=str(paths["date"]),
-                        diagnostic_scope="leaderboard-top",
-                        top_n=top_n_diagnostics,
+                        output_path=str(paths["leaderboard"]),
                         bin_mode=DEFAULT_BIN_MODE,
                     )
-                    regime_targets = _leaderboard_targets(leaderboard)
-                    regime_diagnostics = validate_slices.run_regime_stratified_diagnostics(
-                        slices_path=str(paths["discovered"]),
-                        output_path=str(paths["regime"]),
-                        diagnostic_scope="leaderboard-top",
-                        top_n=len(regime_targets),
-                        bin_mode=DEFAULT_BIN_MODE,
-                        regime_symbol_policy="crypto",
-                        targets=regime_targets,
+                    registry = build_registry(
+                        paths["leaderboard"],
+                        output_path=output_dir / "candidate_registry_crypto_rolling.csv",
+                        enable_auto_promotion=False,
                     )
-                    regime_registry, regime_summary = build_regime_outputs(
-                        leaderboard,
-                        registry,
-                        regime_diagnostics,
-                        output_dir=output_dir,
-                        min_samples=min_samples,
-                    )
+        else:
+            print("CRYPTO RESEARCH: regime-only rerun from existing artifacts")
+            discovered, leaderboard, registry = _load_existing_crypto_artifacts(output_dir)
+            regime_registry = pd.DataFrame()
+            regime_summary = None
 
+        regime_registry = pd.DataFrame()
+        regime_summary = None
+        if not leaderboard.empty:
+            print("CRYPTO RESEARCH: selecting regime-aware target subset")
+            selected_targets_df, regime_targets = _select_regime_targets(
+                leaderboard,
+                max_targets=max_regime_targets,
+                max_per_symbol=max_regime_per_symbol,
+            )
+            _write_regime_target_manifest(selected_targets_df, output_dir)
+            print(
+                f"CRYPTO RESEARCH: regime targets={len(regime_targets)} "
+                f"across {selected_targets_df['symbol'].nunique() if not selected_targets_df.empty else 0} symbols"
+            )
+            print("CRYPTO RESEARCH: running date-range diagnostics on regime targets")
+            validate_slices.run_date_range_diagnostics(
+                slices_path=str(paths["discovered"]),
+                output_path=str(paths["date"]),
+                diagnostic_scope="leaderboard-top",
+                top_n=top_n_diagnostics,
+                bin_mode=DEFAULT_BIN_MODE,
+                targets=regime_targets,
+            )
+            print("CRYPTO RESEARCH: running regime-stratified diagnostics on regime targets")
+            regime_diagnostics = validate_slices.run_regime_stratified_diagnostics(
+                slices_path=str(paths["discovered"]),
+                output_path=str(paths["regime"]),
+                diagnostic_scope="leaderboard-top",
+                top_n=len(regime_targets),
+                bin_mode=DEFAULT_BIN_MODE,
+                regime_symbol_policy="crypto",
+                targets=regime_targets,
+            )
+            print("CRYPTO RESEARCH: building regime-aware leaderboards and registry")
+            regime_registry, regime_summary = build_regime_outputs(
+                leaderboard,
+                registry,
+                regime_diagnostics,
+                output_dir=output_dir,
+                min_samples=min_samples,
+                selected_targets_df=selected_targets_df,
+            )
+
+        print("CRYPTO RESEARCH: writing summary")
         summary = build_summary(
             target_symbols,
             conds,
@@ -637,6 +772,9 @@ def main() -> int:
     parser.add_argument("--min-samples", type=int, default=15)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--top-n-diagnostics", type=int, default=25)
+    parser.add_argument("--regime-only", action="store_true", help="Reuse existing crypto artifacts and rerun only the regime-aware phase.")
+    parser.add_argument("--max-regime-targets", type=int, default=DEFAULT_MAX_REGIME_TARGETS)
+    parser.add_argument("--max-regime-per-symbol", type=int, default=DEFAULT_MAX_REGIME_PER_SYMBOL)
     args = parser.parse_args()
 
     run_crypto_research(
@@ -646,6 +784,9 @@ def main() -> int:
         min_samples=args.min_samples,
         output_dir=args.output_dir,
         top_n_diagnostics=args.top_n_diagnostics,
+        regime_only=args.regime_only,
+        max_regime_targets=args.max_regime_targets,
+        max_regime_per_symbol=args.max_regime_per_symbol,
     )
     return 0
 
