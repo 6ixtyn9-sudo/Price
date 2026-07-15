@@ -280,6 +280,76 @@ def test_build_regime_outputs_marks_non_selected_as_not_regime_evaluated(tmp_pat
     assert summary["regime_not_evaluated_count"] == 1
 
 
+def test_build_monitored_candidates_selects_regime_candidates(tmp_path: Path):
+    regime_registry = pd.DataFrame(
+        [
+            {
+                "symbol": "BTC/USD",
+                "timeframe": "1d",
+                "slice_combination": "slice_a",
+                "side": "short",
+                "overall_regime_status": "bull_regime_candidate",
+                "best_regime": "bull",
+                "best_regime_mean_ret_costadj": 0.05,
+                "best_regime_p_value_nw": 0.001,
+            },
+            {
+                "symbol": "BTC/USD",
+                "timeframe": "1d",
+                "slice_combination": "slice_b",
+                "side": "long",
+                "overall_regime_status": "unsupported",
+                "best_regime": "",
+                "best_regime_mean_ret_costadj": None,
+                "best_regime_p_value_nw": None,
+            },
+        ]
+    )
+    leaderboard = pd.DataFrame(
+        [
+            {
+                "symbol": "BTC/USD",
+                "timeframe": "1d",
+                "slice_combination": "slice_a",
+                "triage_bucket": "clean_survivor_wf_mixed",
+                "valid_n": 25,
+                "valid_mean_ret_costadj": 0.03,
+                "valid_p_value_nw": 0.01,
+                "walk_forward_pass_pattern": "0011",
+                "search_wide_bh_pass": True,
+                "search_wide_bonferroni_pass": False,
+                "bin_mode": "rolling",
+            },
+            {
+                "symbol": "BTC/USD",
+                "timeframe": "1d",
+                "slice_combination": "slice_b",
+                "triage_bucket": "rejected_unsupported",
+                "valid_n": 25,
+                "valid_mean_ret_costadj": 0.00,
+                "valid_p_value_nw": 0.9,
+                "walk_forward_pass_pattern": "0000",
+                "search_wide_bh_pass": False,
+                "search_wide_bonferroni_pass": False,
+                "bin_mode": "rolling",
+            },
+        ]
+    )
+
+    monitored, summary = research_crypto.build_monitored_candidates(
+        regime_registry,
+        leaderboard,
+        output_dir=tmp_path,
+        max_candidates=10,
+        max_per_symbol=2,
+    )
+
+    assert len(monitored) == 1
+    assert monitored.iloc[0]["slice_combination"] == "slice_a"
+    assert (tmp_path / "monitored_candidates_crypto.csv").exists()
+    assert summary["monitored_candidate_count"] == 1
+
+
 def test_run_crypto_research_regime_only_reuses_existing_artifacts(tmp_path: Path, monkeypatch):
     output_dir = tmp_path / "crypto"
     output_dir.mkdir(parents=True)

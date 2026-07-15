@@ -36,6 +36,14 @@ _FUTURES_PROFILE = get_market_profile("futures")
 DEFAULT_OUTPUT_DIR = Path(_FUTURES_PROFILE.default_output_dir)
 DEFAULT_BIN_MODE = _FUTURES_PROFILE.default_bin_mode
 DEFAULT_TIMEFRAMES = _FUTURES_PROFILE.default_timeframes
+DEFAULT_MAX_MONITORED_CANDIDATES = 10
+DEFAULT_MAX_MONITORED_PER_SYMBOL = 2
+PAPER_CANDIDATE_STATUSES = (
+    "structural_candidate",
+    "bull_regime_candidate",
+    "bear_regime_candidate",
+    "neutral_regime_candidate",
+)
 
 
 def _normalize_symbols(symbols: Iterable[str]) -> list[str]:
@@ -387,6 +395,113 @@ def _load_existing_futures_artifacts(output_dir: Path) -> tuple[pd.DataFrame, pd
     return _read(discovered_path), _read(leaderboard_path), _read(registry_path)
 
 
+def build_monitored_candidates(
+    regime_registry: pd.DataFrame,
+    leaderboard: pd.DataFrame,
+    output_dir: Path,
+    max_candidates: int = DEFAULT_MAX_MONITORED_CANDIDATES,
+    max_per_symbol: int = DEFAULT_MAX_MONITORED_PER_SYMBOL,
+) -> tuple[pd.DataFrame, dict]:
+    output_dir = Path(output_dir)
+    out_path = output_dir / "monitored_candidates_futures.csv"
+    columns = [
+        "symbol",
+        "timeframe",
+        "slice_combination",
+        "side",
+        "bin_mode",
+        "overall_regime_status",
+        "best_regime",
+        "best_regime_mean_ret_costadj",
+        "best_regime_p_value_nw",
+        "triage_bucket",
+        "valid_n",
+        "valid_mean_ret_costadj",
+        "valid_p_value_nw",
+        "walk_forward_pass_pattern",
+        "search_wide_bh_pass",
+        "search_wide_bonferroni_pass",
+        "source_note",
+    ]
+    empty = pd.DataFrame(columns=columns)
+    empty_summary = {
+        "monitored_candidate_count": 0,
+        "monitored_candidate_symbols": [],
+        "monitored_candidate_status_counts": {},
+        "top_monitored_candidates": [],
+    }
+    if regime_registry is None or regime_registry.empty or leaderboard is None or leaderboard.empty:
+        empty.to_csv(out_path, index=False)
+        return empty, empty_summary
+
+    key_cols = ["symbol", "timeframe", "slice_combination"]
+    lb_cols = [
+        c for c in [
+            "triage_bucket",
+            "valid_n",
+            "valid_mean_ret_costadj",
+            "valid_p_value_nw",
+            "walk_forward_pass_pattern",
+            "search_wide_bh_pass",
+            "search_wide_bonferroni_pass",
+            "bin_mode",
+        ] if c in leaderboard.columns
+    ]
+    joined = regime_registry.merge(leaderboard[key_cols + lb_cols], on=key_cols, how="left")
+    selected = joined[joined["overall_regime_status"].isin(PAPER_CANDIDATE_STATUSES)].copy()
+    if selected.empty:
+        empty.to_csv(out_path, index=False)
+        return empty, empty_summary
+
+    selected["source_note"] = selected["overall_regime_status"].astype(str)
+    selected["bin_mode"] = selected.get("bin_mode", DEFAULT_BIN_MODE).fillna(DEFAULT_BIN_MODE)
+    status_priority = {
+        "structural_candidate": 4,
+        "bull_regime_candidate": 3,
+        "bear_regime_candidate": 3,
+        "neutral_regime_candidate": 2,
+    }
+    selected["_status_priority"] = selected["overall_regime_status"].map(status_priority).fillna(0)
+    selected = selected.sort_values(
+        [
+            "_status_priority",
+            "best_regime_p_value_nw",
+            "best_regime_mean_ret_costadj",
+            "search_wide_bh_pass",
+            "valid_mean_ret_costadj",
+        ],
+        ascending=[False, True, False, False, False],
+    )
+    kept_rows = []
+    per_symbol_counts: dict[tuple[str, str], int] = {}
+    for _, row in selected.iterrows():
+        key = (str(row["symbol"]), str(row["timeframe"]))
+        if per_symbol_counts.get(key, 0) >= max_per_symbol:
+            continue
+        kept_rows.append(row)
+        per_symbol_counts[key] = per_symbol_counts.get(key, 0) + 1
+        if len(kept_rows) >= max_candidates:
+            break
+    monitored = pd.DataFrame(kept_rows)
+    monitored = monitored[columns].reset_index(drop=True)
+    monitored.to_csv(out_path, index=False)
+    summary = {
+        "monitored_candidate_count": int(len(monitored)),
+        "monitored_candidate_symbols": sorted(monitored["symbol"].astype(str).unique().tolist()),
+        "monitored_candidate_status_counts": monitored["overall_regime_status"].value_counts().to_dict(),
+        "top_monitored_candidates": _top_rows(
+            monitored,
+            [
+                "symbol", "timeframe", "slice_combination", "side",
+                "overall_regime_status", "best_regime",
+                "best_regime_mean_ret_costadj", "best_regime_p_value_nw",
+                "triage_bucket", "walk_forward_pass_pattern",
+            ],
+        ),
+    }
+    return monitored, summary
+
+
 def run_futures_research(
     symbols: list[str] | None = None,
     timeframes: tuple[str, ...] = DEFAULT_TIMEFRAMES,
@@ -395,6 +510,8 @@ def run_futures_research(
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     top_n_diagnostics: int = 15,
     regime_only: bool = False,
+    max_monitored_candidates: int = DEFAULT_MAX_MONITORED_CANDIDATES,
+    max_monitored_per_symbol: int = DEFAULT_MAX_MONITORED_PER_SYMBOL,
 ) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -452,6 +569,8 @@ def run_futures_research(
 
         regime_registry = pd.DataFrame()
         regime_summary = None
+        monitored_candidates = pd.DataFrame()
+        monitored_summary = None
         if not leaderboard.empty:
             regime_targets = _leaderboard_targets(leaderboard)
             validate_slices.run_date_range_diagnostics(
@@ -476,6 +595,13 @@ def run_futures_research(
                 regime_diagnostics,
                 output_dir=output_dir,
                 min_samples=min_samples,
+            )
+            monitored_candidates, monitored_summary = build_monitored_candidates(
+                regime_registry,
+                leaderboard,
+                output_dir=output_dir,
+                max_candidates=max_monitored_candidates,
+                max_per_symbol=max_monitored_per_symbol,
             )
 
         status_counts = registry["status"].value_counts().to_dict() if not registry.empty and "status" in registry.columns else {}
@@ -505,6 +631,8 @@ def run_futures_research(
         }
         if regime_summary:
             summary.update(regime_summary)
+        if monitored_summary:
+            summary.update(monitored_summary)
         (output_dir / "futures_research_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary, indent=2))
         return summary
@@ -524,6 +652,8 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--top-n-diagnostics", type=int, default=15)
     parser.add_argument("--regime-only", action="store_true", help="Reuse existing futures artifacts and rerun only the regime-aware phase.")
+    parser.add_argument("--max-monitored-candidates", type=int, default=DEFAULT_MAX_MONITORED_CANDIDATES)
+    parser.add_argument("--max-monitored-per-symbol", type=int, default=DEFAULT_MAX_MONITORED_PER_SYMBOL)
     args = parser.parse_args()
 
     run_futures_research(
@@ -534,6 +664,8 @@ def main() -> int:
         output_dir=args.output_dir,
         top_n_diagnostics=args.top_n_diagnostics,
         regime_only=args.regime_only,
+        max_monitored_candidates=args.max_monitored_candidates,
+        max_monitored_per_symbol=args.max_monitored_per_symbol,
     )
     return 0
 

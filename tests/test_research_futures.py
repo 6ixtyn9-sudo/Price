@@ -92,6 +92,74 @@ def test_build_regime_outputs_writes_futures_regime_registry(tmp_path: Path):
     assert summary["regime_candidate_count"] == 1
 
 
+def test_build_monitored_candidates_selects_futures_regime_candidates(tmp_path: Path):
+    regime_registry = pd.DataFrame(
+        [
+            {
+                "symbol": "FUT/CL",
+                "timeframe": "1d",
+                "slice_combination": "slice_a",
+                "side": "short",
+                "overall_regime_status": "neutral_regime_candidate",
+                "best_regime": "neutral",
+                "best_regime_mean_ret_costadj": 0.04,
+                "best_regime_p_value_nw": 0.01,
+            },
+            {
+                "symbol": "FUT/ES",
+                "timeframe": "1d",
+                "slice_combination": "slice_b",
+                "side": "long",
+                "overall_regime_status": "unsupported",
+                "best_regime": "",
+                "best_regime_mean_ret_costadj": None,
+                "best_regime_p_value_nw": None,
+            },
+        ]
+    )
+    leaderboard = pd.DataFrame(
+        [
+            {
+                "symbol": "FUT/CL",
+                "timeframe": "1d",
+                "slice_combination": "slice_a",
+                "triage_bucket": "late_emerging_recent_only",
+                "valid_n": 20,
+                "valid_mean_ret_costadj": 0.03,
+                "valid_p_value_nw": 0.02,
+                "walk_forward_pass_pattern": "0001",
+                "search_wide_bh_pass": False,
+                "search_wide_bonferroni_pass": False,
+                "bin_mode": "rolling",
+            },
+            {
+                "symbol": "FUT/ES",
+                "timeframe": "1d",
+                "slice_combination": "slice_b",
+                "triage_bucket": "rejected_unsupported",
+                "valid_n": 20,
+                "valid_mean_ret_costadj": 0.0,
+                "valid_p_value_nw": 0.9,
+                "walk_forward_pass_pattern": "0000",
+                "search_wide_bh_pass": False,
+                "search_wide_bonferroni_pass": False,
+                "bin_mode": "rolling",
+            },
+        ]
+    )
+
+    monitored, summary = research_futures.build_monitored_candidates(
+        regime_registry,
+        leaderboard,
+        output_dir=tmp_path,
+    )
+
+    assert len(monitored) == 1
+    assert monitored.iloc[0]["slice_combination"] == "slice_a"
+    assert (tmp_path / "monitored_candidates_futures.csv").exists()
+    assert summary["monitored_candidate_count"] == 1
+
+
 def test_load_existing_futures_artifacts_accepts_merged_filenames(tmp_path: Path):
     (tmp_path / "discovered_slices_merged.csv").write_text("symbol,timeframe,slice_combination\nFUT/ES,1d,a\n")
     (tmp_path / "candidate_leaderboard_merged.csv").write_text("symbol,timeframe,slice_combination\nFUT/ES,1d,a\n")
