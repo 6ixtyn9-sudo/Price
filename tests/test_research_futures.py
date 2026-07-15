@@ -9,6 +9,8 @@ for path in (ROOT / "scripts", ROOT / "src"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+import pandas as pd
+
 import research_futures
 
 
@@ -16,3 +18,75 @@ def test_futures_defaults_are_research_only():
     assert research_futures.DEFAULT_BIN_MODE == "rolling"
     assert research_futures.DEFAULT_TIMEFRAMES == ("1d",)
     assert research_futures.DEFAULT_OUTPUT_DIR.as_posix().endswith("localdata/research/futures")
+
+
+def test_build_regime_outputs_writes_futures_regime_registry(tmp_path: Path):
+    leaderboard = pd.DataFrame(
+        [
+            {
+                "symbol": "FUT/CL",
+                "timeframe": "1d",
+                "slice_combination": "state_ext=stretched_down + state_vol=high_vol",
+                "side": "short",
+                "valid_mean_ret_costadj": 0.07,
+                "valid_p_value_nw": 0.001,
+                "walk_forward_pass_pattern": "0001",
+                "search_wide_bh_pass": True,
+                "search_wide_bonferroni_pass": True,
+            }
+        ]
+    )
+    registry = pd.DataFrame(
+        [
+            {
+                "symbol": "FUT/CL",
+                "timeframe": "1d",
+                "slice_combination": "state_ext=stretched_down + state_vol=high_vol",
+                "strict_gate_pass": False,
+                "status": "research_only",
+                "live_decay_flag": False,
+            }
+        ]
+    )
+    regime_diagnostics = pd.DataFrame(
+        [
+            {
+                "symbol": "FUT/CL",
+                "timeframe": "1d",
+                "slice_combination": "state_ext=stretched_down + state_vol=high_vol",
+                "regime": "all",
+                "diagnostic_status": "ok",
+                "slice_n": 15,
+                "slice_mean_ret_costadj": 0.07,
+                "slice_p_value_nw": 0.001,
+                "slice_pass": True,
+                "excess_vs_baseline": 0.06,
+                "excess_vs_best_parent": 0.001,
+            },
+            {
+                "symbol": "FUT/CL",
+                "timeframe": "1d",
+                "slice_combination": "state_ext=stretched_down + state_vol=high_vol",
+                "regime": "neutral",
+                "diagnostic_status": "ok",
+                "slice_n": 15,
+                "slice_mean_ret_costadj": 0.08,
+                "slice_p_value_nw": 0.001,
+                "slice_pass": True,
+                "excess_vs_baseline": 0.04,
+                "excess_vs_best_parent": 0.001,
+            },
+        ]
+    )
+
+    regime_registry, summary = research_futures.build_regime_outputs(
+        leaderboard,
+        registry,
+        regime_diagnostics,
+        output_dir=tmp_path,
+    )
+
+    assert not regime_registry.empty
+    assert (tmp_path / "candidate_registry_futures_regime.csv").exists()
+    assert (tmp_path / "candidate_leaderboard_futures_neutral.csv").exists()
+    assert summary["regime_candidate_count"] == 1

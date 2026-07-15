@@ -1,18 +1,21 @@
 {
-  "generated_at_utc": "2026-07-15T07:02:25.094515+00:00",
+  "generated_at_utc": "2026-07-15T12:19:51.139193+00:00",
   "bin_mode": "rolling",
   "symbols": [
     "FUT/ES",
-    "FUT/CL"
+    "FUT/NQ",
+    "FUT/CL",
+    "FUT/GC",
+    "FUT/ZN"
   ],
-  "symbol_count": 2,
+  "symbol_count": 5,
   "condition_symbols": [],
-  "discovered_rows": 3,
-  "leaderboard_rows": 3,
-  "registry_rows": 3,
+  "discovered_rows": 6,
+  "leaderboard_rows": 6,
+  "registry_rows": 6,
   "strict_gate_pass_count": 0,
   "status_counts": {
-    "research_only": 3
+    "research_only": 6
   },
   "paper_proposal_count": 0,
   "auto_approved_count": 0,
@@ -34,6 +37,20 @@
     },
     {
       "rank": 2,
+      "symbol": "FUT/ZN",
+      "timeframe": "1d",
+      "slice_combination": "state_ext=neutral + state_vol=high_vol",
+      "side": "short",
+      "triage_bucket": "rejected_unsupported",
+      "valid_n": 25,
+      "valid_mean_ret_costadj": 0.0015678135715669276,
+      "valid_p_value_nw": 0.27159151466251497,
+      "walk_forward_pass_pattern": "0000",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 3,
       "symbol": "FUT/CL",
       "timeframe": "1d",
       "slice_combination": "state_ext=stretched_down + state_slope=downtrend",
@@ -47,7 +64,35 @@
       "search_wide_bonferroni_pass": false
     },
     {
-      "rank": 3,
+      "rank": 4,
+      "symbol": "FUT/GC",
+      "timeframe": "1d",
+      "slice_combination": "state_ext=stretched_down + state_slope=downtrend",
+      "side": "short",
+      "triage_bucket": "rejected_unsupported",
+      "valid_n": 23,
+      "valid_mean_ret_costadj": 0.012126442973608442,
+      "valid_p_value_nw": 0.29727276690769733,
+      "walk_forward_pass_pattern": "0000",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 5,
+      "symbol": "FUT/ZN",
+      "timeframe": "1d",
+      "slice_combination": "state_ext=neutral + state_slope=flat",
+      "side": "short",
+      "triage_bucket": "rejected_unsupported",
+      "valid_n": 19,
+      "valid_mean_ret_costadj": 0.000158064983743578,
+      "valid_p_value_nw": 0.927541903994521,
+      "walk_forward_pass_pattern": "0000",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 6,
       "symbol": "FUT/ES",
       "timeframe": "1d",
       "slice_combination": "state_ext=neutral + state_vol=high_vol",
