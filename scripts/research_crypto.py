@@ -206,6 +206,261 @@ def _top_rows(frame: pd.DataFrame, columns: list[str], n: int = 15) -> list[dict
     return out.to_dict("records")
 
 
+def _leaderboard_targets(leaderboard: pd.DataFrame) -> list[tuple[str, str, str, str]]:
+    if leaderboard is None or leaderboard.empty:
+        return []
+    out = []
+    seen = set()
+    for _, row in leaderboard.iterrows():
+        side = str(row.get("side", "long") or "long").lower()
+        if side not in {"long", "short"}:
+            side = "long"
+        key = (
+            str(row["symbol"]),
+            str(row["timeframe"]),
+            str(row["slice_combination"]),
+            side,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
+def _annotate_regime_search_wide(frame: pd.DataFrame, p_threshold: float = 0.05) -> pd.DataFrame:
+    if frame is None or frame.empty:
+        return pd.DataFrame(columns=list(frame.columns) if frame is not None else [])
+    work = frame.copy()
+    p_col = "__regime_p_value_nw__"
+    work[p_col] = pd.to_numeric(work["slice_p_value_nw"], errors="coerce")
+    work = validate_slices.annotate_search_wide_significance(
+        work,
+        p_threshold=p_threshold,
+        p_col=p_col,
+    )
+    work = work.drop(columns=[p_col])
+    work = work.rename(
+        columns={
+            "search_wide_rank": "search_wide_rank_regime",
+            "search_wide_bh_pass": "search_wide_bh_pass_regime",
+            "search_wide_bonferroni_pass": "search_wide_bonferroni_pass_regime",
+            "search_wide_family_size": "search_wide_family_size_regime",
+        }
+    )
+    return work
+
+
+def _classify_regime_candidate_status(row: pd.Series, min_samples: int = 15) -> str:
+    if bool(row.get("strict_gate_pass", False)):
+        return "structural_candidate"
+
+    positive = (
+        int(row.get("slice_n", 0) or 0) >= min_samples
+        and bool(row.get("slice_pass", False))
+        and float(row.get("excess_vs_baseline", 0) or 0) > 0
+        and float(row.get("excess_vs_best_parent", 0) or 0) > 0
+        and float(row.get("regime_excess_vs_all", 0) or 0) > 0
+    )
+    if positive and bool(row.get("search_wide_bh_pass_regime", False)):
+        return f"{row['regime']}_regime_candidate"
+
+    weak_positive = (
+        int(row.get("slice_n", 0) or 0) >= min_samples
+        and float(row.get("slice_mean_ret_costadj", 0) or 0) > 0
+        and float(row.get("excess_vs_baseline", 0) or 0) > 0
+    )
+    if weak_positive:
+        return "regime_switching_research_only"
+
+    return "unsupported"
+
+
+def build_regime_outputs(
+    leaderboard: pd.DataFrame,
+    registry: pd.DataFrame,
+    regime_diagnostics: pd.DataFrame,
+    output_dir: Path,
+    min_samples: int = 15,
+    p_threshold: float = 0.05,
+) -> tuple[pd.DataFrame, dict]:
+    output_dir = Path(output_dir)
+    regime_registry_path = output_dir / "candidate_registry_crypto_regime.csv"
+    regime_counts_path = output_dir / "regime_counts_crypto.csv"
+    regime_matrix_path = output_dir / "regime_candidate_matrix_crypto.csv"
+
+    empty_registry = pd.DataFrame()
+    empty_summary = {
+        "regime_status_counts": {},
+        "regime_leaderboard_rows": {"bull": 0, "bear": 0, "neutral": 0},
+        "regime_candidate_count": 0,
+        "top_regime_candidates": [],
+    }
+    if leaderboard is None or leaderboard.empty or regime_diagnostics is None or regime_diagnostics.empty:
+        empty_registry.to_csv(regime_registry_path, index=False)
+        pd.DataFrame().to_csv(regime_counts_path, index=False)
+        pd.DataFrame().to_csv(regime_matrix_path, index=False)
+        for regime in ("bull", "bear", "neutral"):
+            pd.DataFrame().to_csv(output_dir / f"candidate_leaderboard_crypto_{regime}.csv", index=False)
+        return empty_registry, empty_summary
+
+    key_cols = ["symbol", "timeframe", "slice_combination"]
+    registry_cols = [c for c in ["candidate_key", "strict_gate_pass", "status", "live_decay_flag"] if c in registry.columns]
+    base = leaderboard.merge(registry[key_cols + registry_cols], on=key_cols, how="left")
+    base["strict_gate_pass"] = base.get("strict_gate_pass", False).fillna(False)
+
+    diag = regime_diagnostics.copy()
+    diag = diag[diag.get("diagnostic_status", "") == "ok"].copy()
+    diag = diag[diag["regime"].isin(["all", "bull", "bear", "neutral"])]
+    if diag.empty:
+        empty_registry.to_csv(regime_registry_path, index=False)
+        pd.DataFrame().to_csv(regime_counts_path, index=False)
+        pd.DataFrame().to_csv(regime_matrix_path, index=False)
+        for regime in ("bull", "bear", "neutral"):
+            pd.DataFrame().to_csv(output_dir / f"candidate_leaderboard_crypto_{regime}.csv", index=False)
+        return empty_registry, empty_summary
+
+    all_rows = diag[diag["regime"] == "all"][key_cols + ["slice_mean_ret_costadj"]].rename(
+        columns={"slice_mean_ret_costadj": "all_regime_mean_ret_costadj"}
+    )
+
+    per_regime_frames = {}
+    for regime in ("bull", "bear", "neutral"):
+        frame = diag[diag["regime"] == regime].copy()
+        if frame.empty:
+            frame = pd.DataFrame()
+            frame.to_csv(output_dir / f"candidate_leaderboard_crypto_{regime}.csv", index=False)
+            per_regime_frames[regime] = frame
+            continue
+        frame = frame.merge(base, on=key_cols, how="left", suffixes=("", "_all"))
+        frame = frame.merge(all_rows, on=key_cols, how="left")
+        frame["regime_excess_vs_all"] = frame["slice_mean_ret_costadj"] - frame["all_regime_mean_ret_costadj"]
+        frame = _annotate_regime_search_wide(frame, p_threshold=p_threshold)
+        frame["regime_candidate_status"] = frame.apply(
+            _classify_regime_candidate_status, axis=1, min_samples=min_samples
+        )
+        frame = frame.sort_values(
+            [
+                "search_wide_bh_pass_regime",
+                "slice_pass",
+                "slice_mean_ret_costadj",
+                "excess_vs_best_parent",
+                "slice_p_value_nw",
+            ],
+            ascending=[False, False, False, False, True],
+        ).reset_index(drop=True)
+        frame.to_csv(output_dir / f"candidate_leaderboard_crypto_{regime}.csv", index=False)
+        per_regime_frames[regime] = frame
+
+    status_priority = {
+        "structural_candidate": 5,
+        "bull_regime_candidate": 4,
+        "bear_regime_candidate": 4,
+        "neutral_regime_candidate": 4,
+        "regime_switching_research_only": 3,
+        "unsupported": 1,
+    }
+
+    registry_rows = []
+    for _, base_row in base.iterrows():
+        statuses = {}
+        regime_rows = []
+        for regime, frame in per_regime_frames.items():
+            if frame.empty:
+                statuses[regime] = "unsupported"
+                continue
+            hit = frame[
+                (frame["symbol"] == base_row["symbol"])
+                & (frame["timeframe"] == base_row["timeframe"])
+                & (frame["slice_combination"] == base_row["slice_combination"])
+            ]
+            if hit.empty:
+                statuses[regime] = "unsupported"
+                continue
+            row = hit.iloc[0]
+            statuses[regime] = row["regime_candidate_status"]
+            regime_rows.append(row)
+
+        if bool(base_row.get("strict_gate_pass", False)):
+            overall_status = "structural_candidate"
+            best_row = None
+        else:
+            candidate_rows = [r for r in regime_rows if str(r["regime_candidate_status"]).endswith("_regime_candidate")]
+            if candidate_rows:
+                best_row = max(candidate_rows, key=lambda r: (float(r["slice_mean_ret_costadj"]), -float(r["slice_p_value_nw"])))
+                overall_status = best_row["regime_candidate_status"]
+            else:
+                weak_rows = [r for r in regime_rows if r["regime_candidate_status"] == "regime_switching_research_only"]
+                if weak_rows:
+                    best_row = max(weak_rows, key=lambda r: float(r["slice_mean_ret_costadj"]))
+                    overall_status = "regime_switching_research_only"
+                else:
+                    best_row = None
+                    overall_status = "unsupported"
+
+        registry_rows.append(
+            {
+                "symbol": base_row["symbol"],
+                "timeframe": base_row["timeframe"],
+                "slice_combination": base_row["slice_combination"],
+                "side": base_row.get("side", "long"),
+                "bin_mode": DEFAULT_BIN_MODE,
+                "all_regime_status": base_row.get("status", "research_only"),
+                "strict_gate_pass": bool(base_row.get("strict_gate_pass", False)),
+                "overall_regime_status": overall_status,
+                "best_regime": best_row["regime"] if best_row is not None else "",
+                "best_regime_mean_ret_costadj": best_row.get("slice_mean_ret_costadj") if best_row is not None else None,
+                "best_regime_p_value_nw": best_row.get("slice_p_value_nw") if best_row is not None else None,
+                "bull_status": statuses.get("bull", "unsupported"),
+                "bear_status": statuses.get("bear", "unsupported"),
+                "neutral_status": statuses.get("neutral", "unsupported"),
+                "valid_mean_ret_costadj": base_row.get("valid_mean_ret_costadj"),
+                "valid_p_value_nw": base_row.get("valid_p_value_nw"),
+                "walk_forward_pass_pattern": base_row.get("walk_forward_pass_pattern", ""),
+                "search_wide_bh_pass": base_row.get("search_wide_bh_pass", False),
+                "search_wide_bonferroni_pass": base_row.get("search_wide_bonferroni_pass", False),
+            }
+        )
+
+    regime_registry = pd.DataFrame(registry_rows).sort_values(
+        ["strict_gate_pass", "overall_regime_status", "best_regime_mean_ret_costadj"],
+        ascending=[False, True, False],
+    ).reset_index(drop=True)
+    regime_registry.to_csv(regime_registry_path, index=False)
+
+    counts_rows = []
+    for regime, frame in per_regime_frames.items():
+        if frame.empty:
+            continue
+        for status, count in frame["regime_candidate_status"].value_counts().items():
+            counts_rows.append({"regime": regime, "status": status, "count": int(count)})
+    pd.DataFrame(counts_rows).to_csv(regime_counts_path, index=False)
+
+    matrix_cols = ["symbol", "timeframe", "slice_combination", "side", "overall_regime_status", "bull_status", "bear_status", "neutral_status", "best_regime"]
+    regime_registry[matrix_cols].to_csv(regime_matrix_path, index=False)
+
+    top_candidates = regime_registry[
+        regime_registry["overall_regime_status"].isin(
+            ["structural_candidate", "bull_regime_candidate", "bear_regime_candidate", "neutral_regime_candidate"]
+        )
+    ]
+
+    summary = {
+        "regime_status_counts": regime_registry["overall_regime_status"].value_counts().to_dict(),
+        "regime_leaderboard_rows": {regime: int(len(frame)) for regime, frame in per_regime_frames.items()},
+        "regime_candidate_count": int(len(top_candidates)),
+        "top_regime_candidates": _top_rows(
+            top_candidates,
+            [
+                "symbol", "timeframe", "slice_combination", "side",
+                "overall_regime_status", "best_regime", "best_regime_mean_ret_costadj",
+                "best_regime_p_value_nw", "walk_forward_pass_pattern",
+            ],
+        ),
+    }
+    return regime_registry, summary
+
+
 def build_summary(
     symbols: list[str],
     condition_symbols: list[str],
@@ -213,6 +468,7 @@ def build_summary(
     leaderboard: pd.DataFrame,
     registry: pd.DataFrame,
     output_dir: Path,
+    regime_summary: dict | None = None,
 ) -> dict:
     strict_gate_pass = int(registry["strict_gate_pass"].sum()) if not registry.empty and "strict_gate_pass" in registry.columns else 0
     status_counts = registry["status"].value_counts().to_dict() if not registry.empty and "status" in registry.columns else {}
@@ -246,6 +502,8 @@ def build_summary(
             ],
         ),
     }
+    if regime_summary:
+        summary.update(regime_summary)
     return summary
 
 
@@ -290,6 +548,8 @@ def run_crypto_research(
             discovered = pd.DataFrame()
             leaderboard = pd.DataFrame()
             registry = pd.DataFrame()
+            regime_registry = pd.DataFrame()
+            regime_summary = None
         else:
             try:
                 discovered = pd.read_csv(paths["discovered"])
@@ -299,6 +559,8 @@ def run_crypto_research(
             if discovered.empty:
                 leaderboard = pd.DataFrame()
                 registry = pd.DataFrame()
+                regime_registry = pd.DataFrame()
+                regime_summary = None
                 pd.DataFrame().to_csv(paths["validated"], index=False)
                 pd.DataFrame().to_csv(paths["leaderboard"], index=False)
             else:
@@ -313,6 +575,8 @@ def run_crypto_research(
                     enable_auto_promotion=False,
                 )
 
+                regime_registry = pd.DataFrame()
+                regime_summary = None
                 if not leaderboard.empty:
                     validate_slices.run_date_range_diagnostics(
                         slices_path=str(paths["discovered"]),
@@ -321,15 +585,33 @@ def run_crypto_research(
                         top_n=top_n_diagnostics,
                         bin_mode=DEFAULT_BIN_MODE,
                     )
-                    validate_slices.run_regime_stratified_diagnostics(
+                    regime_targets = _leaderboard_targets(leaderboard)
+                    regime_diagnostics = validate_slices.run_regime_stratified_diagnostics(
                         slices_path=str(paths["discovered"]),
                         output_path=str(paths["regime"]),
                         diagnostic_scope="leaderboard-top",
-                        top_n=top_n_diagnostics,
+                        top_n=len(regime_targets),
                         bin_mode=DEFAULT_BIN_MODE,
+                        regime_symbol_policy="crypto",
+                        targets=regime_targets,
+                    )
+                    regime_registry, regime_summary = build_regime_outputs(
+                        leaderboard,
+                        registry,
+                        regime_diagnostics,
+                        output_dir=output_dir,
+                        min_samples=min_samples,
                     )
 
-        summary = build_summary(target_symbols, conds, discovered, leaderboard, registry, output_dir)
+        summary = build_summary(
+            target_symbols,
+            conds,
+            discovered,
+            leaderboard,
+            registry,
+            output_dir,
+            regime_summary=regime_summary,
+        )
         summary_path = output_dir / "crypto_research_summary.json"
         summary_path.write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary, indent=2))

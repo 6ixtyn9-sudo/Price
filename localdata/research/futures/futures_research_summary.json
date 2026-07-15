@@ -1,0 +1,64 @@
+{
+  "generated_at_utc": "2026-07-15T07:02:25.094515+00:00",
+  "bin_mode": "rolling",
+  "symbols": [
+    "FUT/ES",
+    "FUT/CL"
+  ],
+  "symbol_count": 2,
+  "condition_symbols": [],
+  "discovered_rows": 3,
+  "leaderboard_rows": 3,
+  "registry_rows": 3,
+  "strict_gate_pass_count": 0,
+  "status_counts": {
+    "research_only": 3
+  },
+  "paper_proposal_count": 0,
+  "auto_approved_count": 0,
+  "output_dir": "localdata/research/futures",
+  "top_candidates": [
+    {
+      "rank": 1,
+      "symbol": "FUT/CL",
+      "timeframe": "1d",
+      "slice_combination": "state_ext=stretched_down + state_vol=high_vol",
+      "side": "short",
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 15,
+      "valid_mean_ret_costadj": 0.07039129093150549,
+      "valid_p_value_nw": 0.00029542770734858337,
+      "walk_forward_pass_pattern": "0001",
+      "search_wide_bh_pass": true,
+      "search_wide_bonferroni_pass": true
+    },
+    {
+      "rank": 2,
+      "symbol": "FUT/CL",
+      "timeframe": "1d",
+      "slice_combination": "state_ext=stretched_down + state_slope=downtrend",
+      "side": "short",
+      "triage_bucket": "rejected_unsupported",
+      "valid_n": 26,
+      "valid_mean_ret_costadj": 0.03263074176434909,
+      "valid_p_value_nw": 0.16070736431686838,
+      "walk_forward_pass_pattern": "0000",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 3,
+      "symbol": "FUT/ES",
+      "timeframe": "1d",
+      "slice_combination": "state_ext=neutral + state_vol=high_vol",
+      "side": "long",
+      "triage_bucket": "rejected_unsupported",
+      "valid_n": 17,
+      "valid_mean_ret_costadj": 0.004734690518126548,
+      "valid_p_value_nw": 0.17340257715979313,
+      "walk_forward_pass_pattern": "0000",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    }
+  ]
+}

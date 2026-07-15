@@ -625,15 +625,25 @@ def run_walk_forward_diagnostics(
     )
 
     rows = []
+    frame_cache: dict = {}
 
     for symbol, timeframe, combo, side in targets:
         slice_filter = parse_slice_combination(combo)
-        eligible_df = build_eligible_frame(
+        cross_symbols = cross_symbols_from_filter(slice_filter)
+        cache_key = (
             symbol,
             timeframe,
-            cross_symbols=cross_symbols_from_filter(slice_filter),
-            bin_mode=bin_mode,
+            tuple(sorted((s, tuple(f)) for s, f in cross_symbols.items())),
+            bin_mode,
         )
+        if cache_key not in frame_cache:
+            frame_cache[cache_key] = build_eligible_frame(
+                symbol,
+                timeframe,
+                cross_symbols=cross_symbols,
+                bin_mode=bin_mode,
+            )
+        eligible_df = frame_cache[cache_key]
         if eligible_df.empty:
             rows.append(
                 {
@@ -908,15 +918,25 @@ def run_date_range_diagnostics(
     )
 
     rows = []
+    frame_cache: dict = {}
 
     for symbol, timeframe, combo, side in targets:
         slice_filter = parse_slice_combination(combo)
-        eligible_df = build_eligible_frame(
+        cross_symbols = cross_symbols_from_filter(slice_filter)
+        cache_key = (
             symbol,
             timeframe,
-            cross_symbols=cross_symbols_from_filter(slice_filter),
-            bin_mode=bin_mode,
+            tuple(sorted((s, tuple(f)) for s, f in cross_symbols.items())),
+            bin_mode,
         )
+        if cache_key not in frame_cache:
+            frame_cache[cache_key] = build_eligible_frame(
+                symbol,
+                timeframe,
+                cross_symbols=cross_symbols,
+                bin_mode=bin_mode,
+            )
+        eligible_df = frame_cache[cache_key]
         if eligible_df.empty:
             rows.append(
                 {
@@ -1146,6 +1166,27 @@ def annotate_search_wide_significance(
     return lb
 
 
+def _resolve_research_regime_symbol(
+    symbol: str,
+    slice_filter: dict,
+    regime_symbol: str = "",
+    regime_symbol_policy: str = "default",
+) -> str:
+    """Resolve a regime symbol for research diagnostics.
+
+    Policies:
+      - default: existing resolve_regime_symbol behaviour
+      - crypto:  BTC/USD is the macro regime anchor for all crypto symbols,
+                 including ETH/USD in the first-pass isolated crypto lane
+    """
+    if regime_symbol:
+        return regime_symbol
+    policy = str(regime_symbol_policy or "default").lower()
+    if policy == "crypto" and "/" in str(symbol):
+        return "BTC/USD"
+    return resolve_regime_symbol(symbol, slice_filter, configured_regime_symbol=None)
+
+
 def run_regime_stratified_diagnostics(
     cost_bps: float = 1.0,
     cost_per_share: float = 0.0,
@@ -1159,6 +1200,8 @@ def run_regime_stratified_diagnostics(
     short_cost_bps: float = 0.0,
     bin_mode: str = "insample",
     regime_symbol: str = "",
+    regime_symbol_policy: str = "default",
+    targets: list[tuple[str, str, str, str]] | None = None,
 ) -> pd.DataFrame:
     """Run regime-stratified diagnostics: split each slice's bars by the
     macro regime of its (own or configured) regime symbol and report the edge
@@ -1190,17 +1233,19 @@ def run_regime_stratified_diagnostics(
     the promotion gate. Mirrors run_walk_forward_diagnostics and
     run_date_range_diagnostics in shape.
     """
-    targets = select_diagnostic_targets(
-        scope=diagnostic_scope,
-        top_n=top_n,
-        slices_path=slices_path,
-        n_folds=n_folds,
-        min_samples=min_samples,
-        p_threshold=p_threshold,
-        bin_mode=bin_mode,
-    )
+    if targets is None:
+        targets = select_diagnostic_targets(
+            scope=diagnostic_scope,
+            top_n=top_n,
+            slices_path=slices_path,
+            n_folds=n_folds,
+            min_samples=min_samples,
+            p_threshold=p_threshold,
+            bin_mode=bin_mode,
+        )
 
     rows = []
+    frame_cache: dict = {}
     # Ordered regime buckets for display. 'regime_warmup'/'unavailable' are
     # diagnostic-only and excluded from the bull/bear/neutral reading.
     regime_order = ["all", "bull", "bear", "neutral", "regime_warmup", "regime_unavailable"]
@@ -1225,8 +1270,11 @@ def run_regime_stratified_diagnostics(
         eligible_df = eligible_df.sort_values("bar_ts_utc").reset_index(drop=True)
 
         # Resolve the regime symbol for this slice and attach per-bar labels.
-        rsym = regime_symbol or resolve_regime_symbol(
-            symbol, slice_filter, configured_regime_symbol=None
+        rsym = _resolve_research_regime_symbol(
+            symbol,
+            slice_filter,
+            regime_symbol=regime_symbol,
+            regime_symbol_policy=regime_symbol_policy,
         )
         labelled = attach_regime_labels(eligible_df, rsym, timeframe=timeframe)
         if labelled is None or "regime" not in labelled.columns:
