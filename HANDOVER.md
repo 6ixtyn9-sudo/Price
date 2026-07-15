@@ -5117,3 +5117,291 @@ live monitored book.
 
 This is intentionally closer to how main behaves: not waiting for perfection,
 but also not promoting raw unsupported research rows.
+
+Timeframe-Scoped Artifact Isolation (2026-07-15)
+
+A real bug was hit during crypto regime-only reruns: a full 1h run could wipe
+or replace the artifact filenames previously produced by a 1d run because both
+shared the same localdata/research/crypto/ root filenames.
+
+Fix:
+
+scripts/research_crypto.py and scripts/research_futures.py now resolve an
+effective output directory based on timeframe context:
+
+full single-timeframe runs default to <output_dir>/<timeframe>
+regime-only reruns first look for existing merged/root artifacts, then fall
+back to the timeframe-scoped directory
+This prevents 1d and 1h runs from clobbering each other's discovered /
+leaderboard / registry / summary files while still allowing merged shard runs to
+reuse the root artifact directory.
+
+Practical example:
+
+python3 scripts/research_crypto.py --timeframes 1d
+-> localdata/research/crypto/1d/
+
+python3 scripts/research_crypto.py --timeframes 1h
+-> localdata/research/crypto/1h/
+
+python3 scripts/research_crypto.py --timeframes 1d --regime-only
+-> reuses whichever of localdata/research/crypto/ or
+localdata/research/crypto/1d/ already contains the prior artifacts
+This is required for autonomy: multi-timeframe substrate runs must be
+repeatable without operator file babysitting.
+
+Monitored Candidate Outputs (2026-07-15)
+
+The merge bar was tightened in a main-like way: not perfection, not mere
+infrastructure, but the ability for each substrate to generate a deterministic,
+non-empty paper-candidate shortlist.
+
+New branch-only research outputs:
+
+crypto: localdata/research/crypto//monitored_candidates_crypto.csv
+futures: localdata/research/futures//monitored_candidates_futures.csv
+These are derived deterministically from the regime registry plus the
+all-regime leaderboard. They remain branch-only research artifacts and do not
+modify the live monitored book.
+
+Interpretation:
+
+A substrate can now be judged by whether it can produce its own candidate
+shortlist, which is closer to how main actually operates, while still avoiding
+premature deployment.
+
+Branch / Main / Research Status Handover (2026-07-15)
+
+This section is for the next agent. Read this before changing anything.
+
+Branch reality
+
+There are two important branches in the user's real repo:
+
+main
+feat/crypto-futures-isolation
+
+Work is intentionally continuing on feat/crypto-futures-isolation, not on main.
+Do not casually collapse that distinction. The user is explicitly doing deep
+research away from main and does not want premature merge pressure.
+
+Main is not static
+
+main is moving because cron/live_capture/research-style jobs exist there
+branch syncs need to respect that reality
+advice that assumes main is frozen is wrong
+any future commit/merge advice must be aware that generated research artifacts
+and automation state can drift while this branch is under investigation
+
+User's merge rule (non-negotiable)
+
+Do NOT merge feat/crypto-futures-isolation into main until BOTH crypto and
+futures can autonomously and repeatably produce their own non-empty,
+rule-driven paper-candidate shortlists.
+
+That does NOT mean perfection.
+That also does NOT mean "infra exists so it is good enough".
+The acceptance bar is intentionally closer to how main behaves in practice:
+
+full-universe or at least substrate-autonomous discovery
+rule-driven candidate filtering
+deterministic shortlist output
+non-empty shortlist at the end
+branch-only research output is fine; touching the live monitored book is not
+required for acceptance
+
+The user explicitly rejected hardcoded narrow symbol shortlists as a permanent
+solution. Any proposal that relies on analyst-maintained handholding instead of
+full-universe autonomous discovery is going in the wrong direction.
+
+What is already true on this branch
+
+Crypto lane exists and is isolated from equity/main behavior.
+Futures lane exists and is isolated from equity/main behavior.
+Canonical futures namespace exists (FUT/ES, FUT/NQ, FUT/RTY, FUT/YM, FUT/CL,
+FUT/GC, FUT/SI, FUT/ZB, FUT/ZN, FUT/NG).
+Futures data routing is Yahoo-first with Alpaca fallback.
+Crypto-specific states/features were added without breaking equity semantics.
+Discovery profiles now exist for default / crypto / futures.
+Shard worker + merge infrastructure exists.
+Workflow-dispatch-only shard workflows exist for crypto and futures.
+Timeframe-safe artifact isolation was added so 1d and 1h do not clobber each
+other.
+Regime-only reruns can reuse either normal substrate artifacts or merged shard
+artifacts.
+Deterministic monitored shortlist outputs now exist:
+
+localdata/research/crypto/<tf>/monitored_candidates_crypto.csv
+localdata/research/futures/<tf>/monitored_candidates_futures.csv
+
+Known local user-machine confirmation already obtained
+
+The user's local scripts/research_crypto.py is now confirmed to contain the
+patched stage logging, monitored shortlist generation, and effective
+output-directory routing. Grep output from the user's machine showed:
+
+CRYPTO RESEARCH: ... stage banners present
+monitored_candidates_crypto.csv output path present
+_resolve_effective_output_dir(...) present
+regime_only plumbing present
+
+So the earlier fear that the user's local script was stale is much lower now.
+
+Important operational discovery from this session
+
+We had already sharded the discovery capability, but the user's unattended local
+script was still monolithic.
+
+What happened:
+
+a local unattended wrapper (/tmp/run_crypto_futures_full.sh on the user's
+machine) was running sequential monolithic commands like:
+
+python3 scripts/research_crypto.py --timeframes 1d
+python3 scripts/research_crypto.py --timeframes 1d --regime-only
+python3 scripts/research_crypto.py --timeframes 1h ...
+python3 scripts/research_futures.py ...
+
+That is NOT the sharded path.
+
+The real sharded path is:
+
+plan shards
+run many scripts/research_shard.py jobs in parallel
+merge with scripts/research_merge.py
+run substrate regime-only post-processing on the merged artifacts
+
+The user killed the stale unattended wrapper. Log evidence showed it died during
+its VERY FIRST stage:
+
+=== START Wed Jul 15 17:36:31 SAST 2026 ===
+=== CRYPTO 1D FULL RUN ===
+
+and it never reached crypto regime-only, crypto 1h, or any futures stage.
+So if a later agent sees that log and assumes the full unattended chain ran,
+that assumption is wrong.
+
+User preference after reviewing this
+
+A local Python orchestrator for unattended sharded runs was drafted in the
+workspace during this session:
+
+scripts/research_sharded_unattended.py
+tests/test_research_sharded_unattended.py
+
+but the user immediately questioned whether this was bloat.
+That instinct is correct enough that the next agent should be careful.
+
+Current user preference is Option 3:
+
+Use the existing GitHub Actions shard workflows for unattended execution,
+instead of growing local orchestration code.
+
+Meaning:
+
+the important thing is the shard capability itself
+not adding more permanent operator glue than necessary
+avoid turning local orchestration helpers into merge justification
+if scripts/research_sharded_unattended.py remains in the branch, treat it as
+suspect/non-essential unless the user explicitly changes their mind
+
+Recommended unattended path going forward (user preference = GitHub workflows)
+
+Use these existing workflows:
+
+.github/workflows/research_crypto_discovery.yml
+.github/workflows/research_futures_discovery.yml
+
+They are intentionally:
+
+workflow_dispatch only
+artifact-only/read-only against repo state
+not scheduled by default
+not writing commits back into the repo
+appropriate for branch-side deep research
+
+Suggested commands from the user's machine via gh CLI
+
+Crypto:
+
+gh workflow run research_crypto_discovery.yml
+-f timeframes='1d 1h'
+-f batch_size='5'
+-f condition_on='BTC/USD ETH/USD'
+-f max_regime_targets='150'
+-f max_regime_per_symbol='15'
+
+Futures:
+
+gh workflow run research_futures_discovery.yml
+-f timeframes='1d 1h'
+-f batch_size='5'
+
+Then watch runs and pull artifacts rather than trying to brute-force long
+monolithic local jobs.
+
+Why this matters:
+
+main's philosophy already tolerates long autonomous discovery jobs
+user explicitly wants full-universe autonomy, not hand-curated narrow runs
+GitHub shard workflows are the cleanest currently-implemented unattended path
+without growing local repo bloat
+
+Current acceptance status at handover
+
+Crypto:
+
+Historically, crypto already showed promising regime-aware counts on the full
+15-pair 1d pass (e.g. bull/bear/neutral regime candidates were found), so the
+lane is not empty in principle. However, the branch still needs proof that the
+NEW deterministic monitored shortlist output is non-empty and acceptable on the
+user's current branch state using the patched artifact layout.
+
+Futures:
+
+Technically much more robust than before, but still not yet proven to generate a
+non-empty monitored shortlist. Previous local daily and hourly futures runs
+showed discovered rows and research-only structure, but regime_candidate_count
+was still zero in the samples recorded before the new shortlist framing was
+fully exercised.
+
+Bottom line:
+
+This branch is still NOT merge-ready under the user's rule until both substrate
+lanes are shown to emit acceptable monitored candidate files of their own.
+
+What the next agent should do first
+
+Stay on feat/crypto-futures-isolation for all substantive work.
+Remember that main is moving.
+Do not propose hardcoded/narrow permanent shortlists.
+Prefer the GitHub shard workflows for unattended full-universe runs.
+Verify artifact outputs from those workflow runs:
+crypto:
+localdata/research/crypto/.../monitored_candidates_crypto.csv
+localdata/research/crypto/.../crypto_research_summary.json
+futures:
+localdata/research/futures/.../monitored_candidates_futures.csv
+localdata/research/futures/.../futures_research_summary.json
+
+Judge success against the real bar:
+non-empty?
+deterministic?
+rule-driven?
+coherent enough to be main-like paper candidates?
+
+Only after BOTH crypto and futures satisfy that bar should merge discussion
+resume.
+Transient but useful context from this exact session
+
+The user said 1d crypto was still running locally at one point after the stale
+unattended script had been killed. Therefore, do not blindly advise launching
+another local run into the same output directory unless that process has either
+finished or been intentionally stopped.
+
+Practical caution
+
+If the next agent sees scripts/research_sharded_unattended.py in the branch,
+do not assume the user wants it merged. The latest explicit user preference was
+that this is likely bloat and that unattended execution should use the existing
+GitHub shard workflows instead.

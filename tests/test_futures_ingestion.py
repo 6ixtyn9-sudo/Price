@@ -12,12 +12,16 @@ Usage:
 """
 
 from datetime import datetime, timedelta, timezone
+import os
+import pytest
 
 from price.data_sources import fetch_alpaca_futures_bars
 from price.warehouse import save_to_warehouse, load_from_warehouse
 
 
 def test_futures_ingestion():
+    if not os.getenv("ALPACA_API_KEY") or not os.getenv("ALPACA_SECRET_KEY"):
+        pytest.skip("Alpaca credentials not configured; skipping live ingestion test")
     symbols = ["ES", "CL"]          # two representative futures
     timeframe = "1d"
     days = 365
