@@ -342,6 +342,51 @@ def build_regime_outputs(
     return regime_registry, summary
 
 
+def _load_existing_futures_artifacts(output_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    output_dir = Path(output_dir)
+    discovered_candidates = [
+        output_dir / "discovered_slices_futures_rolling.csv",
+        output_dir / "discovered_slices_merged.csv",
+    ]
+    leaderboard_candidates = [
+        output_dir / "candidate_leaderboard_futures_rolling.csv",
+        output_dir / "candidate_leaderboard_merged.csv",
+    ]
+    registry_candidates = [
+        output_dir / "candidate_registry_futures_rolling.csv",
+        output_dir / "candidate_registry.csv",
+    ]
+
+    def _pick(candidates: list[Path]) -> Path | None:
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
+
+    discovered_path = _pick(discovered_candidates)
+    leaderboard_path = _pick(leaderboard_candidates)
+    registry_path = _pick(registry_candidates)
+    missing = []
+    if discovered_path is None:
+        missing.append(discovered_candidates[0].name)
+    if leaderboard_path is None:
+        missing.append(leaderboard_candidates[0].name)
+    if registry_path is None:
+        missing.append(registry_candidates[0].name)
+    if missing:
+        raise FileNotFoundError(
+            "regime-only futures run requires existing artifacts: " + ", ".join(missing)
+        )
+
+    def _read(path: Path) -> pd.DataFrame:
+        try:
+            return pd.read_csv(path)
+        except pd.errors.EmptyDataError:
+            return pd.DataFrame()
+
+    return _read(discovered_path), _read(leaderboard_path), _read(registry_path)
+
+
 def run_futures_research(
     symbols: list[str] | None = None,
     timeframes: tuple[str, ...] = DEFAULT_TIMEFRAMES,
@@ -349,6 +394,7 @@ def run_futures_research(
     min_samples: int = 15,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     top_n_diagnostics: int = 15,
+    regime_only: bool = False,
 ) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -359,74 +405,78 @@ def run_futures_research(
     conds = _normalize_symbols(condition_symbols)
 
     with isolated_research_paths(output_dir) as paths:
-        for path in paths.values():
-            if path.exists():
-                path.unlink()
+        if not regime_only:
+            for path in paths.values():
+                if path.exists():
+                    path.unlink()
 
-        for timeframe in timeframes:
-            discover_slices.run_discovery(
-                target_symbols=target_symbols,
-                timeframe=timeframe,
-                min_samples=min_samples,
-                append=paths["discovered"].exists(),
-                cond_symbols=conds or None,
-                bin_mode=DEFAULT_BIN_MODE,
-                profile="futures",
-            )
+            for timeframe in timeframes:
+                discover_slices.run_discovery(
+                    target_symbols=target_symbols,
+                    timeframe=timeframe,
+                    min_samples=min_samples,
+                    append=paths["discovered"].exists(),
+                    cond_symbols=conds or None,
+                    bin_mode=DEFAULT_BIN_MODE,
+                    profile="futures",
+                )
 
-        if not paths["discovered"].exists():
-            discovered = pd.DataFrame()
-            leaderboard = pd.DataFrame()
-            registry = pd.DataFrame()
-        else:
-            try:
-                discovered = pd.read_csv(paths["discovered"])
-            except pd.errors.EmptyDataError:
+            if not paths["discovered"].exists():
                 discovered = pd.DataFrame()
-
-            if discovered.empty:
                 leaderboard = pd.DataFrame()
                 registry = pd.DataFrame()
-                pd.DataFrame().to_csv(paths["validated"], index=False)
-                pd.DataFrame().to_csv(paths["leaderboard"], index=False)
             else:
-                leaderboard = validate_slices.run_candidate_leaderboard(
-                    slices_path=str(paths["discovered"]),
-                    output_path=str(paths["leaderboard"]),
-                    bin_mode=DEFAULT_BIN_MODE,
-                )
-                registry = build_registry(
-                    paths["leaderboard"],
-                    output_path=output_dir / "candidate_registry_futures_rolling.csv",
-                    enable_auto_promotion=False,
-                )
-                regime_registry = pd.DataFrame()
-                regime_summary = None
-                if not leaderboard.empty:
-                    regime_targets = _leaderboard_targets(leaderboard)
-                    validate_slices.run_date_range_diagnostics(
+                try:
+                    discovered = pd.read_csv(paths["discovered"])
+                except pd.errors.EmptyDataError:
+                    discovered = pd.DataFrame()
+
+                if discovered.empty:
+                    leaderboard = pd.DataFrame()
+                    registry = pd.DataFrame()
+                    pd.DataFrame().to_csv(paths["validated"], index=False)
+                    pd.DataFrame().to_csv(paths["leaderboard"], index=False)
+                else:
+                    leaderboard = validate_slices.run_candidate_leaderboard(
                         slices_path=str(paths["discovered"]),
-                        output_path=str(paths["date"]),
-                        diagnostic_scope="leaderboard-top",
-                        top_n=top_n_diagnostics,
+                        output_path=str(paths["leaderboard"]),
                         bin_mode=DEFAULT_BIN_MODE,
-                        targets=regime_targets,
                     )
-                    regime_diagnostics = validate_slices.run_regime_stratified_diagnostics(
-                        slices_path=str(paths["discovered"]),
-                        output_path=str(paths["regime"]),
-                        diagnostic_scope="leaderboard-top",
-                        top_n=top_n_diagnostics,
-                        bin_mode=DEFAULT_BIN_MODE,
-                        targets=regime_targets,
+                    registry = build_registry(
+                        paths["leaderboard"],
+                        output_path=output_dir / "candidate_registry_futures_rolling.csv",
+                        enable_auto_promotion=False,
                     )
-                    regime_registry, regime_summary = build_regime_outputs(
-                        leaderboard,
-                        registry,
-                        regime_diagnostics,
-                        output_dir=output_dir,
-                        min_samples=min_samples,
-                    )
+        else:
+            discovered, leaderboard, registry = _load_existing_futures_artifacts(output_dir)
+
+        regime_registry = pd.DataFrame()
+        regime_summary = None
+        if not leaderboard.empty:
+            regime_targets = _leaderboard_targets(leaderboard)
+            validate_slices.run_date_range_diagnostics(
+                slices_path=str(paths["discovered"]),
+                output_path=str(paths["date"]),
+                diagnostic_scope="leaderboard-top",
+                top_n=top_n_diagnostics,
+                bin_mode=DEFAULT_BIN_MODE,
+                targets=regime_targets,
+            )
+            regime_diagnostics = validate_slices.run_regime_stratified_diagnostics(
+                slices_path=str(paths["discovered"]),
+                output_path=str(paths["regime"]),
+                diagnostic_scope="leaderboard-top",
+                top_n=top_n_diagnostics,
+                bin_mode=DEFAULT_BIN_MODE,
+                targets=regime_targets,
+            )
+            regime_registry, regime_summary = build_regime_outputs(
+                leaderboard,
+                registry,
+                regime_diagnostics,
+                output_dir=output_dir,
+                min_samples=min_samples,
+            )
 
         status_counts = registry["status"].value_counts().to_dict() if not registry.empty and "status" in registry.columns else {}
         summary = {
@@ -473,6 +523,7 @@ def main() -> int:
     parser.add_argument("--min-samples", type=int, default=15)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--top-n-diagnostics", type=int, default=15)
+    parser.add_argument("--regime-only", action="store_true", help="Reuse existing futures artifacts and rerun only the regime-aware phase.")
     args = parser.parse_args()
 
     run_futures_research(
@@ -482,6 +533,7 @@ def main() -> int:
         min_samples=args.min_samples,
         output_dir=args.output_dir,
         top_n_diagnostics=args.top_n_diagnostics,
+        regime_only=args.regime_only,
     )
     return 0
 

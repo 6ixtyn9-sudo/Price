@@ -240,14 +240,36 @@ def _leaderboard_targets(leaderboard: pd.DataFrame) -> list[tuple[str, str, str,
 
 def _load_existing_crypto_artifacts(output_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     output_dir = Path(output_dir)
-    discovered_path = output_dir / "discovered_slices_crypto_rolling.csv"
-    leaderboard_path = output_dir / "candidate_leaderboard_crypto_rolling.csv"
-    registry_path = output_dir / "candidate_registry_crypto_rolling.csv"
-
-    missing = [
-        path.name for path in (discovered_path, leaderboard_path, registry_path)
-        if not path.exists()
+    discovered_candidates = [
+        output_dir / "discovered_slices_crypto_rolling.csv",
+        output_dir / "discovered_slices_merged.csv",
     ]
+    leaderboard_candidates = [
+        output_dir / "candidate_leaderboard_crypto_rolling.csv",
+        output_dir / "candidate_leaderboard_merged.csv",
+    ]
+    registry_candidates = [
+        output_dir / "candidate_registry_crypto_rolling.csv",
+        output_dir / "candidate_registry.csv",
+    ]
+
+    def _pick(candidates: list[Path]) -> Path | None:
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
+
+    discovered_path = _pick(discovered_candidates)
+    leaderboard_path = _pick(leaderboard_candidates)
+    registry_path = _pick(registry_candidates)
+
+    missing = []
+    if discovered_path is None:
+        missing.append(discovered_candidates[0].name)
+    if leaderboard_path is None:
+        missing.append(leaderboard_candidates[0].name)
+    if registry_path is None:
+        missing.append(registry_candidates[0].name)
     if missing:
         raise FileNotFoundError(
             "regime-only crypto run requires existing artifacts: " + ", ".join(missing)

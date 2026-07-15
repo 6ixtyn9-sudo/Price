@@ -60,6 +60,7 @@ def run_shard(
     output_dir: Path,
     condition_symbols: tuple[str, ...] = ("USO", "TLT"),
     bin_mode: str = "rolling",
+    profile: str | None = None,
 ) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -69,6 +70,7 @@ def run_shard(
         "symbols": symbols,
         "timeframe": timeframe,
         "bin_mode": bin_mode,
+        "profile": profile or "default",
         "status": "running",
         "started_at_utc": started,
         "git_sha": os.environ.get("GITHUB_SHA", "local"),
@@ -94,6 +96,7 @@ def run_shard(
             append=False,
             cond_symbols=list(condition_symbols),
             bin_mode=bin_mode,
+            profile=profile,
         )
         if discovered_path.exists() and not pd.read_csv(discovered_path).empty:
             validate_slices.run_candidate_leaderboard(
@@ -143,6 +146,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--condition-on", nargs="+", default=["USO", "TLT"])
     parser.add_argument("--bin-mode", choices=["rolling", "insample"], default="rolling")
+    parser.add_argument("--profile", choices=["default", "crypto", "futures"], default="default")
     args = parser.parse_args()
     if args.symbols_json:
         try:
@@ -164,6 +168,7 @@ def main() -> int:
         output_dir=args.output_dir,
         condition_symbols=tuple(args.condition_on),
         bin_mode=args.bin_mode,
+        profile=args.profile,
     )
     return 0
 

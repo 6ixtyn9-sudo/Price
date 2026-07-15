@@ -90,3 +90,15 @@ def test_build_regime_outputs_writes_futures_regime_registry(tmp_path: Path):
     assert (tmp_path / "candidate_registry_futures_regime.csv").exists()
     assert (tmp_path / "candidate_leaderboard_futures_neutral.csv").exists()
     assert summary["regime_candidate_count"] == 1
+
+
+def test_load_existing_futures_artifacts_accepts_merged_filenames(tmp_path: Path):
+    (tmp_path / "discovered_slices_merged.csv").write_text("symbol,timeframe,slice_combination\nFUT/ES,1d,a\n")
+    (tmp_path / "candidate_leaderboard_merged.csv").write_text("symbol,timeframe,slice_combination\nFUT/ES,1d,a\n")
+    (tmp_path / "candidate_registry.csv").write_text("symbol,timeframe,slice_combination\nFUT/ES,1d,a\n")
+
+    discovered, leaderboard, registry = research_futures._load_existing_futures_artifacts(tmp_path)
+
+    assert len(discovered) == 1
+    assert len(leaderboard) == 1
+    assert len(registry) == 1
