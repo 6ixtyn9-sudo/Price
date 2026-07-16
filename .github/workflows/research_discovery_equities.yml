@@ -1,4 +1,4 @@
-name: Research Discovery Shards
+name: Research Discovery Equities Shards
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Research Refresh
+name: Research Refresh Equities
 
 on:
   workflow_dispatch:

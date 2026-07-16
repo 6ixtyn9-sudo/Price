@@ -1,4 +1,4 @@
-name: Live Capture
+name: Live Capture Equities
 
 on:
   workflow_dispatch:
