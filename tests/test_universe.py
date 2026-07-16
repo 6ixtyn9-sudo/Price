@@ -1,5 +1,10 @@
+import sys
+import types
+
+sys.modules.setdefault("dotenv", types.SimpleNamespace(load_dotenv=lambda *a, **k: None))
+
 from price import universe as u
-from price.config import is_crypto, is_equity, ETF_SYMBOLS
+from price.config import is_crypto, is_equity, is_futures, ETF_SYMBOLS
 
 def test_crypto_detection():
     assert is_crypto("BTC/USD")
@@ -7,6 +12,9 @@ def test_crypto_detection():
     assert not is_crypto("SPY")
     assert is_equity("SPY")
     assert not is_equity("BTC/USD")
+    assert is_futures("FUT/ES")
+    assert not is_crypto("FUT/ES")
+    assert not is_equity("FUT/ES")
 
 def test_universe_tiers():
     # etf tier should return exactly ETF_SYMBOLS

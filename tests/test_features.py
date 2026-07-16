@@ -39,6 +39,11 @@ def test_compute_price_features_basic():
     assert 'feat_trend_slope_20' in featured.columns
     assert 'feat_dow' in featured.columns
     assert 'feat_session_bucket' in featured.columns
+    assert 'feat_utc_hour' in featured.columns
+    assert 'feat_utc_session_bucket' in featured.columns
+    assert 'feat_weekpart' in featured.columns
+    assert 'feat_ret_day_equiv' in featured.columns
+    assert 'feat_realized_vol_day_equiv' in featured.columns
     
     assert 'fwd_ret_3' in featured.columns
     assert 'fwd_ret_5' in featured.columns

@@ -27,6 +27,36 @@ on:
         description: "Max regime-evaluated rows per symbol"
         required: false
         default: "15"
+  workflow_call:
+    inputs:
+      symbols:
+        required: false
+        type: string
+        default: ""
+      batch_size:
+        required: false
+        type: string
+        default: "5"
+      timeframes:
+        required: false
+        type: string
+        default: "1d 1h"
+      condition_on:
+        required: false
+        type: string
+        default: "BTC/USD ETH/USD"
+      max_regime_targets:
+        required: false
+        type: string
+        default: "150"
+      max_regime_per_symbol:
+        required: false
+        type: string
+        default: "15"
+      parent_run_id:
+        required: false
+        type: string
+        default: manual
 
 concurrency:
   group: research-crypto-discovery
@@ -50,6 +80,70 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Compute research warehouse cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore warehouse cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if cache empty
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
+            echo "Warehouse already populated from cache."
+            exit 0
+          fi
+          echo "Cache miss — attempting seed from release..."
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber
+            tar xzf /tmp/warehouse-research.tar.gz -C localdata
+            rm /tmp/warehouse-research.tar.gz
+            echo "Seeded: $(find localdata/warehouse -name '*.parquet' | wc -l) parquet files"
+          else
+            echo "No seed release $SEED_TAG — will capture from APIs in shards."
+          fi
+
+      - name: Restore operational paper state cache for telemetry
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-crypto-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked by git. Remove with: git rm --cached .env"
+            exit 1
+          fi
+
       - name: Build crypto shard plan
         id: plan
         env:
@@ -67,7 +161,7 @@ jobs:
           sys.path.insert(0, str(Path('scripts').resolve()))
           from research_crypto import load_crypto_symbols
 
-          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
+          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$" )
           if os.environ.get("INPUT_SYMBOLS", "").strip():
               symbols = [s.strip().upper() for s in os.environ["INPUT_SYMBOLS"].split() if s.strip()]
           else:
@@ -96,7 +190,7 @@ jobs:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 18
+      max-parallel: 2
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
@@ -111,20 +205,81 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
+      - name: Compute research warehouse cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: localdata/warehouse
-          key: research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}
+          key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if cache empty (shard)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
+            echo "Warehouse has data"
+            exit 0
+          fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber || true
+            if [ -f /tmp/warehouse-research.tar.gz ]; then tar xzf /tmp/warehouse-research.tar.gz -C localdata; rm /tmp/warehouse-research.tar.gz; fi
+          fi
+
+      - name: Restore operational paper state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-crypto-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
 
-      - name: Run crypto shard
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked"
+            exit 1
+          fi
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+
+      - name: Capture crypto data (automatic for 1d and 1h)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
+        run: |
+          SYMBOLS=$(python3 -c "import json,os; print(' '.join(json.loads(os.environ['SHARD_SYMBOLS_JSON'])))" )
+          echo "Capturing $SYMBOLS for timeframe ${{ matrix.timeframe }}"
+          if [ "${{ matrix.timeframe }}" = "1d" ]; then
+            python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 1825 --skip-postprocess
+          else
+            python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
+          fi
+
+      - name: "Run crypto shard (cost realism: 15 bps crypto)"
         env:
           SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
         run: |
@@ -135,7 +290,35 @@ jobs:
             --output-dir "localdata/research/crypto/shards/${{ matrix.shard_id }}" \
             --condition-on ${{ inputs.condition_on }} \
             --bin-mode rolling \
-            --profile crypto
+            --profile crypto \
+            --cost-bps 15.0 \
+            --short-cost-bps 5.0
+
+      - name: Check operational paper state cache content
+        id: ops_state
+        run: |
+          shopt -s nullglob
+          files=(localdata/trade_journal.csv localdata/paper_trade_log.csv localdata/stop_state.json localdata/stopout_journal.json localdata/cooldown_journal.json)
+          echo "has_state=false" >> "$GITHUB_OUTPUT"
+          for f in "${files[@]}"; do if [ -s "$f" ]; then echo "has_state=true" >> "$GITHUB_OUTPUT"; break; fi; done
+
+      - name: Save operational paper state cache
+        if: ${{ steps.ops_state.outputs.has_state == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-crypto-${{ github.run_id }}
+
+      - name: Save research warehouse cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
 
       - name: Upload shard output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -163,10 +346,38 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
+      - name: Restore warehouse cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: research-warehouse-v4-${{ runner.os }}-crypto-discovery-merged-${{ github.run_id }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Restore operational paper state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-crypto-merged-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
 
       - name: Download shards
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -199,6 +410,31 @@ jobs:
             --max-regime-targets ${{ inputs.max_regime_targets }} \
             --max-regime-per-symbol ${{ inputs.max_regime_per_symbol }} \
             --output-dir localdata/research/crypto
+
+      - name: Run date-range diagnostics on merged top 25 (main-like)
+        run: |
+          python scripts/validate_slices.py \
+            --slices-path localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv \
+            --date-range-diagnostics \
+            --diagnostic-scope leaderboard-top --top-n 25 --bin-mode rolling
+
+      - name: Run regime-stratified diagnostics on merged top 25 (main-like)
+        run: |
+          python scripts/validate_slices.py \
+            --slices-path localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv \
+            --regime-stratified-diagnostics \
+            --diagnostic-scope leaderboard-top --top-n 25 --bin-mode rolling
+
+      - name: Report monitored candidates (gate check)
+        run: |
+          echo "=== Crypto monitored candidates ==="
+          if [ -f localdata/research/crypto/monitored_candidates_crypto.csv ]; then
+            wc -l localdata/research/crypto/monitored_candidates_crypto.csv
+            head -20 localdata/research/crypto/monitored_candidates_crypto.csv
+          else
+            echo "monitored_candidates_crypto.csv missing!"
+            exit 1
+          fi
 
       - name: Upload merged crypto research artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

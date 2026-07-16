@@ -28,9 +28,18 @@ from alpaca.trading.requests import (
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, DATA_DIR
+import os
 
 
-TRADE_JOURNAL_PATH = DATA_DIR / "trade_journal.csv"
+def _resolve_data_path(env_name: str, default_name: str):
+    from pathlib import Path
+    custom = os.getenv(env_name)
+    if custom:
+        return Path(custom)
+    return DATA_DIR / default_name
+
+
+TRADE_JOURNAL_PATH = _resolve_data_path("TRADE_JOURNAL_PATH", "trade_journal.csv")
 
 
 def _enum_value(x):

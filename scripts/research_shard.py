@@ -60,6 +60,9 @@ def run_shard(
     output_dir: Path,
     condition_symbols: tuple[str, ...] = ("USO", "TLT"),
     bin_mode: str = "rolling",
+    profile: str | None = None,
+    cost_bps: float = 1.0,
+    short_cost_bps: float = 0.0,
 ) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -69,6 +72,7 @@ def run_shard(
         "symbols": symbols,
         "timeframe": timeframe,
         "bin_mode": bin_mode,
+        "profile": profile or "default",
         "status": "running",
         "started_at_utc": started,
         "git_sha": os.environ.get("GITHUB_SHA", "local"),
@@ -94,12 +98,15 @@ def run_shard(
             append=False,
             cond_symbols=list(condition_symbols),
             bin_mode=bin_mode,
+            profile=profile,
         )
         if discovered_path.exists() and not pd.read_csv(discovered_path).empty:
             validate_slices.run_candidate_leaderboard(
                 slices_path=str(discovered_path),
                 output_path=str(leaderboard_path),
                 bin_mode=bin_mode,
+                cost_bps=cost_bps,
+                short_cost_bps=short_cost_bps,
             )
         else:
             pd.DataFrame().to_csv(discovered_path, index=False)
@@ -143,6 +150,9 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--condition-on", nargs="+", default=["USO", "TLT"])
     parser.add_argument("--bin-mode", choices=["rolling", "insample"], default="rolling")
+    parser.add_argument("--profile", choices=["default", "crypto", "futures"], default="default")
+    parser.add_argument("--cost-bps", type=float, default=1.0, help="Cost bps per leg for validation (default 1.0 equity, use 15.0 for crypto, 7.0 for futures)")
+    parser.add_argument("--short-cost-bps", type=float, default=0.0, help="Extra short borrow cost bps")
     args = parser.parse_args()
     if args.symbols_json:
         try:
@@ -164,6 +174,9 @@ def main() -> int:
         output_dir=args.output_dir,
         condition_symbols=tuple(args.condition_on),
         bin_mode=args.bin_mode,
+        profile=args.profile,
+        cost_bps=args.cost_bps,
+        short_cost_bps=args.short_cost_bps,
     )
     return 0
 

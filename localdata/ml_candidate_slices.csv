@@ -9,3 +9,9 @@ SPY,1d,state_ext=stretched_up + state_ret_3=ret_up + state_ret_5=ret_up,ml_inter
 SPY,1d,state_ext=stretched_up + state_ret_3=ret_up,ml_interaction,feat_ext_vs_ma_20 + feat_ret_3,2,111,0.004825,0.295
 SPY,1d,state_ext=stretched_up + state_ret_5=ret_up + state_ret_1=ret_up,ml_interaction,feat_ext_vs_ma_20 + feat_ret_5 + feat_ret_1,3,62,0.003644,0.2203
 SPY,1d,state_ext=stretched_up + state_ret_5=ret_up,ml_interaction,feat_ext_vs_ma_20 + feat_ret_5,2,156,0.0035,0.2141
+FUT/NQ,1h,state_vol=high_vol + state_vol_regime=vol_regime_high + state_trend_strength=strong_trend,ml_interaction,feat_realized_vol_20 + feat_vol_regime + feat_trend_strength_20,3,158,0.001926,0.274
+FUT/NQ,1h,state_vol_regime=vol_regime_high + state_trend_strength=strong_trend,ml_interaction,feat_vol_regime + feat_trend_strength_20,2,210,0.001851,0.2899
+FUT/NQ,1h,state_vol_regime=vol_regime_high + state_slope=uptrend + state_trend_strength=strong_trend,ml_interaction,feat_vol_regime + feat_trend_slope_20 + feat_trend_strength_20,3,94,0.001348,0.3349
+FUT/NQ,1h,state_ret_20=ret_up + state_vol_regime=vol_regime_high + state_trend_strength=strong_trend,ml_interaction,feat_ret_20 + feat_vol_regime + feat_trend_strength_20,3,83,0.001158,0.2916
+FUT/NQ,1h,state_vol=high_vol + state_slope=uptrend + state_trend_strength=strong_trend,ml_interaction,feat_realized_vol_20 + feat_trend_slope_20 + feat_trend_strength_20,3,226,0.001113,0.2695
+FUT/NQ,1h,state_vol=high_vol + state_ret_20=ret_up + state_trend_strength=strong_trend,ml_interaction,feat_realized_vol_20 + feat_ret_20 + feat_trend_strength_20,3,212,0.001074,0.2637

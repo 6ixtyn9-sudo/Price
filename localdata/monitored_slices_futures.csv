@@ -1,0 +1,5 @@
+symbol,timeframe,slice_combination,side,bin_mode
+FUT/CL,1h,state_session=lunch + state_ext=stretched_up,long,rolling
+FUT/NQ,1h,state_session=afternoon + state_ext=stretched_up,long,rolling
+FUT/NQ,1h,state_session=morning + state_slope=uptrend,long,rolling
+FUT/ES,1h,state_session=morning + state_slope=uptrend,long,rolling

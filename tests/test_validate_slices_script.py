@@ -284,6 +284,37 @@ def test_run_date_range_diagnostics_writes_target_windows(monkeypatch, tmp_path)
     assert "excess_vs_baseline" in result.columns
     assert "excess_vs_best_parent" in result.columns
 
+
+def test_run_date_range_diagnostics_accepts_explicit_targets(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None, bin_mode="insample"):
+        calls.append((symbol, timeframe, tuple(sorted((cross_symbols or {}).keys())), bin_mode))
+        return pd.DataFrame(
+            {
+                "bar_ts_utc": pd.date_range("2024-01-01", periods=300, freq="D", tz="UTC"),
+                "fwd_ret_5": [0.01] * 300,
+                "close_adj": [100.0] * 300,
+                "state_ext": ["neutral"] * 300,
+                "state_slope": ["downtrend"] * 300,
+            }
+        )
+
+    monkeypatch.setattr("validate_slices.build_eligible_frame", fake_build_eligible_frame)
+
+    output_path = tmp_path / "date_range_targets.csv"
+    targets = [("BTC/USD", "1d", "state_ext=neutral + state_slope=downtrend", "long")]
+    result = run_date_range_diagnostics(
+        min_samples=1,
+        output_path=str(output_path),
+        targets=targets,
+    )
+
+    assert output_path.exists()
+    assert len(calls) == 1
+    assert set(result["symbol"]) == {"BTC/USD"}
+
+
 def test_run_candidate_leaderboard_ranks_all_rows(monkeypatch, tmp_path):
     def fake_run_validation(**kwargs):
         cost_bps = kwargs.get("cost_bps", 1.0)

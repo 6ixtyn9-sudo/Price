@@ -7,7 +7,6 @@ Supports single features + 2-feature and 3-feature interactions.
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Optional, Tuple
-import lightgbm as lgb
 from sklearn.model_selection import TimeSeriesSplit
 from itertools import combinations
 
@@ -47,6 +46,7 @@ def train_slice_model(
     n_splits: int = 4,
     task: str = "regression"
 ) -> Dict:
+    import lightgbm as lgb
     if df.empty or len(df) < 100:
         return {"model": None, "importance": pd.DataFrame(), "cv_score": None}
 
@@ -116,7 +116,7 @@ def train_slice_model(
 
 
 def extract_feature_interactions(
-    model: lgb.Booster,
+    model,
     feature_cols: List[str],
     top_n: int = 6,
     max_interaction_size: int = 3

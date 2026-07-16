@@ -4652,3 +4652,756 @@ no live capital
 regime diagnostics on with rolling binning
 regime trading filter (--regime-filter) off
 The regime filter will be evaluated separately in a paper-only shadow A/B comparison. It was not enabled together with the lifecycle audit so that future performance changes remain attributable.
+Crypto Isolation Track (2026-07-15)
+
+A first safe crypto-specific research lane has been added without touching the
+current live paper system.
+
+What was added:
+
+scripts/research_crypto.py
+
+Purpose:
+
+run discovery/validation on CRYPTO ONLY
+write outputs only under localdata/research/crypto/
+use rolling bins by default
+use BTC/USD and ETH/USD as the default conditioning symbols
+never modify monitored_slices.csv
+never place orders
+never overwrite the current mixed-universe discovered/validated/leaderboard files
+Safety / red-team design:
+
+The script temporarily redirects discover_slices.py and validate_slices.py
+output globals into localdata/research/crypto/ and restores them afterward,
+so the current live/research system cannot be clobbered by a crypto run.
+BTC/USD and ETH/USD are not silently skipped: self-conditioning is handled by
+batching, so alts run with BTC+ETH conditioning, BTC runs with ETH only, and
+ETH runs with BTC only.
+The current monitored paper book is unchanged.
+No live workflow, monitored-slice sync, or execution module was altered.
+Current intent:
+
+This is a substrate-isolation step, not a deployment step.
+It exists to answer whether crypto can produce credible candidates when judged
+inside its OWN search-wide family and with crypto-native conditioning, before
+any paper-book changes are considered.
+Futures remain deferred until after this crypto-specific lane is inspected.
+
+Crypto + Futures Isolation Foundation (2026-07-15)
+
+This session moved from a single small crypto patch to a fuller isolated-substrate
+foundation, while deliberately NOT touching the current live equity paper lane.
+
+What was added:
+
+src/price/market_profiles.py
+
+explicit substrate profiles: equity, crypto, futures
+profile defaults: conditioning symbols, bin mode, output directory, default timeframes
+intended for isolated lanes first, not for immediate live-lane rewiring
+src/price/futures_metadata.py
+
+canonical research namespace for futures:
+FUT/ES, FUT/NQ, FUT/RTY, FUT/YM, FUT/CL, FUT/GC, FUT/SI, FUT/ZB, FUT/ZN, FUT/NG
+provider/root mapping and research-only contract metadata
+execution_ready=False on every contract by design
+scripts/research_crypto.py
+
+crypto-only discovery/validation lane
+outputs isolated under localdata/research/crypto/
+default conditioning symbols: BTC/USD and ETH/USD
+uses profile=crypto discovery matrix
+never modifies monitored_slices.csv and never places orders
+scripts/research_futures.py
+
+futures-only research foundation
+outputs isolated under localdata/research/futures/
+daily-first by default
+never modifies monitored_slices.csv and never places orders
+.github/workflows/research_crypto.yml
+.github/workflows/research_futures.yml
+
+manual workflow_dispatch-only research lanes
+artifact upload only; no live-book sync and no order placement
+Shared additive feature/state expansion
+
+features.py now emits additive substrate-agnostic timing features used by the
+isolated crypto lane:
+feat_utc_hour
+feat_utc_session_bucket
+feat_weekpart
+feat_ret_day_equiv
+feat_realized_vol_day_equiv
+These DO NOT replace or change the meaning of the current equity-native
+feat_session_bucket/state_session contract.
+
+discovery.py now also emits additive state fields used by crypto-specific
+research:
+state_utc_session
+state_weekpart
+state_ret_day
+state_vol_day
+Again: additive only; existing equity discovery/monitoring semantics remain.
+
+Discovery matrix isolation
+
+discover_slices.py gained an optional profile argument:
+default = current system unchanged
+crypto = crypto-specific combinations
+futures = conservative futures combinations
+Current live/research system calls discover_slices without profile, so the
+existing mixed-equity path is unchanged.
+
+Important routing hardening
+
+config.is_futures now treats canonical FUT/* symbols as futures even when the
+active allowlist intentionally has futures=[].
+config.is_crypto explicitly excludes FUT/* so canonical futures are not
+misrouted to the crypto path simply because they contain a slash.
+data_sources.fetch_alpaca_futures_bars now maps canonical FUT/* symbols to
+provider/root symbols for the request while preserving canonical symbols in the
+warehouse.
+
+Safety / red-team design
+
+No current live workflow was changed.
+No current monitored book logic was changed.
+No current execution, sizing, stop, regime-gate, or attribution path was
+rewired for crypto/futures deployment.
+All new research lanes write only to isolated localdata/research/crypto/ or
+localdata/research/futures/ artifacts.
+validate_slices.py feature-cache schema version was bumped so new additive
+feature columns cannot be served stale from old cached frames.
+
+Practical intent
+
+Crypto is now a first-class isolated RESEARCH substrate, not yet a deployed
+paper substrate.
+Futures now have a canonical namespace and research-only foundation, but remain
+strictly non-executable.
+The current live equity paper lane remains the only active deployment lane.
+Any future crypto paper deployment should use a separate monitored book and a
+24/7-compatible execution workflow, not the current weekday equity loop.
+Any future futures deployment must wait for contract-aware risk/notional logic;
+this foundation is research-only.
+
+Isolation Foundation Hardening Update (2026-07-15)
+
+Follow-up hardening was applied immediately after the substrate foundation to
+address the most likely bug zones before any operator test cycle:
+
+Futures provider robustness
+
+Futures are no longer Alpaca-only in the research router.
+Canonical FUT/* symbols now use:
+
+yfinance continuous futures first (e.g. ES=F, CL=F, GC=F)
+Alpaca fallback second
+Tiingo remains metadata-extensible but is not wired as an active futures
+provider in this repo today.
+The warehouse identity remains canonical FUT/* even when the request uses a
+provider symbol, so futures cannot collide with equities or crypto-style names.
+
+External cron / job-collision posture
+
+The new crypto and futures workflows are workflow_dispatch-only and are intended
+for cron-job.org dispatch, consistent with the repo's current operating model.
+They do not auto-commit or modify monitored_slices.csv; they only upload
+artifacts. This is deliberate: by avoiding git writes entirely, the new lanes
+cannot race with live_capture.yml, research_refresh.yml, or research_discovery.yml
+on main-branch commits.
+Their workflow-level concurrency groups (research-crypto / research-futures)
+prevent self-overlap from repeated cron dispatches.
+
+Practical consequence
+
+The new crypto/futures lanes are now safer than the current main research/live
+loops in one important way: they are read-only against the repo state. They can
+compete for runner time or API quota, but they cannot corrupt the live paper
+book or collide on git pushes because they do not push.
+
+Crypto Regime-Aware Efficiency Pass (2026-07-15)
+
+After the first full 15-pair crypto 1d regime-aware run proved the idea but ran
+for multiple hours, the next patch focused on the biggest practical speedup:
+stop re-running the whole crypto pipeline just to test regime logic, and stop
+regime-processing the entire crypto leaderboard.
+
+What changed:
+
+scripts/research_crypto.py
+
+Added DEFAULT_MAX_REGIME_TARGETS=150 and DEFAULT_MAX_REGIME_PER_SYMBOL=15.
+Added DEFAULT_REGIME_TARGET_TRIAGE_BUCKETS so only the most relevant rows are
+regime-processed by default: clean_survivor* plus late_emerging* buckets.
+Added _load_existing_crypto_artifacts(output_dir) so a regime-only rerun can
+reuse the existing discovered/leaderboard/registry files instead of repeating
+the expensive discovery + all-regime leaderboard path.
+Added _select_regime_targets(...) to cap the regime-aware phase to a curated
+subset of the crypto leaderboard, sorted by search-wide significance,
+robustness_score, valid_mean_ret_costadj, and walk-forward survival, with a
+per-symbol cap.
+Added _write_regime_target_manifest(...) so the operator can see exactly which
+rows were selected for regime-aware processing.
+Added regime_only, max_regime_targets, and max_regime_per_symbol arguments to
+run_crypto_research() and to the CLI.
+Added stage logging so long runs no longer look silent/hung: full rebuild,
+discovery by timeframe, regime-target selection, date diagnostics, regime
+diagnostics, regime-registry build, and summary write are now printed
+explicitly.
+Added honest regime-registry status handling for skipped rows:
+not_regime_evaluated means a row was outside the selected target subset, not
+that it failed regime validation.
+
+scripts/validate_slices.py
+
+run_date_range_diagnostics(...) now accepts explicit targets so the crypto
+regime-aware pass can operate only on the selected subset instead of rebuilding
+default target selection.
+run_regime_stratified_diagnostics(...) already accepted explicit targets and a
+crypto regime-symbol policy; it now also uses per-call frame caching for the
+selected target set, reducing repeated build_eligible_frame work.
+
+Why this is the biggest practical win:
+
+The hot path sampled during the long crypto run was pandas rolling apply and
+NumPy/LAPACK work inside compute_price_features (especially rolling polyfit-like
+trend features). Repeating that across the full 2077-row crypto leaderboard was
+operationally too slow.
+The new path makes one expensive full-universe 1d run acceptable, then lets the
+operator iterate on regime-aware selection via:
+
+python3 scripts/research_crypto.py --timeframes 1d --regime-only
+using existing artifacts, rather than paying the full cost again.
+Research implication:
+
+The full 15-pair 1d run established that crypto is not empty: it produced
+multiple all-regime survivors and 131 regime-specific candidates (77 bull, 14
+bear, 40 neutral). However, strict_gate_pass_count remained 0, so crypto still
+fails the current main-grade paper-deployment bar. This remains research-only.
+Acceptable-by-main status after this patch:
+
+Improved materially, but not yet granted.
+The patch makes crypto regime-aware work far more practical and makes 1h
+plausible, but the operator still wants crypto and futures to be acceptable by
+main before merge. Futures daily still needs broader proof beyond the initial
+smoke, and crypto 1h still needs to be explored under the new cheaper regime
+selection path.
+
+Futures Regime-Confidence Pass (2026-07-15)
+
+To raise confidence that the isolated futures lane was not merely a tiny
+smoke-test artifact, regime-aware post-processing was added to
+scripts/research_futures.py.
+
+What changed:
+
+research_futures.py now derives explicit targets from the futures leaderboard,
+runs both date-range and regime-stratified diagnostics on that target set, and
+writes futures-specific regime artifacts:
+
+candidate_leaderboard_futures_bull.csv
+candidate_leaderboard_futures_bear.csv
+candidate_leaderboard_futures_neutral.csv
+candidate_registry_futures_regime.csv
+regime_counts_futures.csv
+regime_candidate_matrix_futures.csv
+
+The futures summary JSON now also carries regime_status_counts,
+regime_candidate_count, and top_regime_candidates, mirroring the crypto lane at
+a smaller scale. Unlike crypto, no target-subset throttling or regime-only mode
+was added here yet because the current futures leaderboard is still tiny and the
+main need was confidence, not runtime control.
+
+Interpretation:
+
+Futures remain research-only. The regime-aware pass exists to show whether the
+small current futures hints are coherent only inside certain macro states, not
+to relax the main deployment gate.
+
+Crypto Deep-Research Update (2026-07-15)
+
+This section supersedes the earlier narrow 3-symbol crypto impression.
+
+What was run:
+
+full 15-pair crypto universe
+1d timeframe
+rolling bins
+BTC/USD + ETH/USD conditioning
+regime-aware post-processing on a curated target subset (not the entire 2077-row leaderboard)
+Key 1d result:
+
+Crypto is NOT empty.
+The full 15-pair 1d run produced:
+
+2077 discovered rows
+2077 leaderboard rows
+multiple all-regime survivors in the leaderboard (e.g. UNI/USD, DOT/USD, SUSHI/USD, DOGE/USD, AVAX/USD, CRV/USD families)
+but still 0 strict main-grade paper proposals in the lifecycle registry:
+strict_gate_pass_count = 0
+paper_proposal_count = 0
+auto_approved_count = 0
+So the correct characterization is:
+
+crypto has meaningful structure
+crypto does not yet clear the branch's current paper-deployment bar
+Regime-aware interpretation (post-efficiency patch):
+
+The first naive full regime-aware pass over the entire crypto leaderboard was operationally too slow. The efficiency pass then introduced:
+
+regime-only reruns from existing artifacts
+a capped regime target subset
+not_regime_evaluated status for skipped rows
+On the efficient 1d regime-aware run, the summary became:
+
+regime_status_counts:
+not_regime_evaluated = 1939
+regime_switching_research_only = 105
+bull_regime_candidate = 22
+bear_regime_candidate = 3
+neutral_regime_candidate = 2
+regime_candidate_count = 27
+regime_target_count = 138
+Interpretation:
+
+Regime-aware selection was the right move for crypto.
+It materially improved the picture versus the earlier "crypto has no candidates" conclusion.
+Crypto now looks like a regime-conditional research substrate, not a structurally promoted substrate.
+This still does NOT justify merging to main or deploying a crypto paper book yet.
+Current branch rule remains: no merge until crypto can produce its own acceptable paper-candidate set.
+Runtime note:
+
+The efficiency pass made the regime-aware phase far more practical via:
+
+python3 scripts/research_crypto.py --timeframes 1d --regime-only
+but crypto 1h is still the next major runtime/confidence test.
+
+Futures Confidence Update (2026-07-15)
+
+What was run:
+
+5-symbol futures daily regime-aware pass:
+FUT/ES FUT/NQ FUT/CL FUT/GC FUT/ZN
+then broader 10-symbol futures daily pass:
+FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG
+Results:
+
+Daily futures infrastructure is now credibly proven:
+
+Yahoo-first routing works
+canonical FUT/* namespace works
+warehouse partitions build correctly
+leaderboard, date diagnostics, regime diagnostics, and summary all write cleanly
+But the research dividend at 1d remains weak:
+
+strict_gate_pass_count = 0
+paper_proposal_count = 0
+auto_approved_count = 0
+regime_candidate_count = 0
+The correct reading is:
+
+futures daily is acceptable as a research substrate implementation
+futures daily is NOT yet producing its own candidate book
+The next logical futures research step is 1h, not more 1d expansion.
+
+Crypto 1h In-Progress Note (2026-07-15)
+
+A full 15-pair crypto 1h discovery run was started after the 1d regime-aware result and is producing rich discovery output, including crypto-native fields such as:
+
+state_utc_session
+state_weekpart
+state_ret_day
+and BTC/ETH cross-conditioned combinations.
+At the moment of this note the 1h run had not yet fully completed, so no final claim should be made yet about:
+
+runtime sanity
+1h leaderboard quality
+1h regime-aware candidate count
+Do not cite crypto 1h as complete until the summary JSON and downstream outputs are written.
+
+Merge posture (explicit)
+
+Current operator rule:
+
+Do NOT merge this branch to main until:
+crypto can produce its own acceptable paper-candidate set, and
+futures can produce its own acceptable paper-candidate set.
+Under that rule, as of this update:
+
+crypto: intellectually promising, operationally improving, but not merge-ready
+futures: infrastructure-ready, but candidate-book not yet there, so not merge-ready
+Therefore this remains a deep-research branch, not a merge candidate.
+
+Full-Universe Sharded Research Direction (2026-07-15)
+
+The operator explicitly rejected hardcoded narrowing as a path toward main.
+The correct direction for crypto/futures is now aligned with the existing main
+research philosophy: full-universe autonomous scans, with sharding and reuse,
+not analyst-maintained shortlists.
+
+What changed in code:
+
+scripts/research_shard.py now accepts a profile argument (default / crypto /
+futures) and forwards it into discover_slices.run_discovery, so the same shard
+executor can drive substrate-specific discovery matrices without forking the
+entire sharding stack.
+
+scripts/research_crypto.py now supports regime-only reruns from either the
+standard crypto artifacts or research_merge's merged artifact names
+(discovered_slices_merged.csv, candidate_leaderboard_merged.csv,
+candidate_registry.csv). This means a sharded full-universe crypto run can be
+merged first, then have regime-aware post-processing run as a second step
+without redoing discovery.
+
+scripts/research_futures.py now has the same merged-artifact fallback and a
+--regime-only mode, so a sharded futures run can follow the same pattern.
+
+New manual workflows were added:
+
+.github/workflows/research_crypto_discovery.yml
+.github/workflows/research_futures_discovery.yml
+
+Both are workflow_dispatch-only, artifact-only, and read-only against the repo
+state (no git writes). They:
+
+build shard plans from the full substrate symbol set
+run research_shard.py in parallel
+merge with research_merge.py into the substrate's own research directory
+run the substrate script in regime-only mode on the merged artifacts
+upload the final research artifacts
+
+Why this matters:
+
+Crypto 1h on the full 15-pair universe is operationally too heavy as a single
+monolithic process, even though the idea is valid. The correct fix is not to
+hardcode a narrow symbol shortlist; it is to shard full-universe execution the
+way main already does.
+The same design now exists for futures too.
+Current posture:
+
+These workflows are infrastructure for deep branch-side research. They are not
+merge justification by themselves. Crypto and futures still need to produce
+their own acceptable paper-candidate sets before the branch is acceptable for
+main.
+
+Paper-Candidate Shortlist Direction (2026-07-15)
+
+The acceptance bar was revised away from both extremes:
+
+not "everything must be perfect before merge"
+not "working infrastructure alone is enough"
+New standard: a substrate should be able to autonomously and repeatably produce
+its own non-empty, rule-driven paper candidate shortlist before the branch is
+acceptable for main.
+
+What changed in code:
+
+scripts/research_crypto.py now writes monitored_candidates_crypto.csv using a
+deterministic rule set based on the regime registry plus the all-regime
+leaderboard. Candidates are selected only from:
+
+structural_candidate
+bull_regime_candidate
+bear_regime_candidate
+neutral_regime_candidate
+Then capped deterministically by status priority, regime p-value, regime mean
+return, search-wide support, and per-symbol/overall limits.
+
+scripts/research_futures.py now writes monitored_candidates_futures.csv using
+an analogous deterministic rule set.
+
+These shortlists are still branch-only research outputs. They do NOT touch the
+live monitored book.
+
+This is intentionally closer to how main behaves: not waiting for perfection,
+but also not promoting raw unsupported research rows.
+
+Timeframe-Scoped Artifact Isolation (2026-07-15)
+
+A real bug was hit during crypto regime-only reruns: a full 1h run could wipe
+or replace the artifact filenames previously produced by a 1d run because both
+shared the same localdata/research/crypto/ root filenames.
+
+Fix:
+
+scripts/research_crypto.py and scripts/research_futures.py now resolve an
+effective output directory based on timeframe context:
+
+full single-timeframe runs default to <output_dir>/<timeframe>
+regime-only reruns first look for existing merged/root artifacts, then fall
+back to the timeframe-scoped directory
+This prevents 1d and 1h runs from clobbering each other's discovered /
+leaderboard / registry / summary files while still allowing merged shard runs to
+reuse the root artifact directory.
+
+Practical example:
+
+python3 scripts/research_crypto.py --timeframes 1d
+-> localdata/research/crypto/1d/
+
+python3 scripts/research_crypto.py --timeframes 1h
+-> localdata/research/crypto/1h/
+
+python3 scripts/research_crypto.py --timeframes 1d --regime-only
+-> reuses whichever of localdata/research/crypto/ or
+localdata/research/crypto/1d/ already contains the prior artifacts
+This is required for autonomy: multi-timeframe substrate runs must be
+repeatable without operator file babysitting.
+
+Monitored Candidate Outputs (2026-07-15)
+
+The merge bar was tightened in a main-like way: not perfection, not mere
+infrastructure, but the ability for each substrate to generate a deterministic,
+non-empty paper-candidate shortlist.
+
+New branch-only research outputs:
+
+crypto: localdata/research/crypto//monitored_candidates_crypto.csv
+futures: localdata/research/futures//monitored_candidates_futures.csv
+These are derived deterministically from the regime registry plus the
+all-regime leaderboard. They remain branch-only research artifacts and do not
+modify the live monitored book.
+
+Interpretation:
+
+A substrate can now be judged by whether it can produce its own candidate
+shortlist, which is closer to how main actually operates, while still avoiding
+premature deployment.
+
+Branch / Main / Research Status Handover (2026-07-15)
+
+This section is for the next agent. Read this before changing anything.
+
+Branch reality
+
+There are two important branches in the user's real repo:
+
+main
+feat/crypto-futures-isolation
+
+Work is intentionally continuing on feat/crypto-futures-isolation, not on main.
+Do not casually collapse that distinction. The user is explicitly doing deep
+research away from main and does not want premature merge pressure.
+
+Main is not static
+
+main is moving because cron/live_capture/research-style jobs exist there
+branch syncs need to respect that reality
+advice that assumes main is frozen is wrong
+any future commit/merge advice must be aware that generated research artifacts
+and automation state can drift while this branch is under investigation
+
+User's merge rule (non-negotiable)
+
+Do NOT merge feat/crypto-futures-isolation into main until BOTH crypto and
+futures can autonomously and repeatably produce their own non-empty,
+rule-driven paper-candidate shortlists.
+
+That does NOT mean perfection.
+That also does NOT mean "infra exists so it is good enough".
+The acceptance bar is intentionally closer to how main behaves in practice:
+
+full-universe or at least substrate-autonomous discovery
+rule-driven candidate filtering
+deterministic shortlist output
+non-empty shortlist at the end
+branch-only research output is fine; touching the live monitored book is not
+required for acceptance
+
+The user explicitly rejected hardcoded narrow symbol shortlists as a permanent
+solution. Any proposal that relies on analyst-maintained handholding instead of
+full-universe autonomous discovery is going in the wrong direction.
+
+What is already true on this branch
+
+Crypto lane exists and is isolated from equity/main behavior.
+Futures lane exists and is isolated from equity/main behavior.
+Canonical futures namespace exists (FUT/ES, FUT/NQ, FUT/RTY, FUT/YM, FUT/CL,
+FUT/GC, FUT/SI, FUT/ZB, FUT/ZN, FUT/NG).
+Futures data routing is Yahoo-first with Alpaca fallback.
+Crypto-specific states/features were added without breaking equity semantics.
+Discovery profiles now exist for default / crypto / futures.
+Shard worker + merge infrastructure exists.
+Workflow-dispatch-only shard workflows exist for crypto and futures.
+Timeframe-safe artifact isolation was added so 1d and 1h do not clobber each
+other.
+Regime-only reruns can reuse either normal substrate artifacts or merged shard
+artifacts.
+Deterministic monitored shortlist outputs now exist:
+
+localdata/research/crypto/<tf>/monitored_candidates_crypto.csv
+localdata/research/futures/<tf>/monitored_candidates_futures.csv
+
+Known local user-machine confirmation already obtained
+
+The user's local scripts/research_crypto.py is now confirmed to contain the
+patched stage logging, monitored shortlist generation, and effective
+output-directory routing. Grep output from the user's machine showed:
+
+CRYPTO RESEARCH: ... stage banners present
+monitored_candidates_crypto.csv output path present
+_resolve_effective_output_dir(...) present
+regime_only plumbing present
+
+So the earlier fear that the user's local script was stale is much lower now.
+
+Important operational discovery from this session
+
+We had already sharded the discovery capability, but the user's unattended local
+script was still monolithic.
+
+What happened:
+
+a local unattended wrapper (/tmp/run_crypto_futures_full.sh on the user's
+machine) was running sequential monolithic commands like:
+
+python3 scripts/research_crypto.py --timeframes 1d
+python3 scripts/research_crypto.py --timeframes 1d --regime-only
+python3 scripts/research_crypto.py --timeframes 1h ...
+python3 scripts/research_futures.py ...
+
+That is NOT the sharded path.
+
+The real sharded path is:
+
+plan shards
+run many scripts/research_shard.py jobs in parallel
+merge with scripts/research_merge.py
+run substrate regime-only post-processing on the merged artifacts
+
+The user killed the stale unattended wrapper. Log evidence showed it died during
+its VERY FIRST stage:
+
+=== START Wed Jul 15 17:36:31 SAST 2026 ===
+=== CRYPTO 1D FULL RUN ===
+
+and it never reached crypto regime-only, crypto 1h, or any futures stage.
+So if a later agent sees that log and assumes the full unattended chain ran,
+that assumption is wrong.
+
+User preference after reviewing this
+
+A local Python orchestrator for unattended sharded runs was drafted in the
+workspace during this session:
+
+scripts/research_sharded_unattended.py
+tests/test_research_sharded_unattended.py
+
+but the user immediately questioned whether this was bloat.
+That instinct is correct enough that the next agent should be careful.
+
+Current user preference is Option 3:
+
+Use the existing GitHub Actions shard workflows for unattended execution,
+instead of growing local orchestration code.
+
+Meaning:
+
+the important thing is the shard capability itself
+not adding more permanent operator glue than necessary
+avoid turning local orchestration helpers into merge justification
+if scripts/research_sharded_unattended.py remains in the branch, treat it as
+suspect/non-essential unless the user explicitly changes their mind
+
+Recommended unattended path going forward (user preference = GitHub workflows)
+
+Use these existing workflows:
+
+.github/workflows/research_crypto_discovery.yml
+.github/workflows/research_futures_discovery.yml
+
+They are intentionally:
+
+workflow_dispatch only
+artifact-only/read-only against repo state
+not scheduled by default
+not writing commits back into the repo
+appropriate for branch-side deep research
+
+Suggested commands from the user's machine via gh CLI
+
+Crypto:
+
+gh workflow run research_crypto_discovery.yml
+-f timeframes='1d 1h'
+-f batch_size='5'
+-f condition_on='BTC/USD ETH/USD'
+-f max_regime_targets='150'
+-f max_regime_per_symbol='15'
+
+Futures:
+
+gh workflow run research_futures_discovery.yml
+-f timeframes='1d 1h'
+-f batch_size='5'
+
+Then watch runs and pull artifacts rather than trying to brute-force long
+monolithic local jobs.
+
+Why this matters:
+
+main's philosophy already tolerates long autonomous discovery jobs
+user explicitly wants full-universe autonomy, not hand-curated narrow runs
+GitHub shard workflows are the cleanest currently-implemented unattended path
+without growing local repo bloat
+
+Current acceptance status at handover
+
+Crypto:
+
+Historically, crypto already showed promising regime-aware counts on the full
+15-pair 1d pass (e.g. bull/bear/neutral regime candidates were found), so the
+lane is not empty in principle. However, the branch still needs proof that the
+NEW deterministic monitored shortlist output is non-empty and acceptable on the
+user's current branch state using the patched artifact layout.
+
+Futures:
+
+Technically much more robust than before, but still not yet proven to generate a
+non-empty monitored shortlist. Previous local daily and hourly futures runs
+showed discovered rows and research-only structure, but regime_candidate_count
+was still zero in the samples recorded before the new shortlist framing was
+fully exercised.
+
+Bottom line:
+
+This branch is still NOT merge-ready under the user's rule until both substrate
+lanes are shown to emit acceptable monitored candidate files of their own.
+
+What the next agent should do first
+
+Stay on feat/crypto-futures-isolation for all substantive work.
+Remember that main is moving.
+Do not propose hardcoded/narrow permanent shortlists.
+Prefer the GitHub shard workflows for unattended full-universe runs.
+Verify artifact outputs from those workflow runs:
+crypto:
+localdata/research/crypto/.../monitored_candidates_crypto.csv
+localdata/research/crypto/.../crypto_research_summary.json
+futures:
+localdata/research/futures/.../monitored_candidates_futures.csv
+localdata/research/futures/.../futures_research_summary.json
+
+Judge success against the real bar:
+non-empty?
+deterministic?
+rule-driven?
+coherent enough to be main-like paper candidates?
+
+Only after BOTH crypto and futures satisfy that bar should merge discussion
+resume.
+Transient but useful context from this exact session
+
+The user said 1d crypto was still running locally at one point after the stale
+unattended script had been killed. Therefore, do not blindly advise launching
+another local run into the same output directory unless that process has either
+finished or been intentionally stopped.
+
+Practical caution
+
+If the next agent sees scripts/research_sharded_unattended.py in the branch,
+do not assume the user wants it merged. The latest explicit user preference was
+that this is likely bloat and that unattended execution should use the existing
+GitHub shard workflows instead.

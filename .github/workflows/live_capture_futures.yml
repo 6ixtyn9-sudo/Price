@@ -56,7 +56,7 @@ jobs:
 
       - name: Compute cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-futures-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-futures-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore warehouse cache
         id: warehouse

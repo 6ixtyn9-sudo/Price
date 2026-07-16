@@ -22,6 +22,7 @@ Usage:
 See HANDOVER.md "Paper-Trading Exploration Layer (2026-07-02)".
 """
 import os
+import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -43,7 +44,7 @@ from price.risk_limits import RiskLimits, record_entry, set_halt_flag
 from price.trading import close_position, submit_entry
 
 
-AUDIT_LOG_PATH: Path = DATA_DIR / "paper_trade_log.csv"
+AUDIT_LOG_PATH: Path = Path(__import__("os").getenv("PAPER_TRADE_LOG_PATH", str(DATA_DIR / "paper_trade_log.csv")))
 
 
 def _append_audit(row: dict) -> None:

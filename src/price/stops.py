@@ -26,6 +26,7 @@ only manages the protective stop for a position that already exists.
 """
 
 import json
+import os
 from dataclasses import dataclass, asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,8 +35,15 @@ from typing import Dict, Optional
 from price.config import DATA_DIR
 
 
-STOP_STATE_PATH = DATA_DIR / "stop_state.json"
-STOPOUT_JOURNAL_PATH = DATA_DIR / "stopout_journal.json"
+def _resolve_data_path(env_name: str, default_name: str) -> Path:
+    custom = os.getenv(env_name)
+    if custom:
+        return Path(custom)
+    return DATA_DIR / default_name
+
+
+STOP_STATE_PATH = _resolve_data_path("STOP_STATE_PATH", "stop_state.json")
+STOPOUT_JOURNAL_PATH = _resolve_data_path("STOPOUT_JOURNAL_PATH", "stopout_journal.json")
 
 # k_stop: initial protective stop distance, in multiples of ATR(14).
 # Operator-agreed default: 2.0 (balanced -- caps loss while tolerating

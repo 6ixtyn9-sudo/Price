@@ -1,0 +1,139 @@
+symbol,timeframe,slice_combination,side,triage_bucket,robustness_score,search_wide_bh_pass,search_wide_bonferroni_pass,valid_mean_ret_costadj
+SOL/USD,1d,cross_BTC/USD_state_vol=mid_vol + state_ext=stretched_up,short,late_emerging_regime_switching,9.5,True,True,0.0360225139117658
+SUSHI/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_up,short,late_emerging_regime_switching,9.0,True,True,0.0863763076398959
+SUSHI/USD,1d,cross_BTC/USD_state_slope=uptrend + state_slope=downtrend,short,late_emerging_valid_supported,8.5,True,True,0.1204849185839012
+UNI/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up,short,late_emerging_recent_only,8.5,True,True,0.0735417109079705
+XRP/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=neutral,short,late_emerging_valid_supported,8.5,True,True,0.0586052798463567
+XRP/USD,1d,state_ext=neutral + state_vol=mid_vol,short,late_emerging_valid_supported,8.5,True,True,0.0559837680298311
+LTC/USD,1d,cross_BTC/USD_state_slope=uptrend + state_ext=stretched_down,short,late_emerging_valid_supported,8.5,True,True,0.0547620278179017
+BCH/USD,1d,cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up,short,late_emerging_recent_only,8.5,True,True,0.0387973559490314
+XRP/USD,1d,cross_BTC/USD_state_vol=mid_vol + state_ext=neutral,short,late_emerging_recent_only,8.5,True,True,0.0345171381588781
+BTC/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_recent_only,8.5,True,True,0.0241982135627242
+BTC/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=downtrend,long,late_emerging_recent_only,8.5,True,True,0.0207036833334334
+BCH/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,late_emerging_valid_supported,8.0,True,True,0.0931547285480405
+XRP/USD,1d,cross_BTC/USD_state_slope=flat + state_slope=uptrend,short,late_emerging_valid_supported,8.0,True,True,0.0563038529238341
+XRP/USD,1d,cross_ETH/USD_state_ext=stretched_down + state_ext=neutral,short,late_emerging_valid_supported,8.0,True,True,0.0379885170799188
+XRP/USD,1d,cross_BTC/USD_state_ext=stretched_down + state_ext=neutral,short,late_emerging_valid_supported,8.0,True,True,0.0327607091013623
+XRP/USD,1d,cross_BTC/USD_state_slope=downtrend + state_ext=neutral,short,late_emerging_valid_supported,8.0,True,True,0.0311808856743819
+SUSHI/USD,1d,state_ext=stretched_up + state_vol=high_vol,short,late_emerging_valid_supported,7.5,True,True,0.0910567374455654
+LTC/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_down,short,late_emerging_valid_supported,7.5,True,True,0.0592806439266637
+UNI/USD,1d,cross_ETH/USD_state_ext=neutral + state_ext=stretched_down,short,clean_survivor_wf_mixed,20.0,True,False,0.0549243129625828
+DOT/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,clean_survivor_wf_mixed,20.0,True,False,0.0525514896205515
+SUSHI/USD,1d,cross_BTC/USD_state_ext=stretched_up + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,clean_survivor_wf_mixed,18.25,True,False,0.0790698490502187
+SUSHI/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,clean_survivor_wf_mixed,17.0,True,False,0.0921425437417888
+UNI/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_ext=neutral + state_ext=stretched_down,short,clean_survivor_wf_failed,16.75,True,False,0.0937569818910969
+DOT/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_up,short,clean_survivor_wf_mixed,16.25,True,False,0.0814027343639086
+LINK/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=uptrend,short,late_emerging_valid_supported,9.0,True,False,0.0655621570574747
+DOT/USD,1d,state_ext=stretched_up + state_vol=high_vol,short,late_emerging_regime_switching,9.0,True,False,0.0558715405075039
+AAVE/USD,1d,cross_BTC/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_regime_switching,9.0,True,False,0.0510470158878504
+UNI/USD,1d,cross_BTC/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_regime_switching,9.0,True,False,0.0431106402936992
+LTC/USD,1d,cross_BTC/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_regime_switching,9.0,True,False,0.0280581632661601
+AAVE/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=downtrend,long,late_emerging_recent_only,8.5,True,False,0.052488356522933
+UNI/USD,1d,cross_ETH/USD_state_slope=downtrend + state_ext=stretched_up,short,late_emerging_recent_only,8.5,True,False,0.0429764454933598
+XRP/USD,1d,cross_BTC/USD_state_vol=low_vol + state_ext=stretched_up,short,late_emerging_regime_switching,8.5,True,False,0.0400999516502799
+LTC/USD,1d,cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_down,short,late_emerging_recent_only,8.5,True,False,0.0382583533344691
+BCH/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up,short,late_emerging_recent_only,8.5,True,False,0.0356170611864257
+LTC/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_recent_only,8.5,True,False,0.0254852886384184
+DOGE/USD,1d,cross_BTC/USD_state_slope=uptrend + state_ext=stretched_down,short,late_emerging_valid_supported,8.25,True,False,0.0715150667088253
+DOT/USD,1d,cross_ETH/USD_state_ext=stretched_up + state_ext=neutral,short,late_emerging_recent_only,8.25,True,False,0.060530280236925
+AAVE/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_recent_only,8.25,True,False,0.0579342445828632
+ETH/USD,1d,cross_BTC/USD_state_vol=mid_vol + state_ext=neutral,short,late_emerging_recent_only,8.25,True,False,0.0324693165546255
+LTC/USD,1d,cross_BTC/USD_state_vol=mid_vol + state_ext=stretched_up,short,late_emerging_recent_only,8.25,True,False,0.0323742205381406
+AAVE/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_valid_supported,8.0,True,False,0.0585308620047248
+AAVE/USD,1d,state_ext=stretched_up + state_slope=flat,short,late_emerging_recent_only,8.0,True,False,0.0519776274856481
+SUSHI/USD,1d,cross_BTC/USD_state_ext=stretched_up + cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_valid_supported,7.75,True,False,0.0665938368079037
+SUSHI/USD,1d,cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_valid_supported,7.75,True,False,0.0603530942511632
+BCH/USD,1d,state_ext=neutral + state_slope=uptrend,long,late_emerging_valid_supported,7.75,True,False,0.0559919673516939
+XRP/USD,1d,cross_ETH/USD_state_slope=uptrend + state_ext=stretched_down,short,late_emerging_valid_supported,7.75,True,False,0.0400750810817967
+LTC/USD,1d,cross_ETH/USD_state_slope=uptrend + state_ext=stretched_down,short,late_emerging_valid_supported,7.75,True,False,0.0330065864934759
+ETH/USD,1d,cross_BTC/USD_state_ext=stretched_up + state_ext=neutral,short,late_emerging_valid_supported,7.75,True,False,0.0300933196916054
+SOL/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_valid_supported,7.5,True,False,0.0399980293251226
+SUSHI/USD,1d,state_ret_day=ret_day_down + state_ext=stretched_up,short,late_emerging_valid_supported,7.25,True,False,0.0434075374246909
+DOT/USD,1d,state_ext=stretched_up + state_vol=low_vol,short,clean_survivor_wf_failed,18.0,False,False,0.0442191064932231
+SUSHI/USD,1d,cross_ETH/USD_state_ext=neutral + state_ext=stretched_down,short,clean_survivor_wf_mixed,17.0,False,False,0.0434780543588819
+DOGE/USD,1d,cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_down,short,clean_survivor_wf_mixed,17.0,False,False,0.0381914710281188
+AVAX/USD,1d,cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,clean_survivor_wf_failed,15.25,False,False,0.0367677445566309
+CRV/USD,1d,cross_ETH/USD_state_ext=neutral + state_ext=stretched_down,short,clean_survivor_wf_mixed,15.0,False,False,0.0320388368544118
+LTC/USD,1d,cross_ETH/USD_state_ext=neutral + state_ext=stretched_up,short,late_emerging_regime_switching,10.0,False,False,0.0443776285835524
+CRV/USD,1d,state_ret_day=ret_day_flat + state_ext=stretched_up,short,late_emerging_regime_switching,9.0,False,False,0.0511519596518758
+DOGE/USD,1d,cross_BTC/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_regime_switching,9.0,False,False,0.0397647266530675
+DOT/USD,1d,state_weekpart=weekend + state_ext=stretched_up,short,late_emerging_valid_supported,8.75,False,False,0.0384186852108112
+ETH/USD,1d,cross_BTC/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_regime_switching,8.75,False,False,0.0315860358762592
+LTC/USD,1d,cross_BTC/USD_state_ext=stretched_up + cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_regime_switching,8.75,False,False,0.0280784909565865
+LTC/USD,1d,cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_valid_supported,8.75,False,False,0.0268471415461744
+LTC/USD,1d,cross_BTC/USD_state_ext=stretched_down + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_regime_switching,8.75,False,False,0.0220384737870895
+BCH/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_up,short,late_emerging_regime_switching,8.75,False,False,0.0204965808753826
+UNI/USD,1d,cross_BTC/USD_state_slope=uptrend + state_slope=downtrend,short,late_emerging_recent_only,8.5,False,False,0.0605715179787586
+LINK/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_recent_only,8.5,False,False,0.057534607610228
+AVAX/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_ext=stretched_down + state_ext=neutral,long,late_emerging_recent_only,8.5,False,False,0.0509254685240387
+CRV/USD,1d,cross_BTC/USD_state_slope=downtrend + state_ext=stretched_up,short,late_emerging_recent_only,8.5,False,False,0.0464329530776568
+LTC/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=uptrend,short,late_emerging_valid_supported,8.5,False,False,0.0414500621206753
+ETH/USD,1d,cross_BTC/USD_state_slope=downtrend + state_slope=flat,long,late_emerging_recent_only,8.5,False,False,0.0414137123194011
+AAVE/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=flat,short,late_emerging_recent_only,8.5,False,False,0.0400709314630396
+BCH/USD,1d,state_ext=neutral + state_vol=mid_vol,long,late_emerging_recent_only,8.5,False,False,0.0392868449656554
+AAVE/USD,1d,cross_BTC/USD_state_slope=flat + state_slope=flat,short,late_emerging_recent_only,8.5,False,False,0.038647689906129
+AVAX/USD,1d,cross_BTC/USD_state_slope=downtrend + state_ext=neutral,long,late_emerging_recent_only,8.5,False,False,0.0379353266244383
+SUSHI/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_recent_only,8.5,False,False,0.0363836320272812
+DOGE/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_recent_only,8.5,False,False,0.034675895047859
+LTC/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up,short,late_emerging_recent_only,8.5,False,False,0.0327844473817852
+LTC/USD,1d,state_ext=stretched_up + state_slope=flat,short,late_emerging_recent_only,8.5,False,False,0.0226058142261383
+BTC/USD,1d,state_ext=neutral + state_slope=downtrend,long,late_emerging_recent_only,8.5,False,False,0.0151744918925371
+UNI/USD,1d,cross_BTC/USD_state_ext=stretched_down + cross_ETH/USD_state_slope=downtrend + state_ext=stretched_up,short,late_emerging_recent_only,8.25,False,False,0.0555930888454664
+SUSHI/USD,1d,cross_BTC/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_recent_only,8.25,False,False,0.0551152408019198
+CRV/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_recent_only,8.25,False,False,0.0522976356170752
+BCH/USD,1d,cross_ETH/USD_state_ext=stretched_down + state_ext=neutral,long,late_emerging_valid_supported,8.25,False,False,0.0486617407332396
+UNI/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_up,short,late_emerging_valid_supported,8.25,False,False,0.0475223670867808
+XRP/USD,1d,cross_ETH/USD_state_vol=low_vol + state_ext=stretched_up,short,late_emerging_recent_only,8.25,False,False,0.0333320041587515
+DOT/USD,1d,cross_BTC/USD_state_slope=flat + state_slope=downtrend,short,late_emerging_valid_supported,8.25,False,False,0.0299643462351102
+BTC/USD,1d,cross_ETH/USD_state_slope=uptrend + state_ext=neutral,short,late_emerging_recent_only,8.25,False,False,0.0193354597423312
+LTC/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_recent_only,8.25,False,False,0.017435905556401
+CRV/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_up,short,late_emerging_recent_only,8.0,False,False,0.0645178128020692
+BCH/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_ext=stretched_down + state_ext=neutral,long,late_emerging_valid_supported,8.0,False,False,0.0576561299894382
+DOGE/USD,1d,cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,late_emerging_valid_supported,8.0,False,False,0.0472842075357081
+BCH/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=downtrend + state_ext=stretched_up,long,late_emerging_valid_supported,8.0,False,False,0.0340804332415398
+CRV/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_valid_supported,8.0,False,False,0.031808820671787
+DOGE/USD,1d,cross_BTC/USD_state_ext=neutral + state_ext=stretched_down,short,late_emerging_valid_supported,8.0,False,False,0.0308390213304514
+BCH/USD,1d,cross_BTC/USD_state_slope=flat + state_ext=neutral,long,late_emerging_valid_supported,8.0,False,False,0.0223124736430018
+SOL/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_recent_only,8.0,False,False,0.0219541208262912
+BTC/USD,1d,state_ext=neutral + state_vol=mid_vol,short,late_emerging_recent_only,8.0,False,False,0.01938346246861
+DOT/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=neutral,short,late_emerging_valid_supported,7.75,False,False,0.0681589861280403
+BCH/USD,1d,cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_valid_supported,7.75,False,False,0.0597961507743832
+SUSHI/USD,1d,cross_BTC/USD_state_ext=neutral + state_ext=stretched_up,short,late_emerging_valid_supported,7.75,False,False,0.056882303321332
+SOL/USD,1d,cross_ETH/USD_state_ext=stretched_down + state_ext=stretched_up,long,late_emerging_valid_supported,7.75,False,False,0.0548615044389001
+AVAX/USD,1d,state_ext=stretched_down + state_slope=uptrend,long,late_emerging_valid_supported,7.75,False,False,0.0541416652384633
+BCH/USD,1d,cross_BTC/USD_state_slope=downtrend + state_ext=neutral,long,late_emerging_valid_supported,7.75,False,False,0.0460297738412528
+BCH/USD,1d,cross_BTC/USD_state_ext=stretched_up + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,late_emerging_valid_supported,7.75,False,False,0.0451773345076834
+BCH/USD,1d,cross_BTC/USD_state_slope=uptrend + state_ext=stretched_down,short,late_emerging_valid_supported,7.75,False,False,0.0418483641916156
+DOT/USD,1d,state_ret_day=ret_day_up + state_ext=stretched_up,short,late_emerging_valid_supported,7.75,False,False,0.0384489523145882
+ETH/USD,1d,cross_BTC/USD_state_slope=uptrend + state_ext=neutral,short,late_emerging_valid_supported,7.75,False,False,0.0381009208902471
+BCH/USD,1d,state_ret_day=ret_day_down + state_ext=neutral,long,late_emerging_valid_supported,7.75,False,False,0.0375919978018083
+UNI/USD,1d,state_weekpart=weekend + state_ext=neutral,long,late_emerging_valid_supported,7.75,False,False,0.0336934838846304
+UNI/USD,1d,cross_BTC/USD_state_ext=neutral + state_ext=stretched_up,short,late_emerging_valid_supported,7.75,False,False,0.0258002244447756
+DOT/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=downtrend,short,late_emerging_valid_supported,7.75,False,False,0.0237454192429231
+DOGE/USD,1d,state_ret_day=ret_day_up + state_ext=stretched_down,short,late_emerging_valid_supported,7.75,False,False,0.0236852114101192
+AVAX/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_down,short,late_emerging_recent_only,7.75,False,False,0.0236584706981701
+CRV/USD,1d,cross_BTC/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_valid_supported,7.5,False,False,0.0724095327990036
+DOT/USD,1d,state_weekpart=weekday + state_ext=neutral,short,late_emerging_valid_supported,7.5,False,False,0.052014573257389
+UNI/USD,1d,cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,late_emerging_valid_supported,7.5,False,False,0.0446763449339879
+LINK/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_valid_supported,7.5,False,False,0.0442907137244941
+LINK/USD,1d,cross_BTC/USD_state_vol=mid_vol + state_ext=neutral,short,late_emerging_valid_supported,7.5,False,False,0.0371043380328275
+UNI/USD,1d,cross_ETH/USD_state_ext=stretched_down + state_ext=stretched_up,short,late_emerging_valid_supported,7.5,False,False,0.0356377074284506
+UNI/USD,1d,cross_BTC/USD_state_ext=neutral + state_ext=stretched_down,short,late_emerging_valid_supported,7.5,False,False,0.0329254601840257
+BTC/USD,1d,state_ext=stretched_up + state_vol=high_vol,long,late_emerging_valid_supported,7.5,False,False,0.0318639017003715
+DOGE/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_down,short,late_emerging_valid_supported,7.5,False,False,0.0231168569652811
+DOGE/USD,1d,state_ext=stretched_down + state_vol=mid_vol,short,late_emerging_valid_supported,7.5,False,False,0.0227837696736788
+BTC/USD,1d,cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,late_emerging_valid_supported,7.5,False,False,0.013719585763384
+CRV/USD,1d,state_ext=stretched_up + state_slope=flat,short,late_emerging_valid_supported,7.25,False,False,0.0668247054397304
+SUSHI/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,late_emerging_valid_supported,7.25,False,False,0.0611167793587342
+UNI/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,late_emerging_valid_supported,7.25,False,False,0.0608881840491962
+DOGE/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_down,short,late_emerging_valid_supported,7.25,False,False,0.0469751396880749
+SUSHI/USD,1d,state_ret_day=ret_day_up + state_ext=stretched_up,short,late_emerging_valid_supported,7.25,False,False,0.0446702751058262
+SOL/USD,1d,cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,late_emerging_valid_supported,7.25,False,False,0.0287300909142874
+UNI/USD,1d,state_ret_day=ret_day_up + state_ext=stretched_up,short,late_emerging_valid_supported,7.25,False,False,0.0286532985006526
+CRV/USD,1d,state_ext=stretched_up + state_vol=mid_vol,short,late_emerging_valid_supported,7.0,False,False,0.0829283696394024
+AAVE/USD,1d,cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,short,late_emerging_valid_supported,7.0,False,False,0.0530178735385685
+DOGE/USD,1d,state_ext=stretched_down + state_slope=flat,short,late_emerging_valid_supported,7.0,False,False,0.0220165949851076
+SUSHI/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_up,short,late_emerging_valid_supported,6.75,False,False,0.0477456593760295
+LINK/USD,1d,cross_ETH/USD_state_ext=neutral + state_ext=stretched_up,short,late_emerging_valid_supported,6.75,False,False,0.0388106194276237
+DOT/USD,1d,cross_BTC/USD_state_slope=uptrend + state_slope=flat,short,late_emerging_valid_supported,6.5,False,False,0.0432732311450879
+AVAX/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up,short,late_emerging_valid_supported,6.25,False,False,0.0435650950011557

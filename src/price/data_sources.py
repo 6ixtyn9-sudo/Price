@@ -9,6 +9,7 @@ from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.enums import DataFeed
 
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, TIINGO_API_KEY, is_crypto, is_futures, is_equity
+from price.futures_metadata import provider_symbol_for, yahoo_symbol_for
 
 # ---------------------------------------------------------------------------
 # Rate-limit pacing for external APIs
@@ -47,9 +48,9 @@ def resolve_universal_source(symbol: str, timeframe_str: str) -> str:
     """
     sym = symbol.upper()
     if is_crypto(sym):
-        return "alpaca_crypto"
+        return "yfinance_crypto"
     if is_futures(sym):
-        return "alpaca_futures"
+        return "yfinance_futures"
     if timeframe_str in ("1d", "1h") and is_equity(sym):
         return "yfinance"
     return "alpaca"
@@ -304,18 +305,69 @@ def fetch_tiingo_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -
 
 
 def fetch_alpaca_futures_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Fetch raw bar data for futures symbols.
+
+    The public research namespace is canonical FUT/* (e.g. FUT/ES). Alpaca's
+    request path still needs the provider/root symbol (ES), while the warehouse
+    should retain the canonical FUT/* symbol to avoid collisions with equities
+    or crypto-like names.
+
+    NOTE: futures remain research-only in this repo. The free-tier/provider
+    data path may return empty for some symbols/timeframes; callers must handle
+    empty frames gracefully.
     """
-    Fetches raw bar data from Alpaca for futures symbols.
-    Uses the same StockHistoricalDataClient (Alpaca supports futures via the same endpoint).
-    NOTE: Alpaca free tier officially covers US Stocks/ETFs, Options, Crypto.
-    Futures data may return empty on free tier – caller should handle gracefully.
-    """
-    # Re-use equity path – output schema is identical
-    try:
-        return fetch_alpaca_bars(symbol, timeframe_str, start_dt, end_dt)
-    except Exception as e:
-        print(f"Futures fetch failed for {symbol}: {e}")
+    if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
+        raise ValueError("Alpaca API credentials missing in environment.")
+
+    client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
+
+    if timeframe_str == "15m":
+        tf = TimeFrame(15, TimeFrameUnit.Minute)
+    elif timeframe_str == "1h":
+        tf = TimeFrame(1, TimeFrameUnit.Hour)
+    elif timeframe_str == "1d":
+        tf = TimeFrame.Day
+    else:
+        raise ValueError(f"Unsupported futures timeframe: {timeframe_str}")
+
+    provider_symbol = provider_symbol_for(symbol)
+    all_dfs = []
+
+    for chunk_start, chunk_end in get_date_chunks(start_dt, end_dt, 90):
+        _alpaca_pace()
+        request_params = StockBarsRequest(
+            symbol_or_symbols=provider_symbol,
+            timeframe=tf,
+            start=chunk_start,
+            end=chunk_end,
+        )
+        retries = 3
+        while retries > 0:
+            try:
+                bars = client.get_stock_bars(request_params)
+                df = bars.df
+                if df is not None and not df.empty:
+                    all_dfs.append(df)
+                break
+            except Exception as e:
+                retries -= 1
+                if "429" in str(e) or "Rate Limit" in str(e):
+                    time.sleep(10)
+                else:
+                    time.sleep(2)
+                if retries == 0:
+                    print(
+                        f"Failed to fetch Alpaca futures bars for {symbol} "
+                        f"({chunk_start} to {chunk_end}): {e}"
+                    )
+                    return pd.DataFrame()
+
+    if not all_dfs:
         return pd.DataFrame()
+
+    merged_df = pd.concat(all_dfs).sort_index()
+    merged_df = merged_df[~merged_df.index.duplicated(keep='first')]
+    return _normalize_alpaca_df(merged_df, symbol, timeframe_str, source="alpaca_futures")
 
 
 def fetch_crypto_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
@@ -394,6 +446,13 @@ def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str)
         "Stock Splits": "split_factor",
     })
 
+    if "close_adj" not in df.columns and "close_raw" in df.columns:
+        df["close_adj"] = df["close_raw"]
+    if "dividend_cash" not in df.columns:
+        df["dividend_cash"] = 0.0
+    if "split_factor" not in df.columns:
+        df["split_factor"] = 1.0
+
     # Drop columns yfinance may include but we don't use (e.g. Capital Gains)
     drop_cols = [c for c in df.columns if c not in {
         "bar_ts_utc", "open_raw", "high_raw", "low_raw", "close_raw",
@@ -404,6 +463,7 @@ def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str)
 
     # Compute adj_factor and derive adjusted OHLCV from it
     df["adj_factor"] = df["close_adj"] / df["close_raw"]
+    df["adj_factor"] = df["adj_factor"].replace([float("inf"), float("-inf")], 1.0).fillna(1.0)
     df["open_adj"] = df["open_raw"] * df["adj_factor"]
     df["high_adj"] = df["high_raw"] * df["adj_factor"]
     df["low_adj"] = df["low_raw"] * df["adj_factor"]
@@ -509,22 +569,146 @@ def fetch_yfinance_hourly_bars(symbol: str, start_dt: datetime, end_dt: datetime
     return result
 
 
+def fetch_yfinance_futures_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Fetch continuous futures bars from Yahoo Finance when available.
+
+    Yahoo uses symbols like ES=F, CL=F, GC=F. This is the primary research
+    path for canonical FUT/* symbols because it is free and gives a second
+    provider family beyond Alpaca. Tiingo currently has no wired futures path
+    in this repo, so the robust provider chain for futures is:
+
+      yfinance -> Alpaca fallback
+
+    Timeframe support mirrors Yahoo's practical constraints:
+      1d  : long history
+      1h  : up to ~725 days
+      15m : up to ~60 days
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("yfinance not installed, skipping Yahoo Finance futures fetch.")
+        return pd.DataFrame()
+
+    yahoo_symbol = yahoo_symbol_for(symbol)
+    if not yahoo_symbol:
+        return pd.DataFrame()
+
+    interval = None
+    if timeframe_str == "1d":
+        interval = None
+    elif timeframe_str == "1h":
+        interval = "1h"
+        min_start = end_dt - timedelta(days=725)
+        if start_dt < min_start:
+            start_dt = min_start
+    elif timeframe_str == "15m":
+        interval = "15m"
+        min_start = end_dt - timedelta(days=59)
+        if start_dt < min_start:
+            start_dt = min_start
+    else:
+        raise ValueError(f"Unsupported futures timeframe: {timeframe_str}")
+
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    try:
+        ticker = yf.Ticker(yahoo_symbol)
+        if interval is None:
+            df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
+        else:
+            df = ticker.history(start=start_str, end=end_str, interval=interval, auto_adjust=False)
+        if df is None or df.empty:
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"yfinance futures failed for {symbol}: {e}")
+        return pd.DataFrame()
+
+    result = _build_yfinance_canonical(df, symbol, timeframe_str)
+    print(f"yfinance: fetched {len(result)} futures bars for {symbol} ({timeframe_str})")
+    return result
+
+
+def fetch_yfinance_crypto_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Fetch crypto bars from Yahoo Finance (BTC-USD, ETH-USD etc) as primary.
+
+    yfinance provides crypto 24/7 without API key: 1d long history, 1h up to ~725d, 15m up to ~60d.
+    This makes crypto similar to futures and equity: yfinance first, Alpaca fallback.
+    Symbol mapping: BTC/USD -> BTC-USD, AAVE/USD -> AAVE-USD.
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        print("yfinance not installed, skipping Yahoo Finance crypto fetch.")
+        return pd.DataFrame()
+
+    # yfinance uses dash, not slash: BTC/USD -> BTC-USD
+    yahoo_symbol = symbol.upper().replace("/", "-")
+
+    interval = None
+    if timeframe_str == "1d":
+        interval = None
+    elif timeframe_str == "1h":
+        interval = "1h"
+        min_start = end_dt - timedelta(days=725)
+        if start_dt < min_start:
+            start_dt = min_start
+    elif timeframe_str == "15m":
+        interval = "15m"
+        min_start = end_dt - timedelta(days=59)
+        if start_dt < min_start:
+            start_dt = min_start
+    else:
+        raise ValueError(f"Unsupported crypto timeframe: {timeframe_str}")
+
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = end_dt.strftime("%Y-%m-%d")
+
+    try:
+        ticker = yf.Ticker(yahoo_symbol)
+        if interval is None:
+            df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
+        else:
+            df = ticker.history(start=start_str, end=end_str, interval=interval, auto_adjust=False)
+        if df is None or df.empty:
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"yfinance crypto failed for {symbol}: {e}")
+        return pd.DataFrame()
+
+    result = _build_yfinance_canonical(df, symbol, timeframe_str)
+    # Override source label to reflect crypto path
+    result["source"] = "yfinance_crypto"
+    print(f"yfinance: fetched {len(result)} crypto bars for {symbol} ({timeframe_str})")
+    return result
+
+
 def fetch_universal_bars(symbol: str, timeframe_str: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """
     Router that picks the correct data source based on asset class:
-      - Crypto: Alpaca CryptoHistoricalDataClient
-      - Futures: Alpaca (may be empty on free tier)
+      - Crypto: yfinance (BTC-USD etc, no key) -> Alpaca fallback
+      - Futures: yfinance (ES=F etc) -> Alpaca fallback
       - Equity daily: yfinance → Tiingo → Alpaca raw (last resort)
       - Equity 1h:   yfinance → Alpaca 15m resample (fallback)
       - Equity 15m:  Alpaca (yfinance 15m only covers 60 days)
     """
     sym = symbol.upper()
-    # Crypto first
+    # Crypto: yfinance primary (BTC-USD etc, no key, 24/7), Alpaca fallback.
+    # Same pattern as futures and equity now – free first, paid second.
     if is_crypto(sym):
+        yf_df = fetch_yfinance_crypto_bars(sym, timeframe_str, start_dt, end_dt)
+        if not yf_df.empty:
+            return yf_df
         return fetch_crypto_bars(sym, timeframe_str, start_dt, end_dt)
 
-    # Futures
+    # Futures: Yahoo Finance first (continuous futures symbols like ES=F,
+    # CL=F), then Alpaca fallback. Keep the canonical FUT/* symbol in the
+    # returned frame so warehouse/research identities stay unambiguous.
     if is_futures(sym):
+        yf_df = fetch_yfinance_futures_bars(sym, timeframe_str, start_dt, end_dt)
+        if not yf_df.empty:
+            return yf_df
         return fetch_alpaca_futures_bars(sym, timeframe_str, start_dt, end_dt)
 
     # Equity daily: yfinance primary (no API key, no rate limits, raw+adjusted).
