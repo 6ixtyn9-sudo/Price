@@ -42,10 +42,17 @@ from price.data_sources import fetch_alpaca_bars
 from price.warehouse import load_from_warehouse
 
 
-PAPER_TRADE_LOG_PATH: Path = DATA_DIR / "paper_trade_log.csv"
-LEADERBOARD_PATH: Path = DATA_DIR / "candidate_leaderboard.csv"
-MONITORED_SLICES_PATH: Path = DATA_DIR / "monitored_slices.csv"
-LIVE_FORWARD_RETURNS_PATH: Path = DATA_DIR / "live_forward_returns.csv"
+def _resolve_path(env_name: str, default_name: str) -> Path:
+    import os
+    custom = os.getenv(env_name)
+    if custom:
+        return Path(custom)
+    return DATA_DIR / default_name
+
+PAPER_TRADE_LOG_PATH: Path = _resolve_path("PAPER_TRADE_LOG_PATH", "paper_trade_log.csv")
+LEADERBOARD_PATH: Path = _resolve_path("CANDIDATE_LEADERBOARD_PATH", "candidate_leaderboard.csv")
+MONITORED_SLICES_PATH: Path = _resolve_path("MONITORED_SLICES_PATH", "monitored_slices.csv")
+LIVE_FORWARD_RETURNS_PATH: Path = _resolve_path("LIVE_FORWARD_RETURNS_PATH", "live_forward_returns.csv")
 
 # Forward-return horizons, in number of bars.
 HORIZONS_BARS: List[int] = [5, 20]

@@ -22,10 +22,17 @@ from pathlib import Path
 from typing import Optional
 
 from price.config import DATA_DIR
+import os
+from pathlib import Path as _Path
 
+def _resolve_data_path(env_name: str, default_name: str) -> _Path:
+    custom = os.getenv(env_name)
+    if custom:
+        return _Path(custom)
+    return DATA_DIR / default_name
 
-HALT_FLAG_PATH = DATA_DIR / "HALT_TRADING.flag"
-COOLDOWN_JOURNAL_PATH = DATA_DIR / "cooldown_journal.json"
+HALT_FLAG_PATH = _resolve_data_path("HALT_FLAG_PATH", "HALT_TRADING.flag")
+COOLDOWN_JOURNAL_PATH = _resolve_data_path("COOLDOWN_JOURNAL_PATH", "cooldown_journal.json")
 
 # Slice filter fields considered "transient" for risk-grouping: they flip
 # every bar (or every session) and therefore do NOT define a durable
