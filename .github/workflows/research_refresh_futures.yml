@@ -1,0 +1,137 @@
+name: Research Refresh Futures
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Symbols per shard for discovery dispatch"
+        required: false
+        default: "5"
+      timeframes:
+        description: "Timeframes to refresh"
+        required: false
+        default: "1d 1h"
+      allow_discovery:
+        description: "Allow discovery to run if gate opens"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: research-refresh-futures
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  research-refresh-futures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    permissions:
+      contents: write
+    outputs:
+      should_dispatch_discovery: ${{ steps.dispatch_gate.outputs.should_dispatch }}
+      cache_key: ${{ steps.cache_key.outputs.key }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Compute cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-refresh-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore warehouse cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if cache empty
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' -path '*FUT*' | wc -l)" -gt 0 ]; then
+            echo "Warehouse has futures data"
+            exit 0
+          fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber || true
+            if [ -f /tmp/warehouse-research.tar.gz ]; then
+              tar xzf /tmp/warehouse-research.tar.gz -C localdata
+              rm /tmp/warehouse-research.tar.gz
+            fi
+          fi
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing ALPACA_SECRET_KEY}"
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
+
+      - name: Capture full futures universe (yfinance primary)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          python scripts/capture_bars.py --symbols FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG --timeframes 1d --days 1825 --skip-postprocess
+          python scripts/capture_bars.py --symbols FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG --timeframes 1h --days 365
+
+      - name: Run autonomous research controller (futures)
+        run: |
+          python scripts/research_futures.py --timeframes 1d --regime-only --output-dir localdata/research/futures/1d || echo "no 1d artifacts yet"
+          ls -lh localdata/research/futures/1d/ || true
+
+      - name: Compute dispatch gate
+        id: dispatch_gate
+        run: |
+          if [ "${{ inputs.allow_discovery }}" = "true" ]; then
+            echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save research warehouse cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+
+  dispatch-discovery:
+    needs: research-refresh-futures
+    if: ${{ needs.research-refresh-futures.outputs.should_dispatch_discovery == 'true' }}
+    uses: ./.github/workflows/research_futures_discovery.yml
+    with:
+      timeframes: "1d 1h"
+      batch_size: "5"
+    secrets: inherit

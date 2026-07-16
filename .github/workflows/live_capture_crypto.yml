@@ -1,0 +1,202 @@
+name: Live Capture Crypto (Dynamic)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_notional:
+        description: "Max notional per crypto position"
+        required: false
+        default: "500"
+      max_open:
+        description: "Max open crypto positions"
+        required: false
+        default: "3"
+      max_daily_loss:
+        description: "Daily loss kill switch"
+        required: false
+        default: "200"
+
+concurrency:
+  group: live-capture-crypto
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+  # Isolated state files for crypto substrate – do not collide with equity live book
+  MONITORED_SLICES_PATH: localdata/monitored_slices_crypto.csv
+  TRADE_JOURNAL_PATH: localdata/trade_journal_crypto.csv
+  PAPER_TRADE_LOG_PATH: localdata/paper_trade_log_crypto.csv
+  STOP_STATE_PATH: localdata/stop_state_crypto.json
+  STOPOUT_JOURNAL_PATH: localdata/stopout_journal_crypto.json
+  COOLDOWN_JOURNAL_PATH: localdata/cooldown_journal_crypto.json
+  HALT_FLAG_PATH: localdata/HALT_TRADING_CRYPTO.flag
+  CANDIDATE_LEADERBOARD_PATH: localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv
+  LIVE_FORWARD_RETURNS_PATH: localdata/live_forward_returns_crypto.csv
+
+jobs:
+  live-capture-crypto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Compute cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-crypto-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore warehouse cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Restore operational paper state cache (crypto)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal_crypto.csv
+            localdata/paper_trade_log_crypto.csv
+            localdata/stop_state_crypto.json
+            localdata/stopout_journal_crypto.json
+            localdata/cooldown_journal_crypto.json
+            localdata/monitored_slices_crypto.csv
+            localdata/research/crypto
+          key: live-ops-state-crypto-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-crypto-v1-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing ALPACA_SECRET_KEY}"
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
+
+      - name: Sync dynamic crypto book from latest research
+        run: |
+          # Rebuild regime-aware monitored candidates from latest research artifacts (dynamic, not static)
+          # If research artifacts missing, falls back to existing monitored_slices_crypto.csv
+          if [ -d localdata/research/crypto/1d ] && [ -f localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv ]; then
+            echo "Found existing crypto research, rebuilding monitored candidates via regime-only"
+            python scripts/research_crypto.py --timeframes 1d --regime-only --output-dir localdata/research/crypto/1d || echo "regime-only rebuild failed, keeping existing"
+            # promote top clean_mixed as paper book when strict is empty – dynamic paper trading
+            # If monitored_candidates_crypto.csv exists, use it as live book, else use candidate_leaderboard top 8 clean_mixed
+            if [ -f localdata/research/crypto/1d/monitored_candidates_crypto.csv ] && [ -s localdata/research/crypto/1d/monitored_candidates_crypto.csv ]; then
+              echo "Using monitored_candidates_crypto.csv as live book"
+              python scripts/sync_monitored_crypto.py --candidates-path localdata/research/crypto/1d/monitored_candidates_crypto.csv --output-path localdata/monitored_slices_crypto.csv || true
+            else
+              echo "monitored_candidates empty, falling back to top clean_survivor_wf_mixed as dynamic paper book"
+              python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv || true
+            fi
+          else
+            echo "No crypto research artifacts yet, will use existing monitored_slices_crypto.csv if present"
+          fi
+          ls -lh localdata/monitored_slices_crypto.csv || echo "no crypto book yet"
+
+      - name: Ingest crypto universe (automatic 1d + 15m for 1h)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          # Dynamic symbols from current crypto book + BTC/ETH conditioning
+          if [ -f localdata/monitored_slices_crypto.csv ]; then
+            SYMBOLS=$(python3 -c "import pandas as pd; df=pd.read_csv('localdata/monitored_slices_crypto.csv'); print(' '.join(sorted(df['symbol'].unique())))")
+          else
+            SYMBOLS=$(python3 -c "import sys; sys.path.insert(0,'scripts'); sys.path.insert(0,'src'); from research_crypto import load_crypto_symbols; print(' '.join(load_crypto_symbols()))")
+          fi
+          echo "Capturing crypto for: $SYMBOLS"
+          python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 1d --days 1825 --skip-postprocess
+          python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 15m --days 365
+
+      - name: Run paper trade crypto (dynamic book)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          python scripts/paper_trade.py \
+            --max-notional ${{ inputs.max_notional || '500' }} \
+            --max-open ${{ inputs.max_open || '3' }} \
+            --max-daily-loss ${{ inputs.max_daily_loss || '200' }} \
+            --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
+            --exit-horizon 5 --max-per-group 1 --stop-atr-mult 2.0 \
+            --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
+            --max-aggregate-risk-pct 0.02 --whipsaw-limit 2 \
+            --cost-spread-bps 5.0 --cost-slippage-bps 10.0 --allow-shorts
+
+      - name: Run live forward-return capture crypto
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          python scripts/live_forward_returns.py --universe-source monitored || true
+
+      - name: Check operational paper state cache content
+        id: ops_state
+        run: |
+          shopt -s nullglob
+          files=(localdata/trade_journal_crypto.csv localdata/paper_trade_log_crypto.csv localdata/stop_state_crypto.json localdata/stopout_journal_crypto.json localdata/cooldown_journal_crypto.json localdata/monitored_slices_crypto.csv)
+          echo "has_state=false" >> "$GITHUB_OUTPUT"
+          for f in "${files[@]}"; do if [ -s "$f" ]; then echo "has_state=true" >> "$GITHUB_OUTPUT"; break; fi; done
+
+      - name: Save operational paper state cache (crypto)
+        if: ${{ steps.ops_state.outputs.has_state == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal_crypto.csv
+            localdata/paper_trade_log_crypto.csv
+            localdata/stop_state_crypto.json
+            localdata/stopout_journal_crypto.json
+            localdata/cooldown_journal_crypto.json
+            localdata/monitored_slices_crypto.csv
+            localdata/research/crypto
+          key: live-ops-state-crypto-v1-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Save research warehouse cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+
+      - name: Commit crypto workflow outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          python scripts/delta_spike_guard.py || true
+          files=(localdata/live_forward_returns_crypto.csv localdata/monitored_slices_crypto.csv localdata/research/crypto/1d/monitored_candidates_crypto.csv)
+          existing=()
+          for f in "${files[@]}"; do [ -e "$f" ] && existing+=("$f"); done
+          if ((${#existing[@]})); then git add "${existing[@]}"; fi
+          if git diff --cached --quiet; then echo "No crypto output changes"; exit 0; fi
+          git commit -m "chore(live-capture-crypto): update workflow output [skip ci]"
+          for attempt in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break; sleep $((attempt*5)); done
