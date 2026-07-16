@@ -1388,7 +1388,7 @@ Alpaca fetch if the warehouse is stale), and writes the realized
 forward return to localdata/live_forward_returns.csv. Idempotent.
 Partial-data rows are kept distinct from completed ones via a
 partial_data flag. Never silently drops a row.
-.github/workflows/live_capture.yml: a GitHub Actions workflow
+.github/workflows/live_capture_equities.yml: a GitHub Actions workflow
 that runs every 6 hours (0 /6 * * ). Steps: checkout, setup
 Python 3.11, install requirements, run capture_bars.py to pull
 the most recent 1825 days of 1d bars and 30 days of 15m bars, run
@@ -1766,7 +1766,7 @@ Tiingo does not cover futures; Alpaca becomes the primary source for all futures
 Continuous contract symbols (e.g. ES1!, NQ1!) will be normalized to uppercase without the "1!" suffix in the warehouse for consistency with ETF symbols.
 No corporate-action adjustments are required for futures (no splits/dividends).
 Impact on existing paper-trading layer
-The current Alpaca paper-trading / live-capture infrastructure (monitor.py, trading.py, paper_trade.py, live_capture.yml, and live_forward_returns.py) operates exclusively on the ETF universe and the four V4-era monitored slices. The futures expansion is purely a research-substrate addition (ingestion + warehouse + discovery). It does not:
+The current Alpaca paper-trading / live-capture infrastructure (monitor.py, trading.py, paper_trade.py, live_capture_equities.yml, and live_forward_returns.py) operates exclusively on the ETF universe and the four V4-era monitored slices. The futures expansion is purely a research-substrate addition (ingestion + warehouse + discovery). It does not:
 
 modify any execution code
 add futures to DEFAULT_MONITORED_SLICES
@@ -2408,10 +2408,10 @@ Do not mix research discovery and paper execution in the same workflow.
 
 Desired future split:
 
-live_capture.yml
+live_capture_equities.yml
 
 execution and forward-return logging for approved monitored_slices.csv only
-research_refresh.yml
+research_refresh_equities.yml
 
 discovery
 validation
@@ -2698,7 +2698,7 @@ Operator action items (optional, none required for the patch to be safe)
 
 The new --exit-horizon flag defaults to 5 (faithful). If you want the live
 workflow to use it, add --exit-horizon 5 (or your preferred value) to the
-paper_trade invocation in .github/workflows/live_capture.yml. Until then
+paper_trade invocation in .github/workflows/live_capture_equities.yml. Until then
 the workflow uses the module default, which is also 5.
 Once XOP/XLK fill and produce their first exit, the audit row will carry
 bars_held + the exit reason -- the first real measurement of whether holds
@@ -2817,7 +2817,7 @@ Operator action items (optional, none required for the patch to be safe)
 --max-per-group defaults to 2 (faithful diversification within a family).
 If you want the live workflow to use it explicitly, add
 --max-per-group 2 to the paper_trade invocation in
-.github/workflows/live_capture.yml. Until then the module default (also 2)
+.github/workflows/live_capture_equities.yml. Until then the module default (also 2)
 applies. Set --max-per-group 0 to restore exact legacy behaviour.
 ROI Refinement — Cost Realism (2026-07-06)
 Fourth patch of the ROI workstream (lever #4 of the agreed priority order:
@@ -2911,7 +2911,7 @@ Operator action items (optional, none required for the patch to be safe)
 The default cost model (8bp round trip) applies automatically. For a
 different cost profile on the live workflow, add --cost-spread-bps /
 --cost-slippage-bps / --cost-commission-bps to the paper_trade invocation in
-.github/workflows/live_capture.yml.
+.github/workflows/live_capture_equities.yml.
 To re-rank slices at realistic cost (operator-owned research decision), run
 validation with --cost-bps 4.0 and compare. Do NOT flip the validation
 default silently.
@@ -3524,7 +3524,7 @@ with no tracked StopState -- so a slice that never gets a stop attached
 (e.g. persistent ATR data gaps) keeps the exact pre-existing horizon
 behaviour.
 
-Live workflow changes (.github/workflows/live_capture.yml)
+Live workflow changes (.github/workflows/live_capture_equities.yml)
 
 Schedule changed from once/day (21:00 UTC) to 5x/trading day
 (14:00/16:00/18:00/20:00/21:00 UTC). Rationale: the protective stop is
@@ -3704,7 +3704,7 @@ exist yet.
 Does not build PDT-flag handling. Verified unnecessary: PDT was
 eliminated by regulation, effective before this patch was written.
 Does not enable leverage on the live workflow. .github/workflows/
-live_capture.yml deliberately does NOT pass --target-leverage --
+live_capture_equities.yml deliberately does NOT pass --target-leverage --
 turning on leverage is an explicit operator decision requiring
 sign-off on the ratio, same doctrine as --regime-filter.
 Does not promote any slice, or touch sizing/exits/allocation/cost/
@@ -3725,7 +3725,7 @@ Leverage is fully inert at its 1.0x default. To activate it: (1) enable
 checks fail open without a known equity value -- this is why the
 protective-stops section's --auto-sizing-equity addition is also the
 leverage-activation switch), and (2) add --target-leverage 2.0
---margin-cushion-pct 0.20 to the live_capture.yml paper_trade invocation
+--margin-cushion-pct 0.20 to the live_capture_equities.yml paper_trade invocation
 once you have explicitly decided to do so.
 Do not set --target-leverage above 2.0 without first building the
 same-day force-flatten exit mode described above -- higher multiples on
@@ -3927,7 +3927,7 @@ take effect on the next workflow run after this patch is committed.
 
 Cloud Execution Restoration & Optimization (2026-07-07)
 This section records the restoration and optimization of the automated GitHub
-Actions pipeline (.github/workflows/live_capture.yml), transitioning it from a
+Actions pipeline (.github/workflows/live_capture_equities.yml), transitioning it from a
 broken/failing state to a 100% autonomous, self-healing cloud execution engine.
 
 Root cause analysis of prior cloud failures
@@ -3935,11 +3935,11 @@ Root cause analysis of prior cloud failures
 CLI Argument Mismatch (paper_trade.py): In prior refactoring passes,
 scripts/paper_trade.py was replaced with a truncated stub that omitted key
 argparse flags (--cost-spread-bps, --cost-slippage-bps, --whipsaw-limit,
---max-aggregate-risk-pct, --breakeven-trigger-r). However, live_capture.yml
+--max-aggregate-risk-pct, --breakeven-trigger-r). However, live_capture_equities.yml
 still passed all 15 multi-lever execution parameters. Every scheduled cloud
 run crashed immediately upon invoking paper_trade.py with:
 error: unrecognized arguments: --breakeven-trigger-r 1.0 ...
-Universe Scale & Rate-Limit Thrashing: live_capture.yml previously ran
+Universe Scale & Rate-Limit Thrashing: live_capture_equities.yml previously ran
 capture_bars.py --tier allowlist (236 symbols) on an hourly schedule during
 market hours. Issuing hundreds of HTTP requests hourly against free-tier
 Alpaca/Tiingo APIs caused severe rate-limit backoffs, 45-minute workflow
@@ -3950,7 +3950,7 @@ Restored scripts/paper_trade.py and scripts/live_forward_returns.py to their
 full multi-parameter implementations, supporting all 15 execution and risk flags.
 Restored missing execution cost methods (per_leg_bps_for_validation, apply)
 in src/price/cost_model.py.
-Streamlined ingestion in .github/workflows/live_capture.yml: replaced --tier allowlist
+Streamlined ingestion in .github/workflows/live_capture_equities.yml: replaced --tier allowlist
 with targeted ingestion for the active monitored and macro conditioning set
 (SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC). This cut cloud execution
 time from tens of minutes down to under 40 seconds per run while eliminating API
@@ -3974,7 +3974,7 @@ To prevent future drift and ensure rigorous progression toward real-money readin
 all upcoming system development is locked into four distinct, actionable phases.
 
 Phase 1: Out-of-Sample Evidence Accumulation & Slippage Calibration (Current - Mid July 2026)
-Scope: Let the autonomous live_capture.yml runner operate completely unattended during
+Scope: Let the autonomous live_capture_equities.yml runner operate completely unattended during
 market hours to build an empirical paper ledger across incumbent slices.
 
 Sample Adequacy: Accumulate >= 5 completed round-trips per monitored slice before
@@ -3984,8 +3984,8 @@ realized slippage measured by attribute_pnl.py.
 Limit Order Execution: Mitigate the observed 161.2 bps market-open fill gap by
 transitioning entry execution from market orders to limit orders near signal close
 (limit_price=close_adj), preserving backtested edge margins.
-Phase 2: Decoupled Automated Research Refresh (research_refresh.yml) (Late July 2026)
-Scope: Create a dedicated weekend background workflow (research_refresh.yml) scheduled
+Phase 2: Decoupled Automated Research Refresh (research_refresh_equities.yml) (Late July 2026)
+Scope: Create a dedicated weekend background workflow (research_refresh_equities.yml) scheduled
 for Saturday mornings (08:00 UTC) to audit edge decay and re-index the 236-symbol allowlist
 without interfering with weekday hourly paper execution.
 
@@ -3993,7 +3993,7 @@ To survive red-team engineering review, Phase 2 must enforce five non-negotiable
 
 Concurrency & Git Isolation: Must operate under a dedicated GitHub Actions concurrency
 group (research-refresh) and execute strictly outside trading hours to eliminate git push
-deadlocks with live_capture.yml.
+deadlocks with live_capture_equities.yml.
 Storage & Cache Preservation: Must consume existing warehouse cache archives read-only or
 maintain a single unified parquet schema. Never upload duplicate 236-symbol tarballs from
 the research job, which would exhaust GitHub's 10GB repository cache quota.
@@ -4053,7 +4053,7 @@ fallback level so future agents (and the operator) can see which source
 the monitor is actually using. Behavior is unchanged on the happy path;
 visibility is added on the unhappy path.
 
-The auto-commit step in live_capture.yml had no guard against silent
+The auto-commit step in live_capture_equities.yml had no guard against silent
 corruption. A stuck loop or a runaway append could write 10k+ spurious
 rows to a critical CSV and the workflow would happily commit it. The
 HANDOVER's "Scheduled Live Capture" section had flagged this as an open
@@ -4063,7 +4063,7 @@ opt-in guard.
 
 What was added
 
-.github/workflows/live_capture.yml:
+.github/workflows/live_capture_equities.yml:
 --universe-source auto changed to --universe-source monitored (matches
 HANDOVER doctrine; closes the silent-fallback gap).
 New line: python3 scripts/delta_spike_guard.py runs immediately before
@@ -4105,7 +4105,7 @@ Verification
 python3 -m py_compile on monitor.py and delta_spike_guard.py: clean.
 python3 -m pytest -q tests/test_state_unavailable.py tests/test_attribution.py:
 20 passed, 0 failed.
-YAML validation on live_capture.yml (python3 -c "import yaml; yaml.safe_load(...)"):
+YAML validation on live_capture_equities.yml (python3 -c "import yaml; yaml.safe_load(...)"):
 clean.
 
 What this section does NOT do
@@ -4196,12 +4196,12 @@ Current Scheduling Model (2026-07-10)
 Scheduling has been moved entirely to cron-job.org for reliability:
 
 Native GitHub Actions schedule: triggers have been removed from all workflows.
-live_capture.yml and research_refresh.yml now only accept workflow_dispatch.
+live_capture_equities.yml and research_refresh_equities.yml now only accept workflow_dispatch.
 Two cron jobs on cron-job.org:
 Price Live Capture: hourly at :17 (Mon–Fri, 15:17–23:17 SAST)
 Price Research Refresh: daily at 00:00 SAST
 Research Discovery is only ever triggered by Research Refresh (via gh workflow run).
-Both research_refresh.yml and research_discovery.yml have timeout-minutes: 360 (6 hours — GitHub maximum).
+Both research_refresh_equities.yml and research_discovery_equities.yml have timeout-minutes: 360 (6 hours — GitHub maximum).
 This configuration gives research jobs the longest possible uninterrupted window and eliminates GitHub scheduler unreliability.
 Current operating decision
 
@@ -4219,7 +4219,7 @@ The current evidence target remains at least five confirmed completed round-trip
 Outstanding improvements from the roadmap
 
 Continue Phase 1 out-of-sample evidence accumulation and empirical execution-cost measurement.
-Build the separate research_refresh.yml workflow, outside live_capture.yml, with dedicated concurrency, cache preservation, deterministic API throttling, diagnostics-first behavior, the approximately 60-new-daily-bars anti-snooping gate, and isolated rolling-bin artifacts.
+Build the separate research_refresh_equities.yml workflow, outside live_capture_equities.yml, with dedicated concurrency, cache preservation, deterministic API throttling, diagnostics-first behavior, the approximately 60-new-daily-bars anti-snooping gate, and isolated rolling-bin artifacts.
 Build regime-specific candidate tracks as research-only outputs and measure opportunity, risk-block, order, fill, and completed-trade rates separately. Do not auto-deploy those tracks.
 Defer pyramiding/multi-unit ledger work until the base paper evidence is adequate.
 Defer true 4x intraday leverage until a same-day force-flatten mode exists; overnight-hold leverage remains off by default.
@@ -4232,7 +4232,7 @@ Research Refresh MVP — Diagnostic-Only Workflow (2026-07-10)
 
 A small non-deploying research-refresh MVP has been added:
 
-.github/workflows/research_refresh.yml
+.github/workflows/research_refresh_equities.yml
 scripts/research_observations.py
 tests/test_research_observations.py
 
@@ -4268,7 +4268,7 @@ opportunity/fill/completion telemetry
 automatic promotion/demotion capability behind explicit production activation
 live execution remaining protected by broker reconciliation, stops, risk caps, and fail-closed behavior
 
-The research_refresh.yml MVP has now been expanded toward this controller:
+The research_refresh_equities.yml MVP has now been expanded toward this controller:
 
 it captures the full explicit active allowlist rather than only the 13-symbol live subset
 it builds daily, 15m, and locally resampled 1h research coverage
@@ -4300,7 +4300,7 @@ This controller build is an engineering foundation, not a claim that the current
 This section brings HANDOVER in line with current code after a week of CI failures and operator request for fresher discovery.
 
 YAML Failures Root Cause and Fix
-Broken files: .github/workflows/live_capture.yml, research_discovery.yml, research_refresh.yml
+Broken files: .github/workflows/live_capture_equities.yml, research_discovery_equities.yml, research_refresh_equities.yml
 Failures:
 
 python-version: "3.12" cache: "pip" concatenated on same line (missing newline) — line 36 live_capture, 96/145 discovery, 55 refresh
@@ -4366,7 +4366,7 @@ All marked preliminary, <5 round-trips, should not be interpreted as stable.
 Empirical slippage 161bps on XLK 1h vs cost model 5bps slippage + 1.5bps spread — cost realism lever deferred per operating decision.
 
 Current Scheduling Truth
-live_capture.yml and research_refresh.yml only workflow_dispatch — no schedule: in YAML — intentional, GitHub scheduler unreliable.
+live_capture_equities.yml and research_refresh_equities.yml only workflow_dispatch — no schedule: in YAML — intentional, GitHub scheduler unreliable.
 cron-job.org:
 Live Capture: hourly at :17 Mon-Fri 15:17–23:17 SAST
 Research Refresh: daily at 00:00 SAST
@@ -4471,7 +4471,7 @@ Same-Pass Double-Entry Shield: When monitored_slices.csv contains multiple candi
 
 Automated Lifecycle Alignment: Added --promote-proposals to research_lifecycle.py and research_merge.py, allowing apply_registry_to_monitored() to promote both auto_approved and paper_proposal candidates into monitored_slices.csv during 1.0x paper trading. Clarified Gate 2 separation: leverage_auto_promotion_gate requires real-time ATR risk dollars only known during live monitor.py execution, whereas _strict_candidate() evaluates raw unlevered price behavior (1.0x) across historical discovery. When --promote-proposals is enabled, apply_registry_to_monitored() syncs the active 1x paper book directly from strict candidates without requiring static historical ATR dollar amounts.
 
-Dynamic Workflow Data Capture: The live_capture.yml ingest step extracts all unique tickers from monitored_slices.csv and merges them with the hardcoded conditioning symbols. This ensures capture_bars.py and build_warehouse.py automatically capture recent bars for all active assets before paper_trade.py runs, permanently eliminating no_state_data skipped scans. The research_discovery.yml merge step invokes research_merge.py --promote-proposals --apply-monitored-slices and commits the updated monitored_slices.csv. Whenever the weekly fresh-data gate (min_new_daily_bars >= 5) opens and discovery runs across the 236-symbol universe, research_merge.py automatically prunes decaying slices, adds new _strict_candidate() winners, and commits the updated book directly back to main.
+Dynamic Workflow Data Capture: The live_capture_equities.yml ingest step extracts all unique tickers from monitored_slices.csv and merges them with the hardcoded conditioning symbols. This ensures capture_bars.py and build_warehouse.py automatically capture recent bars for all active assets before paper_trade.py runs, permanently eliminating no_state_data skipped scans. The research_discovery_equities.yml merge step invokes research_merge.py --promote-proposals --apply-monitored-slices and commits the updated monitored_slices.csv. Whenever the weekly fresh-data gate (min_new_daily_bars >= 5) opens and discovery runs across the 236-symbol universe, research_merge.py automatically prunes decaying slices, adds new _strict_candidate() winners, and commits the updated book directly back to main.
 
 Current Autonomous Operating Posture
 
@@ -4494,14 +4494,14 @@ What was found
 Five deployment gaps, none of which were bugs in the logic itself — all were breaks in the middle mile between research output and execution input:
 
 Auto-promotion deadlock (the missing link between research and deployment)
-Root cause: research_discovery.yml merge step calls research_merge.py --promote-proposals --apply-monitored-slices, which invokes apply_registry_to_monitored() to write an updated monitored_slices.csv. But the merge job's git push races with the hourly live_capture.yml push on the same main branch. If live_capture pushes first, the merge's git pull --rebase can silently drop the promotion change — and the 3-retry loop isn't enough when live_capture fires every hour. The merge manifest confirmed this:
+Root cause: research_discovery_equities.yml merge step calls research_merge.py --promote-proposals --apply-monitored-slices, which invokes apply_registry_to_monitored() to write an updated monitored_slices.csv. But the merge job's git push races with the hourly live_capture_equities.yml push on the same main branch. If live_capture pushes first, the merge's git pull --rebase can silently drop the promotion change — and the 3-retry loop isn't enough when live_capture fires every hour. The merge manifest confirmed this:
 
 "automatic_promotion_applied": false,
 "monitored_slices_modified": false
 
 Result: the 36-shard discovery found 50 clean survivors and classified 22 as paper_proposal, but none of them reached monitored_slices.csv. The 7 old manual slices (XLB, XOP, KLAC, SPY, XLK x 2, XLF) stayed deployed for over 24 hours while 22 better-qualified candidates sat in the registry.
 
-Fix: new scripts/sync_monitored.py. Called by both live_capture.yml (before paper_trade.py invocation) and research_refresh.yml (daily). Builds monitored_slices.csv from scratch on every run using only the candidate_registry.csv paper_proposal rows. This makes the system self-healing within one hour of any discovery merge, regardless of git push races. Also added the sync step to both workflows.
+Fix: new scripts/sync_monitored.py. Called by both live_capture_equities.yml (before paper_trade.py invocation) and research_refresh_equities.yml (daily). Builds monitored_slices.csv from scratch on every run using only the candidate_registry.csv paper_proposal rows. This makes the system self-healing within one hour of any discovery merge, regardless of git push races. Also added the sync step to both workflows.
 
 bin_mode silently defaulting to insample
 Root cause: run_candidate_leaderboard() in scripts/validate_slices.py never wrote a bin_mode column into the CSV output. The discovery shards ran with --bin-mode rolling (look-ahead-free expanding quantiles), but the leaderboard CSV had no way to record that. The candidate_registry defaulted every row to insample. The monitor used insample. So the state definition that validated a slice was different from what the monitor used to match live bars.
@@ -4516,7 +4516,7 @@ Fix: sync_monitored.py now starts from an empty DataFrame, so every monitored sl
 Short-side execution silently blocked
 Root cause: AFRM 1h was a paper_proposal with side=short (state_session=afternoon + state_ext=neutral + state_slope=flat, n=24, +2.01% mean return, p=1.91e-4, 3/4 WF). But RiskLimits.allow_shorts defaults to False and the live workflow never passed --allow-shorts. The slice would match and then get silently blocked at the risk gate.
 
-Fix: --allow-shorts added to the paper_trade.py invocation in live_capture.yml.
+Fix: --allow-shorts added to the paper_trade.py invocation in live_capture_equities.yml.
 
 Conviction sizing dormant for new slices
 Root cause: monitored_edge_metrics.csv was the curated execution-owned edge metrics file designed to survive research reruns overwriting candidate_leaderboard.csv. It still contained the 7 old manual slices. The 15 new candidates had no edge metrics and therefore got NEUTRAL_CONVICTION=1.0 (equal notional). KLAC at 4.56% mean return got the same $2,500 as XLE at 0.51%.
@@ -4606,7 +4606,7 @@ Changed files:
 
 text
 
-.github/workflows/research_discovery.yml
+.github/workflows/research_discovery_equities.yml
 scripts/research_lifecycle.py
 scripts/research_merge.py
 scripts/sync_monitored.py
@@ -4809,7 +4809,7 @@ The new crypto and futures workflows are workflow_dispatch-only and are intended
 for cron-job.org dispatch, consistent with the repo's current operating model.
 They do not auto-commit or modify monitored_slices.csv; they only upload
 artifacts. This is deliberate: by avoiding git writes entirely, the new lanes
-cannot race with live_capture.yml, research_refresh.yml, or research_discovery.yml
+cannot race with live_capture_equities.yml, research_refresh_equities.yml, or research_discovery_equities.yml
 on main-branch commits.
 Their workflow-level concurrency groups (research-crypto / research-futures)
 prevent self-overlap from repeated cron dispatches.
@@ -5172,6 +5172,8 @@ premature deployment.
 
 Branch / Main / Research Status Handover (2026-07-15)
 
+SUPERSEDED 2026-07-16 — branch merged into main and deleted; all lanes consolidated. See Consolidation Handover (2026-07-16) at the end of this file. The branch directives in this section are historical.
+
 This section is for the next agent. Read this before changing anything.
 
 Branch reality
@@ -5405,3 +5407,36 @@ If the next agent sees scripts/research_sharded_unattended.py in the branch,
 do not assume the user wants it merged. The latest explicit user preference was
 that this is likely bloat and that unattended execution should use the existing
 GitHub shard workflows instead.
+Consolidation Handover (2026-07-16)
+
+This supersedes the 2026-07-15 branch directives above.
+
+Branch reality: main only. feat/crypto-futures-isolation was merged into main
+(merge commit 0f68421) and deleted. All 11 workflows now live on main; all
+substantive work resumes on main. The 2026-07-15 merge rule was resolved by
+the user on this date: crypto met the autonomous-shortlist bar directly
+(15-row monitored_candidates_crypto.csv from the regime registry); futures
+met it via its leaderboard fallback (top clean_/late_emerging rows) and still
+does NOT emit monitored_candidates_futures.csv — that remains the known gap if
+substrate parity with crypto is ever required.
+
+Workflow naming: equity workflows renamed for lane symmetry —
+live_capture_equities.yml, research_refresh_equities.yml,
+research_discovery_equities.yml (display names changed too). Identity is by
+file path; pre-rename run history stays under direct URLs.
+
+Scheduling: external cron-job.org hits the workflow_dispatch API (8 jobs,
+ref=main). Captures hourly (equities :17, crypto :35, futures :45 SAST),
+refresh/discovery daily. No GitHub-side cron schedules exist.
+
+Cache policy: rolling run_id-suffixed keys plus an hourly prune step embedded
+at the end of live_capture_crypto.yml (actions: write; keep newest 2 per key
+family, repo-wide via the caches API; pip cache is out of family by design).
+Branch-scoped caches do not carry across renames/merges; expect one warehouse
+reseed per lane after such events.
+
+Research posture (both new substrates): strict_gate_pass_count = 0; all rows
+research_only by design. Live books are research-grade (crypto: 15 regime
+candidates on 1d; futures: 4 late_emerging 1h session slices). Entries require
+exact state-combination matches plus risk gates; multi-day quiet runs are
+expected behaviour, not failure.
