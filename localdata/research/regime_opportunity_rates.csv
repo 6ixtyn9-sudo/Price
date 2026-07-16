@@ -1,17 +1,18 @@
 symbol,timeframe,slice_combination,bin_mode,regime,regime_symbol,observed_signal_bars,matched_opportunities,risk_blocked_opportunities,orders_submitted,orders_filled,completed_round_trips,risk_block_rate,order_fill_rate,completion_rate
 ABBV,1d,cross_USO_state_slope=flat + cross_TLT_state_slope=uptrend + state_ext=stretched_up,rolling,unknown,,1,0,0,0,0,0,,,
 AFRM,1h,state_session=afternoon + state_ext=neutral + state_slope=flat,insample,gate_disabled,AFRM,2,2,1,1,1,1,0.5,1.0,1.0
-AFRM,1h,state_session=afternoon + state_ext=neutral + state_slope=flat,rolling,gate_disabled,AFRM,3,3,2,1,1,0,0.6666666666666666,1.0,0.0
+AFRM,1h,state_session=afternoon + state_ext=neutral + state_slope=flat,rolling,gate_disabled,AFRM,3,3,2,1,1,1,0.6666666666666666,1.0,1.0
 AXP,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,rolling,unknown,,1,0,0,0,0,0,,,
 CBOE,1d,cross_USO_state_slope=flat + state_ext=neutral,rolling,unknown,,1,0,0,0,0,0,,,
 DE,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,rolling,unknown,,1,0,0,0,0,0,,,
 ETN,1d,state_ext=neutral + state_vol=mid_vol,rolling,unknown,,1,0,0,0,0,0,,,
+ETN,1h,cross_TLT_state_slope=flat + state_slope=downtrend,rolling,gate_disabled,ETN,6,6,5,1,1,1,0.8333333333333334,1.0,1.0
 GD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral,rolling,unknown,,1,0,0,0,0,0,,,
 HOOD,1d,cross_TLT_state_ext=stretched_up + state_ext=stretched_up,rolling,unknown,,1,0,0,0,0,0,,,
 HUM,1h,cross_TLT_state_slope=flat + state_ext=stretched_up,insample,gate_disabled,HUM,3,3,2,1,0,0,0.6666666666666666,0.0,
 IVV,1d,state_ext=neutral + state_slope=uptrend,rolling,unknown,,1,0,0,0,0,0,,,
 KLAC,1d,state_ext=stretched_down + state_slope=downtrend,insample,gate_disabled,KLAC,3,3,3,0,0,0,1.0,,
-KLAC,1d,state_ext=stretched_down + state_slope=downtrend,rolling,gate_disabled,KLAC,2,2,2,0,0,0,1.0,,
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,rolling,gate_disabled,KLAC,3,3,3,0,0,0,1.0,,
 KLAC,1d,state_ext=stretched_down + state_slope=downtrend,rolling,unknown,,1,0,0,0,0,1,,,
 MRVL,1h,cross_TLT_state_slope=flat + state_slope=downtrend,insample,gate_disabled,MRVL,3,3,2,1,1,1,0.6666666666666666,1.0,1.0
 PSX,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down,rolling,unknown,,1,0,0,0,0,0,,,
