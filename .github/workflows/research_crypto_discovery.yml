@@ -279,7 +279,7 @@ jobs:
             python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
           fi
 
-      - name: Run crypto shard (cost realism: 15 bps crypto)
+      - name: "Run crypto shard (cost realism: 15 bps crypto)"
         env:
           SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
         run: |
