@@ -25,7 +25,7 @@ defaults:
     shell: bash
 
 env:
-  PYTHONPATH: src
+  PYTHONPATH: src:scripts
   MONITORED_SLICES_PATH: localdata/monitored_slices_crypto.csv
   TRADE_JOURNAL_PATH: localdata/trade_journal_crypto.csv
   PAPER_TRADE_LOG_PATH: localdata/paper_trade_log_crypto.csv
