@@ -185,21 +185,50 @@ jobs:
             cat localdata/research/crypto/crypto_research_summary.json | jq . | head -50
           fi
 
-      - name: Compute discovery dispatch gate (fresh data)
+      - name: Compute discovery dispatch gate (fresh data) – main-like
         id: dispatch_gate
         run: |
-          # Gate logic mirrors main but simplified: if allow_discovery true and refresh_state indicates fresh data or no state yet, dispatch
-          SHOULD="true"
           if [ "${{ inputs.allow_discovery }}" != "true" ]; then
-            SHOULD="false"
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            echo "Gate closed: allow_discovery=false"
+            exit 0
+          fi
+          # If refresh_state_crypto.json exists, use its gate (mirrors main's refresh_state.json logic)
+          if [ -f localdata/research/refresh_state_crypto.json ]; then
+            DISPATCH=$(jq -r '
+              if .fresh_data_gate_open == true and .sharded_discovery_required == true and (.discovery_ran // false) != true
+              then "true"
+              elif .fresh_data_gate_open == true and .discovery_ran == false
+              then "true"
+              else "false" end
+            ' localdata/research/refresh_state_crypto.json 2>/dev/null || echo "false")
+            # If jq returns null/false but file has no gate fields (legacy), fall back to allow if no monitored candidates
+            if [ "$DISPATCH" = "null" ] || [ "$DISPATCH" = "false" ]; then
+              if [ ! -f localdata/research/crypto/monitored_candidates_crypto.csv ] || [ ! -s localdata/research/crypto/monitored_candidates_crypto.csv ]; then
+                DISPATCH="true"
+                echo "Legacy refresh_state, no gate fields, but no monitored candidates – forcing dispatch=true"
+              fi
+            fi
           else
-            # If we have a summary and it shows new bars < threshold, we can still dispatch manually; for auto, check file existence
-            if [ -f localdata/research/crypto/crypto_research_summary.json ]; then
-              echo "Found existing summary, gate open for dispatch if requested"
+            # No state yet – first run should dispatch
+            if [ ! -f localdata/research/crypto/monitored_candidates_crypto.csv ]; then
+              DISPATCH="true"
+            else
+              # Check if we have at least min_new_daily_bars logic via summary age – simplified to false to avoid runaway
+              DISPATCH="false"
+              echo "No refresh_state_crypto.json and monitored candidates exist – gate closed to avoid runaway, operator can still manually dispatch via workflow_dispatch"
+              # For weekly manual operator intent, if allow_discovery true and summary older than 7 days, open gate
+              if [ -f localdata/research/crypto/crypto_research_summary.json ]; then
+                AGE_HOURS=$(( ( $(date +%s) - $(stat -c %Y localdata/research/crypto/crypto_research_summary.json) ) / 3600 ))
+                if [ "$AGE_HOURS" -gt 168 ]; then
+                  DISPATCH="true"
+                  echo "Summary older than 7 days ($AGE_HOURS h) – opening gate"
+                fi
+              fi
             fi
           fi
-          echo "should_dispatch=$SHOULD" >> "$GITHUB_OUTPUT"
-          echo "Discovery dispatch gate: $SHOULD"
+          echo "should_dispatch=$DISPATCH" >> "$GITHUB_OUTPUT"
+          echo "Discovery dispatch gate: $DISPATCH"
 
       - name: Check operational state cache content
         id: ops_state

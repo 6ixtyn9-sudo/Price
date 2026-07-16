@@ -1374,6 +1374,8 @@ def run_candidate_leaderboard(
     p_threshold: float = 0.05,
     output_path: str = CANDIDATE_LEADERBOARD_PATH,
     bin_mode: str = "insample",
+    cost_bps: float = 1.0,
+    short_cost_bps: float = 0.0,
 ) -> pd.DataFrame:
     """Rank all discovered slices by validation quality and robustness.
 
@@ -1408,12 +1410,13 @@ def run_candidate_leaderboard(
         params = {
             "slices_path": slices_path,
             "split": 0.7,
-            "cost_bps": 1.0,
+            "cost_bps": cost_bps,
             "cost_per_share": 0.0,
             "n_folds": n_folds,
             "min_samples": min_samples,
             "p_threshold": p_threshold,
             "bin_mode": bin_mode,
+            "short_cost_bps": short_cost_bps,
         }
         params.update(overrides)
 
@@ -1572,12 +1575,13 @@ def run_candidate_leaderboard(
         run_validation(
             slices_path=slices_path,
             split=0.7,
-            cost_bps=1.0,
+            cost_bps=cost_bps,
             cost_per_share=0.0,
             n_folds=n_folds,
             min_samples=min_samples,
             p_threshold=p_threshold,
             bin_mode=bin_mode,
+            short_cost_bps=short_cost_bps,
         )
 
     print(f"Saved candidate leaderboard to {output_path}")

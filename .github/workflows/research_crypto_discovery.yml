@@ -190,7 +190,7 @@ jobs:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 18
+      max-parallel: 6
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
@@ -279,7 +279,7 @@ jobs:
             python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
           fi
 
-      - name: Run crypto shard
+      - name: Run crypto shard (cost realism: 15 bps crypto)
         env:
           SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
         run: |
@@ -290,7 +290,9 @@ jobs:
             --output-dir "localdata/research/crypto/shards/${{ matrix.shard_id }}" \
             --condition-on ${{ inputs.condition_on }} \
             --bin-mode rolling \
-            --profile crypto
+            --profile crypto \
+            --cost-bps 15.0 \
+            --short-cost-bps 5.0
 
       - name: Check operational paper state cache content
         id: ops_state

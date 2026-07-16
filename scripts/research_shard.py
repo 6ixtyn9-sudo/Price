@@ -61,6 +61,8 @@ def run_shard(
     condition_symbols: tuple[str, ...] = ("USO", "TLT"),
     bin_mode: str = "rolling",
     profile: str | None = None,
+    cost_bps: float = 1.0,
+    short_cost_bps: float = 0.0,
 ) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -103,6 +105,8 @@ def run_shard(
                 slices_path=str(discovered_path),
                 output_path=str(leaderboard_path),
                 bin_mode=bin_mode,
+                cost_bps=cost_bps,
+                short_cost_bps=short_cost_bps,
             )
         else:
             pd.DataFrame().to_csv(discovered_path, index=False)
@@ -147,6 +151,8 @@ def main() -> int:
     parser.add_argument("--condition-on", nargs="+", default=["USO", "TLT"])
     parser.add_argument("--bin-mode", choices=["rolling", "insample"], default="rolling")
     parser.add_argument("--profile", choices=["default", "crypto", "futures"], default="default")
+    parser.add_argument("--cost-bps", type=float, default=1.0, help="Cost bps per leg for validation (default 1.0 equity, use 15.0 for crypto, 7.0 for futures)")
+    parser.add_argument("--short-cost-bps", type=float, default=0.0, help="Extra short borrow cost bps")
     args = parser.parse_args()
     if args.symbols_json:
         try:
@@ -169,6 +175,8 @@ def main() -> int:
         condition_symbols=tuple(args.condition_on),
         bin_mode=args.bin_mode,
         profile=args.profile,
+        cost_bps=args.cost_bps,
+        short_cost_bps=args.short_cost_bps,
     )
     return 0
 

@@ -146,13 +146,45 @@ jobs:
           echo "{\"workflow\":\"research_refresh_futures\",\"generated_at_utc\":\"$NOW\",\"orders_placed\":false}" | jq . > localdata/research/refresh_state_futures.json
           cat localdata/research/refresh_state_futures.json
 
-      - name: Compute discovery dispatch gate
+      - name: Compute discovery dispatch gate (fresh data) – main-like
         id: dispatch_gate
         run: |
-          SHOULD="true"
-          if [ "${{ inputs.allow_discovery }}" != "true" ]; then SHOULD="false"; fi
-          echo "should_dispatch=$SHOULD" >> "$GITHUB_OUTPUT"
-          echo "Discovery dispatch gate: $SHOULD"
+          if [ "${{ inputs.allow_discovery }}" != "true" ]; then
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            echo "Gate closed: allow_discovery=false"
+            exit 0
+          fi
+          if [ -f localdata/research/refresh_state_futures.json ]; then
+            DISPATCH=$(jq -r '
+              if .fresh_data_gate_open == true and .sharded_discovery_required == true and (.discovery_ran // false) != true
+              then "true"
+              elif .fresh_data_gate_open == true and .discovery_ran == false
+              then "true"
+              else "false" end
+            ' localdata/research/refresh_state_futures.json 2>/dev/null || echo "false")
+            if [ "$DISPATCH" = "null" ] || [ "$DISPATCH" = "false" ]; then
+              if [ ! -f localdata/research/futures/monitored_candidates_futures.csv ] || [ ! -s localdata/research/futures/monitored_candidates_futures.csv ]; then
+                DISPATCH="true"
+                echo "Legacy state, no gate fields, but no candidates – forcing dispatch=true"
+              fi
+            fi
+          else
+            if [ ! -f localdata/research/futures/monitored_candidates_futures.csv ]; then
+              DISPATCH="true"
+            else
+              DISPATCH="false"
+              echo "No refresh_state_futures.json and candidates exist – gate closed to avoid runaway"
+              if [ -f localdata/research/futures/futures_research_summary.json ]; then
+                AGE_HOURS=$(( ( $(date +%s) - $(stat -c %Y localdata/research/futures/futures_research_summary.json) ) / 3600 ))
+                if [ "$AGE_HOURS" -gt 168 ]; then
+                  DISPATCH="true"
+                  echo "Summary older than 7d ($AGE_HOURS h) – opening gate"
+                fi
+              fi
+            fi
+          fi
+          echo "should_dispatch=$DISPATCH" >> "$GITHUB_OUTPUT"
+          echo "Discovery dispatch gate: $DISPATCH"
 
       - name: Check operational state cache content
         id: ops_state
