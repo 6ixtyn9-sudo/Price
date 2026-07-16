@@ -491,6 +491,35 @@ def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str)
     return df
 
 
+_YF_HISTORY_MAX_ATTEMPTS = 3
+_YF_HISTORY_BACKOFF_SECONDS = (2.0, 6.0)  # sleep before attempts 2 and 3
+
+
+def _yf_history_with_retry(ticker_symbol: str, label: str, **history_kwargs) -> pd.DataFrame:
+    """Call yf.Ticker(symbol).history with a small retry/backoff.
+
+    yfinance intermittently returns empty frames — often printing a spurious
+    "possibly delisted; no price data found" warning mid-flake — or raises
+    transient network errors. A couple of retries recovers most of these
+    blips; genuinely delisted/unsupported symbols still come back empty after
+    the final attempt, preserving the previous fail-open behaviour.
+    """
+    import yfinance as yf
+
+    for attempt in range(1, _YF_HISTORY_MAX_ATTEMPTS + 1):
+        try:
+            df = yf.Ticker(ticker_symbol).history(**history_kwargs)
+            if df is not None and not df.empty:
+                if attempt > 1:
+                    print(f"yfinance: {label} succeeded on attempt {attempt} for {ticker_symbol}")
+                return df
+        except Exception as e:
+            print(f"yfinance attempt {attempt} failed for {ticker_symbol} ({label}): {e}")
+        if attempt < _YF_HISTORY_MAX_ATTEMPTS:
+            time.sleep(_YF_HISTORY_BACKOFF_SECONDS[attempt - 1])
+    return pd.DataFrame()
+
+
 def fetch_yfinance_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
     """Fetch adjusted + raw daily bars from Yahoo Finance via yfinance.
 
@@ -509,13 +538,8 @@ def fetch_yfinance_daily_bars(symbol: str, start_dt: datetime, end_dt: datetime)
     start_str = start_dt.strftime("%Y-%m-%d")
     end_str = end_dt.strftime("%Y-%m-%d")
 
-    try:
-        ticker = yf.Ticker(ticker_symbol)
-        df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
-        if df is None or df.empty:
-            return pd.DataFrame()
-    except Exception as e:
-        print(f"yfinance failed for {symbol}: {e}")
+    df = _yf_history_with_retry(ticker_symbol, f"1d:{symbol}", start=start_str, end=end_str, auto_adjust=False)
+    if df.empty:
         return pd.DataFrame()
 
     result = _build_yfinance_canonical(df, symbol, "1d")
@@ -554,13 +578,8 @@ def fetch_yfinance_hourly_bars(symbol: str, start_dt: datetime, end_dt: datetime
     start_str = start_dt.strftime("%Y-%m-%d")
     end_str = end_dt.strftime("%Y-%m-%d")
 
-    try:
-        ticker = yf.Ticker(ticker_symbol)
-        df = ticker.history(start=start_str, end=end_str, interval="1h", auto_adjust=False)
-        if df is None or df.empty:
-            return pd.DataFrame()
-    except Exception as e:
-        print(f"yfinance 1h failed for {symbol}: {e}")
+    df = _yf_history_with_retry(ticker_symbol, f"1h:{symbol}", start=start_str, end=end_str, interval="1h", auto_adjust=False)
+    if df.empty:
         return pd.DataFrame()
 
     result = _build_yfinance_canonical(df, symbol, "1h")
@@ -613,16 +632,11 @@ def fetch_yfinance_futures_bars(symbol: str, timeframe_str: str, start_dt: datet
     start_str = start_dt.strftime("%Y-%m-%d")
     end_str = end_dt.strftime("%Y-%m-%d")
 
-    try:
-        ticker = yf.Ticker(yahoo_symbol)
-        if interval is None:
-            df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
-        else:
-            df = ticker.history(start=start_str, end=end_str, interval=interval, auto_adjust=False)
-        if df is None or df.empty:
-            return pd.DataFrame()
-    except Exception as e:
-        print(f"yfinance futures failed for {symbol}: {e}")
+    yf_kwargs = {"start": start_str, "end": end_str, "auto_adjust": False}
+    if interval is not None:
+        yf_kwargs["interval"] = interval
+    df = _yf_history_with_retry(yahoo_symbol, f"{timeframe_str}:{symbol}(futures)", **yf_kwargs)
+    if df.empty:
         return pd.DataFrame()
 
     result = _build_yfinance_canonical(df, symbol, timeframe_str)
@@ -665,16 +679,11 @@ def fetch_yfinance_crypto_bars(symbol: str, timeframe_str: str, start_dt: dateti
     start_str = start_dt.strftime("%Y-%m-%d")
     end_str = end_dt.strftime("%Y-%m-%d")
 
-    try:
-        ticker = yf.Ticker(yahoo_symbol)
-        if interval is None:
-            df = ticker.history(start=start_str, end=end_str, auto_adjust=False)
-        else:
-            df = ticker.history(start=start_str, end=end_str, interval=interval, auto_adjust=False)
-        if df is None or df.empty:
-            return pd.DataFrame()
-    except Exception as e:
-        print(f"yfinance crypto failed for {symbol}: {e}")
+    yf_kwargs = {"start": start_str, "end": end_str, "auto_adjust": False}
+    if interval is not None:
+        yf_kwargs["interval"] = interval
+    df = _yf_history_with_retry(yahoo_symbol, f"{timeframe_str}:{symbol}(crypto)", **yf_kwargs)
+    if df.empty:
         return pd.DataFrame()
 
     result = _build_yfinance_canonical(df, symbol, timeframe_str)

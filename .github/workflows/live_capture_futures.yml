@@ -124,9 +124,17 @@ jobs:
           cand = Path("$RESEARCH_DIR/monitored_candidates_futures.csv")
           out = Path("localdata/monitored_slices_futures.csv")
           df = pd.read_csv(cand)
-          keep = [c for c in ["symbol","timeframe","slice_combination","side","bin_mode"] if c in df.columns]
-          df[keep].to_csv(out, index=False)
-          print(f"Wrote {len(df)} rows to {out}")
+          if df.empty:
+              # Header-only shortlist: the futures regime registry currently emits
+              # zero paper candidates, so research_futures.py writes the CSV with
+              # columns but no rows. Never clobber the restored book with an empty
+              # file — the leaderboard fallback below is the intended path until
+              # the registry produces real candidates.
+              print("candidates file has 0 rows; keeping restored book / fallback")
+          else:
+              keep = [c for c in ["symbol","timeframe","slice_combination","side","bin_mode"] if c in df.columns]
+              df[keep].to_csv(out, index=False)
+              print(f"Wrote {len(df)} rows to {out}")
           PY
               break
             fi
