@@ -156,7 +156,7 @@ jobs:
           if [ -f localdata/monitored_slices_crypto.csv ]; then
             SYMBOLS=$(python3 -c "import pandas as pd, os, sys; df=pd.read_csv('localdata/monitored_slices_crypto.csv'); print(' '.join(sorted(df['symbol'].unique()))) if not df.empty else ''; " )
           else
-            SYMBOLS=$(python3 -c "import sys; sys.path.insert(0,'scripts'); sys.path.insert(0,'src'); from research_crypto import load_crypto_symbols; print(' '.join(load_crypto_symbols()))")
+            SYMBOLS=$(python3 -c "from research_crypto import load_crypto_symbols; print(' '.join(load_crypto_symbols()))")
           fi
           if [ -z "$SYMBOLS" ]; then SYMBOLS="BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD"; fi
           echo "Capturing crypto for: $SYMBOLS BTC/USD ETH/USD"
