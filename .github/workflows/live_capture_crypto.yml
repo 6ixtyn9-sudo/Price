@@ -42,6 +42,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write
+      actions: write # needed to prune stale caches in the last step
 
     steps:
       - name: Checkout
@@ -233,3 +234,29 @@ jobs:
             git push || sleep $((5*attempt))
             if [ $? -eq 0 ]; then break; fi
           done
+
+      # Repo-wide cleanup: roll off stale run_id-suffixed warehouse/ops-state caches
+      # so the 10 GiB cache quota never evicts the pip or ops-state caches.
+      - name: Prune superseded caches (keep newest 2 per key family)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" \
+            --jq '.actions_caches[] | [.id, .key, .ref, .created_at] | @tsv' |
+          awk -F'\t' -v OFS='\t' '
+            $2 ~ /^(research-warehouse-v4|live-ops-state|requirement-deps|futures-|crypto-)/ {
+              k=$2
+              sub(/-[0-9a-f]{32,64}$/, "", k)   # content-hash suffix
+              sub(/-[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "", k)  # date suffix
+              sub(/-[0-9]{6,}$/, "", k)         # run_id suffix
+              print $3 "|" k, $4, $1, $2
+            }' |
+          sort -t$'\t' -k1,1 -k2,2r |
+          awk -F'\t' 'seen[$1]++ >= 2 { print $3 }' > prune_ids.txt
+          while read -r id; do
+            echo "::notice::pruning stale cache id=$id"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/caches/$id"
+          done < prune_ids.txt
+          echo "cache prune complete: $(wc -l < prune_ids.txt) stale cache(s) deleted (newest 2 per family kept)"
