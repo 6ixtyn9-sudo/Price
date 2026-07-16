@@ -1,0 +1,202 @@
+name: Research Refresh Crypto
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeframes:
+        description: "Timeframes to refresh"
+        required: false
+        default: "1d 1h"
+      min_new_daily_bars:
+        description: "Min new daily bars per symbol for gate"
+        required: false
+        default: "5"
+      allow_discovery:
+        description: "Allow discovery if gate opens"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: research-refresh-crypto
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  research-refresh-crypto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    permissions:
+      contents: write
+    outputs:
+      should_dispatch_discovery: ${{ steps.dispatch_gate.outputs.should_dispatch }}
+      cache_key: ${{ steps.cache_key.outputs.key }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Compute research warehouse cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-refresh-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore warehouse cache
+        id: warehouse
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if empty
+        if: steps.warehouse.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
+            echo "Warehouse populated from cache"
+            exit 0
+          fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber
+            tar xzf /tmp/warehouse-research.tar.gz -C localdata
+            rm /tmp/warehouse-research.tar.gz
+            echo "Seeded $(find localdata/warehouse -name '*.parquet' | wc -l) files"
+          else
+            echo "No seed release $SEED_TAG"
+          fi
+
+      - name: Restore ops state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal_crypto.csv
+            localdata/paper_trade_log_crypto.csv
+            localdata/stop_state_crypto.json
+            localdata/stopout_journal_crypto.json
+            localdata/cooldown_journal_crypto.json
+          key: live-ops-state-crypto-v1-${{ runner.os }}-refresh-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-crypto-v1-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing ALPACA_SECRET_KEY}"
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
+
+      - name: Capture full crypto universe (1d + 15m for 1h)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          CRYPTO_SYMBOLS=$(python3 - <<'PY'
+          import sys
+          sys.path.insert(0,'scripts'); sys.path.insert(0,'src')
+          from research_crypto import load_crypto_symbols
+          print(" ".join(load_crypto_symbols()))
+          PY
+          )
+          echo "Capturing $CRYPTO_SYMBOLS"
+          python scripts/capture_bars.py --symbols $CRYPTO_SYMBOLS --timeframes 1d --days 1825 --skip-postprocess
+          python scripts/capture_bars.py --symbols $CRYPTO_SYMBOLS --timeframes 15m --days 365
+
+      - name: Run crypto research refresh (full 1d+1h + regime)
+        run: |
+          CRYPTO_SYMBOLS=$(python3 - <<'PY'
+          import sys
+          sys.path.insert(0,'scripts'); sys.path.insert(0,'src')
+          from research_crypto import load_crypto_symbols
+          print(" ".join(load_crypto_symbols()))
+          PY
+          )
+          python scripts/research_crypto.py --symbols $CRYPTO_SYMBOLS --timeframes ${{ inputs.timeframes || '1d 1h' }} --output-dir localdata/research/crypto/1d || true
+          # fallback to top-level crypto dir if 1d subdir empty
+          ls -lh localdata/research/crypto/1d/ || ls -lh localdata/research/crypto/
+
+      - name: Sync dynamic crypto book
+        run: python3 scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv || true
+
+      - name: Compute dispatch gate for sharded discovery
+        id: dispatch_gate
+        run: |
+          # Simple gate: if leaderboard has < 15 symbols with fresh data, dispatch full sharded discovery
+          # For crypto, use existence of monitored_candidates as proxy – if empty, need full discovery
+          if [ ! -f localdata/research/crypto/1d/monitored_candidates_crypto.csv ] || [ ! -s localdata/research/crypto/1d/monitored_candidates_crypto.csv ]; then
+            echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
+          else
+            COUNT=$(wc -l < localdata/research/crypto/1d/monitored_candidates_crypto.csv)
+            if [ "$COUNT" -le 1 ]; then
+              echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Save warehouse cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+
+      - name: Save ops state cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal_crypto.csv
+            localdata/paper_trade_log_crypto.csv
+            localdata/stop_state_crypto.json
+            localdata/stopout_journal_crypto.json
+            localdata/cooldown_journal_crypto.json
+            localdata/monitored_slices_crypto.csv
+            localdata/research/crypto
+          key: live-ops-state-crypto-v1-${{ runner.os }}-refresh-${{ github.run_id }}
+
+      - name: Commit crypto research outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add localdata/research/crypto/1d/ localdata/monitored_slices_crypto.csv || true
+          if git diff --cached --quiet; then echo "No crypto research changes"; exit 0; fi
+          git commit -m "chore(research-refresh-crypto): update crypto research [skip ci]"
+          for attempt in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break; sleep $((attempt*5)); done
+
+  dispatch-discovery:
+    needs: research-refresh-crypto
+    if: ${{ fromJSON(needs.research-refresh-crypto.outputs.should_dispatch_discovery) }}
+    uses: ./.github/workflows/research_crypto_discovery.yml
+    with:
+      timeframes: "1d 1h"
+      batch_size: "5"
+      condition_on: "BTC/USD ETH/USD"
+    secrets: inherit
