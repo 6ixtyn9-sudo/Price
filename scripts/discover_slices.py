@@ -20,11 +20,13 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
         combinations = [
             ["state_ext", "state_slope"],
             ["state_ext", "state_vol"],
+            ["state_volume", "state_ext"],
             ["state_ret_day", "state_ext"],
             ["state_weekpart", "state_ext"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations += [
+                ["state_utc_session", "state_volume"],
                 ["state_utc_session", "state_ext"],
                 ["state_utc_session", "state_slope"],
                 ["state_utc_session", "state_ext", "state_slope"],
@@ -35,9 +37,11 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
         combinations = [
             ["state_ext", "state_slope"],
             ["state_ext", "state_vol"],
+            ["state_volume", "state_ext"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations += [
+                ["state_session", "state_volume"],
                 ["state_session", "state_ext"],
                 ["state_session", "state_slope"],
             ]
@@ -45,8 +49,10 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
         combinations = [
             ["state_ext", "state_slope"],
             ["state_ext", "state_vol"],
+            ["state_volume", "state_ext"],
         ]
         if timeframe in ["15m", "1h"]:
+            combinations.append(["state_session", "state_volume"])
             combinations.append(["state_session", "state_ext"])
             combinations.append(["state_session", "state_slope"])
             combinations.append(["state_session", "state_ext", "state_slope"])

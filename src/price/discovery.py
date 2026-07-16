@@ -28,6 +28,7 @@ ML_FEATURE_TO_STATE: Dict[str, str] = {
     "feat_range_position": "state_range_pos",
     "feat_ret_day_equiv": "state_ret_day",
     "feat_realized_vol_day_equiv": "state_vol_day",
+    "feat_volume_rel": "state_volume",
 }
 
 # Ordered state labels (low -> high) for the ML feature -> state mapping.
@@ -40,6 +41,7 @@ STATE_LABELS: Dict[str, tuple] = {
     "state_ext": ("stretched_down", "neutral", "stretched_up"),
     "state_slope": ("downtrend", "flat", "uptrend"),
     "state_vol": ("low_vol", "mid_vol", "high_vol"),
+    "state_volume": ("vol_quiet", "vol_normal", "vol_surge"),
     "state_session": ("morning", "lunch", "afternoon"),
     "state_dow": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
     "state_ret_1": ("ret_down", "ret_flat", "ret_up"),
@@ -160,6 +162,32 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df_binned['state_vol'] = "mid_vol"
 
+    # Traded-volume participation state ("who showed up on this bar"), from
+    # the time-of-day-normalised relative volume computed in features.
+    # state_vol is realized VOLATILITY -- a different signal.
+    #
+    # FIXED thresholds (<0.7x quiet, >1.5x surge), NOT quantiles, for two
+    # reasons:
+    #   1. true surge events are rare, which makes relative volume mass at
+    #      ~1.0 with a sparse right tail -- quantile binning collapses on the
+    #      duplicate edges and silently degrades every bar to "vol_normal";
+    #   2. state_ext (the other fixed-prior state) is precisely what clears
+    #      the search-wide BH/Bonferroni gate where quantile-fitted states
+    #      keep failing; fixed thresholds are domain priors, not in-sample
+    #      fits, so this state has no look-ahead to remove in rolling mode.
+    if 'feat_volume_rel' in df_binned.columns and not df_binned['feat_volume_rel'].dropna().empty:
+        def bin_volume(val):
+            if pd.isna(val):
+                return np.nan
+            if val < 0.7:
+                return "vol_quiet"
+            if val > 1.5:
+                return "vol_surge"
+            return "vol_normal"
+        df_binned['state_volume'] = df_binned['feat_volume_rel'].apply(bin_volume)
+    else:
+        df_binned['state_volume'] = "vol_normal"
+
     session_map = {0: "morning", 1: "lunch", 2: "afternoon"}
     if 'feat_session_bucket' in df_binned.columns:
         df_binned['state_session'] = df_binned['feat_session_bucket'].map(session_map)
@@ -236,6 +264,7 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
         "state_ext": np.nan,
         "state_slope": "flat",
         "state_vol": "mid_vol",
+        "state_volume": "vol_normal",
         "state_session": np.nan,
         "state_dow": np.nan,
         "state_utc_session": np.nan,
@@ -327,6 +356,22 @@ def bin_features_rolling(
     else:
         df_binned["state_vol"] = "mid_vol"
 
+    # state_volume: fixed prior, like state_ext -- identical thresholds and
+    # rationale in bin_features (no look-ahead to remove), so rolling mode
+    # reuses the same mapper rather than an expanding quantile.
+    if "feat_volume_rel" in df_binned.columns and not df_binned["feat_volume_rel"].dropna().empty:
+        def bin_volume_rolling(val):
+            if pd.isna(val):
+                return np.nan
+            if val < 0.7:
+                return "vol_quiet"
+            if val > 1.5:
+                return "vol_surge"
+            return "vol_normal"
+        df_binned["state_volume"] = df_binned["feat_volume_rel"].apply(bin_volume_rolling)
+    else:
+        df_binned["state_volume"] = "vol_normal"
+
     session_map = {0: "morning", 1: "lunch", 2: "afternoon"}
     if "feat_session_bucket" in df_binned.columns:
         df_binned["state_session"] = df_binned["feat_session_bucket"].map(session_map)
@@ -398,6 +443,7 @@ def bin_features_rolling(
         "state_ext": np.nan,
         "state_slope": "flat",
         "state_vol": "mid_vol",
+        "state_volume": "vol_normal",
         "state_session": np.nan,
         "state_dow": np.nan,
         "state_utc_session": np.nan,

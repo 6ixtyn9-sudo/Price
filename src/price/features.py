@@ -124,7 +124,29 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df['feat_ret_day_equiv'] = close.pct_change(bars_per_day)
         df['feat_realized_vol_day_equiv'] = ret_1.rolling(bars_per_day).std()
-    
+
+    # Traded-volume participation relative to the symbol's own recent
+    # baseline ("who showed up on this bar"). Intraday volume has a strong
+    # deterministic time-of-day shape (open/close heavy, lunch light), so
+    # intraday bars are normalised against the same UTC hour over the
+    # trailing ~30 occurrences; daily bars use a trailing 20-bar median.
+    # ~1.0 is ordinary flow; large values mark the uncommonly heavy
+    # participation that institutional-size prints leave behind. Volume is
+    # landed in the warehouse for every substrate but was previously never
+    # used by any feature.
+    if 'volume_raw' in df.columns:
+        vol_series = pd.to_numeric(df['volume_raw'], errors='coerce').astype(float)
+    else:
+        vol_series = pd.Series(np.nan, index=df.index, dtype=float)
+    if bars_per_day > 1 and 'feat_utc_hour' in df.columns:
+        vol_baseline = vol_series.groupby(df['feat_utc_hour']).transform(
+            lambda s: s.rolling(30, min_periods=5).median()
+        )
+    else:
+        vol_baseline = vol_series.rolling(20, min_periods=5).median()
+    df['feat_volume_rel'] = vol_series / vol_baseline
+    df['feat_volume_rel'] = df['feat_volume_rel'].replace([np.inf, -np.inf], np.nan)
+
     df['feat_gap'] = (close / close.shift(1)) - 1.0
     df['feat_range_position'] = (close - low) / (high - low + 1e-8)
     
