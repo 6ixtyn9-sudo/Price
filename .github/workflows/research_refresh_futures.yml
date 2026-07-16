@@ -3,14 +3,19 @@ name: Research Refresh Futures
 on:
   workflow_dispatch:
     inputs:
+      batch_size:
+        description: "Symbols per shard for discovery dispatch"
+        required: false
+        default: "5"
       timeframes:
         description: "Timeframes to refresh"
         required: false
         default: "1d 1h"
-      min_new_daily_bars:
-        description: "Min new daily bars per symbol"
+      allow_discovery:
+        description: "Allow discovery to run if gate opens"
         required: false
-        default: "5"
+        default: true
+        type: boolean
 
 concurrency:
   group: research-refresh-futures
@@ -56,22 +61,22 @@ jobs:
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
 
-      - name: Seed warehouse from release if empty
+      - name: Seed warehouse from release if cache empty
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
-            echo "Warehouse populated"
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' -path '*FUT*' | wc -l)" -gt 0 ]; then
+            echo "Warehouse has futures data"
             exit 0
           fi
           SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
           if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             mkdir -p localdata
-            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber
-            tar xzf /tmp/warehouse-research.tar.gz -C localdata
-            rm /tmp/warehouse-research.tar.gz
-          else
-            echo "No seed $SEED_TAG"
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber || true
+            if [ -f /tmp/warehouse-research.tar.gz ]; then
+              tar xzf /tmp/warehouse-research.tar.gz -C localdata
+              rm /tmp/warehouse-research.tar.gz
+            fi
           fi
 
       - name: Install dependencies
@@ -89,60 +94,42 @@ jobs:
 
       - name: Guard against tracked secrets
         run: |
-          if git ls-files --error-unmatch .env >/dev/null 2>&1; then echo "::error::.env tracked"; exit 1; fi
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env tracked"
+            exit 1
+          fi
 
-      - name: Capture full futures universe
+      - name: Capture full futures universe (yfinance primary)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
-          FUTURES_SYMBOLS=$(python3 - <<'PY'
-          from price.futures_metadata import get_research_futures_symbols
-          print(" ".join(get_research_futures_symbols()))
-          PY
-          )
-          echo "Capturing $FUTURES_SYMBOLS"
-          python scripts/capture_bars.py --symbols $FUTURES_SYMBOLS --timeframes 1d --days 365 --skip-postprocess
-          python scripts/capture_bars.py --symbols $FUTURES_SYMBOLS --timeframes 1h --days 365 || true
+          python scripts/capture_bars.py --symbols FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG --timeframes 1d --days 1825 --skip-postprocess
+          python scripts/capture_bars.py --symbols FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG --timeframes 1h --days 365
 
-      - name: Run futures research refresh
+      - name: Run autonomous research controller (futures)
         run: |
-          FUTURES_SYMBOLS=$(python3 - <<'PY'
-          from price.futures_metadata import get_research_futures_symbols
-          print(" ".join(get_research_futures_symbols()))
-          PY
-          )
-          python scripts/research_futures.py --symbols $FUTURES_SYMBOLS --timeframes ${{ inputs.timeframes || '1d 1h' }} --output-dir localdata/research/futures/1d || true
-          ls -lh localdata/research/futures/1d/ || ls -lh localdata/research/futures/
+          python scripts/research_futures.py --timeframes 1d --regime-only --output-dir localdata/research/futures/1d || echo "no 1d artifacts yet"
+          ls -lh localdata/research/futures/1d/ || true
 
       - name: Compute dispatch gate
         id: dispatch_gate
         run: |
-          if [ ! -f localdata/research/futures/1d/monitored_candidates_futures.csv ] || [ ! -s localdata/research/futures/1d/monitored_candidates_futures.csv ]; then
+          if [ "${{ inputs.allow_discovery }}" = "true" ]; then
             echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
           else
-            COUNT=$(wc -l < localdata/research/futures/1d/monitored_candidates_futures.csv)
-            if [ "$COUNT" -le 1 ]; then echo "should_dispatch=true" >> "$GITHUB_OUTPUT"; else echo "should_dispatch=false" >> "$GITHUB_OUTPUT"; fi
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Save warehouse cache
+      - name: Save research warehouse cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
 
-      - name: Commit futures research outputs
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add localdata/research/futures/1d/ || true
-          if git diff --cached --quiet; then echo "No futures research changes"; exit 0; fi
-          git commit -m "chore(research-refresh-futures): update futures research [skip ci]"
-          for attempt in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break; sleep $((attempt*5)); done
-
   dispatch-discovery:
     needs: research-refresh-futures
-    if: ${{ fromJSON(needs.research-refresh-futures.outputs.should_dispatch_discovery) }}
+    if: ${{ needs.research-refresh-futures.outputs.should_dispatch_discovery == 'true' }}
     uses: ./.github/workflows/research_futures_discovery.yml
     with:
       timeframes: "1d 1h"
