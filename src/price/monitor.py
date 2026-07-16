@@ -306,6 +306,16 @@ def get_current_state(
     if bin_mode not in ("insample", "rolling"):
         bin_mode = "insample"
     df_feat = compute_price_features(df_tail)
+
+    # Attach lane-specific externals (crypto funding/OI, futures COT,
+    # equity VIX/breadth/DXY, and the blackout flag) before binning so the
+    # live monitor state matches the discovery-time state vocabulary.
+    try:
+        from price.external_data import attach_lane_externals
+        df_feat = attach_lane_externals(df_feat, symbol)
+    except Exception:
+        pass
+
     df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
 
     if cross_symbols:
@@ -720,6 +730,21 @@ def scan_all_slices(
             regime_blocked = (
                 regime_filter_enabled and not regime_state.favourable()
             )
+
+            # T5 macro-event blackout gate (FOMC/CPI/NFP/OPEX dates).
+            # Pure risk control independent of slice selection: no new
+            # entries on blackout dates regardless of slice match or risk
+            # budget. Existing open positions are NOT closed -- exits/
+            # stops continue to run normally.  Blackout status is visible
+            # in the audit trail.
+            blackout = False
+            try:
+                blackout_ts = current_state["bar_ts_utc"].iloc[0]
+                from price.external_data import is_blackout
+                blackout = bool(is_blackout(blackout_ts))
+            except Exception:
+                blackout = False
+
             side = str(s.get("side", "long") or "long").lower()
             if side not in ("long", "short"):
                 side = "long"
@@ -768,6 +793,12 @@ def scan_all_slices(
                         f"regime hostile ({regime_state.regime} on "
                         f"{regime_state.symbol}); entry blocked",
                     )
+                if blackout:
+                    tradable = False
+                    gate_reasons.insert(
+                        0,
+                        "macro-event blackout (FOMC/CPI/NFP/OPEX); new entries paused",
+                    )
                 if entry_sync_blocked:
                     tradable = False
                     gate_reasons.insert(
@@ -786,11 +817,15 @@ def scan_all_slices(
                 }
             else:
                 gate_reasons = ["dry_run"]
-                tradable = not regime_blocked and not entry_sync_blocked
+                tradable = not regime_blocked and not entry_sync_blocked and not blackout
                 if regime_blocked:
                     gate_reasons.append(
                         f"regime hostile ({regime_state.regime} on "
                         f"{regime_state.symbol}); entry blocked",
+                    )
+                if blackout:
+                    gate_reasons.append(
+                        "macro-event blackout (FOMC/CPI/NFP/OPEX); new entries paused",
                     )
                 if entry_sync_blocked:
                     gate_reasons.append(

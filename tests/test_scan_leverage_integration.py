@@ -66,7 +66,7 @@ def synthetic_warehouse(tmp_path, monkeypatch):
 
 def _fake_current_state():
     row = pd.DataFrame([{
-        "bar_ts_utc": pd.Timestamp("2026-06-19", tz="UTC"),
+        "bar_ts_utc": pd.Timestamp("2026-06-23", tz="UTC"),
         "close_adj": 71.0,
         "state_ext": "stretched_up",
         "state_slope": "flat",

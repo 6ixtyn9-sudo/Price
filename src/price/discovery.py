@@ -29,6 +29,15 @@ ML_FEATURE_TO_STATE: Dict[str, str] = {
     "feat_ret_day_equiv": "state_ret_day",
     "feat_realized_vol_day_equiv": "state_vol_day",
     "feat_volume_rel": "state_volume",
+    # T2 crypto positioning
+    "feat_funding_z20": "state_funding",
+    "feat_oi_change_5": "state_oi",
+    # T3 futures COT
+    "feat_cot_mm_z52": "state_cot",
+    # T4 equity macro context
+    "feat_vix_ext": "state_vix",
+    "feat_breadth_pct": "state_breadth",
+    "feat_dxy_slope": "state_dxy",
 }
 
 # Ordered state labels (low -> high) for the ML feature -> state mapping.
@@ -58,6 +67,15 @@ STATE_LABELS: Dict[str, tuple] = {
     "state_vol_day": ("vol_day_low", "vol_day_mid", "vol_day_high"),
     "state_utc_session": ("utc_asia", "utc_europe", "utc_us"),
     "state_weekpart": ("weekday", "weekend"),
+    # T2 crypto positioning states
+    "state_funding": ("funding_short", "funding_neutral", "funding_long"),
+    "state_oi": ("oi_collapsing", "oi_flat", "oi_building"),
+    # T3 futures COT
+    "state_cot": ("cot_short", "cot_neutral", "cot_long"),
+    # T4 equity macro context
+    "state_vix": ("vix_low", "vix_mid", "vix_high"),
+    "state_breadth": ("breadth_weak", "breadth_mixed", "breadth_strong"),
+    "state_dxy": ("dxy_weak", "dxy_flat", "dxy_strong"),
 }
 
 
@@ -256,6 +274,94 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
             df_binned["feat_realized_vol_day_equiv"], ["vol_day_low", "vol_day_mid", "vol_day_high"], "vol_day_mid"
         )
 
+    # ── T2 crypto positioning states ─────────────────────────────────
+    # state_funding: fixed thresholds on annualised funding z-score (<-1
+    # shorts paying => long-squeeze pressure; >+1 longs paying => overheated).
+    def _bin_funding(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -1.0:
+            return "funding_short"
+        if val > 1.0:
+            return "funding_long"
+        return "funding_neutral"
+    if "feat_funding_z20" in df_binned.columns and not df_binned["feat_funding_z20"].dropna().empty:
+        df_binned["state_funding"] = df_binned["feat_funding_z20"].apply(_bin_funding)
+    else:
+        df_binned["state_funding"] = "funding_neutral"
+    # state_oi: OI change over 5 bars (short horizon) binned via fixed
+    # thresholds because OI change has heavy tails that break qcut.
+    def _bin_oi(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -0.03:
+            return "oi_collapsing"
+        if val > 0.03:
+            return "oi_building"
+        return "oi_flat"
+    if "feat_oi_change_5" in df_binned.columns and not df_binned["feat_oi_change_5"].dropna().empty:
+        df_binned["state_oi"] = df_binned["feat_oi_change_5"].apply(_bin_oi)
+    else:
+        df_binned["state_oi"] = "oi_flat"
+
+    # ── T3 futures COT state ──────────────────────────────────────────
+    # state_cot: fixed thresholds on 52-week z of managed-money net % of OI.
+    def _bin_cot(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -1.0:
+            return "cot_short"
+        if val > 1.0:
+            return "cot_long"
+        return "cot_neutral"
+    if "feat_cot_mm_z52" in df_binned.columns and not df_binned["feat_cot_mm_z52"].dropna().empty:
+        df_binned["state_cot"] = df_binned["feat_cot_mm_z52"].apply(_bin_cot)
+    else:
+        df_binned["state_cot"] = "cot_neutral"
+
+    # ── T4 equity macro-context states ────────────────────────────────
+    # state_vix: VIX extension vs 20d MA (fixed thresholds; < -5% = calm,
+    # > +20% = fear).
+    def _bin_vix(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -0.05:
+            return "vix_low"
+        if val > 0.20:
+            return "vix_high"
+        return "vix_mid"
+    if "feat_vix_ext" in df_binned.columns and not df_binned["feat_vix_ext"].dropna().empty:
+        df_binned["state_vix"] = df_binned["feat_vix_ext"].apply(_bin_vix)
+    else:
+        df_binned["state_vix"] = "vix_mid"
+    # state_breadth: % of breadth ETF universe above 20d MA (fixed
+    # thresholds -- <40% weak, >70% strong).
+    def _bin_breadth(val):
+        if pd.isna(val):
+            return np.nan
+        if val < 0.40:
+            return "breadth_weak"
+        if val > 0.70:
+            return "breadth_strong"
+        return "breadth_mixed"
+    if "feat_breadth_pct" in df_binned.columns and not df_binned["feat_breadth_pct"].dropna().empty:
+        df_binned["state_breadth"] = df_binned["feat_breadth_pct"].apply(_bin_breadth)
+    else:
+        df_binned["state_breadth"] = "breadth_mixed"
+    # state_dxy: dollar strength via 20d MA extension (fixed +/- 1%).
+    def _bin_dxy(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -0.01:
+            return "dxy_weak"
+        if val > 0.01:
+            return "dxy_strong"
+        return "dxy_flat"
+    if "feat_dxy_slope" in df_binned.columns and not df_binned["feat_dxy_slope"].dropna().empty:
+        df_binned["state_dxy"] = df_binned["feat_dxy_slope"].apply(_bin_dxy)
+    else:
+        df_binned["state_dxy"] = "dxy_flat"
+
     # Ensure every state promised by STATE_LABELS / ML_FEATURE_TO_STATE exists even when the
     # source feat_* column was absent (e.g. synthetic fixtures). This guarantees
     # bin_features() always exposes the full state vocabulary the validation and ML
@@ -281,6 +387,12 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
         "state_range_pos": "range_mid",
         "state_ret_day": "ret_day_flat",
         "state_vol_day": "vol_day_mid",
+        "state_funding": "funding_neutral",
+        "state_oi": "oi_flat",
+        "state_cot": "cot_neutral",
+        "state_vix": "vix_mid",
+        "state_breadth": "breadth_mixed",
+        "state_dxy": "dxy_flat",
     }
     for _state_col, _fallback in _fallback_state.items():
         if _state_col not in df_binned.columns:
@@ -439,6 +551,86 @@ def bin_features_rolling(
             ["vol_day_low", "vol_day_mid", "vol_day_high"], min_periods, "vol_day_mid",
         )
 
+    # ── T2/T3/T4 new states -- all FIXED PRIOR thresholds (no look-ahead
+    # in the rolling sense).  Reuse the exact same mappers as bin_features.
+    def _bin_funding(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -1.0:
+            return "funding_short"
+        if val > 1.0:
+            return "funding_long"
+        return "funding_neutral"
+    if "feat_funding_z20" in df_binned.columns and not df_binned["feat_funding_z20"].dropna().empty:
+        df_binned["state_funding"] = df_binned["feat_funding_z20"].apply(_bin_funding)
+    else:
+        df_binned["state_funding"] = "funding_neutral"
+
+    def _bin_oi(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -0.03:
+            return "oi_collapsing"
+        if val > 0.03:
+            return "oi_building"
+        return "oi_flat"
+    if "feat_oi_change_5" in df_binned.columns and not df_binned["feat_oi_change_5"].dropna().empty:
+        df_binned["state_oi"] = df_binned["feat_oi_change_5"].apply(_bin_oi)
+    else:
+        df_binned["state_oi"] = "oi_flat"
+
+    def _bin_cot(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -1.0:
+            return "cot_short"
+        if val > 1.0:
+            return "cot_long"
+        return "cot_neutral"
+    if "feat_cot_mm_z52" in df_binned.columns and not df_binned["feat_cot_mm_z52"].dropna().empty:
+        df_binned["state_cot"] = df_binned["feat_cot_mm_z52"].apply(_bin_cot)
+    else:
+        df_binned["state_cot"] = "cot_neutral"
+
+    def _bin_vix(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -0.05:
+            return "vix_low"
+        if val > 0.20:
+            return "vix_high"
+        return "vix_mid"
+    if "feat_vix_ext" in df_binned.columns and not df_binned["feat_vix_ext"].dropna().empty:
+        df_binned["state_vix"] = df_binned["feat_vix_ext"].apply(_bin_vix)
+    else:
+        df_binned["state_vix"] = "vix_mid"
+
+    def _bin_breadth(val):
+        if pd.isna(val):
+            return np.nan
+        if val < 0.40:
+            return "breadth_weak"
+        if val > 0.70:
+            return "breadth_strong"
+        return "breadth_mixed"
+    if "feat_breadth_pct" in df_binned.columns and not df_binned["feat_breadth_pct"].dropna().empty:
+        df_binned["state_breadth"] = df_binned["feat_breadth_pct"].apply(_bin_breadth)
+    else:
+        df_binned["state_breadth"] = "breadth_mixed"
+
+    def _bin_dxy(val):
+        if pd.isna(val):
+            return np.nan
+        if val < -0.01:
+            return "dxy_weak"
+        if val > 0.01:
+            return "dxy_strong"
+        return "dxy_flat"
+    if "feat_dxy_slope" in df_binned.columns and not df_binned["feat_dxy_slope"].dropna().empty:
+        df_binned["state_dxy"] = df_binned["feat_dxy_slope"].apply(_bin_dxy)
+    else:
+        df_binned["state_dxy"] = "dxy_flat"
+
     _fallback_state = {
         "state_ext": np.nan,
         "state_slope": "flat",
@@ -460,6 +652,12 @@ def bin_features_rolling(
         "state_range_pos": "range_mid",
         "state_ret_day": "ret_day_flat",
         "state_vol_day": "vol_day_mid",
+        "state_funding": "funding_neutral",
+        "state_oi": "oi_flat",
+        "state_cot": "cot_neutral",
+        "state_vix": "vix_mid",
+        "state_breadth": "breadth_mixed",
+        "state_dxy": "dxy_flat",
     }
     for _state_col, _fallback in _fallback_state.items():
         if _state_col not in df_binned.columns:
@@ -692,6 +890,18 @@ def precompute_binned_frame(
         return pd.DataFrame()
 
     df_feat = compute_price_features(df_raw)
+
+    # Attach lane-specific external/macro features (crypto funding/OI,
+    # futures COT, equity VIX/breadth/DXY) BEFORE binning so their feat_*
+    # columns flow through apply_state_bins into state_* bins. All
+    # external-data failures degrade to NaN/neutral-state inside
+    # attach_lane_externals and never abort discovery.
+    try:
+        from price.external_data import attach_lane_externals
+        df_feat = attach_lane_externals(df_feat, symbol)
+    except Exception:
+        pass
+
     df_binned = apply_state_bins(df_feat, bin_mode=bin_mode,
                                   rolling_min_periods=rolling_min_periods)
 
@@ -704,6 +914,10 @@ def precompute_binned_frame(
                     _COND_BINS_CACHE[cache_key] = pd.DataFrame()
                 else:
                     cond_feat = compute_price_features(cond_raw)
+                    try:
+                        cond_feat = attach_lane_externals(cond_feat, cond_sym)
+                    except Exception:
+                        pass
                     cond_binned = apply_state_bins(
                         cond_feat, bin_mode=bin_mode,
                         rolling_min_periods=rolling_min_periods,

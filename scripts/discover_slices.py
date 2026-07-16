@@ -23,6 +23,10 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
             ["state_volume", "state_ext"],
             ["state_ret_day", "state_ext"],
             ["state_weekpart", "state_ext"],
+            # T2 crypto positioning states (fixed-prior, lane-scoped).
+            ["state_funding", "state_ext"],
+            ["state_oi", "state_ext"],
+            ["state_funding", "state_oi", "state_ext"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations += [
@@ -32,12 +36,16 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
                 ["state_utc_session", "state_ext", "state_slope"],
                 ["state_weekpart", "state_ext", "state_vol"],
                 ["state_ret_day", "state_ext", "state_slope"],
+                ["state_utc_session", "state_funding", "state_ext"],
             ]
     elif profile == "futures":
         combinations = [
             ["state_ext", "state_slope"],
             ["state_ext", "state_vol"],
             ["state_volume", "state_ext"],
+            # T3 futures COT weekly conditioning (slow dim -- doesn't multiply space much).
+            ["state_cot", "state_ext"],
+            ["state_cot", "state_ext", "state_slope"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations += [
@@ -50,12 +58,17 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
             ["state_ext", "state_slope"],
             ["state_ext", "state_vol"],
             ["state_volume", "state_ext"],
+            # T4 equity macro-context states.
+            ["state_vix", "state_ext"],
+            ["state_breadth", "state_ext"],
+            ["state_vix", "state_breadth", "state_ext"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations.append(["state_session", "state_volume"])
             combinations.append(["state_session", "state_ext"])
             combinations.append(["state_session", "state_slope"])
             combinations.append(["state_session", "state_ext", "state_slope"])
+            combinations.append(["state_vix", "state_session", "state_ext"])
 
     if cond_symbols:
         for cs in [s.upper() for s in cond_symbols]:

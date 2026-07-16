@@ -149,6 +149,14 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df['feat_gap'] = (close / close.shift(1)) - 1.0
     df['feat_range_position'] = (close - low) / (high - low + 1e-8)
+
+    # ── T5 macro-event blackout flag (pure risk control, no lookahead) ──
+    # Date set is hardcoded static calendar; no external fetcher needed.
+    try:
+        from price.external_data import attach_blackout_flag
+        df = attach_blackout_flag(df)
+    except Exception:
+        df['feat_event_blackout'] = 0
     
     df['fwd_ret_3'] = close.shift(-3) / close - 1.0
     df['fwd_ret_5'] = close.shift(-5) / close - 1.0

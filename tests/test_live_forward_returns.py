@@ -30,6 +30,7 @@ import live_forward_returns as lfr  # noqa: E402
 @pytest.fixture
 def temp_workspace(tmp_path, monkeypatch):
     """Set up an isolated workspace with a synthetic XLF 1d warehouse."""
+    monkeypatch.setattr(lfr, "fetch_alpaca_bars", lambda *args, **kwargs: None)
     wh.WAREHOUSE_DIR = tmp_path / "wh"
     (tmp_path / "wh" / "symbol=XLF" / "timeframe=1d").mkdir(parents=True, exist_ok=True)
 
