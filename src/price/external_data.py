@@ -613,7 +613,7 @@ _FOMC_DATES = {
 
 def _nfp_dates(start_year: int = 2024, end_year: int = 2027) -> set:
     """First Friday of each month (BLS Employment Situation release), as UTC
-    dates (released 8:30am ET -> ~13:30 UTC same day)."""
+    dates (released 8:30am ET -> ~13:30 UTC same day), with precise holiday shifts."""
     out: set = set()
     for y in range(start_year, end_year + 1):
         for m in range(1, 13):
@@ -621,6 +621,18 @@ def _nfp_dates(start_year: int = 2024, end_year: int = 2027) -> set:
             d = pd.Timestamp(year=y, month=m, day=1)
             while d.dayofweek != 4:  # 4 = Friday
                 d += pd.Timedelta(days=1)
+            
+            # BLS precise holiday handling for the release date
+            if d.month == 1 and d.day == 1:
+                # If Jan 1 is Friday, market is closed; BLS delays to Jan 8.
+                d += pd.Timedelta(days=7)
+            elif d.month == 7 and d.day == 4:
+                # If Jul 4 is Friday, market is closed; BLS pulls forward to Thu Jul 3.
+                d -= pd.Timedelta(days=1)
+            elif d.month == 7 and d.day == 3:
+                # If Jul 3 is Friday, Jul 4 is Saturday (observed Friday); BLS pulls to Thu Jul 2.
+                d -= pd.Timedelta(days=1)
+                
             out.add(d.strftime("%Y-%m-%d"))
     return out
 
