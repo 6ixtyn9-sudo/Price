@@ -709,35 +709,74 @@ _BREADTH_ETFS = [
     "XLY", "XLU", "XLB", "XLRE", "XLC", "KRE", "SMH", "KWEB", "GDX",
 ]
 
+# In-memory breadth caches. Populated once per process:
+#   _BREADTH_ETF_CACHE  {symbol: daily_df}        — each ETF loaded once
+#   _BREADTH_PCT_CACHE  {(date_iso, lookback): pct} — per-date breadth result
+# Without these caches a 236-symbol daily run would reload the 19 breadth
+# ETFs ~236 times (once per symbol); with them, 19 loads total plus a few
+# dict lookups per symbol.
+_BREADTH_ETF_CACHE: dict = {}
+_BREADTH_PCT_CACHE: dict = {}
+
+
+def _load_breadth_etf(sym: str) -> pd.DataFrame:
+    if sym in _BREADTH_ETF_CACHE:
+        return _BREADTH_ETF_CACHE[sym]
+    try:
+        from price.warehouse import load_from_warehouse
+        bars = load_from_warehouse(sym, "1d")
+    except Exception:
+        bars = pd.DataFrame()
+    _BREADTH_ETF_CACHE[sym] = bars
+    return bars
+
 
 def compute_breadth_pct(reference_date: pd.Timestamp, lookback: int = 20) -> float:
     """Fraction of breadth-universe ETFs whose close is above their
     `lookback`-bar SMA as of `reference_date`. Uses 1d bars (always available
     via Tiingo/yfinance). Returns NaN on failure (features pin to unknown).
+
+    Results are cached per (date, lookback); ETF loads are cached per symbol,
+    so the amortised cost per call across a discovery run is a dict lookup.
     """
-    try:
-        from price.warehouse import load_from_warehouse
-    except Exception:
+    if reference_date is None or pd.isna(reference_date):
         return float("nan")
+    ref = pd.Timestamp(reference_date)
+    key = (ref.date().isoformat(), lookback)
+    if key in _BREADTH_PCT_CACHE:
+        return _BREADTH_PCT_CACHE[key]
+
     above = 0
     counted = 0
     for sym in _BREADTH_ETFS:
         try:
-            bars = load_from_warehouse(sym, "1d")
-            if bars.empty:
+            bars = _load_breadth_etf(sym)
+            if bars is None or bars.empty:
                 continue
-            bars = bars[bars["bar_ts_utc"] <= reference_date].tail(lookback + 5)
-            if len(bars) < lookback:
+            c = bars["close_adj"] if "close_adj" in bars.columns else bars.get("close_raw")
+            if c is None:
                 continue
-            c = bars["close_adj"] if "close_adj" in bars.columns else bars["close_raw"]
-            sma = c.tail(lookback).mean()
-            last = c.iloc[-1]
+            hist = bars[bars["bar_ts_utc"] <= ref]
+            if len(hist) < lookback:
+                continue
+            tail = c.loc[hist.index].tail(lookback)
+            sma = tail.mean()
+            last = tail.iloc[-1]
             counted += 1
-            if last > sma:
+            if pd.notna(sma) and pd.notna(last) and last > sma:
                 above += 1
         except Exception:
             continue
-    return above / counted if counted > 0 else float("nan")
+    pct = above / counted if counted > 0 else float("nan")
+    _BREADTH_PCT_CACHE[key] = pct
+    return pct
+
+
+def reset_breadth_cache() -> None:
+    """Clear in-memory breadth caches. Call between research shards, after
+    warehouse refreshes, or in tests so stale data doesn't persist."""
+    _BREADTH_ETF_CACHE.clear()
+    _BREADTH_PCT_CACHE.clear()
 
 
 def _attach_macro_context(df: pd.DataFrame) -> pd.DataFrame:

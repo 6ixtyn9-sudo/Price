@@ -935,7 +935,13 @@ def precompute_binned_frame(
 
 
 def clear_cond_bins_cache():
-    """Clear the cross-asset conditioning cache.  Call between research
-    shards or when switching timeframes to avoid stale cache entries.
+    """Clear the cross-asset conditioning cache and external-data caches.
+    Call between research shards or when switching timeframes to avoid
+    stale cache entries.
     """
     _COND_BINS_CACHE.clear()
+    try:
+        from price.external_data import reset_breadth_cache
+        reset_breadth_cache()
+    except Exception:
+        pass
