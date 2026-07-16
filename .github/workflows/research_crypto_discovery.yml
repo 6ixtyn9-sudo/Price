@@ -89,7 +89,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -190,7 +190,7 @@ jobs:
     needs: plan
     strategy:
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 2
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
@@ -207,7 +207,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
