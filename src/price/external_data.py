@@ -171,18 +171,22 @@ def _binance_or_bybit_funding(symbol: str, perp: str) -> pd.DataFrame:
             df["funding_ann"] = df["funding_rate"] * 3 * 365
             return df[["bar_ts_utc", "funding_rate", "funding_ann"]].sort_values("bar_ts_utc").reset_index(drop=True)
 
-    # Bybit fallback (symbol e.g. BTCUSDT; category=linear for USDT perps)
+    # Bybit fallback (symbol e.g. BTCUSDT; category=linear for USDT perps).
+    # Bybit returns results DESCENDING by timestamp (newest first). To paginate
+    # BACKWARD in time: fix startTime at the window start, walk endTime to
+    # `oldest - 1` each batch. Walking startTime forward with descending
+    # results returns the same batch forever.
     try:
         import time as _time
         bybit_rows = []
-        bybit_end = int(datetime.now(timezone.utc).timestamp() * 1000)
-        bybit_start = bybit_end - 730 * 24 * 3600 * 1000
-        cursor_ts = bybit_start
-        for _ in range(20):
+        bybit_end_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        bybit_start_ms = bybit_end_ms - 730 * 24 * 3600 * 1000
+        cursor_end = bybit_end_ms
+        for _ in range(40):
             payload = _http_get_json(
                 "https://api.bybit.com/v5/market/funding/history",
                 params={"category": "linear", "symbol": perp,
-                        "startTime": cursor_ts, "endTime": bybit_end, "limit": 200},
+                        "startTime": bybit_start_ms, "endTime": cursor_end, "limit": 200},
             )
             if not isinstance(payload, dict):
                 break
@@ -193,8 +197,8 @@ def _binance_or_bybit_funding(symbol: str, perp: str) -> pd.DataFrame:
             if len(items) < 200:
                 break
             oldest = min(int(it["fundingRateTimestamp"]) for it in items if "fundingRateTimestamp" in it)
-            cursor_ts = oldest + 1
-            if cursor_ts >= bybit_end:
+            cursor_end = oldest - 1
+            if cursor_end <= bybit_start_ms:
                 break
             _time.sleep(0.1)  # light rate-limit courtesy
         if bybit_rows:
@@ -239,19 +243,19 @@ def _binance_or_bybit_oi(symbol: str, perp: str) -> pd.DataFrame:
             df["oi_value_usd"] = pd.to_numeric(df.get("sumOpenInterestValue", pd.Series(np.nan)), errors="coerce")
             return df[["bar_ts_utc", "oi_sum_open_interest", "oi_value_usd"]].sort_values("bar_ts_utc").reset_index(drop=True)
 
-    # Bybit fallback (daily OI via kline is not great; Bybit's OI endpoint
-    # is /v5/market/open-interest). It returns recent history only (2y max).
+    # Bybit fallback (daily OI via /v5/market/open-interest). Returns newest first;
+    # same backward-walking pagination strategy as funding above.
     try:
         import time as _time
         bybit_rows = []
-        cursor_ts = int((datetime.now(timezone.utc) - pd.Timedelta(days=365)).timestamp() * 1000)
         end_ts = end_ms
-        # 1d interval, 200 per page
+        start_ts = int((datetime.now(timezone.utc) - pd.Timedelta(days=365)).timestamp() * 1000)
+        cursor_end = end_ts
         for _ in range(30):
             payload = _http_get_json(
                 "https://api.bybit.com/v5/market/open-interest",
                 params={"category": "linear", "symbol": perp,
-                        "intervalTime": "1d", "startTime": cursor_ts, "endTime": end_ts, "limit": 200},
+                        "intervalTime": "1d", "startTime": start_ts, "endTime": cursor_end, "limit": 200},
             )
             if not isinstance(payload, dict):
                 break
@@ -262,8 +266,8 @@ def _binance_or_bybit_oi(symbol: str, perp: str) -> pd.DataFrame:
             if len(items) < 200:
                 break
             oldest = min(int(it["timestamp"]) for it in items if "timestamp" in it)
-            cursor_ts = oldest + 1
-            if cursor_ts >= end_ts:
+            cursor_end = oldest - 1
+            if cursor_end <= start_ts:
                 break
             _time.sleep(0.1)
         if bybit_rows:
@@ -456,7 +460,13 @@ def fetch_cot_disaggregated(year: Optional[int] = None) -> pd.DataFrame:
         if c not in df.columns:
             return pd.DataFrame()
 
-    df["bar_ts_utc"] = pd.to_datetime(df["Report_Date_as_MM_DD_YYYY"], errors="coerce", utc=True)
+    df["as_of_ts"] = pd.to_datetime(df["Report_Date_as_MM_DD_YYYY"], errors="coerce", utc=True)
+    # CFTC disaggregated reports are released FRIDAY at 3:30 PM ET for the TUESDAY
+    # as-of date. Shifting the effective bar_ts_utc from the Tuesday date to Friday
+    # 20:30 UTC (= 3:30pm ET winter; DST-insensitive by ~1hr which is fine for a
+    # weekly conditioning dim) prevents a 3-day look-ahead where Wednesday/Thursday/
+    # Friday-morning bars could join data that is not yet public.
+    df["bar_ts_utc"] = df["as_of_ts"] + pd.Timedelta(days=3, hours=20, minutes=30)
     for c in ["M_Money_Positions_Long_All", "M_Money_Positions_Short_All", "Open_Interest_All"]:
         df[c] = pd.to_numeric(df[c].astype(str).str.replace(",", ""), errors="coerce")
     df = df.dropna(subset=["bar_ts_utc", "Open_Interest_All"])
@@ -528,12 +538,13 @@ def attach_futures_externals(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
         out["feat_cot_mm_z52"] = np.nan
         return out
 
-    # COT dates are Tuesday-as-of; tolerance of 10 days covers a full week
-    # without letting old positioning leak forward more than one week.
+    # COT effective timestamps are weekly Friday ~20:30 UTC after the publication-
+    # date shift above. Tolerance of 7 days means we pick up the most recent
+    # released report without leaking future reports.
     sub = sub.sort_values("bar_ts_utc")
     out = pd.merge_asof(
         out, sub, on="bar_ts_utc", direction="backward",
-        tolerance=pd.Timedelta(days=10),
+        tolerance=pd.Timedelta(days=7),
     )
     return out
 
@@ -559,7 +570,15 @@ def _fetch_yf_daily(ticker: str, cache_name: str, lookback_days: int = 365 * 5) 
             h.columns = [c[0] for c in h.columns]
         h = h.reset_index()
         date_col = "Date" if "Date" in h.columns else "Datetime"
-        h["bar_ts_utc"] = pd.to_datetime(h[date_col], utc=True).dt.tz_convert("UTC")
+        # yfinance daily bars are stamped at 00:00 UTC for the session. If we
+        # leave the stamp at midnight, an intraday bar at 10:00 UTC backward-
+        # merges TODAY's daily close which is not known until ~21:00 UTC (US
+        # market close 4pm ET ≈ 20:00-21:00 UTC depending on DST). Shift the
+        # effective timestamp to 21:00 UTC so intraday bars only match the
+        # PRIOR day's close. For 1d primary frames, merge_asof backward still
+        # matches correctly (a 00:00 or 21:00 daily bar lands in the same
+        # daily window).
+        h["bar_ts_utc"] = pd.to_datetime(h[date_col], utc=True).dt.tz_convert("UTC") + pd.Timedelta(hours=21)
         # Normalise to close + volume
         h["close_adj"] = pd.to_numeric(h["Close"], errors="coerce")
         h["high_adj"] = pd.to_numeric(h["High"], errors="coerce")
@@ -657,13 +676,14 @@ def _opex_dates(start_year: int = 2024, end_year: int = 2027) -> set:
 
 
 def _cpi_windows(start_year: int = 2024, end_year: int = 2027) -> set:
-    """CPI release is approx the 10th-15th of each month at 8:30am ET. We
-    mark the 12th-14th of each month as a CPI blackout window (~covers
-    every release date in the last decade, off by at most 1 day)."""
+    """CPI release is typically the 12th, 13th, or 14th of each month at 8:30am ET.
+    Marking just those three days avoids the 5-day over-blackout (which blacked out
+    ~16% of the trading month) while covering the observed release dates in the
+    last decade (off by at most 1 day)."""
     out: set = set()
     for y in range(start_year, end_year + 1):
         for m in range(1, 13):
-            for day in (11, 12, 13, 14, 15):
+            for day in (12, 13, 14):
                 try:
                     out.add(pd.Timestamp(year=y, month=m, day=day).strftime("%Y-%m-%d"))
                 except ValueError:
@@ -743,20 +763,37 @@ def _load_breadth_etf(sym: str) -> pd.DataFrame:
     return bars
 
 
-def compute_breadth_pct(reference_date: pd.Timestamp, lookback: int = 20) -> float:
+def compute_breadth_pct(reference_date: pd.Timestamp, lookback: int = 20,
+                       intraday: bool = False) -> float:
     """Fraction of breadth-universe ETFs whose close is above their
     `lookback`-bar SMA as of `reference_date`. Uses 1d bars (always available
     via Tiingo/yfinance). Returns NaN on failure (features pin to unknown).
 
-    Results are cached per (date, lookback); ETF loads are cached per symbol,
-    so the amortised cost per call across a discovery run is a dict lookup.
+    Results are cached per (date, lookback, intraday); ETF loads are cached per
+    symbol, so the amortised cost per call across a discovery run is a dict
+    lookup.
+
+    Look-ahead guard: when `intraday` is True, the current UTC calendar day's
+    daily bar (which may still be forming at the time of an intraday primary
+    bar) is EXCLUDED -- we only look at daily bars whose UTC date is strictly
+    less than the reference date's UTC date. For daily primary frames
+    (intraday=False) we include today's daily bar (it is complete by the time
+    a 1d bar is emitted).
     """
     if reference_date is None or pd.isna(reference_date):
         return float("nan")
     ref = pd.Timestamp(reference_date)
-    key = (ref.date().isoformat(), lookback)
+    key = (ref.date().isoformat(), lookback, intraday)
     if key in _BREADTH_PCT_CACHE:
         return _BREADTH_PCT_CACHE[key]
+
+    # Determine the cutoff: intraday frames can only see daily bars strictly
+    # before today (UTC); daily frames can see today's completed bar.
+    if intraday:
+        today_utc = ref.tz_convert("UTC").normalize()
+        cutoff = today_utc - pd.Timedelta(nanoseconds=1)  # < today 00:00 UTC
+    else:
+        cutoff = ref
 
     above = 0
     counted = 0
@@ -768,7 +805,7 @@ def compute_breadth_pct(reference_date: pd.Timestamp, lookback: int = 20) -> flo
             c = bars["close_adj"] if "close_adj" in bars.columns else bars.get("close_raw")
             if c is None:
                 continue
-            hist = bars[bars["bar_ts_utc"] <= ref]
+            hist = bars[bars["bar_ts_utc"] <= cutoff]
             if len(hist) < lookback:
                 continue
             tail = c.loc[hist.index].tail(lookback)
@@ -791,11 +828,38 @@ def reset_breadth_cache() -> None:
     _BREADTH_PCT_CACHE.clear()
 
 
+def _is_intraday_frame(df: pd.DataFrame) -> bool:
+    """Detect whether a frame's bars are intraday (<=1h). Uses median gap
+    between consecutive bars; falls back to False (daily) if undecidable."""
+    if df is None or df.empty or "bar_ts_utc" not in df.columns:
+        return False
+    ts = df["bar_ts_utc"]
+    if len(ts) < 2:
+        return False
+    try:
+        med = ts.sort_values().diff().dropna().median()
+        return pd.notna(med) and med <= pd.Timedelta(hours=2)
+    except Exception:
+        return False
+
+
+def _daily_effective_ts(ts: pd.Timestamp, intraday: bool) -> pd.Timestamp:
+    """For VIX/DXY/breadth lookups, shift the reference timestamp so that
+    an intraday bar at 14:00 UTC cannot see that same UTC day's daily close.
+    We map intraday bars to the END of the PRIOR UTC day (23:59:59) so the
+    as-of merge only picks up daily bars effective-timestamped on prior days.
+    Daily frames can reference the same day's daily bar."""
+    if intraday:
+        return ts.tz_convert("UTC").normalize() - pd.Timedelta(nanoseconds=1)
+    return ts
+
+
 def _attach_macro_context(df: pd.DataFrame) -> pd.DataFrame:
     """Attach VIX extension, DXY slope, and breadth for equity frames."""
     if df.empty:
         return df
     out = df.copy().sort_values("bar_ts_utc").reset_index(drop=True)
+    intraday = _is_intraday_frame(out)
 
     # VIX daily -> VIX extension vs its 20d MA (high VIX = risk-off regime).
     vix = fetch_vix_daily()
@@ -804,42 +868,65 @@ def _attach_macro_context(df: pd.DataFrame) -> pd.DataFrame:
         v["vix_sma20"] = v["close_adj"].rolling(20, min_periods=10).mean()
         v["feat_vix_ext"] = (v["close_adj"] / v["vix_sma20"]) - 1.0
         v = v[["bar_ts_utc", "feat_vix_ext", "close_adj"]].rename(columns={"close_adj": "feat_vix_close"})
+        # asof-join against a lookup key that prevents intraday frames from
+        # matching today's not-yet-known close.
+        out["_macro_lookup_ts"] = out["bar_ts_utc"].apply(lambda t: _daily_effective_ts(t, intraday))
         out = pd.merge_asof(
-            out, v, on="bar_ts_utc", direction="backward",
-            tolerance=pd.Timedelta(days=7),
+            out.sort_values("_macro_lookup_ts"), v.sort_values("bar_ts_utc"),
+            left_on="_macro_lookup_ts", right_on="bar_ts_utc",
+            direction="backward", tolerance=pd.Timedelta(days=7),
         )
+        # The merge adds bar_ts_utc_y / renames; reconcile.
+        if "bar_ts_utc_y" in out.columns:
+            out = out.drop(columns=["bar_ts_utc_y"])
+        if "bar_ts_utc_x" in out.columns:
+            out = out.rename(columns={"bar_ts_utc_x": "bar_ts_utc"})
+        out = out.drop(columns=["_macro_lookup_ts"], errors="ignore")
     else:
         out["feat_vix_ext"] = np.nan
         out["feat_vix_close"] = np.nan
 
     # DXY daily -> 20d slope (rate of dollar change; strong dollar = risk-off
-    # for EM/cyclicals).
+    # for EM/cyclicals). Same intraday guard as VIX.
     dxy = fetch_dxy_daily()
     if not dxy.empty:
         d = dxy.sort_values("bar_ts_utc").copy()
         d["dxy_sma20"] = d["close_adj"].rolling(20, min_periods=10).mean()
         d["feat_dxy_slope"] = (d["close_adj"] / d["dxy_sma20"]) - 1.0
         d = d[["bar_ts_utc", "feat_dxy_slope"]]
+        out["_macro_lookup_ts"] = out["bar_ts_utc"].apply(lambda t: _daily_effective_ts(t, intraday))
         out = pd.merge_asof(
-            out, d, on="bar_ts_utc", direction="backward",
-            tolerance=pd.Timedelta(days=7),
+            out.sort_values("_macro_lookup_ts"), d.sort_values("bar_ts_utc"),
+            left_on="_macro_lookup_ts", right_on="bar_ts_utc",
+            direction="backward", tolerance=pd.Timedelta(days=7),
         )
+        if "bar_ts_utc_y" in out.columns:
+            out = out.drop(columns=["bar_ts_utc_y"])
+        if "bar_ts_utc_x" in out.columns:
+            out = out.rename(columns={"bar_ts_utc_x": "bar_ts_utc"})
+        out = out.drop(columns=["_macro_lookup_ts"], errors="ignore")
     else:
         out["feat_dxy_slope"] = np.nan
 
-    # Breadth pct: % of breadth ETF universe above their 20d MA. Expensive to
-    # compute per-bar, so we compute it per market_date (UTC date) and map it.
+    # Breadth pct: % of breadth ETF universe above their 20d MA. Use strict
+    # prior-day cutoff for intraday frames to prevent the forming day's close
+    # leaking into an early bar.
     try:
         out["_mdate"] = out["bar_ts_utc"].dt.tz_convert("UTC").dt.date
         breadth_map: dict = {}
         for d in out["_mdate"].unique():
-            ts = pd.Timestamp(d, tz="UTC") + pd.Timedelta(hours=23)
-            breadth_map[d] = compute_breadth_pct(ts, lookback=20)
+            if intraday:
+                # Reference = end of prior UTC day (so daily bars strictly before today).
+                ref_ts = pd.Timestamp(d, tz="UTC") - pd.Timedelta(nanoseconds=1)
+            else:
+                ref_ts = pd.Timestamp(d, tz="UTC") + pd.Timedelta(hours=23)
+            breadth_map[d] = compute_breadth_pct(ref_ts, lookback=20, intraday=intraday)
         out["feat_breadth_pct"] = out["_mdate"].map(breadth_map).astype(float)
         out = out.drop(columns=["_mdate"])
     except Exception:
         out["feat_breadth_pct"] = np.nan
 
+    out = out.sort_values("bar_ts_utc").reset_index(drop=True)
     return out
 
 
