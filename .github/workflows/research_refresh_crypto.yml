@@ -66,7 +66,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-refresh-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-refresh-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore warehouse cache
         id: warehouse
@@ -161,10 +161,10 @@ jobs:
             echo "No existing crypto research, will build after first discovery"
           fi
           # Sync dynamic paper book: use monitored_candidates if exists, else fallback
-          python scripts/sync_monitored_crypto.py --candidates-path localdata/research/crypto/monitored_candidates_crypto.csv --output-path localdata/monitored_slices_crypto.csv || true
+          python scripts/sync_monitored_crypto.py --candidates-path localdata/research/crypto/monitored_candidates_crypto.csv --output-path localdata/monitored_slices_crypto.csv
           if [ ! -s localdata/monitored_slices_crypto.csv ]; then
             echo "monitored_candidates empty, trying fallback clean_mixed from leaderboard"
-            python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv || true
+            python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv
           fi
           ls -lh localdata/monitored_slices_crypto.csv || echo "no crypto book yet"
           if [ -f localdata/research/crypto/monitored_candidates_crypto.csv ]; then
@@ -263,9 +263,10 @@ jobs:
           git add "${files[@]}" 2>/dev/null || true
           if git diff --cached --quiet; then echo "No crypto research changes"; exit 0; fi
           git commit -m "chore(research-refresh-crypto): update crypto research state [skip ci]"
-          for attempt in 1 2 3; do
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
-            sleep $((attempt*5))
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" || sleep 5
+            git push || sleep $((5*attempt))
+            [ $? -eq 0 ] && break
           done
 
   cache-maintenance:

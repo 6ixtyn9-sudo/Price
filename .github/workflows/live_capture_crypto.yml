@@ -56,7 +56,7 @@ jobs:
 
       - name: Compute cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-crypto-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-crypto-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore warehouse cache
         id: warehouse
@@ -131,7 +131,7 @@ jobs:
               python scripts/research_crypto.py --timeframes 1d --regime-only --output-dir "$RESEARCH_DIR" || echo "regime-only rebuild failed for $RESEARCH_DIR"
               if [ -f "$RESEARCH_DIR/monitored_candidates_crypto.csv" ] && [ -s "$RESEARCH_DIR/monitored_candidates_crypto.csv" ]; then
                 echo "Using $RESEARCH_DIR/monitored_candidates_crypto.csv as live book"
-                python scripts/sync_monitored_crypto.py --candidates-path "$RESEARCH_DIR/monitored_candidates_crypto.csv" --output-path localdata/monitored_slices_crypto.csv && break || true
+                python scripts/sync_monitored_crypto.py --candidates-path "$RESEARCH_DIR/monitored_candidates_crypto.csv" --output-path localdata/monitored_slices_crypto.csv && break
               fi
             fi
           done
@@ -140,7 +140,7 @@ jobs:
             echo "monitored_candidates empty, trying fallback clean_mixed"
             for LB in localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv; do
               if [ -f "$LB" ]; then
-                python scripts/sync_monitored_crypto.py --fallback-clean-mixed --leaderboard-path "$LB" --output-path localdata/monitored_slices_crypto.csv && break || true
+                python scripts/sync_monitored_crypto.py --fallback-clean-mixed --leaderboard-path "$LB" --output-path localdata/monitored_slices_crypto.csv && break
               fi
             done
           fi
@@ -227,4 +227,9 @@ jobs:
           if ((${#existing[@]})); then git add "${existing[@]}"; fi
           if git diff --cached --quiet; then echo "No crypto output changes"; exit 0; fi
           git commit -m "chore(live-capture-crypto): update workflow output [skip ci]"
-          for attempt in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break; sleep $((attempt*5)); done
+          # Queue-safe commit: retry with exponential backoff, no force-with-lease race
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" || sleep 5
+            git push || sleep $((5*attempt))
+            if [ $? -eq 0 ]; then break; fi
+          done
