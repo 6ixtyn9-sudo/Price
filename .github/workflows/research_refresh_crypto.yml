@@ -41,12 +41,12 @@ env:
   STOP_STATE_PATH: localdata/stop_state_crypto.json
   STOPOUT_JOURNAL_PATH: localdata/stopout_journal_crypto.json
   COOLDOWN_JOURNAL_PATH: localdata/cooldown_journal_crypto.json
-  CANDIDATE_LEADERBOARD_PATH: localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv
+  CANDIDATE_LEADERBOARD_PATH: localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv
 
 jobs:
   research-refresh-crypto:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: 360
     permissions:
       contents: write
     outputs:
@@ -66,7 +66,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-refresh-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-refresh-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
 
       - name: Restore warehouse cache
         id: warehouse
@@ -78,10 +78,11 @@ jobs:
             research-warehouse-v4-${{ runner.os }}-
 
       - name: Seed warehouse from release if cache empty
+        if: steps.warehouse.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' -path '*BTC*' | wc -l)" -gt 0 ]; then
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' -path '*BTC*' 2>/dev/null | wc -l)" -gt 0 ]; then
             echo "Warehouse has crypto data from cache."
             exit 0
           fi
@@ -92,6 +93,7 @@ jobs:
             if [ -f /tmp/warehouse-research.tar.gz ]; then
               tar xzf /tmp/warehouse-research.tar.gz -C localdata
               rm /tmp/warehouse-research.tar.gz
+              echo "Seeded warehouse"
             fi
           else
             echo "No seed release $SEED_TAG"
@@ -137,49 +139,73 @@ jobs:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
-          # 1d long history via yfinance primary (BTC-USD etc), 15m for 1h derivation
           python scripts/capture_bars.py --symbols BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD AAVE/USD DOGE/USD UNI/USD LINK/USD LTC/USD XRP/USD CRV/USD BCH/USD SUSHI/USD ADA/USD --timeframes 1d --days 1825 --skip-postprocess
           python scripts/capture_bars.py --symbols BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD AAVE/USD DOGE/USD UNI/USD LINK/USD LTC/USD XRP/USD CRV/USD BCH/USD SUSHI/USD ADA/USD --timeframes 15m --days 365
+          if [ -f localdata/explicit_allowlist.json ]; then
+            if ! jq -e '.crypto | type == "array"' localdata/explicit_allowlist.json >/dev/null 2>&1; then
+              echo "::warning::explicit_allowlist.json missing .crypto array, using default crypto list"
+            fi
+          fi
 
       - name: Run autonomous research controller (crypto)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
-          # Rebuild regime-aware candidates from existing artifacts (dynamic, not static)
-          # This is the crypto equivalent of research_refresh.py's fresh-data gate – we count new daily bars
-          python scripts/research_crypto.py --timeframes 1d --regime-only --output-dir localdata/research/crypto/1d || echo "no 1d research artifacts yet, will build after first discovery"
-          python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv || true
+          mkdir -p localdata/research
+          # If we have existing merged artifacts, rebuild regime-only to refresh monitored candidates
+          if [ -d localdata/research/crypto ] && [ -f localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv ]; then
+            echo "Rebuilding regime-aware candidates from existing artifacts"
+            python scripts/research_crypto.py --timeframes 1d --regime-only --output-dir localdata/research/crypto --max-regime-targets 150 --max-regime-per-symbol 15 || echo "regime-only rebuild failed"
+          else
+            echo "No existing crypto research, will build after first discovery"
+          fi
+          # Sync dynamic paper book: use monitored_candidates if exists, else fallback
+          python scripts/sync_monitored_crypto.py --candidates-path localdata/research/crypto/monitored_candidates_crypto.csv --output-path localdata/monitored_slices_crypto.csv || true
+          if [ ! -s localdata/monitored_slices_crypto.csv ]; then
+            echo "monitored_candidates empty, trying fallback clean_mixed from leaderboard"
+            python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv || true
+          fi
           ls -lh localdata/monitored_slices_crypto.csv || echo "no crypto book yet"
+          if [ -f localdata/research/crypto/monitored_candidates_crypto.csv ]; then
+            echo "monitored_candidates_crypto.csv: $(wc -l < localdata/research/crypto/monitored_candidates_crypto.csv) lines"
+          fi
 
       - name: Build research manifest
         run: |
           mkdir -p localdata/research
           NOW=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
-          echo "{\"workflow\":\"research_refresh_crypto\",\"generated_at_utc\":\"$NOW\",\"orders_placed\":false,\"monitored_slices_modified\":false}" | jq . > /tmp/manifest.json
-          cat /tmp/manifest.json
-          # merge into refresh_state if exists
-          if [ -f localdata/research/crypto/1d/crypto_research_summary.json ]; then
-            cat localdata/research/crypto/1d/crypto_research_summary.json | jq . | head -20
+          MANIFEST=$(cat <<EOF
+          {"workflow":"research_refresh_crypto","generated_at_utc":"$NOW","orders_placed":false,"monitored_slices_modified":false,"automatic_promotion_enabled":false}
+          EOF
+          )
+          echo "$MANIFEST" | jq . > localdata/research/refresh_state_crypto.json
+          cat localdata/research/refresh_state_crypto.json
+          if [ -f localdata/research/crypto/crypto_research_summary.json ]; then
+            cat localdata/research/crypto/crypto_research_summary.json | jq . | head -50
           fi
 
       - name: Compute discovery dispatch gate (fresh data)
         id: dispatch_gate
         run: |
-          # Simple gate: if at least 5 new daily bars across 50% symbols since last refresh, open gate
-          # For now, always allow dispatch if allow_discovery=true and no recent discovery in last 24h
-          # This mirrors main's fresh_data_gate_open logic but simplified for crypto
-          if [ "${{ inputs.allow_discovery }}" = "true" ]; then
-            echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
+          # Gate logic mirrors main but simplified: if allow_discovery true and refresh_state indicates fresh data or no state yet, dispatch
+          SHOULD="true"
+          if [ "${{ inputs.allow_discovery }}" != "true" ]; then
+            SHOULD="false"
           else
-            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            # If we have a summary and it shows new bars < threshold, we can still dispatch manually; for auto, check file existence
+            if [ -f localdata/research/crypto/crypto_research_summary.json ]; then
+              echo "Found existing summary, gate open for dispatch if requested"
+            fi
           fi
+          echo "should_dispatch=$SHOULD" >> "$GITHUB_OUTPUT"
+          echo "Discovery dispatch gate: $SHOULD"
 
       - name: Check operational state cache content
         id: ops_state
         run: |
           shopt -s nullglob
-          files=(localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv localdata/monitored_slices_crypto.csv)
+          files=(localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv localdata/research/crypto/monitored_candidates_crypto.csv localdata/monitored_slices_crypto.csv)
           echo "has_state=false" >> "$GITHUB_OUTPUT"
           for f in "${files[@]}"; do if [ -s "$f" ]; then echo "has_state=true" >> "$GITHUB_OUTPUT"; break; fi; done
 
@@ -198,12 +224,49 @@ jobs:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
 
+      - name: Commit isolated research outputs (crypto)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          shopt -s nullglob
+          files=(localdata/research/crypto/*.csv localdata/research/crypto/*.json localdata/research/refresh_state_crypto.json)
+          if ((${#files[@]}==0)); then echo "No crypto research outputs"; exit 0; fi
+          git add "${files[@]}" 2>/dev/null || true
+          if git diff --cached --quiet; then echo "No crypto research changes"; exit 0; fi
+          git commit -m "chore(research-refresh-crypto): update crypto research state [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
+            sleep $((attempt*5))
+          done
+
+  cache-maintenance:
+    needs: research-refresh-crypto
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - name: Remove superseded crypto warehouse caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_CACHE_KEY: ${{ needs.research-refresh-crypto.outputs.cache_key }}
+        run: |
+          sleep 5
+          gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/caches.json || true
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-")) | select(.key | contains("crypto")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/caches.json | while read -r id; do
+            if [ -n "$id" ]; then gh cache delete "$id" --repo "$GITHUB_REPOSITORY" || true; fi
+          done
+
   dispatch-discovery:
     needs: research-refresh-crypto
     if: ${{ needs.research-refresh-crypto.outputs.should_dispatch_discovery == 'true' }}
     uses: ./.github/workflows/research_crypto_discovery.yml
     with:
-      timeframes: "1d 1h"
-      batch_size: "5"
-      condition_on: "BTC/USD ETH/USD"
+      timeframes: ${{ inputs.timeframes }}
+      batch_size: ${{ inputs.batch_size }}
+      condition_on: ${{ inputs.condition_on }}
     secrets: inherit

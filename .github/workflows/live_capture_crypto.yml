@@ -26,7 +26,6 @@ defaults:
 
 env:
   PYTHONPATH: src
-  # Isolated state files for crypto substrate – do not collide with equity live book
   MONITORED_SLICES_PATH: localdata/monitored_slices_crypto.csv
   TRADE_JOURNAL_PATH: localdata/trade_journal_crypto.csv
   PAPER_TRADE_LOG_PATH: localdata/paper_trade_log_crypto.csv
@@ -34,7 +33,7 @@ env:
   STOPOUT_JOURNAL_PATH: localdata/stopout_journal_crypto.json
   COOLDOWN_JOURNAL_PATH: localdata/cooldown_journal_crypto.json
   HALT_FLAG_PATH: localdata/HALT_TRADING_CRYPTO.flag
-  CANDIDATE_LEADERBOARD_PATH: localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv
+  CANDIDATE_LEADERBOARD_PATH: localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv
   LIVE_FORWARD_RETURNS_PATH: localdata/live_forward_returns_crypto.csv
 
 jobs:
@@ -57,15 +56,35 @@ jobs:
 
       - name: Compute cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-crypto-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-crypto-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
 
       - name: Restore warehouse cache
+        id: warehouse
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if cache empty
+        if: steps.warehouse.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l 2>/dev/null | tr -d ' ')" -gt 10 ]; then
+            echo "Warehouse has data"
+            exit 0
+          fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber || true
+            if [ -f /tmp/warehouse-research.tar.gz ]; then
+              tar xzf /tmp/warehouse-research.tar.gz -C localdata
+              rm /tmp/warehouse-research.tar.gz
+            fi
+          fi
 
       - name: Restore operational paper state cache (crypto)
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -104,37 +123,43 @@ jobs:
 
       - name: Sync dynamic crypto book from latest research
         run: |
-          # Rebuild regime-aware monitored candidates from latest research artifacts (dynamic, not static)
-          # If research artifacts missing, falls back to existing monitored_slices_crypto.csv
-          if [ -d localdata/research/crypto/1d ] && [ -f localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv ]; then
-            echo "Found existing crypto research, rebuilding monitored candidates via regime-only"
-            python scripts/research_crypto.py --timeframes 1d --regime-only --output-dir localdata/research/crypto/1d || echo "regime-only rebuild failed, keeping existing"
-            # promote top clean_mixed as paper book when strict is empty – dynamic paper trading
-            # If monitored_candidates_crypto.csv exists, use it as live book, else use candidate_leaderboard top 8 clean_mixed
-            if [ -f localdata/research/crypto/1d/monitored_candidates_crypto.csv ] && [ -s localdata/research/crypto/1d/monitored_candidates_crypto.csv ]; then
-              echo "Using monitored_candidates_crypto.csv as live book"
-              python scripts/sync_monitored_crypto.py --candidates-path localdata/research/crypto/1d/monitored_candidates_crypto.csv --output-path localdata/monitored_slices_crypto.csv || true
-            else
-              echo "monitored_candidates empty, falling back to top clean_survivor_wf_mixed as dynamic paper book"
-              python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv || true
+          echo "=== Syncing dynamic crypto book ==="
+          # Try merged root first, then 1d scoped, then existing file
+          for RESEARCH_DIR in localdata/research/crypto localdata/research/crypto/1d; do
+            if [ -f "$RESEARCH_DIR/candidate_leaderboard_crypto_rolling.csv" ]; then
+              echo "Found research in $RESEARCH_DIR, rebuilding monitored candidates"
+              python scripts/research_crypto.py --timeframes 1d --regime-only --output-dir "$RESEARCH_DIR" || echo "regime-only rebuild failed for $RESEARCH_DIR"
+              if [ -f "$RESEARCH_DIR/monitored_candidates_crypto.csv" ] && [ -s "$RESEARCH_DIR/monitored_candidates_crypto.csv" ]; then
+                echo "Using $RESEARCH_DIR/monitored_candidates_crypto.csv as live book"
+                python scripts/sync_monitored_crypto.py --candidates-path "$RESEARCH_DIR/monitored_candidates_crypto.csv" --output-path localdata/monitored_slices_crypto.csv && break || true
+              fi
             fi
-          else
-            echo "No crypto research artifacts yet, will use existing monitored_slices_crypto.csv if present"
+          done
+          # Fallback to clean_mixed if still empty
+          if [ ! -s localdata/monitored_slices_crypto.csv ]; then
+            echo "monitored_candidates empty, trying fallback clean_mixed"
+            for LB in localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv; do
+              if [ -f "$LB" ]; then
+                python scripts/sync_monitored_crypto.py --fallback-clean-mixed --leaderboard-path "$LB" --output-path localdata/monitored_slices_crypto.csv && break || true
+              fi
+            done
           fi
           ls -lh localdata/monitored_slices_crypto.csv || echo "no crypto book yet"
+          echo "Current crypto book:"
+          cat localdata/monitored_slices_crypto.csv 2>/dev/null | head -20 || echo "no book"
 
       - name: Ingest crypto universe (automatic 1d + 15m for 1h)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
-          # Dynamic symbols from current crypto book + BTC/ETH conditioning
           if [ -f localdata/monitored_slices_crypto.csv ]; then
-            SYMBOLS=$(python3 -c "import pandas as pd; df=pd.read_csv('localdata/monitored_slices_crypto.csv'); print(' '.join(sorted(df['symbol'].unique())))")
+            SYMBOLS=$(python3 -c "import pandas as pd, os, sys; df=pd.read_csv('localdata/monitored_slices_crypto.csv'); print(' '.join(sorted(df['symbol'].unique()))) if not df.empty else ''; " )
           else
             SYMBOLS=$(python3 -c "import sys; sys.path.insert(0,'scripts'); sys.path.insert(0,'src'); from research_crypto import load_crypto_symbols; print(' '.join(load_crypto_symbols()))")
           fi
-          echo "Capturing crypto for: $SYMBOLS"
+          if [ -z "$SYMBOLS" ]; then SYMBOLS="BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD"; fi
+          echo "Capturing crypto for: $SYMBOLS BTC/USD ETH/USD"
           python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 1d --days 1825 --skip-postprocess
           python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 15m --days 365
 
@@ -158,7 +183,11 @@ jobs:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
-          python scripts/live_forward_returns.py --universe-source monitored || true
+          python scripts/live_forward_returns.py --universe-source monitored
+
+      - name: Guard against row-count spikes (fail-closed)
+        run: |
+          python scripts/delta_spike_guard.py
 
       - name: Check operational paper state cache content
         id: ops_state
@@ -192,8 +221,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          python scripts/delta_spike_guard.py || true
-          files=(localdata/live_forward_returns_crypto.csv localdata/monitored_slices_crypto.csv localdata/research/crypto/1d/monitored_candidates_crypto.csv)
+          files=(localdata/live_forward_returns_crypto.csv localdata/monitored_slices_crypto.csv localdata/research/crypto/monitored_candidates_crypto.csv localdata/research/crypto/1d/monitored_candidates_crypto.csv)
           existing=()
           for f in "${files[@]}"; do [ -e "$f" ] && existing+=("$f"); done
           if ((${#existing[@]})); then git add "${existing[@]}"; fi

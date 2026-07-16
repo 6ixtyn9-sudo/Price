@@ -15,6 +15,24 @@ on:
         description: "Timeframes to research"
         required: false
         default: "1d 1h"
+  workflow_call:
+    inputs:
+      symbols:
+        required: false
+        type: string
+        default: ""
+      batch_size:
+        required: false
+        type: string
+        default: "5"
+      timeframes:
+        required: false
+        type: string
+        default: "1d 1h"
+      parent_run_id:
+        required: false
+        type: string
+        default: manual
 
 concurrency:
   group: research-futures-discovery
@@ -47,7 +65,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-discovery-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
 
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -118,7 +136,7 @@ jobs:
           sys.path.insert(0, str(Path('src').resolve()))
           from price.futures_metadata import get_research_futures_symbols
 
-          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
+          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$" )
           if os.environ.get("INPUT_SYMBOLS", "").strip():
               symbols = [s.strip().upper() for s in os.environ["INPUT_SYMBOLS"].split() if s.strip()]
           else:
@@ -164,7 +182,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-discovery-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
 
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -173,6 +191,18 @@ jobs:
           key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse if empty (shard)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then exit 0; fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber || true
+            if [ -f /tmp/warehouse-research.tar.gz ]; then tar xzf /tmp/warehouse-research.tar.gz -C localdata; rm /tmp/warehouse-research.tar.gz; fi
+          fi
 
       - name: Restore operational paper state cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -349,6 +379,24 @@ jobs:
             --slices-path localdata/research/futures/candidate_leaderboard_futures_rolling.csv \
             --date-range-diagnostics \
             --diagnostic-scope leaderboard-top --top-n 25 --bin-mode rolling
+
+      - name: Run regime-stratified diagnostics on merged top 25 (main-like)
+        run: |
+          python scripts/validate_slices.py \
+            --slices-path localdata/research/futures/candidate_leaderboard_futures_rolling.csv \
+            --regime-stratified-diagnostics \
+            --diagnostic-scope leaderboard-top --top-n 25 --bin-mode rolling
+
+      - name: Report monitored candidates (gate check)
+        run: |
+          echo "=== Futures monitored candidates ==="
+          if [ -f localdata/research/futures/monitored_candidates_futures.csv ]; then
+            wc -l localdata/research/futures/monitored_candidates_futures.csv
+            head -20 localdata/research/futures/monitored_candidates_futures.csv
+          else
+            echo "monitored_candidates_futures.csv missing!"
+            exit 1
+          fi
 
       - name: Upload merged futures research artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

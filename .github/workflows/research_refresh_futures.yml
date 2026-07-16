@@ -11,6 +11,10 @@ on:
         description: "Timeframes to refresh"
         required: false
         default: "1d 1h"
+      min_new_daily_bars:
+        description: "Minimum new daily bars per symbol for discovery gate"
+        required: false
+        default: "5"
       allow_discovery:
         description: "Allow discovery to run if gate opens"
         required: false
@@ -27,11 +31,12 @@ defaults:
 
 env:
   PYTHONPATH: src
+  CANDIDATE_LEADERBOARD_PATH: localdata/research/futures/candidate_leaderboard_futures_rolling.csv
 
 jobs:
   research-refresh-futures:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
+    timeout-minutes: 360
     permissions:
       contents: write
     outputs:
@@ -49,11 +54,12 @@ jobs:
           cache: "pip"
           cache-dependency-path: requirements.lock
 
-      - name: Compute cache key
+      - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-refresh-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-futures-refresh-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
 
       - name: Restore warehouse cache
+        id: warehouse
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: localdata/warehouse
@@ -62,10 +68,11 @@ jobs:
             research-warehouse-v4-${{ runner.os }}-
 
       - name: Seed warehouse from release if cache empty
+        if: steps.warehouse.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' -path '*FUT*' | wc -l)" -gt 0 ]; then
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' -path '*FUT*' 2>/dev/null | wc -l)" -gt 0 ]; then
             echo "Warehouse has futures data"
             exit 0
           fi
@@ -78,6 +85,15 @@ jobs:
               rm /tmp/warehouse-research.tar.gz
             fi
           fi
+
+      - name: Restore operational state cache (futures)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/research/futures
+          key: live-ops-state-futures-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-futures-v1-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -106,20 +122,53 @@ jobs:
         run: |
           python scripts/capture_bars.py --symbols FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG --timeframes 1d --days 1825 --skip-postprocess
           python scripts/capture_bars.py --symbols FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG --timeframes 1h --days 365
+          python scripts/capture_bars.py --symbols FUT/ES FUT/NQ FUT/RTY FUT/YM FUT/CL FUT/GC FUT/SI FUT/ZB FUT/ZN FUT/NG --timeframes 15m --days 60 || echo "15m capture limited to 60d"
 
       - name: Run autonomous research controller (futures)
         run: |
-          python scripts/research_futures.py --timeframes 1d --regime-only --output-dir localdata/research/futures/1d || echo "no 1d artifacts yet"
-          ls -lh localdata/research/futures/1d/ || true
+          mkdir -p localdata/research
+          if [ -d localdata/research/futures ] && [ -f localdata/research/futures/candidate_leaderboard_futures_rolling.csv ]; then
+            echo "Rebuilding futures regime-aware candidates"
+            python scripts/research_futures.py --timeframes 1d --regime-only --output-dir localdata/research/futures || echo "regime-only failed"
+          else
+            echo "No futures research yet"
+          fi
+          ls -lh localdata/research/futures/ || true
+          if [ -f localdata/research/futures/monitored_candidates_futures.csv ]; then
+            echo "monitored_candidates_futures.csv: $(wc -l < localdata/research/futures/monitored_candidates_futures.csv) lines"
+            head -10 localdata/research/futures/monitored_candidates_futures.csv
+          fi
 
-      - name: Compute dispatch gate
+      - name: Build research manifest (futures)
+        run: |
+          mkdir -p localdata/research
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+          echo "{\"workflow\":\"research_refresh_futures\",\"generated_at_utc\":\"$NOW\",\"orders_placed\":false}" | jq . > localdata/research/refresh_state_futures.json
+          cat localdata/research/refresh_state_futures.json
+
+      - name: Compute discovery dispatch gate
         id: dispatch_gate
         run: |
-          if [ "${{ inputs.allow_discovery }}" = "true" ]; then
-            echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
-          fi
+          SHOULD="true"
+          if [ "${{ inputs.allow_discovery }}" != "true" ]; then SHOULD="false"; fi
+          echo "should_dispatch=$SHOULD" >> "$GITHUB_OUTPUT"
+          echo "Discovery dispatch gate: $SHOULD"
+
+      - name: Check operational state cache content
+        id: ops_state
+        run: |
+          shopt -s nullglob
+          files=(localdata/research/futures/candidate_leaderboard_futures_rolling.csv localdata/research/futures/monitored_candidates_futures.csv)
+          echo "has_state=false" >> "$GITHUB_OUTPUT"
+          for f in "${files[@]}"; do if [ -s "$f" ]; then echo "has_state=true" >> "$GITHUB_OUTPUT"; break; fi; done
+
+      - name: Save operational state cache (futures)
+        if: ${{ steps.ops_state.outputs.has_state == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/research/futures
+          key: live-ops-state-futures-v1-${{ runner.os }}-${{ github.run_id }}
 
       - name: Save research warehouse cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -127,11 +176,45 @@ jobs:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
 
+      - name: Commit isolated research outputs (futures)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          shopt -s nullglob
+          files=(localdata/research/futures/*.csv localdata/research/futures/*.json localdata/research/refresh_state_futures.json)
+          if ((${#files[@]}==0)); then echo "No futures outputs"; exit 0; fi
+          git add "${files[@]}" || true
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "chore(research-refresh-futures): update futures research state [skip ci]"
+          for attempt in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break; sleep $((attempt*5)); done
+
+  cache-maintenance:
+    needs: research-refresh-futures
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - name: Remove superseded futures warehouse caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_CACHE_KEY: ${{ needs.research-refresh-futures.outputs.cache_key }}
+        run: |
+          sleep 5
+          gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/caches.json || true
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-")) | select(.key | contains("futures")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/caches.json | while read -r id; do
+            if [ -n "$id" ]; then gh cache delete "$id" --repo "$GITHUB_REPOSITORY" || true; fi
+          done
+
   dispatch-discovery:
     needs: research-refresh-futures
     if: ${{ needs.research-refresh-futures.outputs.should_dispatch_discovery == 'true' }}
     uses: ./.github/workflows/research_futures_discovery.yml
     with:
-      timeframes: "1d 1h"
-      batch_size: "5"
+      timeframes: ${{ inputs.timeframes }}
+      batch_size: ${{ inputs.batch_size }}
     secrets: inherit

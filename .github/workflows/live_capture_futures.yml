@@ -1,0 +1,244 @@
+name: Live Capture Futures (Dynamic Research-Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_notional:
+        description: "Max notional per futures position"
+        required: false
+        default: "1000"
+      max_open:
+        description: "Max open futures positions"
+        required: false
+        default: "2"
+      max_daily_loss:
+        description: "Daily loss kill switch"
+        required: false
+        default: "200"
+
+concurrency:
+  group: live-capture-futures
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+  MONITORED_SLICES_PATH: localdata/monitored_slices_futures.csv
+  TRADE_JOURNAL_PATH: localdata/trade_journal_futures.csv
+  PAPER_TRADE_LOG_PATH: localdata/paper_trade_log_futures.csv
+  STOP_STATE_PATH: localdata/stop_state_futures.json
+  STOPOUT_JOURNAL_PATH: localdata/stopout_journal_futures.json
+  COOLDOWN_JOURNAL_PATH: localdata/cooldown_journal_futures.json
+  HALT_FLAG_PATH: localdata/HALT_TRADING_FUTURES.flag
+  CANDIDATE_LEADERBOARD_PATH: localdata/research/futures/candidate_leaderboard_futures_rolling.csv
+  LIVE_FORWARD_RETURNS_PATH: localdata/live_forward_returns_futures.csv
+
+jobs:
+  live-capture-futures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Compute cache key
+        id: cache_key
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-live-capture-futures-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
+
+      - name: Restore warehouse cache
+        id: warehouse
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if cache empty
+        if: steps.warehouse.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l 2>/dev/null | tr -d ' ')" -gt 10 ]; then exit 0; fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber || true
+            if [ -f /tmp/warehouse-research.tar.gz ]; then tar xzf /tmp/warehouse-research.tar.gz -C localdata; rm /tmp/warehouse-research.tar.gz; fi
+          fi
+
+      - name: Restore operational paper state cache (futures)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal_futures.csv
+            localdata/paper_trade_log_futures.csv
+            localdata/stop_state_futures.json
+            localdata/stopout_journal_futures.json
+            localdata/cooldown_journal_futures.json
+            localdata/monitored_slices_futures.csv
+            localdata/research/futures
+          key: live-ops-state-futures-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-futures-v1-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing ALPACA_SECRET_KEY}"
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then echo "::error::.env tracked"; exit 1; fi
+
+      - name: Sync dynamic futures book from latest research
+        run: |
+          echo "=== Syncing dynamic futures book ==="
+          for RESEARCH_DIR in localdata/research/futures localdata/research/futures/1d; do
+            if [ -f "$RESEARCH_DIR/monitored_candidates_futures.csv" ] && [ -s "$RESEARCH_DIR/monitored_candidates_futures.csv" ]; then
+              echo "Using $RESEARCH_DIR/monitored_candidates_futures.csv as live book"
+              python - <<PY
+          import pandas as pd
+          from pathlib import Path
+          cand = Path("$RESEARCH_DIR/monitored_candidates_futures.csv")
+          out = Path("localdata/monitored_slices_futures.csv")
+          df = pd.read_csv(cand)
+          keep = [c for c in ["symbol","timeframe","slice_combination","side","bin_mode"] if c in df.columns]
+          df[keep].to_csv(out, index=False)
+          print(f"Wrote {len(df)} rows to {out}")
+          PY
+              break
+            fi
+          done
+          if [ ! -s localdata/monitored_slices_futures.csv ]; then
+            echo "No futures candidates yet, will use latest leaderboard top late_emerging as dynamic book"
+            for LB in localdata/research/futures/candidate_leaderboard_futures_rolling.csv localdata/research/futures/1d/candidate_leaderboard_futures_rolling.csv; do
+              if [ -f "$LB" ]; then
+                python - <<PY
+          import pandas as pd
+          lb_path="$LB"
+          lb = pd.read_csv(lb_path)
+          if lb.empty:
+              exit(0)
+          filt = lb[lb['triage_bucket'].astype(str).str.startswith(('clean_','late_'))].copy()
+          if filt.empty:
+              # take any positive mean
+              filt = lb[lb['valid_mean_ret_costadj']>0].copy()
+          filt = filt.sort_values(['search_wide_bh_pass','valid_mean_ret_costadj'], ascending=[False,False]).head(8)
+          if not filt.empty:
+              out = filt[['symbol','timeframe','slice_combination','side','bin_mode']].copy() if 'bin_mode' in filt.columns else filt[['symbol','timeframe','slice_combination','side']].copy()
+              if 'bin_mode' not in out.columns:
+                  out['bin_mode']='rolling'
+              out.to_csv('localdata/monitored_slices_futures.csv', index=False)
+              print(f"Wrote {len(out)} fallback rows")
+          PY
+                break
+              fi
+            done
+          fi
+          ls -lh localdata/monitored_slices_futures.csv || echo "no futures book yet"
+          cat localdata/monitored_slices_futures.csv 2>/dev/null | head -20 || true
+
+      - name: Ingest futures universe (yfinance primary)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          if [ -f localdata/monitored_slices_futures.csv ]; then
+            SYMBOLS=$(python3 -c "import pandas as pd; df=pd.read_csv('localdata/monitored_slices_futures.csv'); print(' '.join(sorted(df['symbol'].unique()))) if not df.empty else ''")
+          else
+            SYMBOLS="FUT/ES FUT/NQ FUT/CL FUT/GC FUT/ZN"
+          fi
+          if [ -z "$SYMBOLS" ]; then SYMBOLS="FUT/ES FUT/NQ FUT/CL FUT/GC FUT/ZN"; fi
+          echo "Capturing futures for: $SYMBOLS"
+          python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 365
+          python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1h --days 365
+
+      - name: Run paper trade futures (dynamic book, research-only)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          # execution_ready=False in futures_metadata means real execution would be blocked;
+          # for paper research we still run paper_trade but with small notional and allow-shorts
+          python scripts/paper_trade.py \
+            --max-notional ${{ inputs.max_notional || '1000' }} \
+            --max-open ${{ inputs.max_open || '2' }} \
+            --max-daily-loss ${{ inputs.max_daily_loss || '200' }} \
+            --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.003 \
+            --exit-horizon 5 --max-per-group 1 --stop-atr-mult 2.0 \
+            --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
+            --max-aggregate-risk-pct 0.02 --whipsaw-limit 2 \
+            --cost-spread-bps 2.0 --cost-slippage-bps 5.0 --allow-shorts
+
+      - name: Run live forward-return capture futures
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          python scripts/live_forward_returns.py --universe-source monitored || true
+
+      - name: Guard against row-count spikes
+        run: |
+          python scripts/delta_spike_guard.py
+
+      - name: Check operational paper state cache content
+        id: ops_state
+        run: |
+          shopt -s nullglob
+          files=(localdata/trade_journal_futures.csv localdata/paper_trade_log_futures.csv localdata/stop_state_futures.json localdata/monitored_slices_futures.csv)
+          echo "has_state=false" >> "$GITHUB_OUTPUT"
+          for f in "${files[@]}"; do if [ -s "$f" ]; then echo "has_state=true" >> "$GITHUB_OUTPUT"; break; fi; done
+
+      - name: Save operational paper state cache (futures)
+        if: ${{ steps.ops_state.outputs.has_state == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            localdata/trade_journal_futures.csv
+            localdata/paper_trade_log_futures.csv
+            localdata/stop_state_futures.json
+            localdata/stopout_journal_futures.json
+            localdata/cooldown_journal_futures.json
+            localdata/monitored_slices_futures.csv
+            localdata/research/futures
+          key: live-ops-state-futures-v1-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Save research warehouse cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+
+      - name: Commit futures workflow outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          files=(localdata/live_forward_returns_futures.csv localdata/monitored_slices_futures.csv localdata/research/futures/monitored_candidates_futures.csv localdata/research/futures/1d/monitored_candidates_futures.csv)
+          existing=()
+          for f in "${files[@]}"; do [ -e "$f" ] && existing+=("$f"); done
+          if ((${#existing[@]})); then git add "${existing[@]}"; fi
+          if git diff --cached --quiet; then echo "No futures output changes"; exit 0; fi
+          git commit -m "chore(live-capture-futures): update workflow output [skip ci]"
+          for attempt in 1 2 3; do git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break; sleep $((attempt*5)); done

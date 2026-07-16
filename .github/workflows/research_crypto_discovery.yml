@@ -27,6 +27,36 @@ on:
         description: "Max regime-evaluated rows per symbol"
         required: false
         default: "15"
+  workflow_call:
+    inputs:
+      symbols:
+        required: false
+        type: string
+        default: ""
+      batch_size:
+        required: false
+        type: string
+        default: "5"
+      timeframes:
+        required: false
+        type: string
+        default: "1d 1h"
+      condition_on:
+        required: false
+        type: string
+        default: "BTC/USD ETH/USD"
+      max_regime_targets:
+        required: false
+        type: string
+        default: "150"
+      max_regime_per_symbol:
+        required: false
+        type: string
+        default: "15"
+      parent_run_id:
+        required: false
+        type: string
+        default: manual
 
 concurrency:
   group: research-crypto-discovery
@@ -59,7 +89,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
 
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -131,7 +161,7 @@ jobs:
           sys.path.insert(0, str(Path('scripts').resolve()))
           from research_crypto import load_crypto_symbols
 
-          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
+          symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$" )
           if os.environ.get("INPUT_SYMBOLS", "").strip():
               symbols = [s.strip().upper() for s in os.environ["INPUT_SYMBOLS"].split() if s.strip()]
           else:
@@ -177,7 +207,7 @@ jobs:
 
       - name: Compute research warehouse cache key
         id: cache_key
-        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=research-warehouse-v4-${{ runner.os }}-crypto-discovery-${{ github.run_id }}\" >> \"$GITHUB_OUTPUT\"
 
       - name: Restore warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -186,6 +216,21 @@ jobs:
           key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
+
+      - name: Seed warehouse from release if cache empty (shard)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
+            echo "Warehouse has data"
+            exit 0
+          fi
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'warehouse-research.tar.gz' --dir /tmp --clobber || true
+            if [ -f /tmp/warehouse-research.tar.gz ]; then tar xzf /tmp/warehouse-research.tar.gz -C localdata; rm /tmp/warehouse-research.tar.gz; fi
+          fi
 
       - name: Restore operational paper state cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -370,6 +415,24 @@ jobs:
             --slices-path localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv \
             --date-range-diagnostics \
             --diagnostic-scope leaderboard-top --top-n 25 --bin-mode rolling
+
+      - name: Run regime-stratified diagnostics on merged top 25 (main-like)
+        run: |
+          python scripts/validate_slices.py \
+            --slices-path localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv \
+            --regime-stratified-diagnostics \
+            --diagnostic-scope leaderboard-top --top-n 25 --bin-mode rolling
+
+      - name: Report monitored candidates (gate check)
+        run: |
+          echo "=== Crypto monitored candidates ==="
+          if [ -f localdata/research/crypto/monitored_candidates_crypto.csv ]; then
+            wc -l localdata/research/crypto/monitored_candidates_crypto.csv
+            head -20 localdata/research/crypto/monitored_candidates_crypto.csv
+          else
+            echo "monitored_candidates_crypto.csv missing!"
+            exit 1
+          fi
 
       - name: Upload merged crypto research artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

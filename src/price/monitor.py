@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 
 from price.config import DATA_DIR
+import os
 # Backward-compatible hook for tests/older monitor workflows that monkeypatch
 # a live-refresh fetcher. get_current_state intentionally uses warehouse only.
 from price.data_sources import fetch_alpaca_bars  # noqa: F401
@@ -50,8 +51,8 @@ DEFAULT_MONITORED_SLICES: List[dict] = [
     {"symbol": "XLK", "timeframe": "1h", "slice_combination": "cross_USO_state_vol=mid_vol + state_ext=stretched_down", "side": "long"},
     {"symbol": "SPY", "timeframe": "1h", "slice_combination": "state_session=afternoon + state_slope=downtrend", "side": "long"},
 ]
-CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
-MONITORED_SLICES_PATH = DATA_DIR / "monitored_slices.csv"
+CANDIDATE_LEADERBOARD_PATH = Path(os.getenv("CANDIDATE_LEADERBOARD_PATH", str(DATA_DIR / "candidate_leaderboard.csv")))
+MONITORED_SLICES_PATH = Path(os.getenv("MONITORED_SLICES_PATH", str(DATA_DIR / "monitored_slices.csv")))
 SYMBOL_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
 VALID_TIMEFRAMES = {"1d", "1h", "15m"}
 VALID_BIN_MODES = {"insample", "rolling"}
