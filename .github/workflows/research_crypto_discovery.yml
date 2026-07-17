@@ -352,7 +352,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -453,6 +453,22 @@ jobs:
             echo "monitored_candidates_crypto.csv missing!"
             exit 1
           fi
+
+      - name: Commit isolated research outputs (crypto discovery)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          shopt -s nullglob
+          files=(localdata/research/crypto/*.csv localdata/research/crypto/*.json localdata/research/crypto/1d/*.csv localdata/research/crypto/shards/*/* localdata/monitored_slices_crypto.csv)
+          if ((${#files[@]}==0)); then echo "No crypto research outputs"; exit 0; fi
+          git add "${files[@]}" 2>/dev/null || true
+          if git diff --cached --quiet; then echo "No crypto research changes"; exit 0; fi
+          git commit -m "chore(research-crypto-discovery): update crypto research state [skip ci]"
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" || sleep 5
+            git push || sleep $((5*attempt))
+            [ $? -eq 0 ] && break
+          done
 
       - name: Upload merged crypto research artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
