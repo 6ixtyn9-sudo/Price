@@ -9,7 +9,7 @@ Runs monitor.scan_all_slices(), and for each emitted signal:
     happened inside scan_all_slices's reconcile_stops -- see stop_manager.py)
 
 Writes an audit log to localdata/paper_trade_log.csv with one row per
-signal-or-action so the operator has a full record of what the script
+signal-or-action so the operator has a full record of what the scrip
 considered and what it did.
 
 Usage:
@@ -33,7 +33,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Set
 
 import pandas as pd
 
@@ -79,7 +79,7 @@ def _resolve_sizing_equity(auto: bool, manual: float, get_account_info_fn=None) 
 
 
 def _strip_known_keys(sig: dict, keys: List[str]) -> dict:
-    """Return a copy of `sig` without the listed keys. Used to prevent
+    """Return a copy of `sig` without the listed keys. Used to preven
     the `**sig` splat from clobbering the audit's own field names."""
     return {k: v for k, v in sig.items() if k not in keys}
 
@@ -94,8 +94,10 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
         "exit_hold": 0,
         "no_state_data": 0,
         "stop_actions": 0,
+        "exit_dedup": 0,
     }
     submitted_symbols_this_run: set[str] = set()
+    closed_symbols_this_run: set[str] = set()
 
     for sig in signals:
         kind = sig.get("kind")
@@ -229,17 +231,30 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 counts["exit_hold"] += 1
                 continue
             if action == "exit":
-                # sig contains 'action' which would clobber our audit
+                # sig contains 'action' which would clobber our audi
                 # 'action' field via the ** splat. Strip it.
                 sig_for_audit = _strip_known_keys(sig, ["action"])
+                if symbol in closed_symbols_this_run:
+                    _append_audit({
+                        "action": "exit_dedup",
+                        "symbol": symbol,
+                        "reason": "another exit already submitted this pass",
+                        **sig_for_audit,
+                    })
+                    counts["exit_dedup"] += 1
+                    continue
+
                 if dry_run:
+                    closed_symbols_this_run.add(symbol)
                     _append_audit({
                         "action": "would_exit",
                         "reason": "dry_run",
                         **sig_for_audit,
                     })
                     continue
+
                 result = close_position(symbol)
+                closed_symbols_this_run.add(symbol)
                 counts["exit_submitted"] += 1
                 _append_audit({
                     "action": "exit",

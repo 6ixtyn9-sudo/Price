@@ -526,6 +526,15 @@ def check_exits(
         }
         if profit_exits:
             intent["profit_exits"] = profit_exits
+            primary = profit_exits[0]
+            intent["profit_exit_type"] = primary.get("profit_exit_type")
+            intent["profit_unrealized_r"] = primary.get("unrealized_r")
+            intent["profit_max_unrealized_r"] = primary.get("max_unrealized_r")
+            intent["profit_giveback_r"] = primary.get("giveback_r")
+            intent["profit_minutes_to_close"] = primary.get("minutes_to_close")
+            intent["profit_entry_price"] = primary.get("entry_price")
+            intent["profit_r_per_share"] = primary.get("r_per_share")
+            intent["profit_exit_count"] = len(profit_exits)
         intents.append(intent)
 
     return intents
