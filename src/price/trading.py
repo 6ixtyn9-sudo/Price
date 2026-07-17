@@ -951,3 +951,287 @@ def load_trade_journal() -> pd.DataFrame:
     if not journal_path.exists():
         return pd.DataFrame()
     return pd.read_csv(journal_path)
+
+
+# ---------------------------------------------------------------------------
+# Broker backfill: fetch filled orders + idempotent journal append
+# ---------------------------------------------------------------------------
+
+def get_recent_filled_orders(lookback_days: int = 60) -> pd.DataFrame:
+    """Fetch recent filled orders from the Alpaca paper account.
+
+    Read-only: never places, cancels, or replaces orders.
+
+    Returns a DataFrame with columns:
+        order_id, client_order_id, symbol, side, order_type, status,
+        qty, filled_qty, filled_avg_price, filled_at, submitted_at, created_at
+
+    Returns an empty DataFrame when there are no filled orders in the
+    lookback window. Raises on genuine API / auth errors so the caller
+    (backfill_trade_journal_from_broker_orders) can propagate a clear
+    message rather than silently returning zero rows on a credentials
+    failure.
+    """
+    from datetime import timedelta
+
+    after_dt = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+
+    client = get_trading_client()
+    req = GetOrdersRequest(
+        status=QueryOrderStatus.ALL,
+        after=after_dt,
+        limit=500,  # Alpaca SDK max per page; pagination handled below
+    )
+
+    all_orders = []
+    # Alpaca SDK get_orders returns a list directly; repeat with offset-by-time
+    # for pagination if needed (SDK may silently truncate to limit).
+    orders = client.get_orders(filter=req)
+    if orders:
+        all_orders.extend(orders)
+
+    # If the first page is full (hit the limit), page back in time.
+    while orders and len(orders) >= 500:
+        earliest = None
+        for o in orders:
+            ts = getattr(o, "submitted_at", None)
+            if ts is not None:
+                try:
+                    ts = pd.Timestamp(ts).tz_convert("UTC")
+                    if earliest is None or ts < earliest:
+                        earliest = ts
+                except Exception:
+                    pass
+        if earliest is None or earliest <= pd.Timestamp(after_dt):
+            break
+        page_req = GetOrdersRequest(
+            status=QueryOrderStatus.ALL,
+            after=after_dt,
+            until=earliest,
+            limit=500,
+        )
+        orders = client.get_orders(filter=page_req)
+        if orders:
+            all_orders.extend(orders)
+        else:
+            break
+
+    if not all_orders:
+        return pd.DataFrame()
+
+    def _optional_float(v):
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        return f if f == f else None
+
+    def _optional_str(v):
+        if v is None:
+            return ""
+        s = str(v).strip()
+        return "" if s.lower() in ("none", "nan") else s
+
+    rows = []
+    for o in all_orders:
+        status_val = _enum_value(getattr(o, "status", None))
+        filled_qty = _optional_float(getattr(o, "filled_qty", None))
+        filled_avg_price = _optional_float(getattr(o, "filled_avg_price", None))
+
+        # Only keep genuinely filled orders.
+        if str(status_val).lower() != "filled":
+            continue
+        if not filled_qty or filled_qty <= 0:
+            continue
+        if not filled_avg_price or filled_avg_price <= 0:
+            continue
+
+        rows.append({
+            "order_id": str(o.id),
+            "client_order_id": _optional_str(getattr(o, "client_order_id", None)),
+            "symbol": str(o.symbol).upper(),
+            "side": _enum_value(o.side),
+            "order_type": _enum_value(getattr(o, "type", None)),
+            "status": status_val,
+            "qty": _optional_float(getattr(o, "qty", None)),
+            "filled_qty": filled_qty,
+            "filled_avg_price": filled_avg_price,
+            "filled_at": _optional_str(getattr(o, "filled_at", None)),
+            "submitted_at": _optional_str(getattr(o, "submitted_at", None)),
+            "created_at": _optional_str(getattr(o, "created_at", None)),
+        })
+
+    if not rows:
+        return pd.DataFrame()
+
+    return pd.DataFrame(rows)
+
+
+def backfill_trade_journal_from_broker_orders(
+    journal_path: Optional[Path] = None,
+    lookback_days: int = 60,
+    dry_run: bool = False,
+    _get_filled_orders_fn=None,  # injectable for tests
+) -> dict:
+    """Idempotent backfill of broker-filled orders into the trade journal.
+
+    Accounting repair only. This function:
+      - Fetches recent filled orders from the Alpaca paper account.
+      - Skips any order whose order_id already exists in the journal
+        (idempotency guarantee: safe to call multiple times).
+      - Appends minimal journal rows for missing fills, tagged with
+        sentinel context (UNATTRIBUTED_BROKER_FILL) so they surface in
+        attribution without polluting strategy slice statistics.
+      - Never places, cancels, or modifies orders.
+      - Never reads or infers context from would_enter, stop_adopted,
+        dry-run rows, or any non-entry audit rows.
+
+    action convention (matches trade_journal.csv):
+        buy  -> action = "enter"
+        sell -> action = "exit"
+
+    Returns a summary dict:
+        {
+            "broker_filled_orders": int,
+            "existing_orders_skipped": int,
+            "rows_to_add": int,
+            "enter_rows_added": int,
+            "exit_rows_added": int,
+            "unattributed_rows_added": int,
+            "dry_run": bool,
+        }
+    """
+    now_utc = datetime.now(timezone.utc).isoformat()
+
+    # --- Load current journal ---
+    jpath = Path(journal_path) if journal_path else Path(TRADE_JOURNAL_PATH)
+    if jpath.exists():
+        try:
+            journal = pd.read_csv(jpath, dtype=str)
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            journal = pd.DataFrame()
+    else:
+        journal = pd.DataFrame()
+
+    existing_order_ids: set = set()
+    if not journal.empty and "order_id" in journal.columns:
+        existing_order_ids = {
+            str(v).strip()
+            for v in journal["order_id"].dropna()
+            if str(v).strip().lower() not in ("", "nan", "none")
+        }
+
+    # --- Fetch broker filled orders ---
+    fetch_fn = _get_filled_orders_fn or get_recent_filled_orders
+    broker_orders = fetch_fn(lookback_days=lookback_days)
+
+    n_broker = len(broker_orders) if not broker_orders.empty else 0
+
+    if broker_orders.empty:
+        return {
+            "broker_filled_orders": 0,
+            "existing_orders_skipped": 0,
+            "rows_to_add": 0,
+            "enter_rows_added": 0,
+            "exit_rows_added": 0,
+            "unattributed_rows_added": 0,
+            "dry_run": dry_run,
+        }
+
+    # --- Determine which orders are new ---
+    new_rows = []
+    n_skipped = 0
+
+    for _, o in broker_orders.iterrows():
+        oid = str(o.get("order_id", "")).strip()
+        if not oid or oid.lower() in ("nan", "none"):
+            n_skipped += 1
+            continue
+        if oid in existing_order_ids:
+            n_skipped += 1
+            continue
+
+        side = str(o.get("side", "")).lower()
+        if side in ("buy",):
+            action = "enter"
+        elif side in ("sell",):
+            action = "exit"
+        else:
+            # Ambiguous side (e.g. "short_cover", "short_entry") — still
+            # record as broker fill but flag clearly.
+            action = "exit" if "sell" in side else "enter"
+
+        filled_at = str(o.get("filled_at", "")).strip()
+        submitted_at = str(o.get("submitted_at", "")).strip()
+        timestamp_utc = filled_at if filled_at and filled_at.lower() not in ("", "nan", "none") else submitted_at
+
+        client_oid = str(o.get("client_order_id", "")).strip()
+
+        row = {
+            "order_id": oid,
+            "client_order_id": client_oid,
+            "symbol": str(o.get("symbol", "")).upper(),
+            "side": side,
+            "order_type": str(o.get("order_type", "")).lower(),
+            "qty": o.get("filled_qty"),
+            "filled_qty": o.get("filled_qty"),
+            "filled_avg_price": o.get("filled_avg_price"),
+            "filled_at": filled_at,
+            "submitted_at": submitted_at,
+            "timestamp_utc": timestamp_utc,
+            "action": action,
+            "status": "filled",
+            "broker_status": "filled",
+            # Sentinel context — never inferred from audit rows
+            "slice_label": "UNATTRIBUTED_BROKER_FILL",
+            "slice_combination": "UNATTRIBUTED_BROKER_FILL",
+            "timeframe": "unknown",
+            "bin_mode": "unknown",
+            "context_source": "unattributed_broker_fill",
+            # Provenance
+            "broker_backfilled": True,
+            "backfilled_at_utc": now_utc,
+        }
+        new_rows.append(row)
+
+    # Sort chronologically so FIFO attribution pairs correctly.
+    def _ts_sort_key(r):
+        ts = r.get("timestamp_utc", "") or ""
+        try:
+            return pd.Timestamp(ts, utc=True)
+        except Exception:
+            return pd.Timestamp.min.tz_localize("UTC")
+
+    new_rows.sort(key=_ts_sort_key)
+
+    n_to_add = len(new_rows)
+    n_enter = sum(1 for r in new_rows if r["action"] == "enter")
+    n_exit = sum(1 for r in new_rows if r["action"] == "exit")
+    n_unattributed = n_to_add  # all v1 backfill rows are unattributed
+
+    summary = {
+        "broker_filled_orders": n_broker,
+        "existing_orders_skipped": n_skipped,
+        "rows_to_add": n_to_add,
+        "enter_rows_added": n_enter,
+        "exit_rows_added": n_exit,
+        "unattributed_rows_added": n_unattributed,
+        "dry_run": dry_run,
+    }
+
+    if dry_run or n_to_add == 0:
+        return summary
+
+    # --- Append rows to journal ---
+    new_df = pd.DataFrame(new_rows)
+    if journal.empty:
+        combined = new_df
+    else:
+        # sort=False preserves existing column order; new columns are appended
+        # at the right without reordering or dropping any existing column.
+        combined = pd.concat([journal, new_df], ignore_index=True, sort=False)
+
+    jpath.parent.mkdir(parents=True, exist_ok=True)
+    combined.to_csv(jpath, index=False)
+
+    return summary

@@ -226,7 +226,7 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
     j = journal.copy()
     j["_canonical_status"] = j.apply(_canonical_status, axis=1)
     j = j[
-        j["action"].isin(["entry", "exit", "close"])
+        j["action"].isin(["entry", "enter", "exit", "close"])
         & j["_canonical_status"].isin(CONFIRMED_FILL_STATUSES)
     ].copy()
     if j.empty:
@@ -262,7 +262,7 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
     round_trips: List[RoundTrip] = []
 
     for symbol, grp in j.groupby("symbol"):
-        entries = grp[grp["action"] == "entry"].copy()
+        entries = grp[grp["action"].isin(["entry", "enter"])].copy()
         exits = grp[grp["action"].isin(["exit", "close"])].copy()
         if entries.empty or exits.empty:
             continue
@@ -513,6 +513,14 @@ def attribute_pnl(
         notes.append(
             f"{len(prelim)} slice(s) have fewer than {MIN_ROUND_TRIPS_FOR_STATS} round-trips; "
             "their stats are preliminary and should not be interpreted as stable."
+        )
+    unattributed = [a for a in slice_attrs if a.slice_combination == "UNATTRIBUTED_BROKER_FILL"]
+    if unattributed:
+        notes.append(
+            f"{len(unattributed)} slice(s) are broker-backfilled UNATTRIBUTED_BROKER_FILL entries. "
+            "These are accounting records of confirmed broker fills with no recoverable slice "
+            "context. They appear in round_trips for P&L completeness but are NOT valid strategy "
+            "slice results and must not be used for edge analysis."
         )
     if not expected:
         notes.append("No symbol/timeframe-matched candidate leaderboard rows found; expected-vs-realized comparison is unavailable.")
