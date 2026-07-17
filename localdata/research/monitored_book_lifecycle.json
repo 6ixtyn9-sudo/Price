@@ -1,20 +1,15 @@
 {
-  "previous_book_count": 20,
+  "previous_book_count": 21,
   "new_book_count": 21,
-  "added_candidates": [
-    "CBOE|1d|cross_USO_state_slope=flat + cross_TLT_state_ext=neutral + state_ext=neutral|long|rolling",
-    "CSX|1h|state_ext=neutral + state_vol=mid_vol|long|rolling",
-    "HUM|1h|state_session=lunch + state_ext=stretched_up|long|rolling"
-  ],
-  "removed_candidates": [
-    "AFRM|1h|state_session=afternoon + state_ext=neutral + state_slope=flat|short|rolling",
-    "ETN|1h|cross_TLT_state_slope=flat + state_slope=downtrend|long|rolling"
-  ],
+  "added_candidates": [],
+  "removed_candidates": [],
   "retained_candidates": [
     "ABBV|1d|cross_USO_state_slope=flat + cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
     "AMC|1h|cross_TLT_state_slope=flat + state_slope=flat|short|rolling",
     "AXP|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
+    "CBOE|1d|cross_USO_state_slope=flat + cross_TLT_state_ext=neutral + state_ext=neutral|long|rolling",
     "CBOE|1d|cross_USO_state_slope=flat + state_ext=neutral|long|rolling",
+    "CSX|1h|state_ext=neutral + state_vol=mid_vol|long|rolling",
     "DE|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
     "ETN|1d|state_ext=neutral + state_vol=mid_vol|long|rolling",
     "GD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
@@ -22,6 +17,7 @@
     "HUM|1h|cross_TLT_state_slope=flat + state_ext=stretched_up|long|rolling",
     "HUM|1h|cross_USO_state_ext=neutral + state_ext=stretched_up|long|rolling",
     "HUM|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=flat + state_ext=stretched_up|long|rolling",
+    "HUM|1h|state_session=lunch + state_ext=stretched_up|long|rolling",
     "IVV|1d|state_ext=neutral + state_slope=uptrend|long|rolling",
     "KLAC|1d|state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "PSX|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
@@ -31,14 +27,7 @@
     "VLO|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {
-    "AFRM|1h|state_session=afternoon + state_ext=neutral + state_slope=flat|short|rolling": "registry_status:research_only",
-    "ETN|1h|cross_TLT_state_slope=flat + state_slope=downtrend|long|rolling": "registry_status:research_only"
-  },
-  "promotion_reasons": {
-    "CBOE|1d|cross_USO_state_slope=flat + cross_TLT_state_ext=neutral + state_ext=neutral|long|rolling": "paper_proposal",
-    "CSX|1h|state_ext=neutral + state_vol=mid_vol|long|rolling": "paper_proposal",
-    "HUM|1h|state_session=lunch + state_ext=stretched_up|long|rolling": "paper_proposal"
-  },
-  "discovery_run_id": "29588144779"
+  "removal_reasons": {},
+  "promotion_reasons": {},
+  "discovery_run_id": null
 }
