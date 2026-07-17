@@ -52,3 +52,7 @@ localdata/paper_trade_log.csv
 # Local self-hosted GitHub Actions runner; never commit
 /actions-runner/
 actions-runner/
+
+# Research shard scratch outputs; merged artifacts are tracked, shards are not.
+localdata/research/*/shards/
+localdata/research/shards/
