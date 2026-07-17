@@ -52,7 +52,7 @@ Price first, side second. Discovery before promotion, validation before executio
 Operator’s cadence
 
 cd ~/Price
-
 git status --short
 git pull --ff-only
 git log --oneline --decorate -3
+PYTHONPATH=src python3 scripts/attribute_pnl.py --json
