@@ -1,0 +1,19 @@
+{
+  "shard_id": "crypto-1h-02",
+  "symbols": [
+    "LTC/USD",
+    "SOL/USD",
+    "SUSHI/USD",
+    "UNI/USD",
+    "XRP/USD"
+  ],
+  "timeframe": "1h",
+  "bin_mode": "rolling",
+  "profile": "crypto",
+  "status": "success",
+  "started_at_utc": "2026-07-17T10:01:23.766174+00:00",
+  "git_sha": "36ae26bada7b1444887fdaa2083cc8e4ca22087d",
+  "finished_at_utc": "2026-07-17T12:18:37.015344+00:00",
+  "discovered_rows": 1649,
+  "leaderboard_rows": 1649
+}

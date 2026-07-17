@@ -1,0 +1,19 @@
+{
+  "shard_id": "crypto-1h-01",
+  "symbols": [
+    "CRV/USD",
+    "DOGE/USD",
+    "DOT/USD",
+    "ETH/USD",
+    "LINK/USD"
+  ],
+  "timeframe": "1h",
+  "bin_mode": "rolling",
+  "profile": "crypto",
+  "status": "success",
+  "started_at_utc": "2026-07-17T09:32:30.086026+00:00",
+  "git_sha": "36ae26bada7b1444887fdaa2083cc8e4ca22087d",
+  "finished_at_utc": "2026-07-17T10:15:13.345862+00:00",
+  "discovered_rows": 1278,
+  "leaderboard_rows": 1278
+}
