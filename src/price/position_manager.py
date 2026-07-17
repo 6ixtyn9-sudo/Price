@@ -221,10 +221,24 @@ def _count_bars_after(entry_ts, df: pd.DataFrame) -> Optional[int]:
     return int((bar_ts > parsed_entry).sum())
 
 
+def _clean_val(v, default=None):
+    """Coerce an arbitrary journal cell to str or default."""
+    if v is None:
+        return default
+    try:
+        if pd.isna(v):
+            return default
+    except (TypeError, ValueError):
+        pass
+    s = str(v)
+    return default if s.lower() in ("nan", "none", "") else s
+
+
 def _load_entry_context() -> Dict[str, dict]:
     """Per-symbol most-recent accepted entry context from the trade journal.
 
-    Returns {symbol: {slice_combination, timeframe, entry_bar_ts, submitted_at}}.
+    Returns {symbol: {slice_combination, timeframe, entry_bar_ts, submitted_at,
+    context_source}}.
     Resolves each open position's timeframe and entry bar for the horizon
     exit. Never raises; returns {} if no journal / no entries. Rows written
     before the entry_bar_ts/timeframe columns existed fall back to
@@ -273,26 +287,154 @@ def _load_entry_context() -> Dict[str, dict]:
         sym = str(r["symbol"]).upper()
         tf = r.get("timeframe")
         ebt = r.get("entry_bar_ts")
-
-        def _clean(v, default=None):
-            if v is None:
-                return default
-            try:
-                if pd.isna(v):
-                    return default
-            except (TypeError, ValueError):
-                pass
-            s = str(v)
-            return default if s.lower() in ("nan", "none", "") else s
-
         out[sym] = {
             "slice_combination": str(r.get("slice_label", "") or ""),
-            "timeframe": _clean(tf),
-            "bin_mode": _clean(r.get("bin_mode"), "insample"),
-            "entry_bar_ts": _clean(ebt),
-            "submitted_at": _clean(r.get("submitted_at")),
+            "timeframe": _clean_val(tf),
+            "bin_mode": _clean_val(r.get("bin_mode"), "insample"),
+            "entry_bar_ts": _clean_val(ebt),
+            "submitted_at": _clean_val(r.get("submitted_at")),
+            "context_source": "trade_journal",
         }
     return out
+
+
+def _recover_entry_context_from_paper_trade_log(
+    symbol: str,
+    _log_path: str = "localdata/paper_trade_log.csv",
+) -> Optional[dict]:
+    """Backfill entry context for *symbol* from paper_trade_log.csv.
+
+    Looks for any row that carries slice_combination / slice_label data for
+    the symbol -- most notably 'enter' (action=enter) rows that were written
+    by a *previous* workflow run whose trade_journal we don't have locally,
+    and any row that has a non-null slice_combination regardless of action
+    (e.g. would_enter rows can carry the full slice context).
+
+    Returns a context dict (same shape as _load_entry_context values) or None
+    if nothing recoverable is found. Never raises.
+    """
+    try:
+        import os
+        if not os.path.exists(_log_path):
+            return None
+        df = pd.read_csv(_log_path, low_memory=False)
+    except Exception:  # noqa: BLE001
+        return None
+
+    if df.empty or "symbol" not in df.columns:
+        return None
+
+    sym_rows = df[df["symbol"].astype(str).str.upper() == symbol.upper()].copy()
+    if sym_rows.empty:
+        return None
+
+    # Priority 1: explicit enter rows with a slice label.
+    slice_col = "slice_combination" if "slice_combination" in sym_rows.columns else None
+    label_col = "slice_label" if "slice_label" in sym_rows.columns else None
+
+    def _has_slice(row) -> bool:
+        for col in (slice_col, label_col):
+            if col and _clean_val(row.get(col)):
+                return True
+        return False
+
+    enter_rows = sym_rows[sym_rows.get("action", pd.Series()).astype(str) == "enter"].copy()
+    enter_rows = enter_rows[enter_rows.apply(_has_slice, axis=1)]
+
+    # Priority 2: any row with a non-null slice label (would_enter, audit, etc.)
+    any_rows = sym_rows[sym_rows.apply(_has_slice, axis=1)].copy()
+
+    candidate = None
+    source = None
+    for pool, src in ((enter_rows, "paper_trade_log_enter"), (any_rows, "paper_trade_log_any")):
+        if pool.empty:
+            continue
+        sort_col = "timestamp_utc" if "timestamp_utc" in pool.columns else pool.columns[0]
+        pool["_sort"] = pd.to_datetime(pool[sort_col], errors="coerce", utc=True)
+        pool = pool.dropna(subset=["_sort"]).sort_values("_sort")
+        if pool.empty:
+            continue
+        candidate = pool.iloc[-1]
+        source = src
+        break
+
+    if candidate is None:
+        return None
+
+    slice_combo = _clean_val(candidate.get(slice_col or "")) or _clean_val(candidate.get(label_col or ""))
+    if not slice_combo:
+        return None
+
+    return {
+        "slice_combination": slice_combo,
+        "timeframe": _clean_val(candidate.get("timeframe")),
+        "bin_mode": _clean_val(candidate.get("bin_mode"), "rolling"),
+        "entry_bar_ts": _clean_val(candidate.get("bar_ts_utc")),
+        "submitted_at": _clean_val(candidate.get("timestamp_utc")),
+        "context_source": source,
+    }
+
+
+def _recover_entry_context_from_monitored_slices(
+    symbol: str,
+    _slices_path: str = "localdata/monitored_slices.csv",
+) -> Optional[dict]:
+    """Fallback: use monitored_slices.csv **only if exactly one slice exists**
+    for symbol.  If multiple slices exist (e.g. ETN has both 1d and 1h)
+    we refuse to guess -- returning None forces a loud audit warning.
+    Never raises.
+    """
+    try:
+        import os
+        if not os.path.exists(_slices_path):
+            return None
+        df = pd.read_csv(_slices_path, low_memory=False)
+    except Exception:  # noqa: BLE001
+        return None
+
+    if df.empty or "symbol" not in df.columns:
+        return None
+
+    sym_rows = df[df["symbol"].astype(str).str.upper() == symbol.upper()]
+    if sym_rows.empty:
+        return None
+
+    if len(sym_rows) > 1:
+        # Multiple slices -- refuse to guess which one entered the position.
+        return None
+
+    r = sym_rows.iloc[0]
+    slice_combo = _clean_val(r.get("slice_combination"))
+    if not slice_combo:
+        return None
+
+    return {
+        "slice_combination": slice_combo,
+        "timeframe": _clean_val(r.get("timeframe")),
+        "bin_mode": _clean_val(r.get("bin_mode"), "rolling"),
+        "entry_bar_ts": None,
+        "submitted_at": None,
+        "context_source": "monitored_slices_single",
+    }
+
+
+def recover_entry_context_for_symbol(symbol: str) -> Optional[dict]:
+    """Attempt to reconstruct entry context for *symbol* when the primary
+    trade_journal lookup found nothing.
+
+    Recovery priority:
+      1. paper_trade_log.csv – enter rows with slice labels (previous run)
+      2. paper_trade_log.csv – any row with slice label (would_enter / audit)
+      3. monitored_slices.csv – only when exactly one slice for the symbol
+
+    Returns a context dict with a ``context_source`` key, or None if all
+    sources fail. Never raises.
+    """
+    result = _recover_entry_context_from_paper_trade_log(symbol)
+    if result is not None:
+        return result
+    result = _recover_entry_context_from_monitored_slices(symbol)
+    return result
 
 
 def _r_gate_suppresses_horizon(symbol: str, current_price, breakeven_trigger_r: float = 1.0) -> bool:
@@ -369,6 +511,21 @@ def check_exits(
             open_position_slice_labels.get(symbol)
             or ctx.get("slice_combination")
         )
+        recovered_ctx: Optional[dict] = None
+        if not slice_combo:
+            # Primary sources (trade_journal + its ctx) found nothing.
+            # Attempt recovery from paper_trade_log / monitored_slices.
+            recovered_ctx = recover_entry_context_for_symbol(symbol)
+            if recovered_ctx:
+                print(
+                    f"[RECOVER] {symbol}: slice context recovered from "
+                    f"{recovered_ctx['context_source']} "
+                    f"({recovered_ctx.get('slice_combination', '?')} "
+                    f"{recovered_ctx.get('timeframe', '?')})"
+                )
+                ctx = recovered_ctx
+                slice_combo = recovered_ctx.get("slice_combination")
+
         if not slice_combo:
             intents.append({
                 "symbol": symbol,
@@ -376,7 +533,16 @@ def check_exits(
                 "reason": "no slice label recorded for this position",
                 "bars_held": None,
                 "horizon_bars": exit_policy.horizon_bars,
+                "metadata_missing": True,
+                "metadata_recovery_attempted": True,
+                "metadata_recovery_source": None,
             })
+            print(
+                f"[WARN] {symbol}: metadata_missing=True – broker position has no "
+                "recoverable slice context. State-break, horizon, and profit "
+                "protection exits are all disabled. Broker stop is the only active "
+                "protection."
+            )
             continue
         try:
             slice_filter = parse_slice_combination(slice_combo)
@@ -523,6 +689,7 @@ def check_exits(
             "timeframe": timeframe,
             "r_multiple_suppressed_horizon": r_gate_active,
             "reason": reason,
+            "context_source": ctx.get("context_source"),
         }
         if profit_exits:
             intent["profit_exits"] = profit_exits
