@@ -48,3 +48,7 @@ localdata/stopout_journal.json
 localdata/HALT_TRADING.flag
 localdata/trade_journal.csv
 localdata/paper_trade_log.csv
+
+# Local self-hosted GitHub Actions runner; never commit
+/actions-runner/
+actions-runner/
