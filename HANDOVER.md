@@ -63,6 +63,9 @@ Recommended initial timeframes:
 15m
 1h
 1d
+
+(Note: Full 1d+1h+15m equity discovery timed out on 15m-09 after 6h. Default equity discovery is now 1d+1h; 15m is separate/manual.)
+
 Why this substrate:
 
 abundant data
