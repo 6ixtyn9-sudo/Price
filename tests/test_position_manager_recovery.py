@@ -67,7 +67,7 @@ def test_recover_from_paper_trade_log_enter_row(tmp_path, monkeypatch):
 # 2. Recover from paper_trade_log – would_enter / any row with slice label
 # ---------------------------------------------------------------------------
 
-def test_recover_from_paper_trade_log_any_row(tmp_path, monkeypatch):
+def test_recover_from_paper_trade_log_refuses_any_row(tmp_path, monkeypatch):
     log = _make_log_csv([
         {
             "action": "stop_adopted",
@@ -92,9 +92,61 @@ def test_recover_from_paper_trade_log_any_row(tmp_path, monkeypatch):
     log_path = tmp_path / "paper_trade_log.csv"
     log_path.write_text(log)
     result = _recover_entry_context_from_paper_trade_log("ETN", _log_path=str(log_path))
+    assert result is None, "Should refuse to recover from would_enter"
+
+
+# ---------------------------------------------------------------------------
+# 3. Ledger Recovery
+# ---------------------------------------------------------------------------
+
+@patch("glob.glob")
+def test_recover_from_ledger(mock_glob, tmp_path):
+    ledger = pd.DataFrame([{
+        "lane": "eq",
+        "symbol": "AAPL",
+        "side": "long",
+        "qty": 10,
+        "entry_order_id": "123",
+        "client_order_id": "price-eq-AAPL-1d-long-hash",
+        "slice_combination": "state_slope=uptrend",
+        "timeframe": "1d",
+        "bin_mode": "rolling",
+        "entry_bar_ts": "2026-07-10",
+        "submitted_at_utc": "2026-07-10T14:00:00Z",
+        "status": "open"
+    }])
+    path = tmp_path / "open_position_context_eq.csv"
+    ledger.to_csv(path, index=False)
+    mock_glob.return_value = [str(path)]
+    
+    result = pm._recover_entry_context_from_ledger("AAPL")
     assert result is not None
-    assert result["slice_combination"] == "state_ext=neutral + state_vol=mid_vol"
-    assert result["context_source"] == "paper_trade_log_any"
+    assert result["slice_combination"] == "state_slope=uptrend"
+    assert result["timeframe"] == "1d"
+    assert result["context_source"] == "open_position_context_file"
+
+# ---------------------------------------------------------------------------
+# 4. Broker Recovery
+# ---------------------------------------------------------------------------
+
+@patch("price.position_manager._hash_matches_slice")
+@patch("price.trading.get_recent_orders")
+def test_recover_from_broker_orders(mock_get_orders, mock_hash_matches):
+    mock_get_orders.return_value = [
+        {"client_order_id": "price-eq-AAPL-1d-long-abcdef12"},
+        {"client_order_id": "some-other-id"}
+    ]
+    mock_hash_matches.return_value = {
+        "slice_combination": "state_slope=uptrend",
+        "timeframe": "1d",
+        "bin_mode": "rolling"
+    }
+    
+    result = pm._recover_entry_context_from_broker_orders("AAPL")
+    assert result is not None
+    assert result["slice_combination"] == "state_slope=uptrend"
+    assert result["context_source"] == "broker_client_order_id"
+    mock_hash_matches.assert_called_with("AAPL", "abcdef12")
 
 
 # ---------------------------------------------------------------------------

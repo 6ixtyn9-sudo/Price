@@ -340,23 +340,22 @@ def _recover_entry_context_from_paper_trade_log(
 
     enter_rows = sym_rows[sym_rows.get("action", pd.Series()).astype(str) == "enter"].copy()
     enter_rows = enter_rows[enter_rows.apply(_has_slice, axis=1)]
-
-    # Priority 2: any row with a non-null slice label (would_enter, audit, etc.)
-    any_rows = sym_rows[sym_rows.apply(_has_slice, axis=1)].copy()
+    
+    # Must have order_id and not be rejected
+    if "order_id" in enter_rows.columns:
+        enter_rows = enter_rows[enter_rows["order_id"].notna() & (enter_rows["order_id"].astype(str).str.strip() != "")]
+    if "status" in enter_rows.columns:
+        enter_rows = enter_rows[enter_rows["status"].astype(str).str.lower() != "rejected"]
 
     candidate = None
     source = None
-    for pool, src in ((enter_rows, "paper_trade_log_enter"), (any_rows, "paper_trade_log_any")):
-        if pool.empty:
-            continue
-        sort_col = "timestamp_utc" if "timestamp_utc" in pool.columns else pool.columns[0]
-        pool["_sort"] = pd.to_datetime(pool[sort_col], errors="coerce", utc=True)
-        pool = pool.dropna(subset=["_sort"]).sort_values("_sort")
-        if pool.empty:
-            continue
-        candidate = pool.iloc[-1]
-        source = src
-        break
+    if not enter_rows.empty:
+        sort_col = "timestamp_utc" if "timestamp_utc" in enter_rows.columns else enter_rows.columns[0]
+        enter_rows["_sort"] = pd.to_datetime(enter_rows[sort_col], errors="coerce", utc=True)
+        enter_rows = enter_rows.dropna(subset=["_sort"]).sort_values("_sort")
+        if not enter_rows.empty:
+            candidate = enter_rows.iloc[-1]
+            source = "paper_trade_log_enter"
 
     if candidate is None:
         return None
@@ -418,21 +417,120 @@ def _recover_entry_context_from_monitored_slices(
     }
 
 
+import glob
+from price.config import DATA_DIR
+import hashlib
+
+def _hash_matches_slice(symbol: str, target_hash: str) -> Optional[dict]:
+    """Search monitored_slices for a combination that hashes to target_hash."""
+    try:
+        import os
+        paths = glob.glob(str(DATA_DIR / "monitored_slices*.csv"))
+        for path in paths:
+            if not os.path.exists(path):
+                continue
+            df = pd.read_csv(path, low_memory=False)
+            if df.empty or "symbol" not in df.columns:
+                continue
+            sym_rows = df[df["symbol"].astype(str).str.upper() == symbol.upper()]
+            for _, row in sym_rows.iterrows():
+                timeframe = _clean_val(row.get("timeframe")) or ""
+                side = _clean_val(row.get("side")) or "long"
+                bin_mode = _clean_val(row.get("bin_mode")) or "rolling"
+                slice_combo = _clean_val(row.get("slice_combination")) or ""
+                # We don't know entry_bar_ts easily from monitored_slices, 
+                # but if we hash with empty entry_bar_ts or just match what we can:
+                # Actually, wait: the hash in submit_entry includes entry_bar_ts.
+                # If entry_bar_ts was None, it hashes as "None".
+                # Let's try hashing with "None" and ""
+                for e_ts in ("None", ""):
+                    hash_str = f"{symbol.upper()}|{timeframe}|{side}|{bin_mode}|{slice_combo}|{e_ts}"
+                    h8 = hashlib.sha256(hash_str.encode()).hexdigest()[:8]
+                    if h8 == target_hash:
+                        return {
+                            "slice_combination": slice_combo,
+                            "timeframe": timeframe,
+                            "bin_mode": bin_mode,
+                            "entry_bar_ts": e_ts if e_ts != "None" else None,
+                            "submitted_at": None,
+                        }
+    except Exception:
+        pass
+    return None
+
+def _recover_entry_context_from_ledger(symbol: str) -> Optional[dict]:
+    """Priority 2: Read from open_position_context_*.csv"""
+    try:
+        import os
+        paths = glob.glob(str(DATA_DIR / "open_position_context_*.csv"))
+        for path in paths:
+            if not os.path.exists(path):
+                continue
+            df = pd.read_csv(path, low_memory=False, dtype=str)
+            if df.empty or "symbol" not in df.columns:
+                continue
+            sym_rows = df[df["symbol"].astype(str).str.upper() == symbol.upper()]
+            if not sym_rows.empty:
+                candidate = sym_rows.iloc[-1]
+                return {
+                    "slice_combination": _clean_val(candidate.get("slice_combination")),
+                    "timeframe": _clean_val(candidate.get("timeframe")),
+                    "bin_mode": _clean_val(candidate.get("bin_mode"), "rolling"),
+                    "entry_bar_ts": _clean_val(candidate.get("entry_bar_ts")),
+                    "submitted_at": _clean_val(candidate.get("submitted_at_utc")),
+                    "context_source": "open_position_context_file",
+                }
+    except Exception:
+        pass
+    return None
+
+def _recover_entry_context_from_broker_orders(symbol: str) -> Optional[dict]:
+    """Priority 1: Recover from broker client_order_id"""
+    try:
+        from price.trading import get_recent_orders
+        orders = get_recent_orders(symbol)
+        for o in orders:
+            cid = o.get("client_order_id", "")
+            if cid.startswith("price-"):
+                parts = cid.split("-")
+                if len(parts) >= 6:
+                    target_hash = parts[-1]
+                    # We have the hash, try to find the full slice context
+                    ctx = _hash_matches_slice(symbol, target_hash)
+                    if ctx:
+                        ctx["context_source"] = "broker_client_order_id"
+                        return ctx
+    except Exception:
+        pass
+    return None
+
+
 def recover_entry_context_for_symbol(symbol: str) -> Optional[dict]:
     """Attempt to reconstruct entry context for *symbol* when the primary
     trade_journal lookup found nothing.
 
     Recovery priority:
-      1. paper_trade_log.csv – enter rows with slice labels (previous run)
-      2. paper_trade_log.csv – any row with slice label (would_enter / audit)
-      3. monitored_slices.csv – only when exactly one slice for the symbol
+      1. Broker order/fill client_order_id
+      2. open_position_context file
+      3. (trade_journal handled in caller)
+      4. paper_trade_log.csv – enter rows only (no would_enter)
+      5. monitored_slices.csv – only when exactly one slice for the symbol
 
     Returns a context dict with a ``context_source`` key, or None if all
     sources fail. Never raises.
     """
+    result = _recover_entry_context_from_broker_orders(symbol)
+    if result is not None:
+        return result
+
+    result = _recover_entry_context_from_ledger(symbol)
+    if result is not None:
+        return result
+
     result = _recover_entry_context_from_paper_trade_log(symbol)
     if result is not None:
         return result
+        
     result = _recover_entry_context_from_monitored_slices(symbol)
     return result
 

@@ -12,6 +12,7 @@ It does NOT:
   - claim any edge or guarantee any outcome
 """
 
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -114,6 +115,27 @@ def get_open_positions() -> pd.DataFrame:
 
 
 
+def _remove_position_from_ledger(symbol: str) -> None:
+    import glob
+    import os
+    import pandas as pd
+    from price.config import DATA_DIR
+    
+    paths = glob.glob(str(DATA_DIR / "open_position_context_*.csv"))
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        try:
+            df = pd.read_csv(path, low_memory=False, dtype=str)
+            if not df.empty and "symbol" in df.columns:
+                # Remove rows matching the symbol
+                filtered = df[df["symbol"].astype(str).str.upper() != symbol.upper()]
+                if len(filtered) < len(df):
+                    filtered.to_csv(path, index=False)
+        except Exception:
+            pass
+
+
 def get_open_orders() -> pd.DataFrame:
     """Return currently open/pending Alpaca paper orders.
 
@@ -142,6 +164,37 @@ def get_open_orders() -> pd.DataFrame:
 
     return pd.DataFrame(rows)
 
+def get_recent_orders(symbol: str, limit: int = 50) -> list[dict]:
+    """Return recent orders for a symbol, including filled/canceled/rejected.
+    
+    Used for context recovery from client_order_id.
+    """
+    client = get_trading_client()
+    from alpaca.trading.requests import GetOrdersRequest
+    from alpaca.trading.enums import QueryOrderStatus
+    
+    req = GetOrdersRequest(
+        status=QueryOrderStatus.ALL,
+        symbols=[symbol],
+        limit=limit,
+    )
+    orders = client.get_orders(req)
+    if not orders:
+        return []
+        
+    return [
+        {
+            "order_id": str(o.id),
+            "client_order_id": str(o.client_order_id) if o.client_order_id else "",
+            "symbol": str(o.symbol).upper(),
+            "qty": float(o.qty) if o.qty is not None else 0.0,
+            "side": _enum_value(o.side),
+            "status": _enum_value(o.status),
+            "submitted_at": str(o.submitted_at),
+        }
+        for o in orders
+    ]
+
 def submit_entry(
     symbol: str,
     qty: int,
@@ -151,6 +204,9 @@ def submit_entry(
     entry_bar_ts: Optional[str] = None,
     timeframe: Optional[str] = None,
     bin_mode: Optional[str] = None,
+    lane: str = "eq",
+    workflow_run_id: str = "",
+    source_note: str = "",
 ) -> dict:
     """Submit a market or limit entry order and journal it.
 
@@ -166,6 +222,12 @@ def submit_entry(
     client = get_trading_client()
     order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
 
+    # 1. Generate client_order_id
+    symbolsafe = symbol.upper().replace("/", "-").replace(".", "-").replace(":", "-").replace(" ", "-")
+    hash_str = f"{symbol}|{timeframe}|{side}|{bin_mode}|{slice_label}|{entry_bar_ts}"
+    hash8 = hashlib.sha256(hash_str.encode()).hexdigest()[:8]
+    client_order_id = f"price-{lane}-{symbolsafe}-{timeframe}-{side}-{hash8}"
+    
     if limit_price is not None:
         # Alpaca requires limit_price to have at most 2 decimals when >= $1.00,
         # and at most 4 decimals when < $1.00.
@@ -176,6 +238,7 @@ def submit_entry(
             side=order_side,
             time_in_force=TimeInForce.DAY,
             limit_price=rounded_limit,
+            client_order_id=client_order_id,
         )
         order_type = "limit"
     else:
@@ -184,6 +247,7 @@ def submit_entry(
             qty=qty,
             side=order_side,
             time_in_force=TimeInForce.DAY,
+            client_order_id=client_order_id,
         )
         order_type = "market"
 
@@ -203,6 +267,7 @@ def submit_entry(
             "entry_bar_ts": entry_bar_ts,
             "timeframe": timeframe,
             "bin_mode": bin_mode,
+            "client_order_id": client_order_id,
         }
     except Exception as e:
         result = {
@@ -218,10 +283,86 @@ def submit_entry(
             "entry_bar_ts": entry_bar_ts,
             "timeframe": timeframe,
             "bin_mode": bin_mode,
+            "client_order_id": client_order_id,
         }
 
     _append_journal(result, action="entry")
+    if result["status"] not in ("rejected", "canceled"):
+        # Write to operational context ledger
+        _write_open_position_context(
+            lane=lane,
+            symbol=symbol.upper(),
+            side=side,
+            qty=qty,
+            entry_order_id=result.get("order_id"),
+            client_order_id=client_order_id,
+            hash_str=hash_str,
+            slice_combination=slice_label,
+            timeframe=timeframe,
+            bin_mode=bin_mode,
+            entry_bar_ts=entry_bar_ts,
+            status="open" if result["status"] == "filled" else "pending",
+            workflow_run_id=workflow_run_id,
+            source_note=source_note,
+        )
     return result
+
+def _write_open_position_context(
+    lane: str, symbol: str, side: str, qty: int, entry_order_id: Optional[str],
+    client_order_id: str, hash_str: str, slice_combination: str, timeframe: Optional[str],
+    bin_mode: Optional[str], entry_bar_ts: Optional[str], status: str,
+    workflow_run_id: str, source_note: str,
+):
+    import os
+    now_utc = datetime.now(timezone.utc).isoformat()
+    # Schema: lane,symbol,side,qty,entry_order_id,client_order_id,context_key,slice_combination,timeframe,bin_mode,entry_bar_ts,submitted_at_utc,filled_at_utc,status,workflow_run_id,source_note,updated_at_utc
+    row = {
+        "lane": lane,
+        "symbol": symbol,
+        "side": side,
+        "qty": qty,
+        "entry_order_id": entry_order_id or "",
+        "client_order_id": client_order_id,
+        "context_key": hash_str,
+        "slice_combination": slice_combination or "",
+        "timeframe": timeframe or "",
+        "bin_mode": bin_mode or "",
+        "entry_bar_ts": entry_bar_ts or "",
+        "submitted_at_utc": now_utc,
+        "filled_at_utc": now_utc if status == "open" else "",
+        "status": status,
+        "workflow_run_id": workflow_run_id,
+        "source_note": source_note,
+        "updated_at_utc": now_utc,
+    }
+    
+    ctx_path = DATA_DIR / f"open_position_context_{lane}.csv"
+    if ctx_path.exists():
+        df = pd.read_csv(ctx_path, dtype=str)
+    else:
+        df = pd.DataFrame(columns=row.keys())
+        
+    # Upsert by client_order_id or entry_order_id
+    idx = None
+    if "client_order_id" in df.columns and (df["client_order_id"] == client_order_id).any():
+        idx = df[df["client_order_id"] == client_order_id].index[0]
+    elif entry_order_id and "entry_order_id" in df.columns and (df["entry_order_id"] == entry_order_id).any():
+        idx = df[df["entry_order_id"] == entry_order_id].index[0]
+        
+    new_df = pd.DataFrame([row])
+    if idx is not None:
+        # Update existing
+        for col in row:
+            if col not in df.columns:
+                df[col] = ""
+            # Don't overwrite submitted_at_utc if it exists
+            if col == "submitted_at_utc" and pd.notna(df.at[idx, col]) and df.at[idx, col]:
+                continue
+            df.at[idx, col] = row[col]
+    else:
+        df = pd.concat([df, new_df], ignore_index=True)
+        
+    df.to_csv(ctx_path, index=False)
 
 
 def submit_protective_stop(
@@ -771,6 +912,10 @@ def close_position(symbol: str, cancel_open_orders: bool = True,
         }
 
     _append_journal(result, action="exit")
+    
+    if result.get("status") != "rejected":
+        _remove_position_from_ledger(symbol)
+        
     return result
 
 
@@ -798,6 +943,7 @@ def append_synthetic_exit(row: dict) -> None:
     `row` should already carry qty/avg_entry_price/current_price/symbol.
     """
     _append_journal(dict(row), action="exit")
+    _remove_position_from_ledger(row.get("symbol", ""))
 
 
 def load_trade_journal() -> pd.DataFrame:

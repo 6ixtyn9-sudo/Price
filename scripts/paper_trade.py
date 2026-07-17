@@ -44,7 +44,14 @@ from price.risk_limits import RiskLimits, record_entry, set_halt_flag
 from price.trading import close_position, submit_entry
 
 
-AUDIT_LOG_PATH: Path = Path(__import__("os").getenv("PAPER_TRADE_LOG_PATH", str(DATA_DIR / "paper_trade_log.csv")))
+import os
+AUDIT_LOG_PATH: Path = Path(os.getenv("PAPER_TRADE_LOG_PATH", str(DATA_DIR / "paper_trade_log.csv")))
+
+def _get_lane() -> str:
+    path_str = str(AUDIT_LOG_PATH)
+    if "crypto" in path_str: return "crypto"
+    if "futures" in path_str: return "fut"
+    return "eq"
 
 
 def _append_audit(row: dict) -> None:
@@ -208,6 +215,8 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 entry_bar_ts=sig.get("bar_ts_utc"),
                 timeframe=sig.get("timeframe"),
                 bin_mode=sig.get("bin_mode", "insample"),
+                lane=_get_lane(),
+                workflow_run_id=os.environ.get("GITHUB_RUN_ID", ""),
             )
             if result.get("status") != "rejected":
                 submitted_symbols_this_run.add(symbol)

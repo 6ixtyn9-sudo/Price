@@ -148,7 +148,7 @@ jobs:
 
   merge:
     needs: [plan, shards]
-    if: ${{ needs.shards.result == 'success' }}
+    if: ${{ always() && needs.shards.result != 'skipped' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -188,9 +188,11 @@ jobs:
             --expected-shards localdata/research/expected_shards.json \
             --output-dir localdata/research/merged \
             --promote-proposals \
-            --apply-monitored-slices
+            --apply-monitored-slices \
+            --allow-partial
 
       - name: Sync rolling monitored book and execution edge metrics
+        if: ${{ needs.shards.result == 'success' }}
         env:
           DISCOVERY_RUN_ID: ${{ github.run_id }}
         run: python3 scripts/sync_monitored.py

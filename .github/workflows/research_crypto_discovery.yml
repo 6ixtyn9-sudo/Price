@@ -456,10 +456,11 @@ jobs:
 
       - name: Commit isolated research outputs (crypto discovery)
         run: |
+          rm -rf localdata/research/crypto/shards
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           shopt -s nullglob
-          files=(localdata/research/crypto/*.csv localdata/research/crypto/*.json localdata/research/crypto/1d/*.csv localdata/research/crypto/shards/*/* localdata/monitored_slices_crypto.csv)
+          files=(localdata/research/crypto/*.csv localdata/research/crypto/*.json localdata/research/crypto/1d/*.csv localdata/monitored_slices_crypto.csv)
           if ((${#files[@]}==0)); then echo "No crypto research outputs"; exit 0; fi
           git add "${files[@]}" 2>/dev/null || true
           if git diff --cached --quiet; then echo "No crypto research changes"; exit 0; fi

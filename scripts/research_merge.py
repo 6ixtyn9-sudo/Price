@@ -30,6 +30,7 @@ def merge_shards(
     enable_auto_promotion: bool = False,
     promote_proposals: bool = False,
     apply_monitored_slices: bool = False,
+    **kwargs
 ) -> dict:
     manifests = discover_manifests(shard_root)
     found_ids = {str(manifest.get("shard_id")) for _, manifest in manifests}
@@ -44,11 +45,18 @@ def merge_shards(
         if sum(1 for _, manifest in manifests if str(manifest.get("shard_id")) == shard_id) > 1
     )
     if missing or failed or duplicate_ids:
-        raise RuntimeError(json.dumps({
-            "missing_shards": missing,
-            "failed_shards": failed,
-            "duplicate_shards": duplicate_ids,
-        }, indent=2))
+        if duplicate_ids or not kwargs.get("allow_partial", False):
+            raise RuntimeError(json.dumps({
+                "missing_shards": missing,
+                "failed_shards": failed,
+                "duplicate_shards": duplicate_ids,
+            }, indent=2))
+        else:
+            print(f"WARNING: Partial merge proceeding. Missing: {len(missing)}, Failed: {len(failed)}")
+            print("WARNING: Lifecycle progression (promotion, monitored book sync) is DISABLED for partial runs.")
+            enable_auto_promotion = False
+            promote_proposals = False
+            apply_monitored_slices = False
 
     output_dir.mkdir(parents=True, exist_ok=True)
     discovered_frames = []
@@ -131,15 +139,17 @@ def main() -> int:
     parser.add_argument("--enable-auto-promotion", action="store_true")
     parser.add_argument("--promote-proposals", action="store_true")
     parser.add_argument("--apply-monitored-slices", action="store_true")
+    parser.add_argument("--allow-partial", action="store_true", help="Allow merge if shards are missing/failed (disables lifecycle progression)")
     args = parser.parse_args()
     expected = set(json.loads(args.expected_shards.read_text())["shard_ids"])
     result = merge_shards(
         args.shard_root,
         expected,
-        args.output_dir,
+        output_dir=Path(args.output_dir),
         enable_auto_promotion=args.enable_auto_promotion,
         promote_proposals=args.promote_proposals,
         apply_monitored_slices=args.apply_monitored_slices,
+        allow_partial=args.allow_partial,
     )
     print(json.dumps(result, indent=2))
     return 0
