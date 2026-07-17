@@ -813,6 +813,11 @@ def align_cross_asset_states(primary_df, cond_state_df, cond_symbol, fields):
     primary["_orig_order"] = range(len(primary))
     primary_sorted = primary.sort_values("bar_ts_utc").reset_index(drop=True)
 
+    # Force exact datetime dtype match to prevent pandas.errors.MergeError:
+    # incompatible merge keys datetime64[ms, UTC] vs datetime64[us, UTC]
+    primary_sorted["bar_ts_utc"] = pd.to_datetime(primary_sorted["bar_ts_utc"]).astype("datetime64[us, UTC]")
+    cond["bar_ts_utc"] = pd.to_datetime(cond["bar_ts_utc"]).astype("datetime64[us, UTC]")
+
     merged = pd.merge_asof(
         primary_sorted,
         cond,

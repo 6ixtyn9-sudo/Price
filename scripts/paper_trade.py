@@ -373,6 +373,23 @@ def main() -> int:
                         help="Touch the localdata/HALT_TRADING.flag kill switch and exit. No orders will be placed on subsequent runs until --unhalt is used.")
     parser.add_argument("--unhalt", action="store_true",
                         help="Remove the kill switch flag and exit.")
+    parser.add_argument("--take-profit-r", type=float, default=0.0,
+                        help="Hard R-multiple take profit. Exit if unrealized R >= this value. "
+                        "Set to 0 to disable. Example: 3.0")
+    parser.add_argument("--eod-profit-lock-r", type=float, default=0.0,
+                        help="Exit if unrealized R >= this value AND within the EOD lock window. "
+                        "Set to 0 to disable. Example: 0.75")
+    parser.add_argument("--eod-lock-minutes", type=int, default=45,
+                        help="Minutes before NYSE close to activate the EOD profit lock. Default 45.")
+    parser.add_argument("--giveback-trigger-r", type=float, default=0.0,
+                        help="Peak R-multiple that arms the profit giveback exit. "
+                        "Set to 0 to disable. Example: 2.0")
+    parser.add_argument("--max-giveback-r", type=float, default=1.0,
+                        help="How much R can be given back from peak before exiting. Default 1.0.")
+    parser.add_argument("--eod-crypto", action="store_true",
+                        help="Apply EOD profit lock to crypto symbols. Off by default.")
+    parser.add_argument("--eod-futures", action="store_true",
+                        help="Apply EOD profit lock to futures symbols. Off by default.")
     args = parser.parse_args()
 
     if args.halt:
@@ -420,12 +437,24 @@ def main() -> int:
         spread_bps=args.cost_spread_bps,
         slippage_bps=args.cost_slippage_bps,
     )
+    from price.profit_protection import ProfitPolicy
+    profit_policy = ProfitPolicy(
+        take_profit_r=(args.take_profit_r if args.take_profit_r > 0 else None),
+        eod_profit_lock_r=(args.eod_profit_lock_r if args.eod_profit_lock_r > 0 else None),
+        eod_lock_minutes_before_close=args.eod_lock_minutes,
+        giveback_trigger_r=(args.giveback_trigger_r if args.giveback_trigger_r > 0 else None),
+        max_giveback_r=args.max_giveback_r,
+        apply_eod_to_crypto=args.eod_crypto,
+        apply_eod_to_futures=args.eod_futures,
+    )
     exit_policy = ExitPolicy(
         horizon_bars=args.exit_horizon,
         respect_r_multiple_gate=not args.no_r_gate,
+        profit_policy=profit_policy,
     )
     print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}, "
-          f"respect_r_multiple_gate={exit_policy.respect_r_multiple_gate}")
+          f"respect_r_multiple_gate={exit_policy.respect_r_multiple_gate}, "
+          f"profit_policy={profit_policy}")
     print(f"Cost model: {cost_model.to_dict()}")
 
     def _one_pass() -> Dict[str, int]:

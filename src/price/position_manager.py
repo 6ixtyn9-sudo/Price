@@ -178,6 +178,7 @@ class ExitPolicy:
 
     horizon_bars: int = 5
     respect_r_multiple_gate: bool = True
+    profit_policy: Optional['ProfitPolicy'] = None
 
 
 def _parse_ts(ts) -> Optional[datetime]:
@@ -468,6 +469,32 @@ def check_exits(
                     f">= {exit_policy.horizon_bars} ({timeframe})"
                 )
 
+        profit_exits = []
+        try:
+            if hasattr(exit_policy, "profit_policy") and getattr(exit_policy, "profit_policy") is not None:
+                from price.profit_protection import check_profit_exits
+                from price.stops import load_stop_states
+                
+                states = load_stop_states()
+                state = states.get(symbol.upper())
+                current_price = pos.get("current_price")
+                side = "long" if float(pos.get("qty", 0)) > 0 else "short"
+                
+                if current_price is not None and current_price == current_price:  # not nan
+                    profit_exits = check_profit_exits(
+                        symbol=symbol,
+                        side=side,
+                        current_price=float(current_price),
+                        state=state,
+                        policy=exit_policy.profit_policy
+                    )
+                    if profit_exits:
+                        for p_exit in profit_exits:
+                            exit_reasons.append(p_exit["reason"])
+        except Exception as e:
+            # Profit checks must never crash the scan
+            print(f"Profit protection check failed for {symbol}: {e}")
+
         action = "exit" if exit_reasons else "hold"
         if exit_reasons:
             reason = "; ".join(exit_reasons)
@@ -485,7 +512,7 @@ def check_exits(
         else:
             reason = "stable filter matches; bars held unknown (no entry bar)"
 
-        intents.append({
+        intent = {
             "symbol": symbol,
             "slice_combination": slice_combo,
             "action": action,
@@ -496,6 +523,9 @@ def check_exits(
             "timeframe": timeframe,
             "r_multiple_suppressed_horizon": r_gate_active,
             "reason": reason,
-        })
+        }
+        if profit_exits:
+            intent["profit_exits"] = profit_exits
+        intents.append(intent)
 
     return intents
