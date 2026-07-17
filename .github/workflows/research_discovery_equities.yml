@@ -11,6 +11,10 @@ on:
         description: "Symbols per shard"
         required: false
         default: "20"
+      timeframes:
+        description: "Timeframes to research (space-separated, e.g. '1d 1h' or '15m')"
+        required: false
+        default: "1d 1h"
   workflow_call:
     inputs:
       parent_run_id:
@@ -21,6 +25,10 @@ on:
         required: false
         type: string
         default: "20"
+      timeframes:
+        required: false
+        type: string
+        default: "1d 1h"
 
 concurrency:
   group: research-discovery
@@ -47,6 +55,7 @@ jobs:
         id: plan
         env:
           BATCH_SIZE: ${{ inputs.batch_size || '20' }}
+          TIMEFRAMES: ${{ inputs.timeframes || '1d 1h' }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
@@ -64,8 +73,15 @@ jobs:
           if invalid:
               raise SystemExit("Invalid symbols in explicit_allowlist.json: " + ", ".join(invalid[:10]))
           batch_size = int(os.environ["BATCH_SIZE"])
+          timeframes = os.environ["TIMEFRAMES"].split()
+          if not timeframes:
+              raise SystemExit("TIMEFRAMES is empty; pass at least one timeframe (e.g. '1d 1h')")
+          valid_tfs = {"1d", "1h", "15m"}
+          bad_tfs = [t for t in timeframes if t not in valid_tfs]
+          if bad_tfs:
+              raise SystemExit("Unknown timeframes: " + ", ".join(bad_tfs) + ". Valid: " + ", ".join(sorted(valid_tfs)))
           include = []
-          for timeframe in ("1d", "1h", "15m"):
+          for timeframe in timeframes:
               for offset in range(0, len(symbols), batch_size):
                   batch = symbols[offset:offset + batch_size]
                   index = offset // batch_size
