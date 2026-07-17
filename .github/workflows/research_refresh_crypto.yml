@@ -182,7 +182,7 @@ jobs:
           echo "$MANIFEST" | jq . > localdata/research/refresh_state_crypto.json
           cat localdata/research/refresh_state_crypto.json
           if [ -f localdata/research/crypto/crypto_research_summary.json ]; then
-            cat localdata/research/crypto/crypto_research_summary.json | jq . | head -50
+            jq 'keys, .top_candidates[0:5]' localdata/research/crypto/crypto_research_summary.json || true
           fi
 
       - name: Compute discovery dispatch gate (fresh data) – main-like
