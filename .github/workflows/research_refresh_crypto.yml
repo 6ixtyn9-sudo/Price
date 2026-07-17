@@ -294,6 +294,8 @@ jobs:
   dispatch-discovery:
     needs: research-refresh-crypto
     if: ${{ needs.research-refresh-crypto.outputs.should_dispatch_discovery == 'true' }}
+    permissions:
+      contents: write
     uses: ./.github/workflows/research_crypto_discovery.yml
     with:
       timeframes: ${{ inputs.timeframes }}
