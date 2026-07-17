@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import io
 import json
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -136,6 +137,226 @@ def _http_get_json(url: str, params: Optional[dict] = None) -> Optional[list | d
         return r.json()
     except Exception:
         return None
+
+
+def _http_get_bytes(url: str) -> Optional[bytes]:
+    """Best-effort binary fetch used for public static archives.
+
+    data.binance.vision is not the geo-blocked trading API and works from
+    GitHub-hosted runners.  Treat 404 (archive not published yet) the same as
+    transient failures: no data, no cache poisoning.
+    """
+    try:
+        import requests
+    except ImportError:
+        return None
+    try:
+        r = requests.get(url, timeout=HTTP_TIMEOUT)
+        if r.status_code != 200:
+            return None
+        return r.content
+    except Exception:
+        return None
+
+
+def _base_asset(symbol: str) -> str:
+    return str(symbol).upper().split("/")[0].split("-")[0]
+
+
+def _month_starts(start: pd.Timestamp, end: pd.Timestamp) -> list[pd.Timestamp]:
+    start = pd.Timestamp(start).tz_convert("UTC").replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end = pd.Timestamp(end).tz_convert("UTC").replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    months = []
+    cur = start
+    while cur <= end:
+        months.append(cur)
+        cur = cur + pd.DateOffset(months=1)
+    return months
+
+
+def _read_zip_csv(payload: bytes) -> pd.DataFrame:
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+            names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+            if not names:
+                return pd.DataFrame()
+            with zf.open(names[0]) as f:
+                return pd.read_csv(f)
+    except Exception:
+        return pd.DataFrame()
+
+
+def _binance_archive_funding(symbol: str, perp: str, lookback_days: int = 730) -> pd.DataFrame:
+    """Fetch funding history from Binance's public static data archive.
+
+    This is deliberately tried before live Binance/Bybit APIs because the
+    archive endpoint is reachable from GitHub-hosted runners while the trading
+    API often returns 451/403 in US-hosted CI.  Monthly archives are compact and
+    enough for historical discovery; unpublished current-month files are simply
+    skipped and may be filled by OKX/live fallbacks.
+    """
+    end = pd.Timestamp.now(tz="UTC")
+    start = end - pd.Timedelta(days=lookback_days)
+    rows = []
+    for month in _month_starts(start, end):
+        ym = month.strftime("%Y-%m")
+        url = (
+            "https://data.binance.vision/data/futures/um/monthly/"
+            f"fundingRate/{perp}/{perp}-fundingRate-{ym}.zip"
+        )
+        payload = _http_get_bytes(url)
+        if not payload:
+            continue
+        df = _read_zip_csv(payload)
+        if {"calc_time", "last_funding_rate"}.issubset(df.columns):
+            part = pd.DataFrame({
+                "bar_ts_utc": pd.to_datetime(df["calc_time"].astype("int64"), unit="ms", utc=True),
+                "funding_rate": pd.to_numeric(df["last_funding_rate"], errors="coerce"),
+            })
+            rows.append(part)
+    if not rows:
+        return pd.DataFrame()
+    out = pd.concat(rows, ignore_index=True).dropna(subset=["bar_ts_utc", "funding_rate"])
+    out = out[(out["bar_ts_utc"] >= start) & (out["bar_ts_utc"] <= end)]
+    out["funding_ann"] = out["funding_rate"] * 3 * 365
+    return out[["bar_ts_utc", "funding_rate", "funding_ann"]].sort_values("bar_ts_utc").drop_duplicates("bar_ts_utc").reset_index(drop=True)
+
+
+def _binance_archive_oi(symbol: str, perp: str, lookback_days: int = 730) -> pd.DataFrame:
+    """Fetch open-interest metrics from Binance's public static archive.
+
+    Binance publishes these as daily ZIPs of 5-minute metrics rather than the
+    compact monthly funding files.  To keep unattended discovery practical on
+    GitHub Actions, cap archive OI fetches to BINANCE_ARCHIVE_OI_DAYS (default
+    220).  OKX provides a second free public 1D OI series and live APIs remain
+    final fallbacks.
+    """
+    end = pd.Timestamp.now(tz="UTC").normalize()
+    max_days = int(__import__("os").getenv("BINANCE_ARCHIVE_OI_DAYS", "220"))
+    days = max(1, min(int(lookback_days), max_days))
+    start = end - pd.Timedelta(days=days)
+    rows = []
+    for day in pd.date_range(start=start, end=end, freq="D", tz="UTC"):
+        ymd = day.strftime("%Y-%m-%d")
+        url = (
+            "https://data.binance.vision/data/futures/um/daily/metrics/"
+            f"{perp}/{perp}-metrics-{ymd}.zip"
+        )
+        payload = _http_get_bytes(url)
+        if not payload:
+            continue
+        df = _read_zip_csv(payload)
+        if {"create_time", "sum_open_interest"}.issubset(df.columns):
+            # Collapse intraday metrics to one daily observation at the last
+            # available timestamp for that UTC date.  This avoids exploding the
+            # feature frame while preserving daily OI trend information.
+            df["bar_ts_utc"] = pd.to_datetime(df["create_time"], utc=True, errors="coerce")
+            df = df.dropna(subset=["bar_ts_utc"]).sort_values("bar_ts_utc")
+            if df.empty:
+                continue
+            last = df.iloc[-1]
+            oi_value = pd.to_numeric(last.get("sum_open_interest_value"), errors="coerce")
+            oi_contracts = pd.to_numeric(last.get("sum_open_interest"), errors="coerce")
+            rows.append({
+                "bar_ts_utc": last["bar_ts_utc"],
+                # Use USD value when available so Binance archive rows are
+                # unit-compatible with OKX's public OI series. The downstream
+                # feature is pct_change, so the exact denomination is less
+                # important than avoiding mixed base-contract/USD units.
+                "oi_sum_open_interest": oi_value if oi_value == oi_value else oi_contracts,
+                "oi_value_usd": oi_value,
+            })
+    if not rows:
+        return pd.DataFrame()
+    out = pd.DataFrame(rows).dropna(subset=["bar_ts_utc", "oi_sum_open_interest"])
+    return out[["bar_ts_utc", "oi_sum_open_interest", "oi_value_usd"]].sort_values("bar_ts_utc").drop_duplicates("bar_ts_utc").reset_index(drop=True)
+
+
+def _okx_swap_id(symbol: str) -> str:
+    return f"{_base_asset(symbol)}-USDT-SWAP"
+
+
+def _okx_funding(symbol: str, lookback_days: int = 730) -> pd.DataFrame:
+    """Free OKX public funding history fallback, paginated backward."""
+    try:
+        import time as _time
+        inst = _okx_swap_id(symbol)
+        rows = []
+        after = None
+        cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=lookback_days)
+        for _ in range(35):
+            params = {"instId": inst, "limit": 100}
+            if after is not None:
+                params["after"] = str(after)
+            payload = _http_get_json("https://www.okx.com/api/v5/public/funding-rate-history", params=params)
+            if not isinstance(payload, dict) or payload.get("code") != "0":
+                break
+            items = payload.get("data") or []
+            if not items:
+                break
+            rows.extend(items)
+            oldest = min(int(x["fundingTime"]) for x in items if "fundingTime" in x)
+            if pd.to_datetime(oldest, unit="ms", utc=True) <= cutoff:
+                break
+            after = oldest
+            _time.sleep(0.05)
+        if not rows:
+            return pd.DataFrame()
+        df = pd.DataFrame(rows)
+        if {"fundingTime", "fundingRate"}.issubset(df.columns):
+            out = pd.DataFrame({
+                "bar_ts_utc": pd.to_datetime(df["fundingTime"].astype("int64"), unit="ms", utc=True),
+                "funding_rate": pd.to_numeric(df["fundingRate"], errors="coerce"),
+            })
+            out = out[out["bar_ts_utc"] >= cutoff]
+            out["funding_ann"] = out["funding_rate"] * 3 * 365
+            return out[["bar_ts_utc", "funding_rate", "funding_ann"]].dropna().sort_values("bar_ts_utc").drop_duplicates("bar_ts_utc").reset_index(drop=True)
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+
+def _okx_oi(symbol: str) -> pd.DataFrame:
+    """Free OKX public daily open-interest/volume series fallback.
+
+    OKX currently returns about 180 daily observations for this endpoint.  It is
+    a useful no-key, no-card fallback when Binance live APIs are blocked and the
+    Binance daily archive is missing a symbol/date.
+    """
+    payload = _http_get_json(
+        "https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-volume",
+        params={"ccy": _base_asset(symbol), "period": "1D"},
+    )
+    if not isinstance(payload, dict) or payload.get("code") != "0":
+        return pd.DataFrame()
+    rows = payload.get("data") or []
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    if df.shape[1] < 2:
+        return pd.DataFrame()
+    out = pd.DataFrame({
+        "bar_ts_utc": pd.to_datetime(df.iloc[:, 0].astype("int64"), unit="ms", utc=True),
+        "oi_sum_open_interest": pd.to_numeric(df.iloc[:, 1], errors="coerce"),
+        "oi_value_usd": np.nan,
+    })
+    return out.dropna(subset=["bar_ts_utc", "oi_sum_open_interest"]).sort_values("bar_ts_utc").drop_duplicates("bar_ts_utc").reset_index(drop=True)
+
+
+def _combine_external_frames(frames: list[pd.DataFrame], subset: list[str]) -> pd.DataFrame:
+    valid = []
+    for priority, frame in enumerate(frames):
+        if frame is None or frame.empty:
+            continue
+        f = frame.copy()
+        f["__priority"] = priority
+        valid.append(f)
+    if not valid:
+        return pd.DataFrame()
+    out = pd.concat(valid, ignore_index=True)
+    out = out.sort_values(["bar_ts_utc", "__priority"])
+    out = out.drop_duplicates(subset=subset, keep="last").drop(columns=["__priority"])
+    return out.sort_values("bar_ts_utc").reset_index(drop=True)
 
 
 def _binance_or_bybit_funding(symbol: str, perp: str) -> pd.DataFrame:
@@ -283,12 +504,15 @@ def _binance_or_bybit_oi(symbol: str, perp: str) -> pd.DataFrame:
 
 
 def fetch_crypto_funding(symbol: str, lookback_days: int = 730) -> pd.DataFrame:
-    """Fetch historical 8h funding rates for a crypto symbol via Binance with
-    a Bybit fallback (each public, no key).
+    """Fetch historical crypto-perp funding rates from free public sources.
 
-    Returns a DataFrame with columns [bar_ts_utc, funding_rate, funding_ann]
-    where funding_ann is the annualised rate (funding * 3*365).  Empty DF on
-    any failure (geo-block, network, missing pair).
+    Source order is intentionally unattended-first:
+      1. Binance static data archives (works on GitHub-hosted runners)
+      2. OKX public API (no key)
+      3. Binance/Bybit live APIs as optional fallbacks
+
+    Returns [bar_ts_utc, funding_rate, funding_ann]. Empty on total failure;
+    callers bin missing data to neutral/unknown.
     """
     perp = _binance_perp_ticker(symbol)
     if not perp:
@@ -297,17 +521,29 @@ def fetch_crypto_funding(symbol: str, lookback_days: int = 730) -> pd.DataFrame:
     cached = _read_cached(cache_name, max_age_hours=12)
     if cached is not None and not cached.empty:
         return cached
-    df = _binance_or_bybit_funding(symbol, perp)
-    _write_cache(cache_name, df)
-    return df
+    archive = _binance_archive_funding(symbol, perp, lookback_days=lookback_days)
+    if not archive.empty:
+        _write_cache(cache_name, archive)
+        return archive
+    okx = _okx_funding(symbol, lookback_days=lookback_days)
+    if not okx.empty:
+        _write_cache(cache_name, okx)
+        return okx
+    live = _binance_or_bybit_funding(symbol, perp)
+    _write_cache(cache_name, live)
+    return live
 
 
 def fetch_crypto_open_interest(symbol: str, lookback_days: int = 730) -> pd.DataFrame:
-    """Fetch daily open-interest history via Binance with Bybit fallback.
+    """Fetch daily open-interest history from free public sources.
 
-    Returns columns [bar_ts_utc, oi_sum_open_interest, oi_value_usd]. We
-    only care about relative changes in OI, so oi_value_usd is best-effort
-    (NaN when the secondary source doesn't provide it).
+    Source order mirrors funding:
+      1. Binance static metrics archives (works on GitHub-hosted runners)
+      2. OKX public OI/volume API (no key)
+      3. Binance/Bybit live APIs as optional fallbacks
+
+    Returns [bar_ts_utc, oi_sum_open_interest, oi_value_usd]. Empty on total
+    failure; callers bin missing data to neutral/unknown.
     """
     perp = _binance_perp_ticker(symbol)
     if not perp:
@@ -316,9 +552,17 @@ def fetch_crypto_open_interest(symbol: str, lookback_days: int = 730) -> pd.Data
     cached = _read_cached(cache_name, max_age_hours=24)
     if cached is not None and not cached.empty:
         return cached
-    df = _binance_or_bybit_oi(symbol, perp)
-    _write_cache(cache_name, df)
-    return df
+    archive = _binance_archive_oi(symbol, perp, lookback_days=lookback_days)
+    if not archive.empty:
+        _write_cache(cache_name, archive)
+        return archive
+    okx = _okx_oi(symbol)
+    if not okx.empty:
+        _write_cache(cache_name, okx)
+        return okx
+    live = _binance_or_bybit_oi(symbol, perp)
+    _write_cache(cache_name, live)
+    return live
 
 
 # Backward-compatible aliases (older callers / notebooks may reference these).

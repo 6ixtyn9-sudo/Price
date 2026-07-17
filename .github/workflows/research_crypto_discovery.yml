@@ -70,53 +70,6 @@ env:
   PYTHONPATH: src
 
 jobs:
-  fetch-za-externals:
-    runs-on: [self-hosted, za-crypto]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-
-      - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: "3.12"
-
-      - name: Install minimal dependencies for external_data.py
-        run: |
-          python -m pip install --upgrade pip
-          pip install pandas numpy requests pyarrow yfinance
-
-      - name: Fetch crypto funding + OI from ZA-reachable exchanges
-        env:
-          PYTHONPATH: src
-        run: |
-          python - <<'PYFETCH'
-          from price.external_data import fetch_crypto_funding, fetch_crypto_open_interest
-
-          syms = (
-              "BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD AAVE/USD DOGE/USD "
-              "UNI/USD LINK/USD LTC/USD XRP/USD CRV/USD BCH/USD SUSHI/USD ADA/USD"
-          ).split()
-
-          import os
-          os.makedirs("localdata/external", exist_ok=True)
-
-          for s in syms:
-              f = fetch_crypto_funding(s)
-              o = fetch_crypto_open_interest(s)
-              print(f"{s}: funding={len(f) if f is not None else 0} oi={len(o) if o is not None else 0}")
-          PYFETCH
-          find localdata/external -maxdepth 1 -type f -name 'crypto_*.parquet' -print -exec ls -lh {} \; || true
-
-      - name: Upload external caches
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: crypto-external-caches
-          path: localdata/external
-          if-no-files-found: warn
-          retention-days: 1
-
   plan:
     runs-on: ubuntu-24.04
     outputs:
@@ -238,7 +191,7 @@ jobs:
           PY
 
   shards:
-    needs: [plan, fetch-za-externals]
+    needs: plan
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -248,13 +201,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-
-      - name: Download ZA-fetched external caches
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        continue-on-error: true
-        with:
-          name: crypto-external-caches
-          path: localdata/external
 
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -410,13 +356,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-
-      - name: Download ZA-fetched external caches
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        continue-on-error: true
-        with:
-          name: crypto-external-caches
-          path: localdata/external
 
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
