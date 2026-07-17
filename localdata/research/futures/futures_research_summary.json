@@ -1,14 +1,19 @@
 {
-  "generated_at_utc": "2026-07-15T12:42:38.913618+00:00",
+  "generated_at_utc": "2026-07-17T00:31:35.867754+00:00",
   "bin_mode": "rolling",
   "symbols": [
     "FUT/ES",
     "FUT/NQ",
+    "FUT/RTY",
+    "FUT/YM",
     "FUT/CL",
     "FUT/GC",
-    "FUT/ZN"
+    "FUT/SI",
+    "FUT/ZB",
+    "FUT/ZN",
+    "FUT/NG"
   ],
-  "symbol_count": 5,
+  "symbol_count": 10,
   "condition_symbols": [],
   "discovered_rows": 131,
   "leaderboard_rows": 131,
@@ -29,9 +34,9 @@
       "side": "long",
       "triage_bucket": "late_emerging_regime_switching",
       "valid_n": 370,
-      "valid_mean_ret_costadj": 0.0014804406441704307,
-      "valid_p_value_nw": 0.006030960616105752,
-      "walk_forward_pass_pattern": "0011",
+      "valid_mean_ret_costadj": 0.0014804406441704,
+      "valid_p_value_nw": 0.0060309606161057,
+      "walk_forward_pass_pattern": "11",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -43,9 +48,9 @@
       "side": "long",
       "triage_bucket": "late_emerging_recent_only",
       "valid_n": 30,
-      "valid_mean_ret_costadj": 0.00851834344733509,
-      "valid_p_value_nw": 0.01867045210029472,
-      "walk_forward_pass_pattern": "0001",
+      "valid_mean_ret_costadj": 0.008518343447335,
+      "valid_p_value_nw": 0.0186704521002947,
+      "walk_forward_pass_pattern": "1",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -57,9 +62,9 @@
       "side": "long",
       "triage_bucket": "late_emerging_valid_supported",
       "valid_n": 27,
-      "valid_mean_ret_costadj": 0.002953264675260797,
-      "valid_p_value_nw": 0.016771962489408265,
-      "walk_forward_pass_pattern": "0010",
+      "valid_mean_ret_costadj": 0.0029532646752607,
+      "valid_p_value_nw": 0.0167719624894082,
+      "walk_forward_pass_pattern": "10",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -71,9 +76,9 @@
       "side": "long",
       "triage_bucket": "late_emerging_valid_supported",
       "valid_n": 296,
-      "valid_mean_ret_costadj": 0.0008611743910315128,
-      "valid_p_value_nw": 0.04272658492096992,
-      "walk_forward_pass_pattern": "0000",
+      "valid_mean_ret_costadj": 0.0008611743910315,
+      "valid_p_value_nw": 0.0427265849209699,
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -87,7 +92,7 @@
       "valid_n": 309,
       "valid_mean_ret_costadj": 1.7672249221361904e-05,
       "valid_p_value_nw": 0.9110132717885906,
-      "walk_forward_pass_pattern": "0000",
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -99,9 +104,9 @@
       "side": "short",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 260,
-      "valid_mean_ret_costadj": -0.00015648229101518664,
+      "valid_mean_ret_costadj": -0.0001564822910151,
       "valid_p_value_nw": 0.1506651353011803,
-      "walk_forward_pass_pattern": "0000",
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -113,9 +118,9 @@
       "side": "short",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 24,
-      "valid_mean_ret_costadj": 0.002609837636348118,
-      "valid_p_value_nw": 0.05937645548824766,
-      "walk_forward_pass_pattern": "0010",
+      "valid_mean_ret_costadj": 0.0026098376363481,
+      "valid_p_value_nw": 0.0593764554882476,
+      "walk_forward_pass_pattern": "10",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -127,9 +132,9 @@
       "side": "short",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 47,
-      "valid_mean_ret_costadj": 0.00011710936432384039,
+      "valid_mean_ret_costadj": 0.0001171093643238,
       "valid_p_value_nw": 0.5846667087118465,
-      "walk_forward_pass_pattern": "0000",
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -141,9 +146,9 @@
       "side": "short",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 689,
-      "valid_mean_ret_costadj": -0.00020148709312077607,
+      "valid_mean_ret_costadj": -0.0002014870931207,
       "valid_p_value_nw": 0.599288043759838,
-      "walk_forward_pass_pattern": "0000",
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -155,9 +160,9 @@
       "side": "long",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 265,
-      "valid_mean_ret_costadj": 0.00019833360597840515,
+      "valid_mean_ret_costadj": 0.0001983336059784,
       "valid_p_value_nw": 0.7799710573016747,
-      "walk_forward_pass_pattern": "0100",
+      "walk_forward_pass_pattern": "100",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -169,9 +174,9 @@
       "side": "long",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 457,
-      "valid_mean_ret_costadj": -0.00012021495068722907,
+      "valid_mean_ret_costadj": -0.0001202149506872,
       "valid_p_value_nw": 0.8574746912493918,
-      "walk_forward_pass_pattern": "0100",
+      "walk_forward_pass_pattern": "100",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -183,9 +188,9 @@
       "side": "long",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 17,
-      "valid_mean_ret_costadj": 0.0027535017866534466,
-      "valid_p_value_nw": 0.08897420716968885,
-      "walk_forward_pass_pattern": "0000",
+      "valid_mean_ret_costadj": 0.0027535017866534,
+      "valid_p_value_nw": 0.0889742071696888,
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -199,7 +204,7 @@
       "valid_n": 53,
       "valid_mean_ret_costadj": -3.915500027097445e-05,
       "valid_p_value_nw": 0.8308192203428482,
-      "walk_forward_pass_pattern": "0000",
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -211,9 +216,9 @@
       "side": "short",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 708,
-      "valid_mean_ret_costadj": 0.00048238715909499567,
+      "valid_mean_ret_costadj": 0.0004823871590949,
       "valid_p_value_nw": 0.362433543837565,
-      "walk_forward_pass_pattern": "0000",
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
@@ -225,16 +230,16 @@
       "side": "short",
       "triage_bucket": "rejected_unsupported",
       "valid_n": 302,
-      "valid_mean_ret_costadj": 0.0004311028490199546,
+      "valid_mean_ret_costadj": 0.0004311028490199,
       "valid_p_value_nw": 0.5206518307133603,
-      "walk_forward_pass_pattern": "0000",
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     }
   ],
   "regime_status_counts": {
-    "regime_switching_research_only": 101,
-    "unsupported": 30
+    "regime_switching_research_only": 98,
+    "unsupported": 33
   },
   "regime_leaderboard_rows": {
     "bull": 131,
@@ -242,5 +247,9 @@
     "neutral": 131
   },
   "regime_candidate_count": 0,
-  "top_regime_candidates": []
+  "top_regime_candidates": [],
+  "monitored_candidate_count": 0,
+  "monitored_candidate_symbols": [],
+  "monitored_candidate_status_counts": {},
+  "top_monitored_candidates": []
 }
