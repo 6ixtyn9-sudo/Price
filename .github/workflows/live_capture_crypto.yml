@@ -177,7 +177,11 @@ jobs:
             --exit-horizon 5 --max-per-group 1 --stop-atr-mult 2.0 \
             --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.02 --whipsaw-limit 2 \
-            --cost-spread-bps 5.0 --cost-slippage-bps 10.0 --allow-shorts
+            --cost-spread-bps 5.0 --cost-slippage-bps 10.0 --allow-shorts \
+            --take-profit-r 3.0 \
+            --eod-profit-lock-r 0 \
+            --giveback-trigger-r 2.0 \
+            --max-giveback-r 1.0
 
       - name: Run live forward-return capture crypto
         env:
