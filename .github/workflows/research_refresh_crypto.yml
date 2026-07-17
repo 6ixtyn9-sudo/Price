@@ -161,10 +161,10 @@ jobs:
             echo "No existing crypto research, will build after first discovery"
           fi
           # Sync dynamic paper book: use monitored_candidates if exists, else fallback
-          python scripts/sync_monitored_crypto.py --candidates-path localdata/research/crypto/monitored_candidates_crypto.csv --output-path localdata/monitored_slices_crypto.csv
+          python scripts/sync_monitored_crypto.py --candidates-path localdata/research/crypto/monitored_candidates_crypto.csv --output-path localdata/monitored_slices_crypto.csv || echo "(first run: no candidates yet)"
           if [ ! -s localdata/monitored_slices_crypto.csv ]; then
             echo "monitored_candidates empty, trying fallback clean_mixed from leaderboard"
-            python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv
+            python scripts/sync_monitored_crypto.py --fallback-clean-mixed --output-path localdata/monitored_slices_crypto.csv || echo "(first run: no leaderboard yet – discovery will populate)"
           fi
           ls -lh localdata/monitored_slices_crypto.csv || echo "no crypto book yet"
           if [ -f localdata/research/crypto/monitored_candidates_crypto.csv ]; then
