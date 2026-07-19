@@ -51,8 +51,8 @@ FUT/GC,1h,state_session=afternoon + state_slope=downtrend,short,regime_switching
 FUT/CL,1h,state_session=morning + state_ext=stretched_up,long,regime_switching_research_only,regime_switching_research_only,unsupported,regime_switching_research_only,neutral
 FUT/ES,1h,state_session=afternoon + state_slope=flat,long,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,unsupported,bear
 FUT/NQ,1h,state_session=afternoon + state_slope=flat,long,regime_switching_research_only,unsupported,regime_switching_research_only,regime_switching_research_only,bear
-FUT/GC,1h,state_session=morning + state_slope=flat,long,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,neutral
 FUT/NQ,1h,state_session=morning + state_slope=downtrend,long,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,unsupported,bear
+FUT/GC,1h,state_session=morning + state_slope=flat,long,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,neutral
 FUT/CL,1h,state_ext=neutral + state_slope=uptrend,short,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,unsupported,bear
 FUT/NQ,1h,state_session=afternoon + state_slope=uptrend,long,regime_switching_research_only,regime_switching_research_only,regime_switching_research_only,unsupported,bear
 FUT/ES,1h,state_session=lunch + state_slope=downtrend,short,regime_switching_research_only,unsupported,regime_switching_research_only,unsupported,bear
