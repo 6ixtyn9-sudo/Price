@@ -204,12 +204,35 @@ def build_monitored_book_audit(
 
 
 def _strict_candidate(row: pd.Series) -> bool:
-    """Conservative automatic eligibility gate."""
+    """Conservative automatic eligibility gate for auto_approved.
+
+    Requires clean_survivor triage, 3/4 walk-forward, 4+ scenarios, BH-FDR.
+    This gate produces candidates with multi-regime structural evidence.
+    """
     return (
         _clean(row.get("triage_bucket")).startswith("clean_survivor")
         and _num(row.get("valid_n"), 0) >= 15
         and _num(row.get("walk_forward_pass_count"), 0) >= 3
         and _num(row.get("scenario_survived_count"), 0) >= 4
+        and _num(row.get("valid_excess_vs_baseline"), -1) > 0
+        and _num(row.get("valid_excess_vs_best_parent"), -1) > 0
+        and _truthy(row.get("search_wide_bh_pass", False))
+    )
+
+
+def _tradeable_candidate(row: pd.Series) -> bool:
+    """Paper-book eligibility gate optimised for trade frequency.
+
+    Softer than _strict_candidate: admits late_emerging (current-regime)
+    candidates, requires 2/4 walk-forward, and 3+ scenarios. BH-FDR and
+    parent-excess floors remain — the integrity non-negotiables.
+    """
+    triage = _clean(row.get("triage_bucket"))
+    return (
+        (triage.startswith("clean_survivor") or triage.startswith("late_emerging"))
+        and _num(row.get("valid_n"), 0) >= 15
+        and _num(row.get("walk_forward_pass_count"), 0) >= 2
+        and _num(row.get("scenario_survived_count"), 0) >= 3
         and _num(row.get("valid_excess_vs_baseline"), -1) > 0
         and _num(row.get("valid_excess_vs_best_parent"), -1) > 0
         and _truthy(row.get("search_wide_bh_pass", False))
@@ -270,6 +293,7 @@ def build_registry(
         bin_mode = _clean(row.get("bin_mode"), "insample")
         key = "|".join([symbol, timeframe, combo, bin_mode])
         eligible = _strict_candidate(row)
+        tradeable = _tradeable_candidate(row)
         leverage = evaluate_candidate_leverage(row)
         leverage_gate = bool(leverage["leverage_auto_promotion_gate"])
         is_decaying = key in decay
@@ -277,7 +301,7 @@ def build_registry(
             status = "decaying_suspended"
         elif eligible and enable_auto_promotion:
             status = "auto_approved"
-        elif eligible:
+        elif tradeable:
             status = "paper_proposal"
         else:
             status = "research_only"
@@ -290,6 +314,7 @@ def build_registry(
             "candidate_key": key,
             "status": status,
             "strict_gate_pass": eligible,
+            "tradeable_gate_pass": tradeable,
             "live_decay_flag": is_decaying,
             "valid_n": row.get("valid_n"),
             "valid_mean_ret_costadj": row.get("valid_mean_ret_costadj"),
@@ -311,8 +336,7 @@ def build_registry(
             "auto_promotion_block_reason": (
                 "disabled_without_enable_auto_promotion_flag"
                 if eligible and not enable_auto_promotion
-                else "strict_research_gate_failed"
-                if not eligible else ""
+                else ("strict_research_gate_failed" if not eligible else "")
             ),
             **leverage,
         })
