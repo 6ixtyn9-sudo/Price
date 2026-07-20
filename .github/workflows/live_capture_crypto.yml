@@ -39,7 +39,7 @@ env:
 jobs:
   live-capture-crypto:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write
       actions: write # needed to prune stale caches in the last step
