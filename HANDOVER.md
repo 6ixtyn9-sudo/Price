@@ -5749,3 +5749,57 @@ Wait and observe. The paper book needs weeks, not days, of evidence.
 Do not add options, forex, or new features. The HANDOVER's anti-drift rules stand.
 If crypto funding/OI features are needed for live trading, a ZA-based self-hosted runner is required (Binance/Bybit geoblock US IPs).
 Bump max-parallel: 2 on crypto discovery if the 3.5h runtime is unacceptable — but the rate-limit risk with Alpaca free tier is real.
+Session Update — Fill Velocity & Journal Durability (2026-07-21 Late)
+Date: 2026-07-21 (continued)
+Agent: Arena.ai Agent Mode
+
+Context
+After the gate softening, discovery runs, and risk cap bumps, the system went from ~1 fill per day to 9 fills in a single session across 6 symbols (XBI, SBUX, AMT, GOLD, HUM, BITO). Three positions remain open (KLAC, SBUX, AMT) at session close. However, several infra gaps were also exposed and closed.
+
+Changes deployed (all on main)
+5. Edge-priority sort (src/price/monitor.py)
+Within each (symbol, timeframe, bin_mode) group in scan_all_slices(), slices are now sorted by valid_mean_ret_costadj from monitored_edge_metrics.csv (descending) before matching begins. The strongest edge (SHOP at +7.16%) always fires first for a given symbol. Weaker slices that happen to sort earlier in the CSV no longer block stronger edges via the same-pass dedup shield. Falls open on missing metrics (scores 0.0, sorts to bottom).
+
+6. Risk cap scaling (.github/workflows/live_capture_equities.yml, live_capture_crypto.yml, live_capture_futures.yml)
+max_open: 7 → 12 (equities), 3 → 5 (crypto), 2 → 4 (futures)
+max_per_group: 2 → 3 (equities), 1 → 2 (crypto), 1 → 2 (futures)
+Rationale: the 22-slice book from July 12 was designed for 7-manual-slice caps. The current 91-slice book needs proportionally more headroom. Daily loss kill switch ($500) and notional cap ($2,500) unchanged. These are hard limits; conviction sizing still routes more capital to stronger edges within those limits.
+
+7. Journal durability (.github/workflows/live_capture_equities.yml)
+Added five operational files to the commit step's file list: trade_journal.csv, paper_trade_log.csv, stop_state.json, stopout_journal.json, cooldown_journal.json. Previously these were cache-only — the ops-state cache was the sole persistence layer. On cache eviction or when a trade entered and exited within a single scan cycle, the journal rows were lost permanently and later recovered only as UNATTRIBUTED_BROKER_FILL backfill entries. The ops cache remains as a speed layer; git commit provides durability.
+
+Affected losses (as of this fix): AFRM, ETN, MRVL, SCHW, XBI — five symbols with confirmed fills at Alpaca whose entry/exit metadata was lost before this fix. P&L is accounted for via broker backfill but slice attribution is permanently UNATTRIBUTED_BROKER_FILL.
+
+8. Fresh-data discovery gate fix (scripts/research_refresh.py)
+The daily baseline was reset every refresh cycle because _write_state() always overwrote daily_coverage with current counts. The delta computation current - previous therefore always returned ~1 bar (today's close only), and no symbol ever accumulated the 5 bars needed to open the gate. Discovery had been frozen since July 14.
+
+Fix: introduced discovery_baseline_coverage — a durable baseline that only resets when discovery actually runs. The gate now accumulates bars across days and opens after 5 trading days of genuine new data. First gate-open expected ~July 28.
+
+9. Discovery runner budget (.github/workflows/research_discovery_equities.yml)
+batch_size: 20 → 40 (halves shard count: 24 → 12)
+max-parallel: new, set to 12 (was unlimited/36)
+Net effect: equities discovery uses 12 runners instead of up to 20, guaranteeing 8 free for hourly live captures even during discovery windows. Total discovery wall time unchanged (~1.5h) since each shard does more work but shard count halved.
+
+Observed session results
+9 fills across 6 symbols in a single 6-hour window after all changes landed:
+
+XBI 1h: entered $150.94, exited $151.94 (+$15.00, ~12 min hold)
+SBUX 1d: entered $104.75, still open at $104.95 (+$2.05)
+AMT 1h: entered $166.22, still open at $164.95 (-$6.37)
+GOLD 1h: entered $38.78, exited $38.85 (+$1.61, ~25 min hold)
+HUM 1h: entered $404.50, exited $404.85 (+$0.70, ~1h hold)
+BITO 1h: entered $9.06 short, exited $9.08 (-$2.02, ~25 min hold)
+KLAC 1d: entered July 15 at $217.15, still open at $217.86 (+$6.39, ~6 days)
+AVGO limit $381.25: unfilled (expired at close)
+AMAT limit $525.70: unfilled (expired at close)
+Pattern: hourly single-symbol slices (GOLD, XBI, HUM, BITO) enter and exit within minutes to hours — state-break exits on next hourly bar. Daily slices (KLAC, SBUX) hold for days — horizon exit at 5 bars. Short holds on tiny edges produce small gross P&L per trade but high turnover. The system needs many small positive round-trips to accumulate statistically meaningful evidence.
+
+P&L attribution (unchanged as of session close)
+10 round-trips, $167.31 realized P&L. Today's exits (XBI, GOLD, HUM, BITO) have not yet been picked up by --sync-broker. Expected to appear after next broker reconciliation.
+
+Next agent guidance
+WAIT AND OBSERVE. Phase 1 of the roadmap: accumulate ≥5 completed round-trips per slice before interpreting anything.
+Do not add new features, new lanes, or new complexity. The anti-drift rules stand.
+The fresh-data gate will self-open around July 28. When it does, sharded discovery runs automatically, the softened gate admits new candidates, and the book refreshes without operator intervention.
+Watch for: does fill velocity stay high into next week? Do the single-symbol hourly slices maintain positive P&L after 20+ round-trips? Does KLAC's 5-bar horizon exit lock in the $6+ gain?
+Known unresolved: crypto and futures promotion pipelines are completely separate from equities. _tradeable_candidate() has zero effect on crypto/futures. Crypto has 15 1d regime candidates that never fire. Futures has 4 session-based leaderboard fallback slices producing zero fills. These lanes are infrastructure-ready but evidence-barren.
