@@ -5444,226 +5444,225 @@ candidates on 1d; futures: 4 late_emerging 1h session slices). Entries require
 exact state-combination matches plus risk gates; multi-day quiet runs are
 expected behaviour, not failure.
 
-## V6 — External Market Features, Macro Blackouts & Look-Ahead Remediation (2026-07-16/17)
-
+V6 — External Market Features, Macro Blackouts & Look-Ahead Remediation (2026-07-16/17)
 This section records the T2–T5 external-features integration, the four
 CRITICAL/HIGH look-ahead and pagination bugs found by red-team review, the
 fixes that landed, the bootstrap bugs fixed during first-run bring-up, and the
 posture future agents must maintain.
 
 Commits (in chronological order on main):
-- 5ccd4ce  feat: integrate multi-lane external market features, macro-event
-           blackouts, and updated dependency pinning (Matauzen) — initial
-           T2–T5 patch: funding/OI, COT, VIX/DXY, breadth, FOMC/NFP/OPEX/CPI
-           blackouts, lane-scoped combinatorial slices.
-- a1d4d0d  feat: implement in-memory caching for breadth calculation and add
-           cache reset functionality.
-- f3b42d3  feat: implement precise holiday shift logic for BLS employment
-           report release dates (Jan 1 Friday -> +7d; Jul 4 Friday -> -1d;
-           Jul 3 Friday / Jul 4 Sat observed -> -1d).
-- bdf46c6  refactor: optimize Bybit historical data pagination and adjust
-           temporal look-ahead safeguards for COT, yfinance, and breadth
-           features. This is the red-team remediation commit.
-- 8f1f81e  fix(crypto): tolerate first-run empty state in monitored-book sync;
-           also prevents jq|head SIGPIPE from failing the refresh summary
-           step (jq 'keys, .top_candidates[0:5]' instead of `jq . | head -50`).
 
+5ccd4ce feat: integrate multi-lane external market features, macro-event
+blackouts, and updated dependency pinning (Matauzen) — initial
+T2–T5 patch: funding/OI, COT, VIX/DXY, breadth, FOMC/NFP/OPEX/CPI
+blackouts, lane-scoped combinatorial slices.
+a1d4d0d feat: implement in-memory caching for breadth calculation and add
+cache reset functionality.
+f3b42d3 feat: implement precise holiday shift logic for BLS employment
+report release dates (Jan 1 Friday -> +7d; Jul 4 Friday -> -1d;
+Jul 3 Friday / Jul 4 Sat observed -> -1d).
+bdf46c6 refactor: optimize Bybit historical data pagination and adjust
+temporal look-ahead safeguards for COT, yfinance, and breadth
+features. This is the red-team remediation commit.
+8f1f81e fix(crypto): tolerate first-run empty state in monitored-book sync;
+also prevents jq|head SIGPIPE from failing the refresh summary
+step (jq 'keys, .top_candidates[0:5]' instead of jq . | head -50).
 Key source files added/modified:
-- src/price/external_data.py    (NEW: ~900 lines)
-  - _binance_or_bybit_funding / _binance_or_bybit_oi: Binance fapi primary,
-    Bybit v5 fallback. Bybit returns DESCENDING; pagination must walk endTime
-    BACKWARD (endTime = oldest - 1, startTime fixed at window start).
-    Walking startTime forward with ascending logic infinite-loops. BOTH loops
-    fixed (funding and OI) in bdf46c6.
-  - fetch_cot_disaggregated: CFTC bulk ZIP (deafut{year}.zip). Report_Date is
-    TUESDAY AS-OF but the report is RELEASED FRIDAY 3:30 PM ET. Effective
-    bar_ts_utc = as_of_ts + 3d 20h 30m. merge_asof tolerance tightened from
-    10d to 7d.
-  - _fetch_yf_daily (VIX via ^VIX, DXY via DX-Y.NYB): daily bars stamped
-    21:00 UTC (post US close), NOT 00:00 UTC. Without this, intraday bars at
-    10:00 UTC backward-merge today's not-yet-known close.
-  - compute_breadth_pct(reference_date, lookback, intraday=False):
-    _BREADTH_ETF_CACHE and _BREADTH_PCT_CACHE for per-call amortised cost
-    (0.3–36ms post-warmup). When intraday=True, cutoff = end of prior UTC day
-    (today_utc.normalize() - 1ns) so the forming day's daily bar is excluded.
-  - _is_intraday_frame(df): detects intraday via median inter-bar gap <= 2h.
-  - _daily_effective_ts(ts, intraday): maps intraday bars to prior-day
-    23:59:59.999999999 UTC for the VIX/DXY asof merges.
-  - _attach_macro_context: attaches VIX (feat_vix_ext vs 20d MA), DXY
-    (feat_dxy_slope), and breadth (feat_breadth_pct over 19 sector ETFs)
-    with intraday guards applied uniformly.
-  - Blackout calendar: FOMC 2024-2027 (hardcoded, 8/yr), NFP (first Friday
-    with Jan/Jul holiday shifts in f3b42d3), OPEX (third Friday), CPI
-    (12th–14th, tightened from 11th–15th to recover ~10% uptime per month).
-  - Lane dispatcher attach_lane_externals() routes to crypto/futures/equity.
-  - Breadth ETF universe: XLK, XLF, XLE, XLV, XLI, XLY, XLP, XLB, XLU, XLRE,
-    XLC, KRE, KBE, SMH, IYT, IWM, DIA, QQQ, SPY (19 names).
-- src/price/features.py: feat_event_blackout via attach_blackout_flag().
-- src/price/discovery.py: six new feat→state mappings, all using FIXED PRIOR
-  thresholds (not qcut bins — V4 finding was fixed-prior clears BH/Bonferroni
-  where qcut-fitted states fail):
-    feat_funding_z20 -> state_funding   (funding_short/normal/stretched_long)
-    feat_oi_change_5  -> state_oi       (oi_unwinding/flat/oi_building)
-    feat_cot_mm_z52   -> state_cot      (cot_short/neutral/cot_long)
-    feat_vix_ext      -> state_vix      (vix_low/normal/vix_high)
-    feat_breadth_pct  -> state_breadth  (breadth_weak/neutral/breadth_strong)
-    feat_dxy_slope    -> state_dxy      (dxy_weak/neutral/dxy_strong)
-  Binning blocks present in BOTH bin_features() and bin_features_rolling().
-  attach_lane_externals() called in precompute_binned_frame() before binning
-  AND for cond_sym frames. clear_cond_bins_cache() also calls
-  reset_breadth_cache().
-- src/price/monitor.py: attach_lane_externals in get_current_state();
-  blackout gate in scan_all_slices (tradable=False with reason
-  "macro-event blackout (FOMC/CPI/NFP/OPEX); new entries paused"). Existing
-  positions are NOT closed; exits/stops keep running during blackouts.
-- scripts/discover_slices.py: profile-scoped new combinations, lane-isolated.
-  crypto  : [state_funding,state_ext], [state_oi,state_ext],
-            [state_funding,state_oi,state_ext],
-            [state_utc_session,state_funding,state_ext] intraday
-  futures : [state_cot,state_ext], [state_cot,state_ext,state_slope]
-  default/equity: [state_vix,state_ext], [state_breadth,state_ext],
-            [state_vix,state_breadth,state_ext],
-            [state_vix,state_session,state_ext] intraday
 
+src/price/external_data.py (NEW: ~900 lines)
+_binance_or_bybit_funding / _binance_or_bybit_oi: Binance fapi primary,
+Bybit v5 fallback. Bybit returns DESCENDING; pagination must walk endTime
+BACKWARD (endTime = oldest - 1, startTime fixed at window start).
+Walking startTime forward with ascending logic infinite-loops. BOTH loops
+fixed (funding and OI) in bdf46c6.
+fetch_cot_disaggregated: CFTC bulk ZIP (deafut{year}.zip). Report_Date is
+TUESDAY AS-OF but the report is RELEASED FRIDAY 3:30 PM ET. Effective
+bar_ts_utc = as_of_ts + 3d 20h 30m. merge_asof tolerance tightened from
+10d to 7d.
+_fetch_yf_daily (VIX via ^VIX, DXY via DX-Y.NYB): daily bars stamped
+21:00 UTC (post US close), NOT 00:00 UTC. Without this, intraday bars at
+10:00 UTC backward-merge today's not-yet-known close.
+compute_breadth_pct(reference_date, lookback, intraday=False):
+_BREADTH_ETF_CACHE and _BREADTH_PCT_CACHE for per-call amortised cost
+(0.3–36ms post-warmup). When intraday=True, cutoff = end of prior UTC day
+(today_utc.normalize() - 1ns) so the forming day's daily bar is excluded.
+_is_intraday_frame(df): detects intraday via median inter-bar gap <= 2h.
+_daily_effective_ts(ts, intraday): maps intraday bars to prior-day
+23:59:59.999999999 UTC for the VIX/DXY asof merges.
+_attach_macro_context: attaches VIX (feat_vix_ext vs 20d MA), DXY
+(feat_dxy_slope), and breadth (feat_breadth_pct over 19 sector ETFs)
+with intraday guards applied uniformly.
+Blackout calendar: FOMC 2024-2027 (hardcoded, 8/yr), NFP (first Friday
+with Jan/Jul holiday shifts in f3b42d3), OPEX (third Friday), CPI
+(12th–14th, tightened from 11th–15th to recover ~10% uptime per month).
+Lane dispatcher attach_lane_externals() routes to crypto/futures/equity.
+Breadth ETF universe: XLK, XLF, XLE, XLV, XLI, XLY, XLP, XLB, XLU, XLRE,
+XLC, KRE, KBE, SMH, IYT, IWM, DIA, QQQ, SPY (19 names).
+src/price/features.py: feat_event_blackout via attach_blackout_flag().
+src/price/discovery.py: six new feat→state mappings, all using FIXED PRIOR
+thresholds (not qcut bins — V4 finding was fixed-prior clears BH/Bonferroni
+where qcut-fitted states fail):
+feat_funding_z20 -> state_funding (funding_short/normal/stretched_long)
+feat_oi_change_5 -> state_oi (oi_unwinding/flat/oi_building)
+feat_cot_mm_z52 -> state_cot (cot_short/neutral/cot_long)
+feat_vix_ext -> state_vix (vix_low/normal/vix_high)
+feat_breadth_pct -> state_breadth (breadth_weak/neutral/breadth_strong)
+feat_dxy_slope -> state_dxy (dxy_weak/neutral/dxy_strong)
+Binning blocks present in BOTH bin_features() and bin_features_rolling().
+attach_lane_externals() called in precompute_binned_frame() before binning
+AND for cond_sym frames. clear_cond_bins_cache() also calls
+reset_breadth_cache().
+src/price/monitor.py: attach_lane_externals in get_current_state();
+blackout gate in scan_all_slices (tradable=False with reason
+"macro-event blackout (FOMC/CPI/NFP/OPEX); new entries paused"). Existing
+positions are NOT closed; exits/stops keep running during blackouts.
+scripts/discover_slices.py: profile-scoped new combinations, lane-isolated.
+crypto : [state_funding,state_ext], [state_oi,state_ext],
+[state_funding,state_oi,state_ext],
+[state_utc_session,state_funding,state_ext] intraday
+futures : [state_cot,state_ext], [state_cot,state_ext,state_slope]
+default/equity: [state_vix,state_ext], [state_breadth,state_ext],
+[state_vix,state_breadth,state_ext],
+[state_vix,state_session,state_ext] intraday
 Red-team findings (Antigravity) — all closed in bdf46c6:
-1. [RESOLVED] Bybit pagination infinite loop: descending-order results
-   walked startTime forward forever. Fixed by fixing startTime at window
-   start and walking endTime = oldest - 1.
-2. [RESOLVED] CFTC COT future leak: Tuesday as-of used instead of Friday
-   release. Fixed by +3d 20h 30m shift + 7d tolerance.
-3. [RESOLVED] VIX/DXY intraday lookahead: 00:00 UTC stamp leaked same-day
-   close. Fixed by +21h UTC on fetch side + _daily_effective_ts on merge
-   side for intraday frames.
-4. [RESOLVED] Breadth intraday lookahead: bars["bar_ts_utc"] <= ref included
-   current day's forming daily bar. Fixed by intraday=True cutoff and
-   per-date reference timestamps.
-5. [RESOLVED] NFP holiday shifts: added Jan 1 / Jul 4 / Jul 3-observed logic
-   in f3b42d3.
-6. [RESOLVED] CPI over-blackout: 11–15 window tightened to 12–14 (~10%
-   tradable uptime per month recovered).
 
+[RESOLVED] Bybit pagination infinite loop: descending-order results
+walked startTime forward forever. Fixed by fixing startTime at window
+start and walking endTime = oldest - 1.
+[RESOLVED] CFTC COT future leak: Tuesday as-of used instead of Friday
+release. Fixed by +3d 20h 30m shift + 7d tolerance.
+[RESOLVED] VIX/DXY intraday lookahead: 00:00 UTC stamp leaked same-day
+close. Fixed by +21h UTC on fetch side + _daily_effective_ts on merge
+side for intraday frames.
+[RESOLVED] Breadth intraday lookahead: bars["bar_ts_utc"] <= ref included
+current day's forming daily bar. Fixed by intraday=True cutoff and
+per-date reference timestamps.
+[RESOLVED] NFP holiday shifts: added Jan 1 / Jul 4 / Jul 3-observed logic
+in f3b42d3.
+[RESOLVED] CPI over-blackout: 11–15 window tightened to 12–14 (~10%
+tradable uptime per month recovered).
 Test coverage:
-- tests/test_external_states.py (NEW, 17 tests): vocab consistency,
-  fallback neutral values, fixed-prior bin boundaries for all 6 new states,
-  blackout dates (FOMC/NFP/OPEX true, random Wed false), lane scoping of
-  combos, PLUS 4 Antigravity-lookahead regression tests (vix 21:00 UTC
-  stamp, intraday breadth excludes current day, COT Friday alignment, Bybit
-  backward pagination).
-- tests/test_scan_leverage_integration.py: fixture date moved from
-  2026-06-19 (OPEX) to 2026-06-23 (clean Tuesday) to avoid spurious
-  blackout-flag failures.
-- Full offline suite: 455 passed, 1 skipped (live-network tests excluded).
 
+tests/test_external_states.py (NEW, 17 tests): vocab consistency,
+fallback neutral values, fixed-prior bin boundaries for all 6 new states,
+blackout dates (FOMC/NFP/OPEX true, random Wed false), lane scoping of
+combos, PLUS 4 Antigravity-lookahead regression tests (vix 21:00 UTC
+stamp, intraday breadth excludes current day, COT Friday alignment, Bybit
+backward pagination).
+tests/test_scan_leverage_integration.py: fixture date moved from
+2026-06-19 (OPEX) to 2026-06-23 (clean Tuesday) to avoid spurious
+blackout-flag failures.
+Full offline suite: 455 passed, 1 skipped (live-network tests excluded).
 Bootstrap and infra bugs fixed during first-run bring-up on 2026-07-17:
-1. sync_monitored_crypto.py returned exit code 1 when candidates/leaderboard
-   files don't exist yet; GHA `set -e` killed the step before the fallback
-   branch executed, so the first crypto refresh run (#1, run 29546286588)
-   crashed before the dispatch gate. Fixed (8f1f81e) with `|| echo` on both
-   calls (same pattern already used elsewhere in the workflow).
-2. `cat summary.json | jq . | head -50` causes SIGPIPE when head exits early;
-   under `set -o pipefail` that becomes step exit 141 -> step failure. Crypto
-   refresh #2 (after the sync fix) got through discovery but died on the
-   summary log line. Fixed by replacing the pipe with
-   `jq 'keys, .top_candidates[0:5]' file || true`.
-3. Dispatch gate logic in research_refresh_futures.yml and
-   research_refresh_equities.yml uses strict freshness logic
-   (fresh_data_gate_open AND sharded_discovery_required AND NOT discovery_ran).
-   Normal daily cron may say "not enough new bars, skip discovery"; when a
-   FULL rediscovery is needed (e.g. after a feature-adding commit), trigger
-   the *_discovery_*.yml shard workflow manually, not the parent refresh.
 
+sync_monitored_crypto.py returned exit code 1 when candidates/leaderboard
+files don't exist yet; GHA set -e killed the step before the fallback
+branch executed, so the first crypto refresh run (#1, run 29546286588)
+crashed before the dispatch gate. Fixed (8f1f81e) with || echo on both
+calls (same pattern already used elsewhere in the workflow).
+cat summary.json | jq . | head -50 causes SIGPIPE when head exits early;
+under set -o pipefail that becomes step exit 141 -> step failure. Crypto
+refresh #2 (after the sync fix) got through discovery but died on the
+summary log line. Fixed by replacing the pipe with
+jq 'keys, .top_candidates[0:5]' file || true.
+Dispatch gate logic in research_refresh_futures.yml and
+research_refresh_equities.yml uses strict freshness logic
+(fresh_data_gate_open AND sharded_discovery_required AND NOT discovery_ran).
+Normal daily cron may say "not enough new bars, skip discovery"; when a
+FULL rediscovery is needed (e.g. after a feature-adding commit), trigger
+the discovery.yml shard workflow manually, not the parent refresh.
 Scheduling (as of 2026-07-17, cron-job.org -> GHA workflow_dispatch):
-- 00:00 SAST  Research Refresh Equities    -> chains research_discovery.yml
-- 02:30 SAST  Research Refresh Futures     -> chains research_futures_discovery.yml
-- 03:00 SAST  Research Refresh Crypto      -> chains research_crypto_discovery.yml
-- :17 past-hr Live Capture Equities
-- :35 past-hr Live Capture Crypto
-- :45 past-hr Live Capture Futures (research-only, no live orders)
-- Two standalone discovery crons (Price Crypto Discovery, Price Futures
-  Discovery) are DISABLED on cron-job.org (not deleted — reversible). They
-  are redundant because each refresh chains its own discovery via the
-  dispatch-discovery job; standalone runs double-spend GHA minutes on stale
-  cache state.
-- Concurrency groups are lane-separated (research-refresh,
-  research-refresh-futures, research-refresh-crypto); they do NOT cancel
-  each other if runs overlap.
-- Warehouse cache keys are lane-keyed with run_id suffix; cache-maintenance
-  jobs prune superseded lane keys.
 
+00:00 SAST Research Refresh Equities -> chains research_discovery.yml
+02:30 SAST Research Refresh Futures -> chains research_futures_discovery.yml
+03:00 SAST Research Refresh Crypto -> chains research_crypto_discovery.yml
+:17 past-hr Live Capture Equities
+:35 past-hr Live Capture Crypto
+:45 past-hr Live Capture Futures (research-only, no live orders)
+Two standalone discovery crons (Price Crypto Discovery, Price Futures
+Discovery) are DISABLED on cron-job.org (not deleted — reversible). They
+are redundant because each refresh chains its own discovery via the
+dispatch-discovery job; standalone runs double-spend GHA minutes on stale
+cache state.
+Concurrency groups are lane-separated (research-refresh,
+research-refresh-futures, research-refresh-crypto); they do NOT cancel
+each other if runs overlap.
+Warehouse cache keys are lane-keyed with run_id suffix; cache-maintenance
+jobs prune superseded lane keys.
 Critical constraints future agents MUST NOT regress:
-1. NO LOOK-AHEAD ANYWHERE. Feature for bar T uses only info known by bar T
-   close. When adding ANY daily external series to intraday frames, stamp
-   daily bars post-close (21:00 UTC for US, adapt for other markets) OR
-   shift the intraday lookup key back via _daily_effective_ts. When in doubt,
-   write an explicit regression test like test_vix_daily_timestamp_post_market_close.
-2. Fixed-prior thresholds only. Never reintroduce qcut/quantile-based state
-   binning for new features — qcut bins peek at the future marginal
-   distribution and V4 showed they fail BH/Bonferroni. Pick thresholds from
-   domain knowledge; document why.
-3. Lane-scoped slice combinations. Crypto states only in crypto combos,
-   equity states only in equity combos, futures states only in futures
-   combos. Cross-lane conditioning uses attach_cross_asset_states with
-   MAX_CROSS_STALENESS=5 days and backward as-of merge. Do NOT add new
-   states to discovery profiles outside their lane.
-4. Fail-soft external data. If Binance/Bybit return 451/403 (US geo-block —
-   they do from GHA ubuntu runners), if CFTC is down, if yfinance 500s, the
-   feature column is NaN and the state bins to its "neutral/unknown" bucket.
-   Never raise, never cache empty/error fetches to disk.
-5. ≤2–3 new state dims per research cycle. Watch strict_gate_pass_count per
-   lane. Prune dims that produce zero promoted slices after 1–2 walk-forward
-   cycles before adding more.
-6. Blackout gate pauses NEW entries only. Existing positions continue to
-   get stops/exits managed. Do NOT turn blackouts into forced-liquidation.
 
+NO LOOK-AHEAD ANYWHERE. Feature for bar T uses only info known by bar T
+close. When adding ANY daily external series to intraday frames, stamp
+daily bars post-close (21:00 UTC for US, adapt for other markets) OR
+shift the intraday lookup key back via _daily_effective_ts. When in doubt,
+write an explicit regression test like test_vix_daily_timestamp_post_market_close.
+Fixed-prior thresholds only. Never reintroduce qcut/quantile-based state
+binning for new features — qcut bins peek at the future marginal
+distribution and V4 showed they fail BH/Bonferroni. Pick thresholds from
+domain knowledge; document why.
+Lane-scoped slice combinations. Crypto states only in crypto combos,
+equity states only in equity combos, futures states only in futures
+combos. Cross-lane conditioning uses attach_cross_asset_states with
+MAX_CROSS_STALENESS=5 days and backward as-of merge. Do NOT add new
+states to discovery profiles outside their lane.
+Fail-soft external data. If Binance/Bybit return 451/403 (US geo-block —
+they do from GHA ubuntu runners), if CFTC is down, if yfinance 500s, the
+feature column is NaN and the state bins to its "neutral/unknown" bucket.
+Never raise, never cache empty/error fetches to disk.
+≤2–3 new state dims per research cycle. Watch strict_gate_pass_count per
+lane. Prune dims that produce zero promoted slices after 1–2 walk-forward
+cycles before adding more.
+Blackout gate pauses NEW entries only. Existing positions continue to
+get stops/exits managed. Do NOT turn blackouts into forced-liquidation.
 Known limitations / future work (do not act on these without operator sign-off):
-- Binance fapi and Bybit return HTTP 451 / 403 from US-hosted runners.
-  Crypto funding/OI fetches will fail-soft to NaN on GHA ubuntu until a
-  ZA-based self-hosted runner is added or captures are run from an
-  allowed-egress machine. This means state_funding / state_oi remain in
-  neutral bins on CI runs until then. Breadth, VIX, DXY, COT, blackouts all
-  work from US runners.
-- NFP holiday handling covers Jan 1 / Jul 4 / Jul 3-observed. December 25
-  Friday (Christmas-week pull-forward) and Thanksgiving-week early
-  releases are not covered (no 2024–2027 in-window triggers, but revisit
-  when extending the calendar past 2027).
-- FOMC dates 2026 H2 / 2027 are projected on 8-meeting standard cadence,
-  not verified against the published schedule. Cross-check with the Fed's
-  official calendar when those dates approach.
-- COT year fallback tries current and current-1 only; multi-year archive
-  join not implemented (acceptable for conditioning-grade use).
-- Futures monitored_candidates file is not yet emitted (parity gap vs
-  crypto/equities); futures live book uses leaderboard fallback.
-- upload-artifact@v3 (Node 20) produces deprecation warnings on ubuntu-24.04
-  (Node 24). Non-blocking; bump actions when a non-deprecated version
-  stabilises.
 
+Binance fapi and Bybit return HTTP 451 / 403 from US-hosted runners.
+Crypto funding/OI fetches will fail-soft to NaN on GHA ubuntu until a
+ZA-based self-hosted runner is added or captures are run from an
+allowed-egress machine. This means state_funding / state_oi remain in
+neutral bins on CI runs until then. Breadth, VIX, DXY, COT, blackouts all
+work from US runners.
+NFP holiday handling covers Jan 1 / Jul 4 / Jul 3-observed. December 25
+Friday (Christmas-week pull-forward) and Thanksgiving-week early
+releases are not covered (no 2024–2027 in-window triggers, but revisit
+when extending the calendar past 2027).
+FOMC dates 2026 H2 / 2027 are projected on 8-meeting standard cadence,
+not verified against the published schedule. Cross-check with the Fed's
+official calendar when those dates approach.
+COT year fallback tries current and current-1 only; multi-year archive
+join not implemented (acceptable for conditioning-grade use).
+Futures monitored_candidates file is not yet emitted (parity gap vs
+crypto/equities); futures live book uses leaderboard fallback.
+upload-artifact@v3 (Node 20) produces deprecation warnings on ubuntu-24.04
+(Node 24). Non-blocking; bump actions when a non-deprecated version
+stabilises.
 Posture (2026-07-17, pre-first-full-WF validation):
-- Full three-lane weekend rediscovery kicked off manually on 2026-07-17 SAST
-  after all fixes landed. strict_gate_pass_count is expected to be 0 on
-  first run for the new dims. Promotion requires train/valid + cost +
-  Newey-West + walk-forward + parent-excess + search-wide BH/Bonferroni
-  across all cost variants and split configurations — the same V4/V5 bar.
-- The right move from here is WAIT and OBSERVE 1–2 walk-forward cycles.
-  Do NOT add T6/T7/etc features immediately. The V4 lesson was that most
-  fancy features do not survive the gate, and adding more before pruning
-  the zero-pass dims inflates combinatorial space and weakens multiple-
-  testing correction.
-- If after two WF cycles any of state_funding / state_oi / state_cot /
-  state_vix / state_breadth / state_dxy has 0 promoted slices across all
-  lanes, PRUNE the dim (remove from ML_FEATURE_TO_STATE, remove its
-  combos, leave the fetcher in place but stop running discovery on it).
-- Then — and only then — consider the next feature addition, and add at
-  most 1–3 dims per cycle. Candidates ranked by value/lift:
-  - VIX term structure (^VIX9D / ^VIX3M ratio, fixed priors, equity-only)
-  - HYG/LQD credit-spread stress (equity-only, daily)
-  - ^CPCE equity-only put/call ratio (equity-only, daily sentiment)
-  Crypto T6 is a separate later tranche (Deribit IV, spot-perp basis,
-  BTC/ETH dominance) and requires the ZA runner to be in place first.
-  Execution/broker work (T9-level: real order routing, ADV-based sizing,
-  slippage modelling) is explicitly forbidden by the anti-drift rule
-  until 3+ strict-promoted slices have 6+ months of paper P&L beating
-  unconditional buy-and-hold at acceptable Sharpe on the same symbols.
 
+Full three-lane weekend rediscovery kicked off manually on 2026-07-17 SAST
+after all fixes landed. strict_gate_pass_count is expected to be 0 on
+first run for the new dims. Promotion requires train/valid + cost +
+Newey-West + walk-forward + parent-excess + search-wide BH/Bonferroni
+across all cost variants and split configurations — the same V4/V5 bar.
+The right move from here is WAIT and OBSERVE 1–2 walk-forward cycles.
+Do NOT add T6/T7/etc features immediately. The V4 lesson was that most
+fancy features do not survive the gate, and adding more before pruning
+the zero-pass dims inflates combinatorial space and weakens multiple-
+testing correction.
+If after two WF cycles any of state_funding / state_oi / state_cot /
+state_vix / state_breadth / state_dxy has 0 promoted slices across all
+lanes, PRUNE the dim (remove from ML_FEATURE_TO_STATE, remove its
+combos, leave the fetcher in place but stop running discovery on it).
+Then — and only then — consider the next feature addition, and add at
+most 1–3 dims per cycle. Candidates ranked by value/lift:
+VIX term structure (^VIX9D / ^VIX3M ratio, fixed priors, equity-only)
+HYG/LQD credit-spread stress (equity-only, daily)
+^CPCE equity-only put/call ratio (equity-only, daily sentiment)
+Crypto T6 is a separate later tranche (Deribit IV, spot-perp basis,
+BTC/ETH dominance) and requires the ZA runner to be in place first.
+Execution/broker work (T9-level: real order routing, ADV-based sizing,
+slippage modelling) is explicitly forbidden by the anti-drift rule
+until 3+ strict-promoted slices have 6+ months of paper P&L beating
+unconditional buy-and-hold at acceptable Sharpe on the same symbols.
 Anti-drift reminder (from earlier V4/V5 sections, reaffirmed):
 Do not jump from validated research into options, broker wiring, "AI bot
 prints money" narratives, governance layers, cloud-memory sprawl, or
@@ -5672,3 +5671,81 @@ Live trading is a tiny tail on a very large research dog.
 
 Discipline over features. The strict gate is the product; the features
 are candidates.
+
+Session Update — Trade Frequency & Gate Refinement (2026-07-21)
+Date: 2026-07-21
+Agent: Arena.ai Agent Mode
+
+Context
+The operator identified that the paper book was accumulating trades too slowly — 10 round-trips over two weeks across 22 equity candidates, zero crypto trades in 128 runs, and 4 futures candidates producing zero fills. The system's statistical rigor was correct but its trade frequency was too low to accumulate evidence at a useful rate.
+
+Root cause analysis
+Three compounding factors:
+
+Gate was too strict for paper evidence accumulation. _strict_candidate() required clean_survivor triage, WF≥3/4, scenarios≥4, and BH-FDR. This gate is correct for a structural-edge claim (multi-regime evidence), but the paper book exists to accumulate out-of-sample evidence — not to make structural-edge claims. Two different jobs.
+
+90% of the book was cross-conditioned. Conditioning on USO/TLT narrows the sample to specific macro regimes, producing spurious statistical significance that survives BH-FDR but produces slices that fire rarely in live trading because two symbols must align on the same bar.
+
+Crypto and futures use completely separate promotion pipelines. Equities flows through research_lifecycle.py → sync_monitored.py. Crypto and futures use their own sync scripts with regime-registry-based selection. Changes to the equity gate have no effect on crypto/futures.
+
+Changes deployed (all on main)
+1. New _tradeable_candidate() gate (scripts/research_lifecycle.py)
+Added a softer eligibility gate alongside the existing _strict_candidate():
+
+Admits late_emerging candidates in addition to clean_survivor
+Walk-forward: ≥2/4 (was ≥3/4)
+Scenarios: ≥3/8 (was ≥4/8)
+Non-negotiables retained: BH-FDR, parent-excess, N≥15, excess-vs-baseline
+_strict_candidate() remains unchanged — it still gates auto_approved. The new gate only affects what qualifies as paper_proposal. Registry now carries a tradeable_gate_pass column for audit.
+
+2. regime.py dtype fix (src/price/regime.py)
+attach_regime_labels() was crashing on pandas.errors.MergeError: incompatible merge keys datetime64[us, UTC] and datetime64[ns, UTC]. Fixed with .astype("datetime64[us, UTC]") on both sides before merge_asof — identical to the existing fix in discovery.py's align_cross_asset_states.
+
+This crash had been silently killing crypto discovery merge steps since deployment. Prior crypto discovery runs (#11, #12) failed in the merge step without surfacing an obvious error.
+
+3. Live capture workflow timeouts (live_capture_crypto.yml, live_capture_futures.yml)
+Bumped timeout-minutes from 45 to 60 for both crypto and futures live capture workflows. Cold-start warehouse cache misses caused runs to exceed 45 minutes, triggering cancellation by the next hourly concurrency group. 60 minutes aligns with the cron interval.
+
+4. Parent-excess evaluation — REVERTED
+A proposed change to evaluate parent baselines on the same observation set as the child slice was deployed and then reverted in the same session. The original behavior (parent evaluated on the full eligible frame, child on the child-filtered subset) is correct by design: parent-excess measures whether the child's extra conditions select a better-performing subset than the parent alone. Forcing both onto the same subset makes parent mean = child mean, excess always zero. The correct original logic was restored.
+
+Discovery run results
+Equities (#4, 1d+1h, 24 shards, 1h 42m):
+
+89 → 91 monitored slices (+3, -1)
+New: ARKG 1h vol_quiet + neutral (short, hourly, single-symbol)
+New: ETHE 1h cross_USO_vol=high + stretched_up (short, hourly)
+New: HUM 1h cross_TLT_flat + slope=uptrend (long, hourly)
+Removed: C 1d cross_TLT_stretched_up + stretched_up
+Two of three new admits are short hourly slices — the softer gate working as intended
+Crypto (#13, 1d+1h, 6 shards, 3h 28m):
+
+Merge succeeded (regime.py fix verified)
+15 monitored crypto slices unchanged
+strict_gate_pass_count: 0, paper_proposal_count: 0
+Top candidates are late_emerging with WF=1-2, mostly failing BH-FDR at 6000-row family size
+All 15 monitored slices are 1d cross-conditioned regime candidates
+Zero trade count (128 runs) is expected: 1d cross-conditioned candidates fire at most once per day when BTC/ETH align
+Futures (#7, before gate change, 50m):
+
+4 monitored slices: FUT/CL, FUT/NQ, FUT/ES (all 1h session-based, leaderboard fallback)
+strict_gate_pass_count: 0, paper_proposal_count: 0, regime_candidate_count: 0
+Infrastructure-ready but candidate-empty. Known parity gap from consolidation handover.
+What the gate change actually unlocked
+On the current stale leaderboard: exactly 3 new candidates (the equities merge result). On a fresh sharded discovery merged leaderboard: expected dozens more, since late_emerging candidates that were previously excluded will now qualify as paper_proposal. The gate works — it just needs fresh discovery to feed it. The daily research refresh chain (00:00 → 02:30 → 03:00 SAST) handles this automatically when the fresh-data gate opens.
+
+Current operational posture (unchanged)
+Paper account only. 1.0x leverage. No live capital.
+91 equity slices across 69 symbols. 15 crypto slices across 9 pairs. 4 futures slices across 3 contracts.
+Protective stops active (2.0x ATR initial, breakeven at +1R, 3.0x ATR trail).
+Hourly live capture (equities :17, crypto :35, futures :45 SAST).
+Daily research refresh (00:00/02:30/03:00 SAST) with discovery chaining.
+No slice promoted. No real capital. No options/futures/forex expansion.
+Known architecture gap
+Crypto and futures promotion pipelines are completely separate from equities. _tradeable_candidate() only affects the equities lane via sync_monitored.py. Crypto uses sync_monitored_crypto.py which selects candidates by regime registry status. Futures uses a leaderboard fallback. Any future change to promotion logic must be replicated across all three sync scripts or unified into a single controller.
+
+Next agent guidance
+Wait and observe. The paper book needs weeks, not days, of evidence.
+Do not add options, forex, or new features. The HANDOVER's anti-drift rules stand.
+If crypto funding/OI features are needed for live trading, a ZA-based self-hosted runner is required (Binance/Bybit geoblock US IPs).
+Bump max-parallel: 2 on crypto discovery if the 3.5h runtime is unacceptable — but the rate-limit risk with Alpaca free tier is real.
