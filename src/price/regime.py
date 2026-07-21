@@ -281,6 +281,12 @@ def attach_regime_labels(
     primary_sorted = primary.sort_values("bar_ts_utc").reset_index(drop=True)
     primary_sorted["_orig_order"] = range(len(primary_sorted))
 
+    # Force exact datetime dtype match to prevent pandas.errors.MergeError:
+    # incompatible merge keys datetime64[us, UTC] vs datetime64[ns, UTC].
+    # Same pattern as align_cross_asset_states in discovery.py.
+    primary_sorted["bar_ts_utc"] = primary_sorted["bar_ts_utc"].astype("datetime64[us, UTC]")
+    regime_lookup["bar_ts_utc"] = regime_lookup["bar_ts_utc"].astype("datetime64[us, UTC]")
+
     merged = pd.merge_asof(
         primary_sorted, regime_lookup, on="bar_ts_utc", direction="backward",
     )

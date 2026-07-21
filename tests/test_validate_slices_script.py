@@ -129,6 +129,14 @@ def test_summarize_baseline_train_valid_uses_same_chronological_split():
     assert baseline["valid"]["mean_return"] == 0.02
 
 def test_summarize_parent_baselines_train_valid_finds_strongest_parent():
+    """Parent-excess fairness: both parents now share the child's observation set.
+
+    With 10 bars, state_b=y holds on rows 6 and 9 (fwd_ret 0.02, 0.06).
+    The child filter (state_a=x + state_b=y) restricts to these 2 bars.
+    Both parents are now evaluated on the SAME 2-bar subset, so they tie.
+    state_a=x wins the tie-break because it's the first parent yielded by
+    iter_parent_slice_filters (single-element combos come first).
+    """
     df = pd.DataFrame(
         {
             "bar_ts_utc": pd.date_range("2024-01-01", periods=10, freq="h", tz="UTC"),
@@ -147,7 +155,10 @@ def test_summarize_parent_baselines_train_valid_finds_strongest_parent():
         min_samples=1,
     )
 
-    assert parent["valid"]["filter"] == "state_b=y"
+    # Both parents now tie (evaluated on same 2-bar child subset).
+    # state_a=x wins the tie-break (first parent from iter_parent_slice_filters).
+    assert parent["valid"]["filter"] == "state_a=x"
+    # The 2 child bars split: bar 6 (0.02) → train, bar 9 (0.06) → valid.
     assert parent["valid"]["sample_count"] == 1
     assert parent["valid"]["mean_return"] == 0.06
 

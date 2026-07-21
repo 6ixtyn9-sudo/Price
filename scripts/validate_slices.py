@@ -215,20 +215,44 @@ def summarize_parent_baselines_train_valid(
 ) -> dict:
     """Find the strongest parent-regime baseline in train and validation.
 
-    The selected parent for each window is the parent filter with the highest
-    cost-adjusted mean return in that same chronological window. This is a
-    deliberately conservative diagnostic: if the child slice cannot beat the
-    strongest simpler parent in validation, the discovered 2D/3D combination
-    may not add much beyond a simpler regime.
+    PARENT-EXCESS FAIRNESS FIX (2026-07-21):
+
+    Prior to this fix, every parent filter was evaluated on the FULL eligible
+    frame, while the child slice was evaluated on the subset where its full
+    filter (including cross-asset conditions) held. This meant the parent
+    return was an average over ALL bars — including regimes where the
+    cross-condition does not hold — while the child return was averaged over a
+    narrow, regime-specific subset.  If the cross-condition regime happened to
+    be a bull market, the child looked artificially strong vs the parent.
+
+    Fix: both parent AND child are now measured on the SAME observation set
+    (the bars where the child's full filter matches).  This isolates the
+    cross-condition's genuine contribution: does the child's extra condition
+    narrow the sample to bars where the simpler parent-regime edge is
+    concentrated?  If so, the child beats the parent.  If not, the child is
+    redundant or overfit.
 
     A parent of a short slice is itself a short, so it inherits the child's
     `side` (same direction-adjustment).
     """
+    # ── 1.  Restrict to bars where the child's full filter holds ──────────
+    child_df = apply_slice_filter(df, slice_filter)
+    if child_df.empty:
+        return {
+            "train": {"filter": "", "sample_count": 0, "mean_return": float("nan")},
+            "valid": {"filter": "", "sample_count": 0, "mean_return": float("nan")},
+        }
+
+    train_child, valid_child = chronological_train_valid_split(
+        child_df, split=split
+    )
+
     parent_results = []
 
     for parent_filter in iter_parent_slice_filters(slice_filter):
+        # Evaluate parent on the SAME filtered-eligible frame as the child.
         tv = evaluate_slice_train_valid(
-            df,
+            child_df,
             parent_filter,
             split=split,
             target_col=target_col,
@@ -555,21 +579,41 @@ def best_parent_filter_window(
     side: str = "long",
     short_cost_bps: float = 0.0,
 ) -> dict:
-    """Return the strongest simpler parent regime inside one window."""
+    """Return the strongest simpler parent regime inside one window.
+
+    PARENT-EXCESS FAIRNESS FIX (2026-07-21):
+
+    Prior to this fix, parents were evaluated on the FULL window while the
+    child was evaluated on the child-filtered subset.  Now both share the
+    child-filtered observation set — same fix as
+    ``summarize_parent_baselines_train_valid`` above.
+    """
+    # Restrict to bars where the child's full filter holds.
+    child_window = apply_slice_filter(window, slice_filter)
+    if child_window.empty or target_col not in child_window.columns:
+        return {
+            "filter": "",
+            "sample_count": 0,
+            "mean_return": float("nan"),
+            "p_value": float("nan"),
+        }
+
     parent_summaries = []
 
     for parent_filter in iter_parent_slice_filters(slice_filter):
-        summary = summarize_filter_window(
-            window,
-            parent_filter,
-            target_col=target_col,
+        filtered = apply_slice_filter(child_window, parent_filter) if parent_filter else child_window
+        if filtered.empty:
+            continue
+        price = filtered[price_col] if price_col and price_col in filtered.columns else None
+        returns = direction_adjusted_returns(
+            filtered[target_col],
+            side=side,
             cost_bps=cost_bps,
             cost_per_share=cost_per_share,
-            price_col=price_col,
-            min_samples=min_samples,
-            side=side,
+            price=price,
             short_cost_bps=short_cost_bps,
         )
+        summary = summarize_returns(returns, min_samples=min_samples)
         mean_return = summary.get("mean_return", float("nan"))
         if not pd.isna(mean_return):
             parent_summaries.append(
