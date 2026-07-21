@@ -158,16 +158,28 @@ def run_refresh(
     symbols = list(symbols or SYMBOLS)
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Build coverage for daily timeframe only (used for discovery gate)
-    previous = _load_state().get("daily_coverage", {})
-    current = _coverage(symbols, ("1d",))  # Only 1d for gate
-    new_bars = _new_daily_bars(previous, current)
+    # Build coverage for daily timeframe only (used for discovery gate).
+    # The DURABLE baseline (discovery_baseline_coverage) persists across
+    # refresh cycles and is only reset when discovery actually runs.  Without
+    # this, the gate logic compared current coverage against yesterday's
+    # snapshot (which was itself overwritten every refresh), so bars never
+    # accumulated beyond 1 and the gate stayed permanently closed.
+    # daily_coverage is still written for telemetry; the delta comparison
+    # uses the durable baseline.
+    state = _load_state()
+    previous_telemetry = state.get("daily_coverage", {})
+    discovery_baseline = state.get("discovery_baseline_coverage", None)
+    current = _coverage(symbols, ("1d",))
+
+    new_bars = _new_daily_bars(previous_telemetry, current)
 
     if force_discovery:
         eligible_symbols = symbols
     else:
+        # Compare against the DURABLE baseline so bars accumulate across days.
+        comparison_baseline = discovery_baseline if discovery_baseline is not None else previous_telemetry
         eligible_symbols = _eligible_discovery_symbols(
-            previous, current, min_new_daily_bars
+            comparison_baseline, current, min_new_daily_bars
         )
 
     # The first refresh establishes the coverage baseline. On later refreshes,
@@ -311,6 +323,14 @@ def run_refresh(
         "symbols": len(symbols),
         "timeframes": list(timeframes),
         "daily_coverage": current,
+        # Durable baseline: only reset when discovery runs so bars can
+        # accumulate across days.  Falls back to the previous baseline
+        # on the first refresh after deployment (when the key is absent).
+        "discovery_baseline_coverage": (
+            current if discovery_ran
+            else discovery_baseline if discovery_baseline is not None
+            else previous_telemetry  # first-run migration: seed from legacy daily_coverage
+        ),
         "new_daily_bars_since_previous_refresh": new_bars,
         "eligible_discovery_symbols": eligible_symbols,
         "eligible_discovery_symbol_count": len(eligible_symbols),
