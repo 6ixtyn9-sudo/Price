@@ -166,12 +166,23 @@ jobs:
           # Block auto-commit on runaway row-count growth.
           python scripts/delta_spike_guard.py
 
-          # Sync generated intelligence/artifacts only. Operational broker/paper
-          # state is persisted via the live-ops cache above, not committed.
+          # Commit all generated intelligence AND operational broker/paper state.
+          # The ops cache is a speed layer; these files are also committed
+          # so the journal survives cache eviction and runner ephemeral-fs loss.
+          # Previously the journal was cache-only, meaning any trade that
+          # entered and exited within a single scan cycle (or whose cache save
+          # raced with a commit) was lost — unrecoverable except as
+          # UNATTRIBUTED_BROKER_FILL backfill rows. See HANDOVER.md
+          # session update 2026-07-21.
           files=(
             localdata/live_forward_returns.csv
             localdata/monitored_edge_metrics.csv
             localdata/monitored_slices.csv
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
           )
           existing=()
           for f in "${files[@]}"; do
