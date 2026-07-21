@@ -9,7 +9,7 @@ LTC/USD,1d,cross_BTC/USD_state_slope=flat + state_ext=stretched_up,short,rolling
 BCH/USD,1d,cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up,short,rolling,bull_regime_candidate,bull_regime_candidate
 AVAX/USD,1d,cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_down,short,rolling,bull_regime_candidate,bull_regime_candidate
 SUSHI/USD,1d,cross_BTC/USD_state_ext=stretched_up + cross_ETH/USD_state_slope=flat + state_ext=stretched_up,short,rolling,bear_regime_candidate,bear_regime_candidate
-DOT/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,rolling,bear_regime_candidate,bear_regime_candidate
+DOT/USD,1d,cross_ETH/USD_state_slope=uptrend + state_slope=flat,short,rolling,bull_regime_candidate,bull_regime_candidate
 DOGE/USD,1d,cross_BTC/USD_state_ext=neutral + state_ext=stretched_down,short,rolling,bull_regime_candidate,bull_regime_candidate
 AAVE/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=downtrend,long,rolling,bull_regime_candidate,bull_regime_candidate
 LTC/USD,1d,cross_BTC/USD_state_ext=stretched_down + cross_ETH/USD_state_slope=flat + state_ext=stretched_down,long,rolling,bull_regime_candidate,bull_regime_candidate
