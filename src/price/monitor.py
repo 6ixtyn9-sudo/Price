@@ -37,7 +37,7 @@ from price.leverage import total_open_notional
 from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
 from price.regime import check_regime
 from price.risk_limits import RiskLimits, check_entry, risk_group_key
-from price.sizing import compute_atr_14, compute_position_size
+from price.sizing import compute_atr_14, compute_position_size, load_edge_metrics
 from price.stop_manager import reconcile_stops
 from price.stops import DEFAULT_STOP_ATR_MULT, load_stop_states
 from price.trading import get_open_positions, get_open_orders
@@ -603,6 +603,25 @@ def scan_all_slices(
 
         all_cross_symbols: Dict[str, List[str]] = {}
         required_state_fields: List[str] = []
+        # ── Sort slices within each group by edge quality ────────────────
+        # Strongest edge (highest valid_mean_ret_costadj) takes first shot
+        # at a fill. Weaker slices for the same symbol/timeframe wait for
+        # the next scan when the strong one is not in state. This prevents
+        # a 0.5% edge slice that happens to appear earlier in the CSV from
+        # blocking a 7.2% edge slice via the same-pass dedup shield.
+        try:
+            def _edge_sort_key(s: dict) -> float:
+                edge = load_edge_metrics(
+                    s["symbol"], s["timeframe"], s["slice_combination"],
+                )
+                if edge is not None and edge.mean_return == edge.mean_return:
+                    return edge.mean_return
+                return 0.0
+
+            group_slices.sort(key=_edge_sort_key, reverse=True)
+        except Exception:  # noqa: BLE001 - edge-sort must never break the scan
+            pass
+
         for s in group_slices:
             try:
                 slice_filter = parse_slice_combination(s["slice_combination"])
