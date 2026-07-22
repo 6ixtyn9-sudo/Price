@@ -54,5 +54,19 @@
     "stop_order_id": "a606b9b7-9397-4414-a55f-eb61fb9c25f2",
     "opened_at": "",
     "updated_at": ""
+  },
+  "GOLD": {
+    "symbol": "GOLD",
+    "side": "long",
+    "qty": 23.0,
+    "entry_price": 39.860435,
+    "initial_stop_price": 36.46,
+    "current_stop_price": 36.46,
+    "r_per_share": 3.4004350000000017,
+    "stage": "initial",
+    "extreme_price": 39.860435,
+    "stop_order_id": "3fbd0150-1a51-4058-97ba-676ad9dbee45",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
