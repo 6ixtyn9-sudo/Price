@@ -26,28 +26,42 @@ localdata/warehouse/
 *.log
 
 # ---- Operational state (broker / runtime) ----
-# These files reflect in-memory broker state and must NOT be committed.
-# They are persisted across GitHub Actions runs via the live-ops-state-v1 cache.
+# Excluded by default — most operational files should not be committed.
 localdata/stop_state.json
 localdata/cooldown_journal.json
 localdata/stopout_journal.json
 localdata/HALT_TRADING.flag
 localdata/trade_journal.csv
 localdata/paper_trade_log.csv
+localdata/HALT_TRADING_CRYPTO.flag
+localdata/HALT_TRADING_FUTURES.flag
 
 # Allow intelligence/artifacts (research CSVs/JSONs and curated config)
 !localdata/*.csv
 !localdata/*.json
 !.gitkeep
 
-# Re-exclude the operational-state files explicitly (after the broad un-ignore
-# above, since gitignore last-matching-pattern wins).
-localdata/stop_state.json
-localdata/cooldown_journal.json
-localdata/stopout_journal.json
-localdata/HALT_TRADING.flag
-localdata/trade_journal.csv
-localdata/paper_trade_log.csv
+# ── 2026-07-21: Operational journals committed for durability ──
+# Previously these were cache-only and trades entered/exited within a single
+# scan cycle were lost.  Reversing the exclusion lets the workflow commit
+# step store them in git alongside the research outputs.
+!localdata/trade_journal.csv
+!localdata/trade_journal_crypto.csv
+!localdata/trade_journal_futures.csv
+!localdata/paper_trade_log.csv
+!localdata/paper_trade_log_crypto.csv
+!localdata/paper_trade_log_futures.csv
+!localdata/stop_state.json
+!localdata/stop_state_crypto.json
+!localdata/stop_state_futures.json
+!localdata/stopout_journal.json
+!localdata/stopout_journal_crypto.json
+!localdata/stopout_journal_futures.json
+!localdata/cooldown_journal.json
+!localdata/cooldown_journal_crypto.json
+!localdata/cooldown_journal_futures.json
+
+# HALTs stay untracked (operator-only kill switches, never auto-committed).
 
 # Local self-hosted GitHub Actions runner; never commit
 /actions-runner/
