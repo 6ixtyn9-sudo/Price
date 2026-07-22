@@ -84,7 +84,8 @@ ba6ab4cb-b0a8-4437-aef1-2f9d1a2a6be3,JPM,3.0,sell,stop,329.13,gtc,canceled,2026-
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T14:39:45.701638+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
 ,SPG,,close,,,,rejected,,exit,2026-07-22T14:51:54.014465+00:00,,,,,,"{""code"":40410000,""message"":""position not found: SPG""}",,,,,,,,,
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T15:38:29.593111+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
-a606b9b7-9397-4414-a55f-eb61fb9c25f2,AMT,5.0,sell,stop,158.73,gtc,new,2026-07-22 16:39:31.820091+00:00,protective_stop_submit,2026-07-22T16:39:31.861363+00:00,new,0.0,,,2026-07-22T17:38:43.428388+00:00,,,,,,,,,,
+a606b9b7-9397-4414-a55f-eb61fb9c25f2,AMT,5.0,sell,stop,158.73,gtc,canceled,2026-07-22 16:39:31.820091+00:00,protective_stop_submit,2026-07-22T16:39:31.861363+00:00,canceled,0.0,,,2026-07-22T19:38:27.555090+00:00,,,,,,,,,,
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T16:39:32.099034+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T17:38:52.371399+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T18:38:21.364061+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
+,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T19:38:30.680542+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
