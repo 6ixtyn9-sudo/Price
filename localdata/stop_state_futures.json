@@ -27,20 +27,6 @@
     "opened_at": "",
     "updated_at": ""
   },
-  "AMT": {
-    "symbol": "AMT",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 163.85,
-    "initial_stop_price": 156.74,
-    "current_stop_price": 156.74,
-    "r_per_share": 7.109999999999985,
-    "stage": "initial",
-    "extreme_price": 163.85,
-    "stop_order_id": "aa257db4-2c1c-45e6-a189-c0c7db967642",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "AMAT": {
     "symbol": "AMAT",
     "side": "long",
@@ -52,62 +38,6 @@
     "stage": "initial",
     "extreme_price": 550.613333,
     "stop_order_id": "3e3b0b15-f5a1-45af-96fd-151ffc889c26",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "AVGO": {
-    "symbol": "AVGO",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 381.985,
-    "initial_stop_price": 349.71,
-    "current_stop_price": 349.71,
-    "r_per_share": 32.275000000000034,
-    "stage": "initial",
-    "extreme_price": 381.985,
-    "stop_order_id": "7f041b50-06bd-42bf-97a6-e474edf2478c",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "CVS": {
-    "symbol": "CVS",
-    "side": "long",
-    "qty": 8.0,
-    "entry_price": 109.94,
-    "initial_stop_price": 104.59,
-    "current_stop_price": 104.59,
-    "r_per_share": 5.349999999999994,
-    "stage": "initial",
-    "extreme_price": 109.94,
-    "stop_order_id": "e5f3a7b7-11c6-41ba-a115-456f6983528b",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "JPM": {
-    "symbol": "JPM",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 345.07,
-    "initial_stop_price": 329.13,
-    "current_stop_price": 329.13,
-    "r_per_share": 15.939999999999998,
-    "stage": "initial",
-    "extreme_price": 345.07,
-    "stop_order_id": "ba6ab4cb-b0a8-4437-aef1-2f9d1a2a6be3",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "SPG": {
-    "symbol": "SPG",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 226.75,
-    "initial_stop_price": 217.8,
-    "current_stop_price": 217.8,
-    "r_per_share": 8.949999999999989,
-    "stage": "initial",
-    "extreme_price": 226.75,
-    "stop_order_id": "443514f6-693a-4fae-8428-4d11a9996437",
     "opened_at": "",
     "updated_at": ""
   }
