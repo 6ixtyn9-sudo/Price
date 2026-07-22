@@ -210,3 +210,7 @@ exit_intent,exit,KLAC,horizon reached: held 8 bars >= 5 (1d),,faa4a139-3ae4-43da
 stop_intent,stop_unchanged,AMT,,156.74,,2026-07-22T10:46:04.800866+00:00,2026-07-22T10:46:10.675821+00:00,initial,5.0,0.007,,,,,,,,,,,,
 stop_intent,stop_unchanged,KLAC,,174.82,,2026-07-22T10:46:04.800879+00:00,2026-07-22T10:46:10.711992+00:00,initial,9.0,-0.131,,,,,,,,,,,,
 stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T10:46:04.800883+00:00,2026-07-22T10:46:10.716090+00:00,initial,10.0,-0.056,,,,,,,,,,,,
+exit_intent,exit,KLAC,horizon reached: held 8 bars >= 5 (1d),,44b64c6d-348b-47ef-9859-3554e1c880ff,2026-07-22T11:45:58.461630+00:00,2026-07-22T11:46:04.893474+00:00,,,,,,pending_new,,state_ext=stretched_down + state_slope=downtrend,state_ext=stretched_down + state_slope=downtrend,"{'state_ext': 'stretched_down', 'state_slope': 'downtrend'}",8.0,5.0,1d,False,paper_trade_log_enter
+stop_intent,stop_unchanged,AMT,,156.74,,2026-07-22T11:45:58.515663+00:00,2026-07-22T11:46:04.899386+00:00,initial,5.0,0.007,,,,,,,,,,,,
+stop_intent,stop_unchanged,KLAC,,174.82,,2026-07-22T11:45:58.515677+00:00,2026-07-22T11:46:04.904753+00:00,initial,9.0,-0.169,,,,,,,,,,,,
+stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T11:45:58.515682+00:00,2026-07-22T11:46:04.910118+00:00,initial,10.0,-0.056,,,,,,,,,,,,
