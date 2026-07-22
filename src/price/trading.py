@@ -850,6 +850,43 @@ def close_position(symbol: str, cancel_open_orders: bool = True,
     except Exception:  # noqa: BLE001 - closing the position must not be blocked
         pre_close_snapshot = {}
 
+    # ── Guard: if a non-stop close order is already pending for this
+    # symbol, do NOT cancel and re-submit it. That is the cancel-resubmit
+    # cycle: every hourly scan's close_position() cancels the previous
+    # scan's still-open market sell and replaces it with an identical one,
+    # while reconcile_stops() re-creates the protective stop that
+    # close_position() just cancelled.  Returning the existing pending
+    # order here breaks the cycle: the market sell fills when it fills,
+    # and reconcile_stops() (patched separately) skips stop creation when
+    # it sees the pending close.
+    try:
+        pending_df = get_orders_for_symbol(symbol, status="open")
+        if pending_df is not None and not pending_df.empty:
+            non_stop = pending_df[pending_df["type"] != "stop"]
+            if not non_stop.empty:
+                existing = non_stop.iloc[0]
+                result = {
+                    "order_id": str(existing["order_id"]),
+                    "symbol": symbol.upper(),
+                    "side": "close",
+                    "status": "close_already_pending",
+                    "submitted_at": str(existing.get("submitted_at", "")),
+                    "reason": (
+                        "non-stop close order already pending for "
+                        f"{symbol}; skipping cancel+resubmit to avoid "
+                        "the hourly cancel-resubmit cycle"
+                    ),
+                    "qty": pre_close_snapshot.get("qty"),
+                    "avg_entry_price": pre_close_snapshot.get("avg_entry_price"),
+                    "current_price": pre_close_snapshot.get("current_price"),
+                }
+                # Still journal it so the audit trail shows we considered
+                # and explicitly skipped this close.
+                _append_journal(result, action="exit")
+                return result
+    except Exception:  # noqa: BLE001 - must never block a close
+        pass
+
     if cancel_open_orders:
         try:
             open_orders = get_orders_for_symbol(symbol, status="open")

@@ -374,6 +374,32 @@ def reconcile_stops(
                 })
                 continue
 
+            # ── Guard: if a non-stop close order is already pending for
+            # this symbol, do NOT create a new protective stop.  The
+            # position is being closed (e.g. horizon exit, state-break),
+            # and creating a stop here would complete the cancel-resubmit
+            # cycle: close_position() cancels the stop → reconcile_stops()
+            # re-creates it → next scan repeats.  See the matching guard
+            # in trading.close_position().
+            try:
+                pending_df = get_orders_for_symbol_fn(symbol, status="open")
+                if pending_df is not None and not pending_df.empty:
+                    non_stop = pending_df[pending_df["type"] != "stop"]
+                    if not non_stop.empty:
+                        intents.append({
+                            "action": "stop_deferred_close_pending",
+                            "symbol": symbol,
+                            "reason": (
+                                f"non-stop close order already pending "
+                                f"({non_stop.iloc[0].get('order_id', '?')}) "
+                                f"for {symbol}; skipping new stop to avoid "
+                                "the cancel-resubmit cycle"
+                            ),
+                        })
+                        continue
+            except Exception:  # noqa: BLE001 - must never crash the scan
+                pass
+
             atr = _resolve_atr_for_symbol(symbol, timeframe)
             if atr is None:
                 if force_close_unprotected and not dry_run:
