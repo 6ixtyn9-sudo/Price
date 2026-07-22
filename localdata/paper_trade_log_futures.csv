@@ -262,3 +262,6 @@ stop_intent,stop_state_cleared,GOLD,position no longer open (stopped out or clos
 stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-22T19:46:01.405306+00:00,2026-07-22T19:46:05.357334+00:00,initial,3.0,0.093,,,,,,,,,,,,,,,
 stop_intent,stop_ratchet_failed,KLAC,"{""code"":42210000,""message"":""order is not open""}",,,2026-07-22T19:46:01.405310+00:00,2026-07-22T19:46:05.363058+00:00,,,,,,,,,,,,,,,,,,
 stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T19:46:01.405314+00:00,2026-07-22T19:46:05.368621+00:00,initial,10.0,-0.175,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-22T20:46:00.913782+00:00,2026-07-22T20:46:05.393059+00:00,initial,3.0,0.066,,,,,,,,,,,,,,,
+stop_intent,stop_ratchet_failed,KLAC,"{""code"":42210000,""message"":""order is not open""}",,,2026-07-22T20:46:00.913793+00:00,2026-07-22T20:46:05.399350+00:00,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T20:46:00.913823+00:00,2026-07-22T20:46:05.404901+00:00,initial,10.0,-0.158,,,,,,,,,,,,,,,
