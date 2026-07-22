@@ -2,20 +2,21 @@ symbol,timeframe,slice_combination,bin_mode,regime,regime_symbol,observed_signal
 ABBV,1d,cross_USO_state_slope=flat + cross_TLT_state_slope=uptrend + state_ext=stretched_up,rolling,unknown,,1,0,0,0,0,0,,,
 AFRM,1h,state_session=afternoon + state_ext=neutral + state_slope=flat,insample,gate_disabled,AFRM,2,2,1,1,1,1,0.5,1.0,1.0
 AFRM,1h,state_session=afternoon + state_ext=neutral + state_slope=flat,rolling,gate_disabled,AFRM,3,3,2,1,1,1,0.6666666666666666,1.0,1.0
-AMAT,1d,cross_USO_state_vol=high_vol + state_ext=stretched_down,rolling,gate_disabled,AMAT,2,2,1,0,0,0,0.5,,
+AMAT,1d,cross_USO_state_vol=high_vol + state_ext=stretched_down,rolling,gate_disabled,AMAT,3,3,2,0,0,0,0.6666666666666666,,
 AMC,1h,cross_TLT_state_slope=flat + state_slope=flat,rolling,gate_disabled,AMC,5,5,3,2,1,0,0.6,0.5,0.0
-AMT,1h,cross_USO_state_slope=uptrend + state_slope=downtrend,rolling,gate_disabled,AMT,8,8,7,1,1,0,0.875,1.0,0.0
-ARKG,1h,state_volume=vol_quiet + state_ext=neutral,rolling,gate_disabled,ARKG,6,6,0,0,0,0,0.0,,
-AVGO,1h,cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up,rolling,gate_disabled,AVGO,7,7,6,1,0,0,0.8571428571428571,0.0,
+AMT,1h,cross_USO_state_slope=uptrend + state_slope=downtrend,rolling,gate_disabled,AMT,14,14,12,2,2,2,0.8571428571428571,1.0,1.0
+ARKG,1h,state_volume=vol_quiet + state_ext=neutral,rolling,gate_disabled,ARKG,13,13,0,0,0,0,0.0,,
+AVGO,1h,cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up,rolling,gate_disabled,AVGO,13,13,11,2,0,0,0.8461538461538461,0.0,
 AXP,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,rolling,unknown,,1,0,0,0,0,0,,,
 BITO,1h,cross_USO_state_slope=uptrend + state_ext=stretched_up,rolling,gate_disabled,BITO,7,7,5,2,1,0,0.7142857142857143,0.5,0.0
 CBOE,1d,cross_USO_state_slope=flat + state_ext=neutral,rolling,unknown,,1,0,0,0,0,0,,,
-CVS,1h,cross_USO_state_slope=uptrend + state_ext=stretched_up,rolling,gate_disabled,CVS,2,2,0,2,0,0,0.0,0.0,
+CBOE,1h,cross_TLT_state_slope=downtrend + state_slope=downtrend,rolling,gate_disabled,CBOE,1,1,0,1,0,0,0.0,0.0,
+CVS,1h,cross_USO_state_slope=uptrend + state_ext=stretched_up,rolling,gate_disabled,CVS,3,3,2,1,0,0,0.6666666666666666,0.0,
 DE,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,rolling,unknown,,1,0,0,0,0,0,,,
 ETN,1d,state_ext=neutral + state_vol=mid_vol,rolling,unknown,,1,0,0,0,0,0,,,
 ETN,1h,cross_TLT_state_slope=flat + state_slope=downtrend,rolling,gate_disabled,ETN,9,9,8,1,1,1,0.8888888888888888,1.0,1.0
 GD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral,rolling,unknown,,1,0,0,0,0,0,,,
-GOLD,1h,state_ext=stretched_up + state_vol=mid_vol,rolling,gate_disabled,GOLD,7,7,5,2,1,0,0.7142857142857143,0.5,0.0
+GOLD,1h,state_ext=stretched_up + state_vol=mid_vol,rolling,gate_disabled,GOLD,8,8,6,2,1,1,0.75,0.5,1.0
 GS,1h,cross_USO_state_slope=uptrend + state_slope=downtrend,rolling,gate_disabled,GS,4,4,0,0,0,0,0.0,,
 HOOD,1d,cross_TLT_state_ext=stretched_up + state_ext=stretched_up,rolling,unknown,,1,0,0,0,0,0,,,
 HUM,1h,cross_TLT_state_slope=flat + state_ext=stretched_up,insample,gate_disabled,HUM,3,3,2,1,0,0,0.6666666666666666,0.0,
@@ -23,18 +24,19 @@ HUM,1h,cross_TLT_state_slope=flat + state_ext=stretched_up,rolling,gate_disabled
 HUM,1h,state_session=lunch + state_ext=stretched_up,rolling,gate_disabled,HUM,1,1,1,0,0,0,1.0,,
 HUM,1h,state_volume=vol_quiet + state_ext=stretched_up,rolling,gate_disabled,HUM,3,3,1,2,2,2,0.3333333333333333,1.0,1.0
 IVV,1d,state_ext=neutral + state_slope=uptrend,rolling,unknown,,1,0,0,0,0,0,,,
-JPM,1d,cross_TLT_state_slope=downtrend + state_ext=stretched_up,rolling,gate_disabled,JPM,1,1,1,0,0,0,1.0,,
-JPM,1d,cross_USO_state_vol=high_vol + state_ext=stretched_up,rolling,gate_disabled,JPM,1,1,1,0,0,0,1.0,,
+JPM,1d,cross_TLT_state_slope=downtrend + state_ext=stretched_up,rolling,gate_disabled,JPM,2,2,1,0,0,0,0.5,,
+JPM,1d,cross_USO_state_vol=high_vol + state_ext=stretched_up,rolling,gate_disabled,JPM,2,2,1,0,0,0,0.5,,
 KLAC,1d,state_ext=stretched_down + state_slope=downtrend,insample,gate_disabled,KLAC,3,3,3,0,0,0,1.0,,
-KLAC,1d,state_ext=stretched_down + state_slope=downtrend,rolling,gate_disabled,KLAC,6,6,6,0,0,0,1.0,,
-KLAC,1d,state_ext=stretched_down + state_slope=downtrend,rolling,unknown,,1,0,0,0,0,1,,,
-LCID,1d,cross_TLT_state_slope=downtrend + state_ext=stretched_up,rolling,gate_disabled,LCID,2,2,1,0,0,0,0.5,,
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,rolling,gate_disabled,KLAC,7,7,7,0,0,0,1.0,,
+KLAC,1d,state_ext=stretched_down + state_slope=downtrend,rolling,unknown,,1,0,0,0,0,3,,,
+LCID,1d,cross_TLT_state_slope=downtrend + state_ext=stretched_up,rolling,gate_disabled,LCID,3,3,1,0,0,0,0.3333333333333333,,
 MRVL,1h,cross_TLT_state_slope=flat + state_slope=downtrend,insample,gate_disabled,MRVL,3,3,2,1,1,1,0.6666666666666666,1.0,1.0
 PSX,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down,rolling,unknown,,1,0,0,0,0,0,,,
 PSX,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down,rolling,unknown,,1,0,0,0,0,0,,,
-SBUX,1d,cross_USO_state_vol=high_vol + state_ext=neutral,rolling,gate_disabled,SBUX,2,2,2,0,0,0,1.0,,
+SBUX,1d,cross_USO_state_vol=high_vol + state_ext=neutral,rolling,gate_disabled,SBUX,3,3,3,0,0,0,1.0,,
 SCHW,1d,cross_USO_state_slope=downtrend + state_slope=uptrend,insample,gate_disabled,SCHW,1,1,1,0,0,0,1.0,,
 SCHW,1d,cross_USO_state_slope=downtrend + state_slope=uptrend,rolling,unknown,,1,0,0,0,0,0,,,
 SHOP,1d,cross_USO_state_slope=flat + state_ext=stretched_down,rolling,unknown,,1,0,0,0,0,0,,,
+SPG,1d,cross_USO_state_vol=high_vol + state_ext=neutral,rolling,gate_disabled,SPG,1,1,0,0,0,0,0.0,,
 VLO,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down,rolling,unknown,,1,0,0,0,0,0,,,
 XBI,1d,cross_USO_state_vol=high_vol + state_ext=stretched_down,rolling,gate_disabled,XBI,1,1,0,0,0,0,0.0,,
