@@ -244,3 +244,7 @@ stop_intent,stop_state_cleared,SPG,position no longer open (stopped out or close
 stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-22T15:46:10.740085+00:00,2026-07-22T15:46:15.770622+00:00,initial,3.0,0.1,,,,,,,,,,,,
 stop_intent,stop_ratchet_failed,KLAC,"{""code"":42210000,""message"":""order is not open""}",,,2026-07-22T15:46:10.740088+00:00,2026-07-22T15:46:15.775278+00:00,,,,,,,,,,,,,,,
 stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T15:46:10.740091+00:00,2026-07-22T15:46:15.779552+00:00,initial,10.0,-0.073,,,,,,,,,,,,
+stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-22T16:46:09.424831+00:00,2026-07-22T16:46:13.968613+00:00,initial,3.0,0.076,,,,,,,,,,,,
+stop_intent,stop_adopted,AMT,found an existing resting stop order (a606b9b7-9397-4414-a55f-eb61fb9c25f2) at the broker for AMT with no local tracked state -- adopting it instead of submitting a duplicate (local state was likely lost/reset),158.73,a606b9b7-9397-4414-a55f-eb61fb9c25f2,2026-07-22T16:46:09.424841+00:00,2026-07-22T16:46:13.973202+00:00,,,,,,,,,,,,,,,
+stop_intent,stop_ratchet_failed,KLAC,"{""code"":42210000,""message"":""order is not open""}",,,2026-07-22T16:46:09.424845+00:00,2026-07-22T16:46:13.977309+00:00,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T16:46:09.424848+00:00,2026-07-22T16:46:13.981331+00:00,initial,10.0,-0.114,,,,,,,,,,,,
