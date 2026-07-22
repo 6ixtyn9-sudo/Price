@@ -40,33 +40,5 @@
     "stop_order_id": "3e3b0b15-f5a1-45af-96fd-151ffc889c26",
     "opened_at": "",
     "updated_at": ""
-  },
-  "AMT": {
-    "symbol": "AMT",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 165.53,
-    "initial_stop_price": 158.73,
-    "current_stop_price": 158.73,
-    "r_per_share": 6.800000000000011,
-    "stage": "initial",
-    "extreme_price": 165.53,
-    "stop_order_id": "a606b9b7-9397-4414-a55f-eb61fb9c25f2",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "GOLD": {
-    "symbol": "GOLD",
-    "side": "long",
-    "qty": 23.0,
-    "entry_price": 39.860435,
-    "initial_stop_price": 36.45757735578265,
-    "current_stop_price": 36.45757735578265,
-    "r_per_share": 3.402857644217355,
-    "stage": "initial",
-    "extreme_price": 39.860435,
-    "stop_order_id": "3fbd0150-1a51-4058-97ba-676ad9dbee45",
-    "opened_at": "2026-07-22T18:46:04.795512+00:00",
-    "updated_at": "2026-07-22T18:46:04.795512+00:00"
   }
 }

@@ -257,3 +257,8 @@ stop_intent,stop_unchanged,AMT,,158.73,,2026-07-22T18:46:05.183110+00:00,2026-07
 stop_intent,stop_attached,GOLD,,36.4576,3fbd0150-1a51-4058-97ba-676ad9dbee45,2026-07-22T18:46:05.183115+00:00,2026-07-22T18:46:08.286243+00:00,,,,,,,,,,,,,,,,3.4029,78.27,1.7014
 stop_intent,stop_ratchet_failed,KLAC,"{""code"":42210000,""message"":""order is not open""}",,,2026-07-22T18:46:05.183118+00:00,2026-07-22T18:46:08.400666+00:00,,,,,,,,,,,,,,,,,,
 stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T18:46:05.183120+00:00,2026-07-22T18:46:08.433269+00:00,initial,10.0,-0.169,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,AMT,position no longer open (stopped out or closed by another exit policy),,,2026-07-22T19:46:01.405290+00:00,2026-07-22T19:46:05.345513+00:00,,,,False,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,GOLD,position no longer open (stopped out or closed by another exit policy),,,2026-07-22T19:46:01.405301+00:00,2026-07-22T19:46:05.351661+00:00,,,,False,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-22T19:46:01.405306+00:00,2026-07-22T19:46:05.357334+00:00,initial,3.0,0.093,,,,,,,,,,,,,,,
+stop_intent,stop_ratchet_failed,KLAC,"{""code"":42210000,""message"":""order is not open""}",,,2026-07-22T19:46:01.405310+00:00,2026-07-22T19:46:05.363058+00:00,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-22T19:46:01.405314+00:00,2026-07-22T19:46:05.368621+00:00,initial,10.0,-0.175,,,,,,,,,,,,,,,
