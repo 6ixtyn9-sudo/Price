@@ -90,3 +90,4 @@ a606b9b7-9397-4414-a55f-eb61fb9c25f2,AMT,5.0,sell,stop,158.73,gtc,canceled,2026-
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T18:38:21.364061+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T19:38:30.680542+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T20:37:56.361187+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
+,,,,,174.82,,rejected,,protective_stop_replace,2026-07-22T21:39:30.944852+00:00,,,,,,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
