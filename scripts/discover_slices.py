@@ -62,6 +62,19 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
             ["state_vix", "state_ext"],
             ["state_breadth", "state_ext"],
             ["state_vix", "state_breadth", "state_ext"],
+            # ── Expanded standalone matrix ──────────────────────
+            # The cross-conditioned matrix (USO/TLT) adds 11 combos
+            # below; without these, standalone gets 6 shots vs 11,
+            # and cross-conditioned survives validation at ~3× the
+            # rate (narrower bins → fewer samples → higher apparent
+            # significance).  Doubling the standalone matrix gives
+            # both families equal statistical footing.
+            ["state_ext", "state_ret_5"],
+            ["state_ext", "state_ret_1"],
+            ["state_slope", "state_vol"],
+            ["state_volume", "state_slope"],
+            ["state_ext", "state_slope", "state_vol"],
+            ["state_volume", "state_ext", "state_slope"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations.append(["state_session", "state_volume"])
@@ -69,6 +82,10 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
             combinations.append(["state_session", "state_slope"])
             combinations.append(["state_session", "state_ext", "state_slope"])
             combinations.append(["state_vix", "state_session", "state_ext"])
+            # ── Expanded hourly standalone ─────────────────────
+            combinations.append(["state_session", "state_ret_5"])
+            combinations.append(["state_session", "state_vol"])
+            combinations.append(["state_session", "state_slope", "state_vol"])
 
     if cond_symbols:
         for cs in [s.upper() for s in cond_symbols]:

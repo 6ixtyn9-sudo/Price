@@ -224,15 +224,25 @@ def _tradeable_candidate(row: pd.Series) -> bool:
     """Paper-book eligibility gate optimised for trade frequency.
 
     Softer than _strict_candidate: admits late_emerging (current-regime)
-    candidates, requires 2/4 walk-forward, and 3+ scenarios. BH-FDR and
-    parent-excess floors remain — the integrity non-negotiables.
+    candidates, requires 2/4 walk-forward, and 3+ scenarios (2+ for
+    standalone slices). BH-FDR and parent-excess floors remain — the
+    integrity non-negotiables.
+
+    Standalone bonus: slices with no cross_ conditioning need only 2
+    scenario survivals instead of 3.  Standalone bins are wider (no
+    conditioning symbol narrows the state space), so each scenario
+    contains more samples and surviving 2 represents comparable
+    structural evidence to a cross-conditioned slice surviving 3.
     """
     triage = _clean(row.get("triage_bucket"))
+    combo = _clean(row.get("slice_combination"))
+    is_standalone = "cross_" not in combo
+    scenario_floor = 2 if is_standalone else 3
     return (
         (triage.startswith("clean_survivor") or triage.startswith("late_emerging"))
         and _num(row.get("valid_n"), 0) >= 15
         and _num(row.get("walk_forward_pass_count"), 0) >= 2
-        and _num(row.get("scenario_survived_count"), 0) >= 3
+        and _num(row.get("scenario_survived_count"), 0) >= scenario_floor
         and _num(row.get("valid_excess_vs_baseline"), -1) > 0
         and _num(row.get("valid_excess_vs_best_parent"), -1) > 0
         and _truthy(row.get("search_wide_bh_pass", False))
