@@ -96,5 +96,19 @@
     "stop_order_id": "ba6ab4cb-b0a8-4437-aef1-2f9d1a2a6be3",
     "opened_at": "",
     "updated_at": ""
+  },
+  "SPG": {
+    "symbol": "SPG",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 226.75,
+    "initial_stop_price": 217.8,
+    "current_stop_price": 217.8,
+    "r_per_share": 8.949999999999989,
+    "stage": "initial",
+    "extreme_price": 226.75,
+    "stop_order_id": "443514f6-693a-4fae-8428-4d11a9996437",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
