@@ -28,3 +28,4 @@ de2b6490-c620-43c7-a311-ac61a1282af9,filled,exit,2026-07-22T13:46:31.493955+00:0
 6c325d44-bede-42c4-8c6f-acc196996678,filled,exit,2026-07-22T14:46:12.000201+00:00,SPG,close,2026-07-22 14:46:11.995183+00:00,5.0,226.75,225.94,filled,5.0,225.82,2026-07-22 14:46:13.754496+00:00,2026-07-22T15:46:00.838246+00:00,,,
 ,rejected,protective_stop_replace,2026-07-22T15:46:10.729507+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":42210000,""message"":""order is not open""}"
 ,rejected,protective_stop_replace,2026-07-22T16:46:09.415298+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":42210000,""message"":""order is not open""}"
+,rejected,protective_stop_replace,2026-07-22T17:46:18.204230+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":42210000,""message"":""order is not open""}"
