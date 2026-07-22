@@ -1,29 +1,43 @@
 {
-  "XLK": {
-    "symbol": "XLK",
+  "KLAC": {
+    "symbol": "KLAC",
     "side": "long",
-    "qty": 13.0,
-    "entry_price": 179.98,
-    "initial_stop_price": 167.83691657314284,
-    "current_stop_price": 167.83691657314284,
-    "r_per_share": 12.14308342685715,
+    "qty": 9.0,
+    "entry_price": 217.15,
+    "initial_stop_price": 174.82152700195314,
+    "current_stop_price": 174.82152700195314,
+    "r_per_share": 42.32847299804688,
     "stage": "initial",
-    "extreme_price": 179.98,
-    "stop_order_id": "8fb79b85-0b95-47e3-94c3-40c1d9cd3c6d",
-    "opened_at": "2026-07-07T13:33:06.659370+00:00",
-    "updated_at": "2026-07-07T13:33:06.659370+00:00"
+    "extreme_price": 217.15,
+    "stop_order_id": "63cf7840-4e16-421e-98a2-24c67ddb6e3b",
+    "opened_at": "2026-07-15T17:18:36.397786+00:00",
+    "updated_at": "2026-07-15T17:18:36.397786+00:00"
   },
-  "XOP": {
-    "symbol": "XOP",
+  "SBUX": {
+    "symbol": "SBUX",
     "side": "long",
-    "qty": 16.0,
-    "entry_price": 154.47,
-    "initial_stop_price": 147.18,
-    "current_stop_price": 147.18,
-    "r_per_share": 7.289999999999992,
+    "qty": 10.0,
+    "entry_price": 104.745,
+    "initial_stop_price": 98.9,
+    "current_stop_price": 98.9,
+    "r_per_share": 5.844999999999999,
     "stage": "initial",
-    "extreme_price": 154.47,
-    "stop_order_id": "19362c3e-9eac-474f-aae0-e4d7296b3347",
+    "extreme_price": 104.745,
+    "stop_order_id": "1e0fcf20-e23f-4c49-934e-ebaeb3a45b96",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "AMT": {
+    "symbol": "AMT",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 163.85,
+    "initial_stop_price": 156.74,
+    "current_stop_price": 156.74,
+    "r_per_share": 7.109999999999985,
+    "stage": "initial",
+    "extreme_price": 163.85,
+    "stop_order_id": "aa257db4-2c1c-45e6-a189-c0c7db967642",
     "opened_at": "",
     "updated_at": ""
   }
