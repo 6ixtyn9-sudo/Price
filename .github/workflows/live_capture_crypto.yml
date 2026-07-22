@@ -226,7 +226,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          files=(localdata/live_forward_returns_crypto.csv localdata/monitored_slices_crypto.csv localdata/research/crypto/monitored_candidates_crypto.csv localdata/research/crypto/1d/monitored_candidates_crypto.csv)
+          # Commit research outputs AND operational broker/paper state for durability.
+          files=(localdata/live_forward_returns_crypto.csv localdata/monitored_slices_crypto.csv localdata/research/crypto/monitored_candidates_crypto.csv localdata/research/crypto/1d/monitored_candidates_crypto.csv
+            localdata/trade_journal_crypto.csv localdata/paper_trade_log_crypto.csv localdata/stop_state_crypto.json localdata/stopout_journal_crypto.json localdata/cooldown_journal_crypto.json)
           existing=()
           for f in "${files[@]}"; do [ -e "$f" ] && existing+=("$f"); done
           if ((${#existing[@]})); then git add "${existing[@]}"; fi

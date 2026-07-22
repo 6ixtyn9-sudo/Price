@@ -247,7 +247,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          files=(localdata/live_forward_returns_futures.csv localdata/monitored_slices_futures.csv localdata/research/futures/monitored_candidates_futures.csv localdata/research/futures/1d/monitored_candidates_futures.csv)
+          # Commit research outputs AND operational broker/paper state for durability.
+          files=(localdata/live_forward_returns_futures.csv localdata/monitored_slices_futures.csv localdata/research/futures/monitored_candidates_futures.csv localdata/research/futures/1d/monitored_candidates_futures.csv
+            localdata/trade_journal_futures.csv localdata/paper_trade_log_futures.csv localdata/stop_state_futures.json localdata/stopout_journal_futures.json localdata/cooldown_journal_futures.json)
           existing=()
           for f in "${files[@]}"; do [ -e "$f" ] && existing+=("$f"); done
           if ((${#existing[@]})); then git add "${existing[@]}"; fi
