@@ -40,5 +40,61 @@
     "stop_order_id": "3e3b0b15-f5a1-45af-96fd-151ffc889c26",
     "opened_at": "2026-07-22T13:38:35.309010+00:00",
     "updated_at": "2026-07-22T13:38:35.309010+00:00"
+  },
+  "AVGO": {
+    "symbol": "AVGO",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 391.67,
+    "initial_stop_price": 360.13142874581473,
+    "current_stop_price": 360.13142874581473,
+    "r_per_share": 31.538571254185268,
+    "stage": "initial",
+    "extreme_price": 391.67,
+    "stop_order_id": "3acbf170-5bdc-44ff-8b1e-c5a083524c21",
+    "opened_at": "2026-07-23T13:38:56.946254+00:00",
+    "updated_at": "2026-07-23T13:38:56.946254+00:00"
+  },
+  "JPM": {
+    "symbol": "JPM",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 348.046667,
+    "initial_stop_price": 331.44017183252197,
+    "current_stop_price": 331.44017183252197,
+    "r_per_share": 16.606495167478062,
+    "stage": "initial",
+    "extreme_price": 348.046667,
+    "stop_order_id": "c35b43fe-7407-47ea-ad3b-47bcc454d7b0",
+    "opened_at": "2026-07-23T13:38:57.127595+00:00",
+    "updated_at": "2026-07-23T13:38:57.127595+00:00"
+  },
+  "SPG": {
+    "symbol": "SPG",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 226.186,
+    "initial_stop_price": 217.23457308523996,
+    "current_stop_price": 217.23457308523996,
+    "r_per_share": 8.951426914760045,
+    "stage": "initial",
+    "extreme_price": 226.186,
+    "stop_order_id": "2463b90b-bbd8-4f7a-be84-447bb46d40d4",
+    "opened_at": "2026-07-23T13:38:57.361951+00:00",
+    "updated_at": "2026-07-23T13:38:57.361951+00:00"
+  },
+  "XBI": {
+    "symbol": "XBI",
+    "side": "long",
+    "qty": 15.0,
+    "entry_price": 149.76,
+    "initial_stop_price": 140.75856785365514,
+    "current_stop_price": 140.75856785365514,
+    "r_per_share": 9.001432146344866,
+    "stage": "initial",
+    "extreme_price": 149.76,
+    "stop_order_id": "6ee5cc05-4da8-41ed-99dc-30495b5d7c7d",
+    "opened_at": "2026-07-23T13:38:57.537260+00:00",
+    "updated_at": "2026-07-23T13:38:57.537260+00:00"
   }
 }
