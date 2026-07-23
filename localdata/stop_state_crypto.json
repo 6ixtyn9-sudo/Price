@@ -41,20 +41,6 @@
     "opened_at": "2026-07-22T13:38:35.309010+00:00",
     "updated_at": "2026-07-22T13:38:35.309010+00:00"
   },
-  "AVGO": {
-    "symbol": "AVGO",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 391.67,
-    "initial_stop_price": 360.13142874581473,
-    "current_stop_price": 360.13142874581473,
-    "r_per_share": 31.538571254185268,
-    "stage": "initial",
-    "extreme_price": 391.67,
-    "stop_order_id": "3acbf170-5bdc-44ff-8b1e-c5a083524c21",
-    "opened_at": "2026-07-23T13:38:56.946254+00:00",
-    "updated_at": "2026-07-23T13:38:56.946254+00:00"
-  },
   "JPM": {
     "symbol": "JPM",
     "side": "long",
@@ -82,19 +68,5 @@
     "stop_order_id": "2463b90b-bbd8-4f7a-be84-447bb46d40d4",
     "opened_at": "2026-07-23T13:38:57.361951+00:00",
     "updated_at": "2026-07-23T13:38:57.361951+00:00"
-  },
-  "XBI": {
-    "symbol": "XBI",
-    "side": "long",
-    "qty": 15.0,
-    "entry_price": 149.76,
-    "initial_stop_price": 140.75856785365514,
-    "current_stop_price": 140.75856785365514,
-    "r_per_share": 9.001432146344866,
-    "stage": "initial",
-    "extreme_price": 149.76,
-    "stop_order_id": "6ee5cc05-4da8-41ed-99dc-30495b5d7c7d",
-    "opened_at": "2026-07-23T13:38:57.537260+00:00",
-    "updated_at": "2026-07-23T13:38:57.537260+00:00"
   }
 }
