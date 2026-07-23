@@ -49,3 +49,8 @@ de2b6490-c620-43c7-a311-ac61a1282af9,filled,exit,2026-07-22T13:46:31.493955+00:0
 ,rejected,protective_stop_replace,2026-07-23T10:46:03.254832+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
 ,rejected,protective_stop_replace,2026-07-23T11:45:58.524351+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
 ,rejected,protective_stop_replace,2026-07-23T12:46:01.913221+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
+,rejected,protective_stop_replace,2026-07-23T13:46:11.439450+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
+3acbf170-5bdc-44ff-8b1e-c5a083524c21,cancel_requested,order_cancel,2026-07-23T13:46:16.474191+00:00,,,,,,,,,,,,,,,,
+ce43bbf9-c30f-47dd-a407-f61058e5a5ee,pending_new,exit,2026-07-23T13:46:17.970583+00:00,AVGO,close,2026-07-23 13:46:17.955253+00:00,2.0,391.67,394.5,,,,,,,,,,
+6ee5cc05-4da8-41ed-99dc-30495b5d7c7d,cancel_requested,order_cancel,2026-07-23T13:46:23.518299+00:00,,,,,,,,,,,,,,,,
+e3845bb3-416b-41a1-9ae5-b335d767727f,pending_new,exit,2026-07-23T13:46:24.985087+00:00,XBI,close,2026-07-23 13:46:24.952168+00:00,15.0,149.76,150.91,,,,,,,,,,
