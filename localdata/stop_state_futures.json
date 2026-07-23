@@ -41,20 +41,6 @@
     "opened_at": "",
     "updated_at": ""
   },
-  "AVGO": {
-    "symbol": "AVGO",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 391.67,
-    "initial_stop_price": 360.13,
-    "current_stop_price": 360.13,
-    "r_per_share": 31.54000000000002,
-    "stage": "initial",
-    "extreme_price": 391.67,
-    "stop_order_id": "3acbf170-5bdc-44ff-8b1e-c5a083524c21",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "JPM": {
     "symbol": "JPM",
     "side": "long",
@@ -80,20 +66,6 @@
     "stage": "initial",
     "extreme_price": 226.186,
     "stop_order_id": "2463b90b-bbd8-4f7a-be84-447bb46d40d4",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "XBI": {
-    "symbol": "XBI",
-    "side": "long",
-    "qty": 15.0,
-    "entry_price": 149.76,
-    "initial_stop_price": 140.76,
-    "current_stop_price": 140.76,
-    "r_per_share": 9.0,
-    "stage": "initial",
-    "extreme_price": 149.76,
-    "stop_order_id": "6ee5cc05-4da8-41ed-99dc-30495b5d7c7d",
     "opened_at": "",
     "updated_at": ""
   }
