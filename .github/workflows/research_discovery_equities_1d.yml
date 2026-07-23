@@ -1,4 +1,4 @@
-name: Research Discovery Equities Shards
+name: Research Discovery Equities 1d
 
 on:
   workflow_dispatch:
@@ -11,10 +11,6 @@ on:
         description: "Symbols per shard"
         required: false
         default: "40"
-      timeframes:
-        description: "Timeframes to research (space-separated, e.g. '1d 1h' or '15m')"
-        required: false
-        default: "1d 1h"
   workflow_call:
     inputs:
       parent_run_id:
@@ -25,13 +21,9 @@ on:
         required: false
         type: string
         default: "40"
-      timeframes:
-        required: false
-        type: string
-        default: "1d 1h"
 
 concurrency:
-  group: research-discovery
+  group: research-discovery-1d
   cancel-in-progress: false
 
 defaults:
@@ -40,6 +32,7 @@ defaults:
 
 env:
   PYTHONPATH: src
+  TIMEFRAME: "1d"
 
 jobs:
   plan:
@@ -50,18 +43,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
       - name: Build shard plan
         id: plan
         env:
           BATCH_SIZE: ${{ inputs.batch_size || '40' }}
-          TIMEFRAMES: ${{ inputs.timeframes || '1d 1h' }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
-          import json
-          import os
-          import re
-
+          import json, os, re
           symbol_pattern = re.compile(r"^[A-Z0-9][A-Z0-9.\-]{0,14}(/[A-Z0-9][A-Z0-9.\-]{0,14})?$")
           if not os.path.exists("localdata/explicit_allowlist.json"):
               raise SystemExit("localdata/explicit_allowlist.json not found")
@@ -73,23 +61,15 @@ jobs:
           if invalid:
               raise SystemExit("Invalid symbols in explicit_allowlist.json: " + ", ".join(invalid[:10]))
           batch_size = int(os.environ["BATCH_SIZE"])
-          timeframes = os.environ["TIMEFRAMES"].split()
-          if not timeframes:
-              raise SystemExit("TIMEFRAMES is empty; pass at least one timeframe (e.g. '1d 1h')")
-          valid_tfs = {"1d", "1h", "15m"}
-          bad_tfs = [t for t in timeframes if t not in valid_tfs]
-          if bad_tfs:
-              raise SystemExit("Unknown timeframes: " + ", ".join(bad_tfs) + ". Valid: " + ", ".join(sorted(valid_tfs)))
+          timeframe = os.environ.get("TIMEFRAME", "1d")
           include = []
-          for timeframe in timeframes:
-              for offset in range(0, len(symbols), batch_size):
-                  batch = symbols[offset:offset + batch_size]
-                  index = offset // batch_size
-                  include.append({
-                      "shard_id": f"{timeframe}-{index:02d}",
-                      "timeframe": timeframe,
-                      "symbols_json": json.dumps(batch, separators=(",", ":")),
-                  })
+          for offset in range(0, len(symbols), batch_size):
+              batch = symbols[offset:offset + batch_size]
+              index = offset // batch_size
+              include.append({
+                  "shard_id": f"{timeframe}-{index:02d}",
+                  "symbols_json": json.dumps(batch, separators=(",", ":")),
+              })
           print("matrix=" + json.dumps({"include": include}, separators=(",", ":")))
           print("shard_ids=" + json.dumps([item["shard_id"] for item in include]))
           PY
@@ -101,18 +81,16 @@ jobs:
       max-parallel: 12
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: "pip"
           cache-dependency-path: requirements.lock
-
       - name: Restore research warehouse cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -120,28 +98,25 @@ jobs:
           key: research-warehouse-v4-${{ runner.os }}-research-discovery-${{ github.run_id }}
           restore-keys: |
             research-warehouse-v4-${{ runner.os }}-
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
-
       - name: Run isolated shard
         env:
           SHARD_SYMBOLS_JSON: ${{ matrix.symbols_json }}
         run: |
           python scripts/research_shard.py \
             --shard-id "${{ matrix.shard_id }}" \
-            --timeframe "${{ matrix.timeframe }}" \
+            --timeframe "${TIMEFRAME}" \
             --symbols-json "$SHARD_SYMBOLS_JSON" \
             --output-dir "localdata/research/shards/${{ matrix.shard_id }}" \
             --condition-on USO TLT \
             --bin-mode rolling
-
       - name: Upload shard output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: research-shard-${{ matrix.shard_id }}
+          name: research-shard-1d-${{ matrix.shard_id }}
           path: localdata/research/shards/${{ matrix.shard_id }}
           if-no-files-found: error
           retention-days: 14
@@ -155,32 +130,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
       - name: Setup Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
           cache: "pip"
           cache-dependency-path: requirements.lock
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
-
       - name: Download all completed shards
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: research-shard-*
+          pattern: research-shard-1d-*
           path: localdata/research/shards
           merge-multiple: false
-
       - name: Write expected shard manifest
         env:
           SHARD_IDS: ${{ needs.plan.outputs.shard_ids }}
         run: |
           echo '{"shard_ids":'"$SHARD_IDS"'}' > localdata/research/expected_shards.json
-
       - name: Merge complete shard set
         run: |
           python scripts/research_merge.py \
@@ -190,14 +160,12 @@ jobs:
             --promote-proposals \
             --apply-monitored-slices \
             --allow-partial
-
       - name: Sync rolling monitored book and execution edge metrics
         if: ${{ needs.shards.result == 'success' }}
         env:
           DISCOVERY_RUN_ID: ${{ github.run_id }}
         run: python3 scripts/sync_monitored.py
-
-      - name: Run regime diagnostics on merged top 25 (full validation cycle)
+      - name: Run regime diagnostics on merged top 25
         run: |
           python scripts/validate_slices.py \
             --slices-path localdata/research/merged/candidate_leaderboard_merged.csv \
@@ -206,8 +174,7 @@ jobs:
             --diagnostic-scope leaderboard-top \
             --top-n 25 \
             --bin-mode rolling
-
-      - name: Run date-range diagnostics on merged top 25 (full validation cycle)
+      - name: Run date-range diagnostics on merged top 25
         run: |
           python scripts/validate_slices.py \
             --slices-path localdata/research/merged/candidate_leaderboard_merged.csv \
@@ -216,7 +183,6 @@ jobs:
             --diagnostic-scope leaderboard-top \
             --top-n 25 \
             --bin-mode rolling
-
       - name: Commit merged research outputs only
         run: |
           git config user.name "github-actions[bot]"
@@ -228,7 +194,7 @@ jobs:
             echo "No merged research changes to commit."
             exit 0
           fi
-          git commit -m "chore(research-discovery): merge complete shard set and update monitored book [skip ci]"
+          git commit -m "chore(research-discovery-1d): merge complete shard set and update monitored book [skip ci]"
           for attempt in 1 2 3; do
             git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 3 ]; then

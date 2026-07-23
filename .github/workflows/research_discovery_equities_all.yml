@@ -1,0 +1,47 @@
+name: Research Discovery Equities (All Timeframes)
+
+on:
+  workflow_dispatch:
+    inputs:
+      parent_run_id:
+        description: "Research refresh run that opened the fresh-data gate"
+        required: false
+        default: manual
+
+concurrency:
+  group: research-discovery-all
+  cancel-in-progress: false
+
+jobs:
+  dispatch-1d:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch 1d discovery
+        run: |
+          gh workflow run research_discovery_equities_1d.yml \
+            --ref main \
+            -f parent_run_id="${{ inputs.parent_run_id }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  dispatch-1h:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch 1h discovery
+        run: |
+          gh workflow run research_discovery_equities_1h.yml \
+            --ref main \
+            -f parent_run_id="${{ inputs.parent_run_id }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  dispatch-15m:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch 15m discovery
+        run: |
+          gh workflow run research_discovery_equities_15m.yml \
+            --ref main \
+            -f parent_run_id="${{ inputs.parent_run_id }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

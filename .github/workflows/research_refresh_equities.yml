@@ -138,11 +138,6 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          # Daily history can use the five-year lookback; 15m is deliberately
-          # capped at one year to keep the research refresh inside its API and
-          # runtime budget. The second command is the only 15m capture path.
-          # Defer post-processing until the 15m pass; capture_bars owns the
-          # resample/adjustment phase, so no second build_warehouse pass is needed.
           python scripts/capture_bars.py \
             --tier allowlist \
             --timeframes 1d 1h \
@@ -257,7 +252,11 @@ jobs:
             fi
           done
 
-  dispatch-discovery:
+  # ── Three parallel timeframe-specific discovery dispatches ─────────
+  # Each fires an independent workflow with its own concurrency group
+  # and max-parallel: 12 shards.  All three run simultaneously, each
+  # finishing in ~90 minutes (vs 6+ hours for the old single runner).
+  dispatch-discovery-1d:
     needs: research-refresh
     if: ${{ needs.research-refresh.outputs.should_dispatch_discovery == 'true' }}
     runs-on: ubuntu-24.04
@@ -266,11 +265,49 @@ jobs:
       contents: read
       actions: write
     steps:
-      - name: Dispatch sharded discovery
+      - name: Dispatch 1d discovery
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run research_discovery.yml \
+          gh workflow run research_discovery_equities_1d.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f parent_run_id="$GITHUB_RUN_ID" \
+            -f batch_size="${{ inputs.batch_size }}"
+
+  dispatch-discovery-1h:
+    needs: research-refresh
+    if: ${{ needs.research-refresh.outputs.should_dispatch_discovery == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch 1h discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research_discovery_equities_1h.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f parent_run_id="$GITHUB_RUN_ID" \
+            -f batch_size="${{ inputs.batch_size }}"
+
+  dispatch-discovery-15m:
+    needs: research-refresh
+    if: ${{ needs.research-refresh.outputs.should_dispatch_discovery == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch 15m discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research_discovery_equities_15m.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             -f parent_run_id="$GITHUB_RUN_ID" \
