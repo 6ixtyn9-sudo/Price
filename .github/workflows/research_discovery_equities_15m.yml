@@ -112,6 +112,7 @@ jobs:
             --symbols-json "$SHARD_SYMBOLS_JSON" \
             --output-dir "localdata/research/shards/${{ matrix.shard_id }}" \
             --condition-on USO TLT \
+            --min-samples 30 \
             --bin-mode rolling
       - name: Upload shard output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -63,6 +63,7 @@ def run_shard(
     profile: str | None = None,
     cost_bps: float = 1.0,
     short_cost_bps: float = 0.0,
+    min_samples: int = 15,
 ) -> dict:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -153,6 +154,7 @@ def main() -> int:
     parser.add_argument("--profile", choices=["default", "crypto", "futures"], default="default")
     parser.add_argument("--cost-bps", type=float, default=1.0, help="Cost bps per leg for validation (default 1.0 equity, use 15.0 for crypto, 7.0 for futures)")
     parser.add_argument("--short-cost-bps", type=float, default=0.0, help="Extra short borrow cost bps")
+    parser.add_argument("--min-samples", type=int, default=15, help="Minimum sample floor per slice (default 15). Use 30 for 15m to cap runtime.")
     args = parser.parse_args()
     if args.symbols_json:
         try:
@@ -177,6 +179,7 @@ def main() -> int:
         profile=args.profile,
         cost_bps=args.cost_bps,
         short_cost_bps=args.short_cost_bps,
+        min_samples=args.min_samples,
     )
     return 0
 
