@@ -18,7 +18,7 @@ on:
       condition_on:
         description: "Conditioning crypto symbols"
         required: false
-        default: "BTC/USD ETH/USD"
+        default: ""
       max_regime_targets:
         description: "Max rows to evaluate in regime-aware post-processing"
         required: false
@@ -44,7 +44,7 @@ on:
       condition_on:
         required: false
         type: string
-        default: "BTC/USD ETH/USD"
+        default: ""
       max_regime_targets:
         required: false
         type: string

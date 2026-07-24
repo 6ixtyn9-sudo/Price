@@ -159,6 +159,8 @@ def build_discovery_batches(
     target_symbols: Iterable[str],
     condition_symbols: Iterable[str],
 ) -> list[dict]:
+    # Empty or NONE = standalone-only discovery (no cross-conditioning)
+    condition_symbols = [s for s in condition_symbols if s.upper() not in ("NONE", "")]
     # Filter out placeholder condition symbols (NONE, empty string)
     condition_symbols = [s for s in condition_symbols if s.upper() not in ("NONE", "")]
     """Build safe discovery batches that avoid self-conditioning skips.
