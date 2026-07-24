@@ -494,6 +494,11 @@ def build_monitored_candidates(
             joined["bin_mode"] = joined["bin_mode"].fillna(joined["bin_mode_lb"])
         joined["bin_mode"] = joined["bin_mode"].fillna(DEFAULT_BIN_MODE)
 
+    # ── Apply the tradeable gate (standalone WF≥1, cross WF≥2, etc.) ──
+    from research_lifecycle import _tradeable_candidate as _tcg
+    joined["_tradeable"] = joined.apply(_tcg, axis=1)
+    joined = joined[joined["_tradeable"]].copy()
+
     selected = joined[joined["overall_regime_status"].isin(PAPER_CANDIDATE_STATUSES)].copy()
     if selected.empty:
         empty.to_csv(out_path, index=False)
