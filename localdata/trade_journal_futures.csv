@@ -67,3 +67,4 @@ e3845bb3-416b-41a1-9ae5-b335d767727f,filled,exit,2026-07-23T13:46:24.985087+00:0
 ,rejected,protective_stop_replace,2026-07-24T00:46:02.821208+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
 ,rejected,protective_stop_replace,2026-07-24T01:45:57.904955+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
 ,rejected,protective_stop_replace,2026-07-24T02:46:13.248610+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
+,rejected,protective_stop_replace,2026-07-24T03:46:20.485228+00:00,,,,,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b,174.82,"{""code"":40410000,""message"":""order not found""}",,
