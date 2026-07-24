@@ -5820,6 +5820,21 @@ Next discovery cycle: Will automatically populate best_fwd_horizon and pnl_decay
 Per-slice stop: To use it, add stop_atr_mult column to monitored_slices.csv with per-slice values. Absent = global default. Not required for the system to operate.
 Do not add options, forex, new features, or leverage. The HANDOVER's anti-drift rules stand.
 If P&L culling removes too aggressively: Raise min_completed in _pnl_decay_keys() from 5 to 8. The 5-RT threshold is conservative by design — it's better to cull early and re-promote if wrong than let dead slices consume slots.
+Known Anti-Patterns (2026-07-24)
+This project has a recurring failure mode: a global hardcoded parameter applied identically to every slice, where the data disagrees with the global. Future agents should pattern-match against this list before building:
+
+Parameter	Was	Reality	Fix
+--exit-horizon	5 bars for all slices	87% peak at 10-20 bars, 3% at 3 bars	Per-slice exit_horizon from leaderboard
+--stop-atr-mult	2.0 for all slices	BITO ($9, ATR $0.50) ≠ LLY ($800, ATR $4)	Per-slice stop_atr_mult (manual for now)
+Slice selection	76% cross-conditioned	Standalone fires 5-10× more frequently	Expanded standalone matrix + scenario bonus
+Monitored book	sync_monitored.py from single timeframe	Each merge bulldozed the other	Multi-timeframe union
+Validation horizon	Always fwd_ret_5	Slices measured at 5, trade at 5 — but edge lives at 10-20	Horizon selection added to leaderboard, exit follows
+Paper book pruning	Dead slices stay forever	Statistical gate ≠ profitability gate	_pnl_decay_keys() culls after 5 negative RTs
+Discovery matrix	6 standalone combos, 11 cross-conditioned	Cross-conditioned survives validation 3× more often	12 standalone combos + scenario discount
+Rule of thumb: If a value is the same for every slice, it's probably wrong for most slices. Ask: "does the data support a per-slice version of this?" before assuming the global is correct.
+
+The system now has the plumbing to support per-slice parameters (exit_horizon, stop_atr_mult in monitored_slices.csv). The remaining global defaults (breakeven_trigger_r, trail_atr_mult, max_notional) are candidates for the same treatment — but only after evidence proves the current globals are wrong for specific slices.
+
 Date: 2026-07-22/23
 Agent: Arena.ai Agent Mode
 
