@@ -116,7 +116,7 @@ jobs:
       - name: Upload shard output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: research-shard-${{ matrix.shard_id }} 
+          name: research-shard-${{ matrix.shard_id }}
           path: localdata/research/shards/${{ matrix.shard_id }}
           if-no-files-found: error
           retention-days: 14
@@ -156,7 +156,7 @@ jobs:
           python scripts/research_merge.py \
             --shard-root localdata/research/shards \
             --expected-shards localdata/research/expected_shards.json \
-            --output-dir localdata/research/merged \
+            --output-dir localdata/research/merged/1d \
             --promote-proposals \
             --apply-monitored-slices \
             --allow-partial
@@ -168,18 +168,18 @@ jobs:
       - name: Run regime diagnostics on merged top 25
         run: |
           python scripts/validate_slices.py \
-            --slices-path localdata/research/merged/candidate_leaderboard_merged.csv \
+            --slices-path localdata/research/merged/1d/candidate_leaderboard_merged.csv \
             --regime-stratified-diagnostics \
-            --regime-stratified-output localdata/research/merged/regime_stratified_diagnostics_merged.csv \
+            --regime-stratified-output localdata/research/merged/1d/regime_stratified_diagnostics_merged.csv \
             --diagnostic-scope leaderboard-top \
             --top-n 25 \
             --bin-mode rolling
       - name: Run date-range diagnostics on merged top 25
         run: |
           python scripts/validate_slices.py \
-            --slices-path localdata/research/merged/candidate_leaderboard_merged.csv \
+            --slices-path localdata/research/merged/1d/candidate_leaderboard_merged.csv \
             --date-range-diagnostics \
-            --date-range-diagnostics-output localdata/research/merged/date_range_diagnostics_merged.csv \
+            --date-range-diagnostics-output localdata/research/merged/1d/date_range_diagnostics_merged.csv \
             --diagnostic-scope leaderboard-top \
             --top-n 25 \
             --bin-mode rolling
@@ -187,7 +187,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add localdata/research/merged localdata/research/expected_shards.json \
+          git add localdata/research/merged/1d localdata/research/expected_shards.json \
             localdata/research/monitored_book_lifecycle.json \
             localdata/monitored_slices.csv localdata/monitored_edge_metrics.csv
           if git diff --cached --quiet; then

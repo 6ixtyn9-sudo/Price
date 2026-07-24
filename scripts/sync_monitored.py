@@ -1,10 +1,16 @@
-"""Sync monitored_slices.csv and execution edge metrics from the latest registry.
+"""Sync monitored_slices.csv and execution edge metrics from ALL available
+timeframe-specific merged registries.
 
 The monitored set is rebuilt FROM SCRATCH on every run using only
 candidate_registry.csv paper_proposal rows. The companion
-monitored_edge_metrics.csv is rebuilt from the exact merged leaderboard so
-conviction sizing cannot silently fall back to equal-notional after a research
-refresh.
+monitored_edge_metrics.csv is rebuilt from the union of all merged
+leaderboards so conviction sizing cannot silently fall back to
+equal-notional after a research refresh.
+
+CRITICAL: merged artifacts now live in timeframe-specific subdirectories
+so a 1h merge cannot bulldoze a 1d merge that committed first. This
+script discovers all available registries under merged/*/ and unions
+them before building the book.
 """
 import json
 import os
@@ -19,11 +25,84 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-REGISTRY = Path("localdata/research/merged/candidate_registry.csv")
-LEADERBOARD = Path("localdata/research/merged/candidate_leaderboard_merged.csv")
+MERGED_ROOT = Path("localdata/research/merged")
+REGISTRY = MERGED_ROOT / "candidate_registry.csv"       # legacy fallback
+LEADERBOARD = MERGED_ROOT / "candidate_leaderboard_merged.csv"  # legacy
 MONITORED = Path("localdata/monitored_slices.csv")
 EDGE_METRICS = Path("localdata/monitored_edge_metrics.csv")
 BOOK_LIFECYCLE = Path("localdata/research/monitored_book_lifecycle.json")
+
+# ── Multi-timeframe artifact discovery ──────────────────────────────
+TIMEFRAME_SUBDIRS = [MERGED_ROOT / d for d in ("1d", "1h", "15m")]
+
+
+def _discover_registry_paths() -> list[Path]:
+    """Return all available candidate_registry.csv paths, preferring
+    timeframe-specific subdirectories over the legacy root."""
+    paths = []
+    for subdir in TIMEFRAME_SUBDIRS:
+        candidate = subdir / "candidate_registry.csv"
+        if candidate.exists():
+            paths.append(candidate)
+    if not paths and REGISTRY.exists():
+        paths.append(REGISTRY)
+    return paths
+
+
+def _discover_leaderboard_paths() -> list[Path]:
+    """Return all available leaderboard paths, preferring
+    timeframe-specific subdirectories over the legacy root."""
+    paths = []
+    for subdir in TIMEFRAME_SUBDIRS:
+        candidate = subdir / "candidate_leaderboard_merged.csv"
+        if candidate.exists():
+            paths.append(candidate)
+    if not paths and LEADERBOARD.exists():
+        paths.append(LEADERBOARD)
+    return paths
+
+
+def _load_union_registry() -> pd.DataFrame:
+    """Load and union all available candidate registries, deduplicating
+    by candiate key and keeping the first occurrence."""
+    path_list = _discover_registry_paths()
+    if not path_list:
+        return pd.DataFrame()
+    frames = []
+    for path in path_list:
+        try:
+            frames.append(pd.read_csv(path))
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            continue
+    if not frames:
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    if "candidate_key" in result.columns:
+        result = result.drop_duplicates(subset=["candidate_key"], keep="first")
+    print(f"sync_monitored: unioned {len(path_list)} registr(y|ies) → {len(result)} rows")
+    return result
+
+
+def _load_union_leaderboard() -> pd.DataFrame:
+    """Load and union all available merged leaderboards."""
+    path_list = _discover_leaderboard_paths()
+    if not path_list:
+        return pd.DataFrame()
+    frames = []
+    for path in path_list:
+        try:
+            frames.append(pd.read_csv(path))
+        except (pd.errors.EmptyDataError, pd.errors.ParserError):
+            continue
+    if not frames:
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    key_cols = ["symbol", "timeframe", "slice_combination"]
+    present = [c for c in key_cols if c in result.columns]
+    if present:
+        result = result.drop_duplicates(subset=present, keep="first")
+    print(f"sync_monitored: unioned {len(path_list)} leaderboard(s) → {len(result)} rows")
+    return result
 
 
 def _normalise_identity(frame: pd.DataFrame) -> pd.DataFrame:
@@ -45,33 +124,23 @@ def _normalise_identity(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _sync_edge_metrics(monitored: pd.DataFrame) -> int:
-    """Write metrics for exactly the currently monitored identities.
-
-    Prefer the merged leaderboard, which carries the full validation
-    scorecard. Fall back to the registry only for a controlled degraded path;
-    the registry now carries the fields sizing needs. Identity includes side
-    and bin_mode so a rolling candidate cannot accidentally inherit insample
-    metrics for the same slice text.
-    """
-    source_path = LEADERBOARD if LEADERBOARD.exists() else REGISTRY
-    if not source_path.exists() or monitored.empty:
+    if monitored.empty:
         pd.DataFrame().to_csv(EDGE_METRICS, index=False)
-        print("sync_monitored: no leaderboard/registry metrics available; edge metrics empty")
+        print("sync_monitored: monitored set empty; edge metrics empty")
+        return 0
+
+    source = _load_union_leaderboard()
+    if source.empty:
+        pd.DataFrame().to_csv(EDGE_METRICS, index=False)
+        print("sync_monitored: no leaderboard metrics available; edge metrics empty")
         return 0
 
     try:
         from research_lifecycle import normalize_walk_forward_patterns
-        source = normalize_walk_forward_patterns(
-            _normalise_identity(pd.read_csv(source_path))
-        )
+        source = normalize_walk_forward_patterns(_normalise_identity(source))
     except (pd.errors.EmptyDataError, pd.errors.ParserError):
         pd.DataFrame().to_csv(EDGE_METRICS, index=False)
-        print(f"sync_monitored: {source_path} is unreadable; edge metrics empty")
-        return 0
-
-    if source.empty:
-        pd.DataFrame().to_csv(EDGE_METRICS, index=False)
-        print("sync_monitored: metrics source empty; edge metrics empty")
+        print("sync_monitored: leaderboard unreadable; edge metrics empty")
         return 0
 
     key_cols = ["symbol", "timeframe", "slice_combination", "side", "bin_mode"]
@@ -92,18 +161,18 @@ def _sync_edge_metrics(monitored: pd.DataFrame) -> int:
     if missing:
         print(
             f"sync_monitored: {len(missing)} monitored candidates have no exact "
-            f"edge row in {source_path}; those candidates will use sizing fallback"
+            f"edge row in the union leaderboard; those candidates will use sizing fallback"
         )
     print(f"sync_monitored: wrote {len(metrics)} execution edge metric rows")
     return len(metrics)
 
 
 def main() -> int:
-    if not REGISTRY.exists():
+    reg = _load_union_registry()
+    if reg.empty:
         print("sync_monitored: no candidate registry found; nothing to sync")
         return 0
 
-    reg = pd.read_csv(REGISTRY)
     baseline_path = BOOK_LIFECYCLE.parent / ".monitored_book_before.csv"
     if baseline_path.exists():
         before_frame = pd.read_csv(baseline_path)
@@ -112,9 +181,6 @@ def main() -> int:
         before_frame = pd.read_csv(MONITORED) if MONITORED.exists() else pd.DataFrame()
     before = len(before_frame)
 
-    # Start from an empty slate so only registry-qualified slices survive.
-    # apply_registry_to_monitored preserves rows absent from the registry;
-    # using an empty input prevents legacy candidates from getting a free pass.
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
         empty = Path(tmp.name)
     pd.DataFrame(columns=["symbol", "timeframe", "slice_combination", "side", "source_note", "bin_mode"]).to_csv(
