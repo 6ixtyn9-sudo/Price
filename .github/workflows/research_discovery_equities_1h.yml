@@ -195,11 +195,19 @@ jobs:
             exit 0
           fi
           git commit -m "chore(research-discovery-1h): merge complete shard set and update monitored book [skip ci]"
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5; do
             git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
-            if [ "$attempt" = 3 ]; then
+            if [ "$attempt" = 5 ]; then
               echo "::error::git push failed after 3 attempts"
               exit 1
             fi
-            sleep $((attempt * 5))
+            sleep $((attempt * 10))
           done
+
+      - name: Upload merge output (always, even on push failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: merge-output-1h
+          path: localdata/research/merged/1h
+          retention-days: 3
