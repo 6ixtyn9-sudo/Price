@@ -418,7 +418,19 @@ def reconcile_stops(
                 })
                 continue
 
-            k_stop = getattr(limits, "stop_atr_multiple", 2.0)
+            # Per-slice stop ATR multiplier from the entry context, when
+            # available. Falls back to the global limits default. This
+            # lets low-vol edges use a tighter stop (1.2× ATR) while
+            # high-vol crypto ETFs keep the wider default (1.5× ATR)
+            # without operator handholding.
+            ctx = entry_context.get(symbol, {})
+            k_stop_raw = ctx.get("stop_atr_mult")
+            try:
+                k_stop = float(k_stop_raw) if k_stop_raw is not None and str(k_stop_raw).strip() not in ("", "nan") else None
+            except (TypeError, ValueError):
+                k_stop = None
+            if k_stop is None or k_stop <= 0:
+                k_stop = getattr(limits, "stop_atr_multiple", 2.0)
             new_state = new_stop_state(symbol, side, qty, entry_price, atr, k_stop=k_stop)
 
             if dry_run:

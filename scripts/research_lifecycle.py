@@ -276,6 +276,57 @@ def _live_decay_keys(path: Path = LIVE_FORWARD_PATH, min_completed: int = 5) -> 
     }
 
 
+def _pnl_decay_keys(
+    trade_journal_path: Path | None = None,
+    min_completed: int = 5,
+) -> set[str]:
+    """Detect slices with enough completed live round-trips to be judged,
+    where the realized P&L is consistently negative.
+
+    Uses the same FIFO-confirmed-fill reconstruction as attribute_pnl.py,
+    so only broker-confirmed fills count.  A slice needs at least
+    ``min_completed`` round-trips before it can be culled; below that
+    threshold the sample is too small to interpret (mirrors attribution's
+    ``MIN_ROUND_TRIPS_FOR_STATS``).
+
+    Returns the set of identity keys (symbol|timeframe|slice_combination|
+    bin_mode) that should be suspended for negative live performance.
+    This is separate from _live_decay_keys, which detects negative forward
+    returns on matched signals (a leading indicator, not confirmed P&L).
+    """
+    try:
+        from price.attribution import load_trade_journal, reconstruct_round_trips
+    except ImportError:
+        return set()
+
+    journal = load_trade_journal(path=trade_journal_path if trade_journal_path else None)
+    rts = reconstruct_round_trips(journal)
+    if not rts:
+        return set()
+
+    by_key: dict[str, list] = {}
+    for rt in rts:
+        key = "|".join([
+            str(rt.symbol).upper(),
+            str(rt.timeframe or ""),
+            str(rt.slice_combination),
+            str(rt.bin_mode or "insample").lower(),
+        ])
+        by_key.setdefault(key, []).append(rt)
+
+    decaying: set[str] = set()
+    for key, trips in by_key.items():
+        if len(trips) < min_completed:
+            continue
+        # Direction-adjusted mean return: positive gross_return means the
+        # trade made money relative to notional, correctly signed for shorts.
+        mean_ret = sum(t.gross_return for t in trips) / len(trips)
+        if mean_ret <= 0:
+            decaying.add(key)
+
+    return decaying
+
+
 def build_registry(
     leaderboard_path: Path,
     output_path: Path = DEFAULT_REGISTRY,
@@ -294,6 +345,7 @@ def build_registry(
     leaderboard = normalize_walk_forward_patterns(leaderboard)
 
     decay = _live_decay_keys(live_forward_path)
+    pnl_decay = _pnl_decay_keys()
     rows = []
     for _, row in leaderboard.iterrows():
         symbol = _clean(row.get("symbol"))
@@ -307,7 +359,8 @@ def build_registry(
         leverage = evaluate_candidate_leverage(row)
         leverage_gate = bool(leverage["leverage_auto_promotion_gate"])
         is_decaying = key in decay
-        if is_decaying:
+        is_pnl_decaying = key in pnl_decay
+        if is_decaying or is_pnl_decaying:
             status = "decaying_suspended"
         elif eligible and enable_auto_promotion:
             status = "auto_approved"
@@ -326,6 +379,7 @@ def build_registry(
             "strict_gate_pass": eligible,
             "tradeable_gate_pass": tradeable,
             "live_decay_flag": is_decaying,
+            "pnl_decay_flag": is_pnl_decaying,
             "valid_n": row.get("valid_n"),
             "valid_mean_ret_costadj": row.get("valid_mean_ret_costadj"),
             "valid_p_value_nw": row.get("valid_p_value_nw"),

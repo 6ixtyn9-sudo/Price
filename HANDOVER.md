@@ -5745,7 +5745,81 @@ Known limitations
 Horizon is still stored per-slice, not per-trade. A slice with multiple concurrent positions can't have different horizons per entry.
 The horizon sweep during leaderboard building adds compute but is only O(slices × 5 horizons × frame filter) and runs once per discovery cycle, not per live scan.
 BITO 1d peaks at 3 bars but the current book uses the global default since these slices predate the patch. Next discovery cycle will pick up the correct 3-bar horizon.
-Session Update — Standalone Restructuring & Cancel-Resubmit Fix (2026-07-22/23)
+Session Update — Per-Slice Optimal Horizon, P&L Culling & Stop Precision (2026-07-24)
+Date: 2026-07-24
+Agent: Arena.ai Agent Mode
+
+Context
+Three blind spots were identified and closed in this session:
+
+87% of slices perform better at horizons other than 5 bars. AMC at 15 bars: 16.81% vs 5.85% at 5 bars (3× difference). The one-size-fits-all --exit-horizon 5 was cutting trades before the edge had time to play out.
+
+No P&L feedback loop. Slices that fail paper trading stayed in the book forever. The HANDOVER roadmap had attribution as lever #5 since July 6 but it was never closed. Statistical gate ≠ profitability gate.
+
+One-size-fits-all stop distance. BITO (crypto ETF at $9, ATR $0.50) gets the same 1.5× ATR multiplier as LLY (pharma at $800, ATR $4). The stop should be tighter for low-vol names and wider for high-vol names relative to their edge profile.
+
+Changes deployed (10 files, all compile clean)
+A. Per-Slice Optimal Horizon (7 files)
+See previous HANDOVER section for details. Files: validate_slices.py, research_lifecycle.py, sync_monitored.py, monitor.py, paper_trade.py, trading.py, position_manager.py.
+
+B. P&L-Based Decay Detection (1 file)
+
+research_lifecycle.py
+:
+
+New function _pnl_decay_keys() — reads the trade journal via attribution.reconstruct_round_trips(), groups completed RTs by identity key, and marks slices with ≥5 RTs and mean gross_return ≤ 0 as pnl_decaying.
+build_registry() now calls _pnl_decay_keys() alongside the existing _live_decay_keys(). A slice in either decay set gets status = "decaying_suspended".
+Registry now carries pnl_decay_flag column (True/False).
+apply_registry_to_monitored() already removes decaying_suspended rows when it processes the registry. No changes needed — the existing removal logic handles P&L-decayed slices.
+Impact: After 5 completed round-trips, a slice with negative realized P&L is automatically suspended. This is a hard cull, not a debate. The statistical gate vetted them in-sample; the paper account is the out-of-sample test. If they fail, they go.
+
+C. Per-Slice Stop ATR Multiplier (5 files)
+
+monitor.py
+: Reads optional stop_atr_mult from monitored_slices.csv. Includes it in the entry signal. Falls back to limits.stop_atr_multiple when absent.
+
+
+paper_trade.py
+: Passes stop_atr_mult from signal to submit_entry().
+
+
+trading.py
+: submit_entry() accepts and journals stop_atr_mult. Both success and exception paths carry it. Defaults to None (global default used downstream).
+
+
+position_manager.py
+: _load_entry_context() reads stop_atr_mult from the trade journal and includes it in the per-symbol context dict.
+
+
+stop_manager.py
+: reconcile_stops() reads per-slice stop_atr_mult from entry_context when creating initial protective stops. Falls back to limits.stop_atr_multiple when missing, invalid, or ≤0.
+
+Impact: Operators can set stop_atr_mult per slice in monitored_slices.csv. When absent, the global default applies. When present, that slice's stop uses the specified multiplier. A low-vol pharma stock can use 1.2× ATR while a crypto ETF uses 2.0× — without touching workflow flags.
+
+What this closes
+Blind spot	Fix	Mechanism
+Horizon mismatch	Per-slice optimal horizon from discovery data	exit_horizon in monitored_slices.csv → journal → position_manager
+No P&L feedback	Cull after 5 negative RTs	_pnl_decay_keys() in research_lifecycle → registry → sync
+One-size stop	Per-slice stop ATR multiplier	stop_atr_mult in monitored_slices.csv → journal → stop_manager
+Known limitations / future work
+P&L culling only runs during discovery cycles. Between cycles, a dead slice keeps trading. A lightweight hourly P&L check in the live capture workflow would close this gap.
+Stop multiplier is not auto-calibrated. It's set manually or left at global default. Future: compute per-slice optimal stop from historical MAE distribution.
+Horizon selection uses in-sample frame. This is acceptable because the horizon is a thesis-invalidation dead-man switch, not a statistical claim. Walk-forward edge validity is already proven.
+Per-slice culling after 5 RTs uses raw gross_return. Future: compare to validation expectation (realized vs expected excess).
+Current posture
+Paper account only. $100,163 equity. 5 open positions.
+16 round-trips, $91.97 realized (preliminary, <5 RTs per slice).
+31 standalone slices (0 cross-conditioned). 24 daily, 7 hourly.
+Per-slice optimal horizon active on next discovery cycle.
+P&L culling active on next discovery cycle.
+Per-slice stop ATR multiplier available as optional deployment column.
+Cancel-resubmit fix active. Multi-timeframe sync fixed. Edge-priority sort active.
+Next agent guidance
+Wait for evidence. The book needs ≥5 RTs per slice before P&L culling activates. This takes weeks.
+Next discovery cycle: Will automatically populate best_fwd_horizon and pnl_decay_flag in the registry. Slices with negative P&L after 5 RTs will be suspended.
+Per-slice stop: To use it, add stop_atr_mult column to monitored_slices.csv with per-slice values. Absent = global default. Not required for the system to operate.
+Do not add options, forex, new features, or leverage. The HANDOVER's anti-drift rules stand.
+If P&L culling removes too aggressively: Raise min_completed in _pnl_decay_keys() from 5 to 8. The 5-RT threshold is conservative by design — it's better to cull early and re-promote if wrong than let dead slices consume slots.
 Date: 2026-07-22/23
 Agent: Arena.ai Agent Mode
 

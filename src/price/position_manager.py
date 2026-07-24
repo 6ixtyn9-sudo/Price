@@ -299,6 +299,7 @@ def _load_entry_context() -> Dict[str, dict]:
             "entry_bar_ts": _clean_val(ebt),
             "submitted_at": _clean_val(r.get("submitted_at")),
             "exit_horizon": exit_h,
+            "stop_atr_mult": _clean_val(r.get("stop_atr_mult")),
             "context_source": "trade_journal",
         }
     return out

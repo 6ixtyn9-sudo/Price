@@ -159,13 +159,13 @@ def _load_explicit_monitored_slices() -> Optional[List[dict]]:
         # Optional deployment metadata. `regime_symbol` is functional: the
         # regime gate uses it as the macro/sector series for this slice. Keep
         # it when present instead of silently discarding the operator's gate.
-        for optional_col in ("regime_symbol", "source_note", "exit_horizon"):
+        for optional_col in ("regime_symbol", "source_note", "exit_horizon", "stop_atr_mult"):
             if optional_col in rows.columns and pd.notna(row.get(optional_col)):
                 value = str(row.get(optional_col)).strip()
                 if value:
-                    if optional_col == "exit_horizon":
+                    if optional_col in ("exit_horizon", "stop_atr_mult"):
                         try:
-                            record[optional_col] = int(float(value))
+                            record[optional_col] = float(value) if optional_col == "stop_atr_mult" else int(float(value))
                         except (TypeError, ValueError):
                             pass
                     else:
@@ -881,6 +881,7 @@ def scan_all_slices(
                 "suggested_notional": (qty * close_adj) if close_adj == close_adj else None,
                 "risk_group": candidate_group,
                 "exit_horizon": int(s.get("exit_horizon", 5)),
+                "stop_atr_mult": float(s.get("stop_atr_mult", limits.stop_atr_multiple)),
                 **regime_state.to_audit_dict(),
                 **size.to_audit_dict(),
                 "risk_check": risk_payload,
