@@ -68,5 +68,19 @@
     "stop_order_id": "2463b90b-bbd8-4f7a-be84-447bb46d40d4",
     "opened_at": "",
     "updated_at": ""
+  },
+  "XBI": {
+    "symbol": "XBI",
+    "side": "long",
+    "qty": 15.0,
+    "entry_price": 151.37,
+    "initial_stop_price": 142.37,
+    "current_stop_price": 142.37,
+    "r_per_share": 9.0,
+    "stage": "initial",
+    "extreme_price": 151.37,
+    "stop_order_id": "e8f782d7-e30d-41dd-8db7-20db2d9654a8",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
