@@ -84,8 +84,3 @@ IBIT,1h,state_ext=stretched_up + state_vol=high_vol,short,auto_promoted_strict_c
 ICE,1h,cross_TLT_state_slope=uptrend + state_slope=flat,short,auto_promoted_strict_candidate,rolling,5,
 KLAC,1h,cross_USO_state_vol=high_vol + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,5,
 LIN,1h,state_slope=uptrend + state_vol=low_vol,short,auto_promoted_strict_candidate,rolling,5,
-AMAT,15m,state_session=afternoon + state_ret_5=ret_down,long,auto_promoted_strict_candidate,rolling,5,
-ASML,15m,cross_TLT_state_slope=uptrend + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,5,
-GDXJ,15m,state_slope=uptrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,5,
-GDXJ,15m,state_session=afternoon + state_slope=uptrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,5,
-GE,15m,cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral,short,auto_promoted_strict_candidate,rolling,5,
