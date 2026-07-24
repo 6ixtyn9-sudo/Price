@@ -1,2 +1,1 @@
 symbol,timeframe,slice_combination,side,bin_mode,overall_regime_status,best_regime,best_regime_mean_ret_costadj,best_regime_p_value_nw,triage_bucket,valid_n,valid_mean_ret_costadj,valid_p_value_nw,walk_forward_pass_pattern,search_wide_bh_pass,search_wide_bonferroni_pass,source_note
-FUT/CL,1h,state_ext=stretched_up + state_vol=mid_vol,long,rolling,bull_regime_candidate,bull,0.007026654441219262,0.002492519803706461,rejected_unsupported,52,0.0037352585836444,0.1742380300706638,0,False,False,bull_regime_candidate
