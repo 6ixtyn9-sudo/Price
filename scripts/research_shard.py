@@ -95,7 +95,7 @@ def run_shard(
         discover_slices.run_discovery(
             target_symbols=symbols,
             timeframe=timeframe,
-            min_samples=15,
+            min_samples=min_samples,
             append=False,
             cond_symbols=list(condition_symbols),
             bin_mode=bin_mode,
