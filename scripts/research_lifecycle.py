@@ -224,25 +224,26 @@ def _tradeable_candidate(row: pd.Series) -> bool:
     """Paper-book eligibility gate optimised for trade frequency.
 
     Softer than _strict_candidate: admits late_emerging (current-regime)
-    candidates, requires 2/4 walk-forward, and 3+ scenarios (2+ for
-    standalone slices). BH-FDR and parent-excess floors remain — the
-    integrity non-negotiables.
+    candidates, requires 2/4 walk-forward (1/4 for standalone), and 3+
+    scenarios. BH-FDR and parent-excess floors remain — the integrity
+    non-negotiables.
 
-    Standalone bonus: slices with no cross_ conditioning need only 2
-    scenario survivals instead of 3.  Standalone bins are wider (no
-    conditioning symbol narrows the state space), so each scenario
-    contains more samples and surviving 2 represents comparable
-    structural evidence to a cross-conditioned slice surviving 3.
+    Standalone walk-forward bonus: cross-conditioned slices split each
+    fold by a second symbol's state, so the "same" fold tests only a
+    specific macro pocket. A standalone slice's fold tests the edge
+    across ALL market regimes — surviving even 1 fold is a harder test
+    than a cross-conditioned slice surviving 2. The gate reflects this:
+    standalone WF≥1, cross-conditioned WF≥2.
     """
     triage = _clean(row.get("triage_bucket"))
     combo = _clean(row.get("slice_combination"))
     is_standalone = "cross_" not in combo
-    scenario_floor = 2 if is_standalone else 3
+    wf_floor = 1 if is_standalone else 2
     return (
         (triage.startswith("clean_survivor") or triage.startswith("late_emerging"))
         and _num(row.get("valid_n"), 0) >= 15
-        and _num(row.get("walk_forward_pass_count"), 0) >= 2
-        and _num(row.get("scenario_survived_count"), 0) >= scenario_floor
+        and _num(row.get("walk_forward_pass_count"), 0) >= wf_floor
+        and _num(row.get("scenario_survived_count"), 0) >= 3
         and _num(row.get("valid_excess_vs_baseline"), -1) > 0
         and _num(row.get("valid_excess_vs_best_parent"), -1) > 0
         and _truthy(row.get("search_wide_bh_pass", False))
@@ -391,7 +392,7 @@ def build_registry(
             "search_wide_bonferroni_pass": row.get("search_wide_bonferroni_pass"),
             "valid_excess_vs_baseline": row.get("valid_excess_vs_baseline"),
             "valid_excess_vs_best_parent": row.get("valid_excess_vs_best_parent"),
-            "optimal_horizon": int(row.get("best_fwd_horizon", 5) or 5),
+            "triage_bucket": _clean(row.get("triage_bucket")),            "optimal_horizon": int(row.get("best_fwd_horizon", 5) or 5),
             "leverage_gate_pass": leverage_gate,
             "leverage_gate_reason": (
                 "risk data unavailable: lifecycle has no per-candidate ATR/R input; "
