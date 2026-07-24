@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-15T12:01:04.650797+00:00",
+  "generated_at_utc": "2026-07-24T19:47:37.373466+00:00",
   "bin_mode": "rolling",
   "symbols": [
     "AAVE/USD",
@@ -23,15 +23,16 @@
     "BTC/USD",
     "ETH/USD"
   ],
-  "discovered_rows": 2077,
-  "leaderboard_rows": 2077,
+  "discovered_rows": 3389,
+  "leaderboard_rows": 6458,
   "registry_rows": 2077,
   "strict_gate_pass_count": 0,
   "status_counts": {
     "research_only": 2077
   },
   "timeframe_counts": {
-    "1d": 2077
+    "1d": 2272,
+    "1h": 4186
   },
   "paper_proposal_count": 0,
   "auto_approved_count": 0,
@@ -39,233 +40,244 @@
   "top_candidates": [
     {
       "rank": 1,
-      "symbol": "UNI/USD",
+      "symbol": "BCH/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_ext=neutral + state_ext=stretched_down",
+      "slice_combination": "cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_up",
       "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 38,
-      "valid_mean_ret_costadj": 0.0549243129625828,
-      "valid_p_value_nw": 0.0017876617760637,
-      "walk_forward_pass_pattern": 101,
-      "search_wide_bh_pass": true,
-      "search_wide_bonferroni_pass": false
-    },
-    {
-      "rank": 2,
-      "symbol": "DOT/USD",
-      "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_slope=uptrend + state_slope=flat",
-      "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 41,
-      "valid_mean_ret_costadj": 0.0525514896205515,
-      "valid_p_value_nw": 0.0016811650635575,
-      "walk_forward_pass_pattern": 1001,
-      "search_wide_bh_pass": true,
-      "search_wide_bonferroni_pass": false
-    },
-    {
-      "rank": 3,
-      "symbol": "SUSHI/USD",
-      "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_ext=stretched_up + cross_ETH/USD_state_slope=flat + state_ext=stretched_down",
-      "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 16,
-      "valid_mean_ret_costadj": 0.0790698490502187,
-      "valid_p_value_nw": 0.0043972357129506,
-      "walk_forward_pass_pattern": 10,
-      "search_wide_bh_pass": true,
-      "search_wide_bonferroni_pass": false
-    },
-    {
-      "rank": 4,
-      "symbol": "DOT/USD",
-      "timeframe": "1d",
-      "slice_combination": "state_ext=stretched_up + state_vol=low_vol",
-      "side": "short",
-      "triage_bucket": "clean_survivor_wf_failed",
-      "valid_n": 18,
-      "valid_mean_ret_costadj": 0.0442191064932231,
-      "valid_p_value_nw": 0.0060085134446272,
-      "walk_forward_pass_pattern": 0,
+      "triage_bucket": "late_emerging_regime_switching",
+      "valid_n": 47,
+      "valid_mean_ret_costadj": 0.0168785632510416,
+      "valid_p_value_nw": 0.0348794189180821,
+      "walk_forward_pass_pattern": "101",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
     {
-      "rank": 5,
-      "symbol": "SUSHI/USD",
+      "rank": 2,
+      "symbol": "AAVE/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down",
+      "slice_combination": "cross_ETH/USD_state_slope=flat + state_slope=downtrend",
+      "side": "long",
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 36,
+      "valid_mean_ret_costadj": 0.0430802286556904,
+      "valid_p_value_nw": 0.0147959196323816,
+      "walk_forward_pass_pattern": "1",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 3,
+      "symbol": "BCH/USD",
+      "timeframe": "1d",
+      "slice_combination": "state_ext=neutral + state_vol=mid_vol",
+      "side": "long",
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 32,
+      "valid_mean_ret_costadj": 0.0352683641508737,
+      "valid_p_value_nw": 0.0312322491616021,
+      "walk_forward_pass_pattern": "1",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 4,
+      "symbol": "BCH/USD",
+      "timeframe": "1d",
+      "slice_combination": "cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up",
       "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 20,
-      "valid_mean_ret_costadj": 0.0921425437417888,
-      "valid_p_value_nw": 0.0012756794763533,
-      "walk_forward_pass_pattern": 10,
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 27,
+      "valid_mean_ret_costadj": 0.0311457836043522,
+      "valid_p_value_nw": 0.0003486143318518,
+      "walk_forward_pass_pattern": "1",
+      "search_wide_bh_pass": true,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 5,
+      "symbol": "AAVE/USD",
+      "timeframe": "1d",
+      "slice_combination": "cross_BTC/USD_state_slope=uptrend + state_slope=flat",
+      "side": "short",
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 66,
+      "valid_mean_ret_costadj": 0.0472470158878504,
+      "valid_p_value_nw": 0.0002424650089447,
+      "walk_forward_pass_pattern": "1",
       "search_wide_bh_pass": true,
       "search_wide_bonferroni_pass": false
     },
     {
       "rank": 6,
-      "symbol": "DOGE/USD",
+      "symbol": "AVAX/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_down",
-      "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 30,
-      "valid_mean_ret_costadj": 0.0381914710281188,
-      "valid_p_value_nw": 0.0380940194842229,
-      "walk_forward_pass_pattern": 10,
+      "slice_combination": "cross_BTC/USD_state_slope=downtrend + cross_ETH/USD_state_ext=stretched_down + state_ext=neutral",
+      "side": "long",
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 18,
+      "valid_mean_ret_costadj": 0.0481254685240387,
+      "valid_p_value_nw": 0.0193307073220068,
+      "walk_forward_pass_pattern": "1",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
     {
       "rank": 7,
-      "symbol": "SUSHI/USD",
+      "symbol": "BCH/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_ext=neutral + state_ext=stretched_down",
+      "slice_combination": "cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up",
       "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 43,
-      "valid_mean_ret_costadj": 0.0434780543588819,
-      "valid_p_value_nw": 0.0436657679322456,
-      "walk_forward_pass_pattern": 10,
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 23,
+      "valid_mean_ret_costadj": 0.0343651771416189,
+      "valid_p_value_nw": 4.310132902585195e-06,
+      "walk_forward_pass_pattern": "1",
+      "search_wide_bh_pass": true,
+      "search_wide_bonferroni_pass": true
+    },
+    {
+      "rank": 8,
+      "symbol": "AAVE/USD",
+      "timeframe": "1d",
+      "slice_combination": "cross_ETH/USD_state_slope=flat + state_slope=flat",
+      "side": "short",
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 102,
+      "valid_mean_ret_costadj": 0.0365202953549559,
+      "valid_p_value_nw": 0.0135668754318707,
+      "walk_forward_pass_pattern": "1",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
     {
-      "rank": 8,
-      "symbol": "UNI/USD",
-      "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_ext=neutral + state_ext=stretched_down",
-      "side": "short",
-      "triage_bucket": "clean_survivor_wf_failed",
-      "valid_n": 16,
-      "valid_mean_ret_costadj": 0.0937569818910969,
-      "valid_p_value_nw": 0.0016770392341687,
-      "walk_forward_pass_pattern": 0,
-      "search_wide_bh_pass": true,
-      "search_wide_bonferroni_pass": false
-    },
-    {
       "rank": 9,
-      "symbol": "DOT/USD",
+      "symbol": "AAVE/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_up",
+      "slice_combination": "cross_BTC/USD_state_slope=flat + state_slope=flat",
       "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 21,
-      "valid_mean_ret_costadj": 0.0814027343639086,
-      "valid_p_value_nw": 3.853480666959896e-05,
-      "walk_forward_pass_pattern": 100,
-      "search_wide_bh_pass": true,
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 74,
+      "valid_mean_ret_costadj": 0.0351721747090824,
+      "valid_p_value_nw": 0.0249334670076057,
+      "walk_forward_pass_pattern": "1",
+      "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
     {
       "rank": 10,
-      "symbol": "AVAX/USD",
+      "symbol": "BCH/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=flat + state_ext=stretched_down",
-      "side": "short",
-      "triage_bucket": "clean_survivor_wf_failed",
-      "valid_n": 34,
-      "valid_mean_ret_costadj": 0.0367677445566309,
-      "valid_p_value_nw": 0.0276291160335453,
-      "walk_forward_pass_pattern": 0,
+      "slice_combination": "cross_ETH/USD_state_ext=stretched_down + state_ext=neutral",
+      "side": "long",
+      "triage_bucket": "late_emerging_valid_supported",
+      "valid_n": 26,
+      "valid_mean_ret_costadj": 0.0450832178663995,
+      "valid_p_value_nw": 0.0139340633264692,
+      "walk_forward_pass_pattern": "10",
       "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     },
     {
       "rank": 11,
-      "symbol": "CRV/USD",
+      "symbol": "AAVE/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_ext=neutral + state_ext=stretched_down",
+      "slice_combination": "cross_ETH/USD_state_slope=uptrend + state_slope=flat",
       "side": "short",
-      "triage_bucket": "clean_survivor_wf_mixed",
-      "valid_n": 23,
-      "valid_mean_ret_costadj": 0.0320388368544118,
-      "valid_p_value_nw": 0.045456185436735,
-      "walk_forward_pass_pattern": 1010,
-      "search_wide_bh_pass": false,
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 43,
+      "valid_mean_ret_costadj": 0.0541342445828632,
+      "valid_p_value_nw": 0.0001264668168818,
+      "walk_forward_pass_pattern": "1",
+      "search_wide_bh_pass": true,
       "search_wide_bonferroni_pass": false
     },
     {
       "rank": 12,
-      "symbol": "CRV/USD",
+      "symbol": "AAVE/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_ext=stretched_up + state_ext=stretched_up",
+      "slice_combination": "state_ext=stretched_up + state_slope=flat",
       "side": "short",
-      "triage_bucket": "over_specified_survivor",
-      "valid_n": 18,
-      "valid_mean_ret_costadj": 0.0435207742751994,
-      "valid_p_value_nw": 0.0009077702335649,
-      "walk_forward_pass_pattern": 10,
+      "triage_bucket": "late_emerging_recent_only",
+      "valid_n": 51,
+      "valid_mean_ret_costadj": 0.0481776274856481,
+      "valid_p_value_nw": 0.0044796421853972,
+      "walk_forward_pass_pattern": "1",
       "search_wide_bh_pass": true,
       "search_wide_bonferroni_pass": false
     },
     {
       "rank": 13,
-      "symbol": "LTC/USD",
+      "symbol": "BCH/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_ext=neutral + state_ext=stretched_up",
+      "slice_combination": "cross_BTC/USD_state_slope=uptrend + cross_ETH/USD_state_slope=flat + state_ext=stretched_down",
       "side": "short",
-      "triage_bucket": "late_emerging_regime_switching",
-      "valid_n": 23,
-      "valid_mean_ret_costadj": 0.0443776285835524,
-      "valid_p_value_nw": 0.0056209907452768,
-      "walk_forward_pass_pattern": 11,
-      "search_wide_bh_pass": false,
-      "search_wide_bonferroni_pass": false
-    },
-    {
-      "rank": 14,
-      "symbol": "SOL/USD",
-      "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_vol=mid_vol + state_ext=stretched_up",
-      "side": "short",
-      "triage_bucket": "late_emerging_regime_switching",
-      "valid_n": 33,
-      "valid_mean_ret_costadj": 0.0360225139117658,
-      "valid_p_value_nw": 1.1845658232090273e-08,
-      "walk_forward_pass_pattern": 1011,
+      "triage_bucket": "late_emerging_valid_supported",
+      "valid_n": 15,
+      "valid_mean_ret_costadj": 0.0893547285480405,
+      "valid_p_value_nw": 3.987706985286721e-06,
+      "walk_forward_pass_pattern": "0",
       "search_wide_bh_pass": true,
       "search_wide_bonferroni_pass": true
     },
     {
-      "rank": 15,
-      "symbol": "LINK/USD",
+      "rank": 14,
+      "symbol": "AVAX/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_slope=flat + state_slope=uptrend",
-      "side": "short",
+      "slice_combination": "state_ext=stretched_down + state_slope=uptrend",
+      "side": "long",
       "triage_bucket": "late_emerging_valid_supported",
-      "valid_n": 24,
-      "valid_mean_ret_costadj": 0.0655621570574747,
-      "valid_p_value_nw": 0.0003720275354024,
-      "walk_forward_pass_pattern": 1010,
-      "search_wide_bh_pass": true,
+      "valid_n": 16,
+      "valid_mean_ret_costadj": 0.0513416652384633,
+      "valid_p_value_nw": 0.0190936843675584,
+      "walk_forward_pass_pattern": "0",
+      "search_wide_bh_pass": false,
+      "search_wide_bonferroni_pass": false
+    },
+    {
+      "rank": 15,
+      "symbol": "AVAX/USD",
+      "timeframe": "1d",
+      "slice_combination": "cross_BTC/USD_state_slope=downtrend + state_ext=neutral",
+      "side": "long",
+      "triage_bucket": "late_emerging_valid_supported",
+      "valid_n": 25,
+      "valid_mean_ret_costadj": 0.0351353266244383,
+      "valid_p_value_nw": 0.040666664188111,
+      "walk_forward_pass_pattern": "0",
+      "search_wide_bh_pass": false,
       "search_wide_bonferroni_pass": false
     }
   ],
   "regime_status_counts": {
-    "not_regime_evaluated": 1939,
-    "regime_switching_research_only": 105,
-    "bull_regime_candidate": 22,
-    "unsupported": 6,
-    "bear_regime_candidate": 3,
+    "not_regime_evaluated": 6332,
+    "regime_switching_research_only": 100,
+    "bull_regime_candidate": 12,
+    "unsupported": 7,
+    "bear_regime_candidate": 5,
     "neutral_regime_candidate": 2
   },
   "regime_leaderboard_rows": {
-    "bull": 138,
-    "bear": 138,
-    "neutral": 138
+    "bull": 126,
+    "bear": 126,
+    "neutral": 126
   },
-  "regime_candidate_count": 27,
-  "regime_target_count": 138,
-  "regime_not_evaluated_count": 1939,
-  "regime_evaluated_symbol_count": 14,
+  "regime_candidate_count": 19,
+  "regime_target_count": 126,
+  "regime_not_evaluated_count": 6332,
+  "regime_evaluated_symbol_count": 12,
   "top_regime_candidates": [
+    {
+      "symbol": "SUSHI/USD",
+      "timeframe": "1d",
+      "slice_combination": "cross_BTC/USD_state_ext=stretched_up + cross_ETH/USD_state_slope=flat + state_ext=stretched_up",
+      "side": "short",
+      "overall_regime_status": "bear_regime_candidate",
+      "best_regime": "bear",
+      "best_regime_mean_ret_costadj": 0.06595314389790344,
+      "best_regime_p_value_nw": 0.0007659178928092203,
+      "walk_forward_pass_pattern": "0"
+    },
     {
       "symbol": "AAVE/USD",
       "timeframe": "1d",
@@ -275,7 +287,7 @@
       "best_regime": "bear",
       "best_regime_mean_ret_costadj": 0.061181870942499335,
       "best_regime_p_value_nw": 0.004045359426254613,
-      "walk_forward_pass_pattern": 1001
+      "walk_forward_pass_pattern": "1"
     },
     {
       "symbol": "XRP/USD",
@@ -286,7 +298,7 @@
       "best_regime": "bear",
       "best_regime_mean_ret_costadj": 0.04167496353558097,
       "best_regime_p_value_nw": 3.2875924205200135e-12,
-      "walk_forward_pass_pattern": 1
+      "walk_forward_pass_pattern": "1"
     },
     {
       "symbol": "XRP/USD",
@@ -297,7 +309,18 @@
       "best_regime": "bear",
       "best_regime_mean_ret_costadj": 0.03891688492666992,
       "best_regime_p_value_nw": 4.6845847267995566e-07,
-      "walk_forward_pass_pattern": 10
+      "walk_forward_pass_pattern": "10"
+    },
+    {
+      "symbol": "LTC/USD",
+      "timeframe": "1h",
+      "slice_combination": "cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_ext=neutral + state_ext=stretched_down",
+      "side": "long",
+      "overall_regime_status": "bear_regime_candidate",
+      "best_regime": "bear",
+      "best_regime_mean_ret_costadj": 0.0060481432922467335,
+      "best_regime_p_value_nw": 0.008543550015984724,
+      "walk_forward_pass_pattern": "1"
     },
     {
       "symbol": "UNI/USD",
@@ -307,8 +330,8 @@
       "overall_regime_status": "bull_regime_candidate",
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.11300932911054493,
-      "best_regime_p_value_nw": 0.0004536309156544238,
-      "walk_forward_pass_pattern": 1
+      "best_regime_p_value_nw": 0.00045363091565420177,
+      "walk_forward_pass_pattern": "1"
     },
     {
       "symbol": "AAVE/USD",
@@ -319,7 +342,7 @@
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.09184981736439239,
       "best_regime_p_value_nw": 0.0022896545477510966,
-      "walk_forward_pass_pattern": 1
+      "walk_forward_pass_pattern": "1"
     },
     {
       "symbol": "UNI/USD",
@@ -330,7 +353,7 @@
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.08970742293350129,
       "best_regime_p_value_nw": 8.55387615477099e-05,
-      "walk_forward_pass_pattern": 0
+      "walk_forward_pass_pattern": "0"
     },
     {
       "symbol": "UNI/USD",
@@ -341,18 +364,7 @@
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.07872155976480033,
       "best_regime_p_value_nw": 0.0001575852266286759,
-      "walk_forward_pass_pattern": 101
-    },
-    {
-      "symbol": "ETH/USD",
-      "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_slope=downtrend + state_slope=flat",
-      "side": "long",
-      "overall_regime_status": "bull_regime_candidate",
-      "best_regime": "bull",
-      "best_regime_mean_ret_costadj": 0.07711977766538465,
-      "best_regime_p_value_nw": 0.0040438103404345505,
-      "walk_forward_pass_pattern": 1
+      "walk_forward_pass_pattern": "100"
     },
     {
       "symbol": "SUSHI/USD",
@@ -362,8 +374,8 @@
       "overall_regime_status": "bull_regime_candidate",
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.06733356510861442,
-      "best_regime_p_value_nw": 0.010029847160592409,
-      "walk_forward_pass_pattern": 10
+      "best_regime_p_value_nw": 0.010029847160592631,
+      "walk_forward_pass_pattern": "10"
     },
     {
       "symbol": "UNI/USD",
@@ -374,29 +386,7 @@
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.06237551009330366,
       "best_regime_p_value_nw": 0.0006784422167531723,
-      "walk_forward_pass_pattern": 1
-    },
-    {
-      "symbol": "AVAX/USD",
-      "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_vol=mid_vol + state_ext=stretched_down",
-      "side": "short",
-      "overall_regime_status": "bull_regime_candidate",
-      "best_regime": "bull",
-      "best_regime_mean_ret_costadj": 0.06146664633788453,
-      "best_regime_p_value_nw": 0.0005964371198374785,
-      "walk_forward_pass_pattern": 1
-    },
-    {
-      "symbol": "AVAX/USD",
-      "timeframe": "1d",
-      "slice_combination": "cross_BTC/USD_state_ext=neutral + cross_ETH/USD_state_slope=flat + state_ext=stretched_down",
-      "side": "short",
-      "overall_regime_status": "bull_regime_candidate",
-      "best_regime": "bull",
-      "best_regime_mean_ret_costadj": 0.05643538852463279,
-      "best_regime_p_value_nw": 4.417589545280265e-07,
-      "walk_forward_pass_pattern": 0
+      "walk_forward_pass_pattern": "1"
     },
     {
       "symbol": "DOT/USD",
@@ -407,7 +397,7 @@
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.05511723723020475,
       "best_regime_p_value_nw": 0.0016893867008984653,
-      "walk_forward_pass_pattern": 1001
+      "walk_forward_pass_pattern": "1010"
     },
     {
       "symbol": "DOGE/USD",
@@ -417,19 +407,34 @@
       "overall_regime_status": "bull_regime_candidate",
       "best_regime": "bull",
       "best_regime_mean_ret_costadj": 0.054606081779275624,
-      "best_regime_p_value_nw": 0.000168299538257477,
-      "walk_forward_pass_pattern": 10
+      "best_regime_p_value_nw": 0.00016829953825725497,
+      "walk_forward_pass_pattern": "10"
+    },
+    {
+      "symbol": "BCH/USD",
+      "timeframe": "1d",
+      "slice_combination": "cross_BTC/USD_state_slope=flat + cross_ETH/USD_state_slope=uptrend + state_ext=stretched_up",
+      "side": "short",
+      "overall_regime_status": "bull_regime_candidate",
+      "best_regime": "bull",
+      "best_regime_mean_ret_costadj": 0.05110335820884099,
+      "best_regime_p_value_nw": 0.0005692600686653115,
+      "walk_forward_pass_pattern": "1"
     },
     {
       "symbol": "LTC/USD",
       "timeframe": "1d",
-      "slice_combination": "cross_ETH/USD_state_slope=flat + state_slope=uptrend",
+      "slice_combination": "cross_ETH/USD_state_ext=neutral + state_ext=stretched_up",
       "side": "short",
       "overall_regime_status": "bull_regime_candidate",
       "best_regime": "bull",
-      "best_regime_mean_ret_costadj": 0.054427434807719825,
-      "best_regime_p_value_nw": 0.006780663282438093,
-      "walk_forward_pass_pattern": 10
+      "best_regime_mean_ret_costadj": 0.04850958751327585,
+      "best_regime_p_value_nw": 0.007020915385303361,
+      "walk_forward_pass_pattern": "1"
     }
-  ]
+  ],
+  "monitored_candidate_count": 0,
+  "monitored_candidate_symbols": [],
+  "monitored_candidate_status_counts": {},
+  "top_monitored_candidates": []
 }
