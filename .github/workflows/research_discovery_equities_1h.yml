@@ -160,11 +160,6 @@ jobs:
             --promote-proposals \
             --apply-monitored-slices \
             --allow-partial
-      - name: Sync rolling monitored book and execution edge metrics
-        if: ${{ needs.shards.result == 'success' }}
-        env:
-          DISCOVERY_RUN_ID: ${{ github.run_id }}
-        run: python3 scripts/sync_monitored.py
       - name: Run regime diagnostics on merged top 25
         run: |
           python scripts/validate_slices.py \
