@@ -141,3 +141,4 @@ c35b43fe-7407-47ea-ad3b-47bcc454d7b0,JPM,3.0,sell,stop,331.44,gtc,new,2026-07-23
 e8f782d7-e30d-41dd-8db7-20db2d9654a8,XBI,15.0,sell,stop,142.37,gtc,new,2026-07-24 14:39:13.726973+00:00,protective_stop_submit,2026-07-24T14:39:13.736474+00:00,new,0.0,,,2026-07-24T15:38:14.160458+00:00,,,,,,,,,,
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-24T15:38:20.833684+00:00,,,,,,"{""code"":40410000,""message"":""order not found""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
 ,,,,,174.82,,rejected,,protective_stop_replace,2026-07-24T16:39:13.456503+00:00,,,,,,"{""code"":40410000,""message"":""order not found""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
+,,,,,174.82,,rejected,,protective_stop_replace,2026-07-24T17:39:39.103290+00:00,,,,,,"{""code"":40410000,""message"":""order not found""}",,,,,,,,,63cf7840-4e16-421e-98a2-24c67ddb6e3b
