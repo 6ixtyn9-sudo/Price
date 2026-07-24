@@ -459,7 +459,7 @@ def apply_registry_to_monitored(
             "side": row.get("side", "long"),
             "source_note": "auto_promoted_strict_candidate",
             "bin_mode": row.get("bin_mode", "insample"),
-            "exit_horizon": int(float(row.get("optimal_horizon", 5) or 5)),
+            "exit_horizon": int(float(row.get("optimal_horizon", 5))) if not pd.isna(row.get("optimal_horizon", 5)) else 5,
         })
         existing_keys.add(key)
 
