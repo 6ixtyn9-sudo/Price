@@ -337,6 +337,7 @@ def build_registry(
             "search_wide_bonferroni_pass": row.get("search_wide_bonferroni_pass"),
             "valid_excess_vs_baseline": row.get("valid_excess_vs_baseline"),
             "valid_excess_vs_best_parent": row.get("valid_excess_vs_best_parent"),
+            "optimal_horizon": int(row.get("best_fwd_horizon", 5) or 5),
             "leverage_gate_pass": leverage_gate,
             "leverage_gate_reason": (
                 "risk data unavailable: lifecycle has no per-candidate ATR/R input; "
@@ -404,6 +405,7 @@ def apply_registry_to_monitored(
             "side": row.get("side", "long"),
             "source_note": "auto_promoted_strict_candidate",
             "bin_mode": row.get("bin_mode", "insample"),
+            "exit_horizon": int(row.get("optimal_horizon", 5) or 5),
         })
         existing_keys.add(key)
 

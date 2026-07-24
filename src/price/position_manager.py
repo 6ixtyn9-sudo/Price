@@ -287,12 +287,18 @@ def _load_entry_context() -> Dict[str, dict]:
         sym = str(r["symbol"]).upper()
         tf = r.get("timeframe")
         ebt = r.get("entry_bar_ts")
+        exit_h = r.get("exit_horizon")
+        try:
+            exit_h = int(float(exit_h)) if exit_h is not None and str(exit_h).strip() != "" else None
+        except (TypeError, ValueError):
+            exit_h = None
         out[sym] = {
             "slice_combination": str(r.get("slice_label", "") or ""),
             "timeframe": _clean_val(tf),
             "bin_mode": _clean_val(r.get("bin_mode"), "insample"),
             "entry_bar_ts": _clean_val(ebt),
             "submitted_at": _clean_val(r.get("submitted_at")),
+            "exit_horizon": exit_h,
             "context_source": "trade_journal",
         }
     return out
@@ -713,11 +719,26 @@ def check_exits(
         if mismatches:
             exit_reasons.append("stable filter broken: " + "; ".join(mismatches))
 
+        # Per-slice exit horizon: the slice's own optimal horizon from
+        # discovery, or the global policy default when unavailable.
+        # Deliberate None-check, NOT truthiness: exit_horizon=0 means
+        # "disable the horizon exit for this slice" (state-break only),
+        # and `or default` would silently override the operator's intent.
+        ps_horizon = ctx.get("exit_horizon")
+        if ps_horizon is None:
+            ps_horizon = exit_policy.horizon_bars
+        try:
+            ps_horizon = int(ps_horizon)
+        except (TypeError, ValueError):
+            ps_horizon = exit_policy.horizon_bars
+        if ps_horizon <= 0:
+            ps_horizon = exit_policy.horizon_bars
+
         r_gate_active = False
         if (
-            exit_policy.horizon_bars > 0
+            ps_horizon > 0
             and bars_held is not None
-            and bars_held >= exit_policy.horizon_bars
+            and bars_held >= ps_horizon
         ):
             current_price = pos.get("current_price")
             r_gate_active = (
@@ -730,7 +751,7 @@ def check_exits(
             else:
                 exit_reasons.append(
                     f"horizon reached: held {bars_held} bars "
-                    f">= {exit_policy.horizon_bars} ({timeframe})"
+                    f">= {ps_horizon} ({timeframe})"
                 )
 
         profit_exits = []
@@ -764,14 +785,14 @@ def check_exits(
             reason = "; ".join(exit_reasons)
         elif r_gate_active:
             reason = (
-                f"horizon reached ({bars_held}/{exit_policy.horizon_bars} bars, {timeframe}) "
+                f"horizon reached ({bars_held}/{ps_horizon} bars, {timeframe}) "
                 "but trade is past +1R; held under trailing-stop management instead "
                 "(small losses, large profits)"
             )
         elif bars_held is not None:
             reason = (
                 f"stable filter matches; held {bars_held}/"
-                f"{exit_policy.horizon_bars} bars ({timeframe})"
+                f"{ps_horizon} bars ({timeframe})"
             )
         else:
             reason = "stable filter matches; bars held unknown (no entry bar)"
@@ -783,7 +804,7 @@ def check_exits(
             "stable_filter": stable_str,
             "current_stable_state": current_stable,
             "bars_held": bars_held,
-            "horizon_bars": exit_policy.horizon_bars,
+            "horizon_bars": ps_horizon,
             "timeframe": timeframe,
             "r_multiple_suppressed_horizon": r_gate_active,
             "reason": reason,

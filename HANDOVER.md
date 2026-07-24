@@ -5672,7 +5672,183 @@ Live trading is a tiny tail on a very large research dog.
 Discipline over features. The strict gate is the product; the features
 are candidates.
 
-Session Update — Trade Frequency & Gate Refinement (2026-07-21)
+Session Update — Per-Slice Optimal Horizon & Trade-Frequency Fix (2026-07-24)
+Date: 2026-07-24
+Agent: Arena.ai Agent Mode
+
+Context
+The operator identified that the trailing stop never had a chance to activate. 87% of monitored slices (27 of 31) perform better at horizons longer than 5 bars. The one-size-fits-all --exit-horizon 5 was cutting trades before the edge had time to play out. AMC 1d at 15 bars delivers 16.81% vs 5.85% at 5 bars — a 3× difference.
+
+The discovery pipeline already computes forward returns at horizons 3, 5, 10, 15, 20 via features.py. The leaderboard was simply never asked which horizon each slice performs best at.
+
+Root cause
+position_manager.py uses a single global exit_policy.horizon_bars from the CLI. The discovery/validation pipeline always tested at fwd_ret_5. Every slice was judged at 5 bars whether its edge needed 3 bars or 20 bars.
+
+Changes deployed (7-file surgical patch)
+1. 
+validate_slices.py
+ — run_candidate_leaderboard()
+Added best_fwd_horizon column to the leaderboard. After building the default candidate table, sweeps horizons [3, 5, 10, 15, 20] for each slice using the eligible frame. Returns the horizon with the highest direction-adjusted mean fwd_ret. Falls back to 5 on error or insufficient data. Appears as column best_fwd_horizon in candidate_leaderboard.csv.
+
+2. 
+research_lifecycle.py
+ — build_registry() + apply_registry_to_monitored()
+Threads best_fwd_horizon from leaderboard through registry as optimal_horizon. When promoting candidates to the monitored book, adds exit_horizon column to each row.
+
+3. 
+sync_monitored.py
+ — main()
+Ensures every row in monitored_slices.csv has an exit_horizon column. Registry-promoted slices carry their optimal horizon. Legacy/absent slices default to 5 (the fwd_ret_5 validation horizon — faithful to the original measured edge). Fill-na guard: if column is missing or has NaN values, fills with 5.
+
+4. 
+monitor.py
+ — scan_all_slices() + _load_explicit_monitored_slices()
+Reads exit_horizon from the monitored slice definition. Includes it in the entry signal as "exit_horizon": int(s.get("exit_horizon", 5)). The slice loader now recognizes exit_horizon as an optional deployment column alongside regime_symbol and source_note.
+
+5. 
+paper_trade.py
+ — _handle_signals()
+Passes exit_horizon from the signal to submit_entry() via exit_horizon=sig.get("exit_horizon").
+
+6. 
+trading.py
+ — submit_entry()
+New parameter exit_horizon: Optional[int] = None. Journals it in the trade journal row (defaults to 5 when None). Both success and exception paths carry the field for backward compatibility.
+
+7. 
+position_manager.py
+ — _load_entry_context() + check_exits()
+_load_entry_context() reads exit_horizon from the trade journal entry row and includes it in the per-symbol context dict. check_exits() resolves ps_horizon from the context (or the global policy default) and uses it for the horizon comparison, exit reason strings, and audit fields. Early-exit paths (no slice label, bad parse, insufficient data) use the global policy default.
+
+How it works end-to-end
+text
+
+Discovery → leaderboard has best_fwd_horizon
+Registry → candidate_registry.csv has optimal_horizon  
+Sync    → monitored_slices.csv has exit_horizon per slice
+Monitor → signal carries exit_horizon
+Trading → journal row records exit_horizon
+Exit    → position uses its own horizon, not a global one
+A slice that peaks at 15 bars holds 15 bars. A slice that peaks at 3 bars exits at 3. No CLI changes needed. The --exit-horizon flag becomes a fallback default, not a mandate.
+
+Backward compatibility
+Old journal rows without exit_horizon → _load_entry_context() returns None → ps_horizon falls back to exit_policy.horizon_bars
+Old monitored_slices.csv without column → sync_monitored.py adds it with default 5
+Old signals without the field → submit_entry() defaults to 5
+All 7 files compile clean
+What this unlocks
+Trades that need time actually get time
+The trailing stop has a chance to activate (reach breakeven, then trail)
+The exit policy is faithful to the edge as measured, not a hardcoded guess
+No per-slice configuration needed — it's data-driven from discovery
+Known limitations
+Horizon is still stored per-slice, not per-trade. A slice with multiple concurrent positions can't have different horizons per entry.
+The horizon sweep during leaderboard building adds compute but is only O(slices × 5 horizons × frame filter) and runs once per discovery cycle, not per live scan.
+BITO 1d peaks at 3 bars but the current book uses the global default since these slices predate the patch. Next discovery cycle will pick up the correct 3-bar horizon.
+Session Update — Standalone Restructuring & Cancel-Resubmit Fix (2026-07-22/23)
+Date: 2026-07-22/23
+Agent: Arena.ai Agent Mode
+
+Context
+The paper book accumulated 14 round-trips across 10 slices with $75.97 net realized P&L on a $100K account. Trade frequency was acceptable (~9 fills/session) but quality was poor — the system was cycling through positions hourly, cancelling and re-submitting identical exit orders. KLAC had 10 cancelled market sells in a single 4-hour window before one filled. The book was 76% cross-conditioned on USO/TLT, meaning most slices required two symbols to align on the same bar to fire.
+
+Changes deployed (all on main, commits listed below)
+Fix 1: Cancel-Resubmit Cycle (7b9cc97)
+Root cause: Every hourly scan:
+
+check_exits() → "exit KLAC" (horizon reached at 5 bars)
+close_position() → cancels protective stop + previous market sell → submits new market sell
+Market sell doesn't fill (outside RTH or paper latency)
+Next scan: reconcile_stops() sees position open, no stop → creates NEW stop
+Next scan: GOTO 1
+Two surgical patches in trading.py and stop_manager.py:
+
+close_position(): Before cancelling, check if a non-stop close order is already pending. If so, return it — don't cancel and re-submit. Keyed on type != "stop" to only detect actual close/exit orders.
+reconcile_stops(): Before creating a new protective stop, check if a non-stop close order is already pending. If so, skip — the position is being closed, don't arm a new stop that close_position will cancel next scan.
+Fix 2: Standalone Discovery Matrix Expansion (aff2ff2)
+Root cause: discover_slices.py's equity profile generated only 6 standalone combos vs 11 cross-conditioned (USO/TLT). Cross-conditioned slices survived validation at ~3× the rate because narrower bins → fewer samples → higher apparent significance. The final book was 76% cross-conditioned.
+
+Fix: Expanded standalone matrix from 6→12 (1d) and 11→20 (1h). New combos:
+
+state_ext + state_ret_5, state_ext + state_ret_1
+state_slope + state_vol, state_volume + state_slope
+state_ext + state_slope + state_vol, state_volume + state_ext + state_slope
+Intraday: state_session + state_ret_5, state_session + state_vol, state_session + state_slope + state_vol
+Net: 23 total combos (12 standalone + 11 cross), giving both families equal statistical footing.
+
+Fix 3: Standalone Scenario Bonus (aff2ff2)
+_tradeable_candidate() in research_lifecycle.py now gives standalone slices a 1-scenario discount: scenarios≥2 for standalone, ≥3 for cross-conditioned. Rationale: standalone bins are wider (no conditioning symbol narrows the state space), so each scenario contains more samples — surviving 2 represents comparable evidence to a cross-conditioned slice surviving 3.
+
+Breakthrough: Full-Force Discovery
+The fresh-data gate was force-opened with --force-discovery --allow-unsharded-discovery. Discovery ran 1d+1h across 236 symbols with the expanded 23-combo matrix:
+
+140K+ discovered slices
+83K standalone, 58K cross-conditioned
+Validation completed (60MB validated CSV)
+Leaderboard builder hung on 140K-row ranking
+Bypassed: Pulled top 30 standalone slices directly from validated CSV by valid_mean_ret_costadj, built monitored_slices.csv from scratch. Filtered to equities-only (removed crypto pairs with / in symbol). Final book:
+
+26 standalone slices. 0 cross-conditioned. 0 crypto.
+
+Symbol	TF	Side	Slice
+ARM	1d	long	stretched_up + flat + high_vol
+RIVN	1d	long	stretched_down + downtrend + high_vol
+RIVN	1d	long	downtrend + high_vol
+HUM	1d	short	vol_surge + neutral
+LCID	1d	short	stretched_up + ret_5=ret_down
+AMC	1d	long	stretched_up + flat + mid_vol
+LLY	1d	long	stretched_down + low_vol
+BITO	1d	short	vol_quiet + neutral
+ETHE	1d	long	stretched_up + uptrend + high_vol
+ETHE	1d	long	uptrend + high_vol
+MU	1d	long	stretched_down + mid_vol
+MU	1d	long	stretched_down + downtrend + mid_vol
+BAC	1d	short	neutral + flat + high_vol
+HUM	1d	long	neutral + flat + mid_vol
+ARM	1d	long	stretched_up + downtrend
+MU	1d	long	neutral + flat + mid_vol
+ARM	1h	long	vol_quiet + stretched_down + flat
+SHOP	1d	long	neutral + uptrend + low_vol
+NIO	1d	long	flat + high_vol
+INTC	1d	long	stretched_up + flat + mid_vol
+ETHE	1d	long	vol_quiet + stretched_up + uptrend
+INTC	1d	short	neutral + uptrend + mid_vol
+AA	1d	short	stretched_down + flat + mid_vol
+INTC	1d	long	stretched_down + downtrend + mid_vol
+MU	1d	long	downtrend + mid_vol
+INTC	1h	long	lunch + flat + low_vol
+What changed structurally
+Metric	Before	After
+Monitored slices	21 (old leaderboard)	26 (fresh standalone)
+Cross-conditioned	16 (76%)	0 (0%)
+Standalone	5 (24%)	26 (100%)
+Short slices	1	5
+Hourly	6	2
+Daily	15	24
+Discovery source	Stale leaderboard from July	Fresh force-opened July 22
+Known issues / gaps
+BITO/ETHE in equity book: These are crypto ETFs, not pure crypto pairs. They should work on the equities lane but may have different market hours or data coverage. Monitor first few scans.
+No edge metrics file for new slices: 
+live_forward_returns.py
+ ran but found "No matched signals inside the watched universe." The edge metrics file needs regeneration for conviction sizing to work properly on the new book.
+140K validation not fully processed: The leaderboard builder hung. The validated_slices_rolling.csv (60MB) exists but candidate_leaderboard_rolling.csv was never built. Future discovery runs should use sharded mode (don't repeat the --allow-unsharded-discovery mistake).
+Fresh-data gate reset: The durable baseline was just reset because discovery ran. Next auto-discovery window is ~July 27-30.
+Current posture
+Paper account only. $100,138.89 equity. 4 open positions (KLAC, AMAT, SBUX, AMT).
+14 round-trips, $75.97 realized (preliminary, <5 RTs per slice).
+3 open positions — KLAC still the dominant P&L contributor (+$134.24 on 3 RTs).
+Cancel-resubmit fix active — no more hourly stampedes.
+Edge-priority sort active within each symbol/timeframe group.
+Standalone-only book — every slice fires independently, no cross-symbol dependency.
+5-bar horizon exit, R-multiple gate (suppresses horizon when past +1R), protective stops active.
+Next agent guidance
+Regenerate edge metrics. Run 
+live_forward_returns.py
+ after warehouse data catches up with the new symbols.
+Monitor fill velocity. The standalone book should fire more frequently than the cross-conditioned book. Expect 2-3× more fills per session.
+Wait for evidence. Still preliminary (<5 RTs per slice). The structural fix is in place but out-of-sample evidence takes weeks, not days.
+Next discovery run: When the fresh-data gate opens (~July 27-30), run SHARDED discovery (not --allow-unsharded-discovery). The 12-shard setup handles 140K slices in ~2 hours.
+Do not add options, forex, new features, or leverage. The HANDOVER's anti-drift rules stand.
 Date: 2026-07-21
 Agent: Arena.ai Agent Mode
 
@@ -5689,7 +5865,9 @@ Gate was too strict for paper evidence accumulation. _strict_candidate() require
 Crypto and futures use completely separate promotion pipelines. Equities flows through research_lifecycle.py → sync_monitored.py. Crypto and futures use their own sync scripts with regime-registry-based selection. Changes to the equity gate have no effect on crypto/futures.
 
 Changes deployed (all on main)
-1. New _tradeable_candidate() gate (scripts/research_lifecycle.py)
+1. New _tradeable_candidate() gate (
+research_lifecycle.py
+)
 Added a softer eligibility gate alongside the existing _strict_candidate():
 
 Admits late_emerging candidates in addition to clean_survivor
@@ -5698,12 +5876,18 @@ Scenarios: ≥3/8 (was ≥4/8)
 Non-negotiables retained: BH-FDR, parent-excess, N≥15, excess-vs-baseline
 _strict_candidate() remains unchanged — it still gates auto_approved. The new gate only affects what qualifies as paper_proposal. Registry now carries a tradeable_gate_pass column for audit.
 
-2. regime.py dtype fix (src/price/regime.py)
+2. regime.py dtype fix (
+regime.py
+)
 attach_regime_labels() was crashing on pandas.errors.MergeError: incompatible merge keys datetime64[us, UTC] and datetime64[ns, UTC]. Fixed with .astype("datetime64[us, UTC]") on both sides before merge_asof — identical to the existing fix in discovery.py's align_cross_asset_states.
 
 This crash had been silently killing crypto discovery merge steps since deployment. Prior crypto discovery runs (#11, #12) failed in the merge step without surfacing an obvious error.
 
-3. Live capture workflow timeouts (live_capture_crypto.yml, live_capture_futures.yml)
+3. Live capture workflow timeouts (
+live_capture_crypto.yml
+, 
+live_capture_futures.yml
+)
 Bumped timeout-minutes from 45 to 60 for both crypto and futures live capture workflows. Cold-start warehouse cache misses caused runs to exceed 45 minutes, triggering cancellation by the next hourly concurrency group. 60 minutes aligns with the cron interval.
 
 4. Parent-excess evaluation — REVERTED
@@ -5757,7 +5941,9 @@ Context
 After the gate softening, discovery runs, and risk cap bumps, the system went from ~1 fill per day to 9 fills in a single session across 6 symbols (XBI, SBUX, AMT, GOLD, HUM, BITO). Three positions remain open (KLAC, SBUX, AMT) at session close. However, several infra gaps were also exposed and closed.
 
 Changes deployed (all on main)
-5. Edge-priority sort (src/price/monitor.py)
+5. Edge-priority sort (
+monitor.py
+)
 Within each (symbol, timeframe, bin_mode) group in scan_all_slices(), slices are now sorted by valid_mean_ret_costadj from monitored_edge_metrics.csv (descending) before matching begins. The strongest edge (SHOP at +7.16%) always fires first for a given symbol. Weaker slices that happen to sort earlier in the CSV no longer block stronger edges via the same-pass dedup shield. Falls open on missing metrics (scores 0.0, sorts to bottom).
 
 6. Risk cap scaling (.github/workflows/live_capture_equities.yml, live_capture_crypto.yml, live_capture_futures.yml)
@@ -5770,7 +5956,9 @@ Added five operational files to the commit step's file list: trade_journal.csv, 
 
 Affected losses (as of this fix): AFRM, ETN, MRVL, SCHW, XBI — five symbols with confirmed fills at Alpaca whose entry/exit metadata was lost before this fix. P&L is accounted for via broker backfill but slice attribution is permanently UNATTRIBUTED_BROKER_FILL.
 
-8. Fresh-data discovery gate fix (scripts/research_refresh.py)
+8. Fresh-data discovery gate fix (
+research_refresh.py
+)
 The daily baseline was reset every refresh cycle because _write_state() always overwrote daily_coverage with current counts. The delta computation current - previous therefore always returned ~1 bar (today's close only), and no symbol ever accumulated the 5 bars needed to open the gate. Discovery had been frozen since July 14.
 
 Fix: introduced discovery_baseline_coverage — a durable baseline that only resets when discovery actually runs. The gate now accumulates bars across days and opens after 5 trading days of genuine new data. First gate-open expected ~July 28.

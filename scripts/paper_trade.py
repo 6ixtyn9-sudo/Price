@@ -215,6 +215,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                 entry_bar_ts=sig.get("bar_ts_utc"),
                 timeframe=sig.get("timeframe"),
                 bin_mode=sig.get("bin_mode", "insample"),
+                exit_horizon=sig.get("exit_horizon"),
                 lane=_get_lane(),
                 workflow_run_id=os.environ.get("GITHUB_RUN_ID", ""),
             )

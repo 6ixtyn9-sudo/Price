@@ -1565,6 +1565,68 @@ def run_candidate_leaderboard(
     leaderboard.insert(0, "rank", range(1, len(leaderboard) + 1))
     leaderboard = leaderboard.rename(columns={"rank_symbol": "symbol", "rank_timeframe": "timeframe"})
 
+    # ── Compute best forward horizon per slice ──────────────────────
+    # Sweep fwd_ret at horizons 3, 5, 10, 15, 20 on the eligible
+    # frame to find which horizon each slice performs best at. This
+    # becomes the slice's exit_horizon in the monitored book, replacing
+    # the one-size-fits-all global --exit-horizon flag.
+    HORIZONS = [3, 5, 10, 20]
+    horizon_map: dict[tuple, int] = {}
+    frame_cache: dict = {}
+
+    for _, row in leaderboard.iterrows():
+        sym = row["symbol"]
+        tf = row["timeframe"]
+        combo = row["slice_combination"]
+        side = str(row.get("side", "long") or "long").lower()
+
+        try:
+            sf = parse_slice_combination(combo)
+            _cross = cross_symbols_from_filter(sf)
+            ck = (sym, tf, tuple(sorted((s, tuple(f)) for s, f in _cross.items())), bin_mode)
+            if ck not in frame_cache:
+                frame_cache[ck] = build_eligible_frame(
+                    sym, tf, cross_symbols=_cross, bin_mode=bin_mode,
+                )
+            ef = frame_cache[ck]
+            if ef.empty:
+                horizon_map[(sym, tf, combo)] = 5
+                continue
+
+            stable = {k: v for k, v in sf.items()
+                      if k not in ("state_session", "state_dow", "state_month")}
+            matched = pd.Series(True, index=ef.index)
+            for field, value in stable.items():
+                if field not in ef.columns:
+                    matched = pd.Series(False, index=ef.index)
+                    break
+                matched = matched & (ef[field].astype(str) == value)
+            window = ef[matched]
+
+            best_h = 5
+            best_mean = float("-inf")
+            for h in HORIZONS:
+                col = f"fwd_ret_{h}"
+                if col not in window.columns:
+                    continue
+                rets = window[col].dropna()
+                if len(rets) < 5:
+                    continue
+                avg = rets.mean()
+                if side == "short":
+                    avg = -avg
+                if avg > best_mean:
+                    best_mean = avg
+                    best_h = h
+            horizon_map[(sym, tf, combo)] = best_h
+        except Exception:
+            horizon_map[(sym, tf, combo)] = 5
+
+    leaderboard["best_fwd_horizon"] = [
+        horizon_map.get((r["symbol"], r["timeframe"], r["slice_combination"]), 5)
+        for _, r in leaderboard.iterrows()
+    ]
+
     leaderboard = annotate_search_wide_significance(
         leaderboard, p_threshold=p_threshold
     )

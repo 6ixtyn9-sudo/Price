@@ -204,6 +204,7 @@ def submit_entry(
     entry_bar_ts: Optional[str] = None,
     timeframe: Optional[str] = None,
     bin_mode: Optional[str] = None,
+    exit_horizon: Optional[int] = None,
     lane: str = "eq",
     workflow_run_id: str = "",
     source_note: str = "",
@@ -267,6 +268,7 @@ def submit_entry(
             "entry_bar_ts": entry_bar_ts,
             "timeframe": timeframe,
             "bin_mode": bin_mode,
+            "exit_horizon": exit_horizon if exit_horizon is not None else 5,
             "client_order_id": client_order_id,
         }
     except Exception as e:
@@ -283,6 +285,7 @@ def submit_entry(
             "entry_bar_ts": entry_bar_ts,
             "timeframe": timeframe,
             "bin_mode": bin_mode,
+            "exit_horizon": exit_horizon if exit_horizon is not None else 5,
             "client_order_id": client_order_id,
         }
 

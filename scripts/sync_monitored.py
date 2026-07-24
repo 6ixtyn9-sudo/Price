@@ -196,6 +196,14 @@ def main() -> int:
         empty.unlink(missing_ok=True)
 
     result = _normalise_identity(result)
+    # Ensure exit_horizon is present for every slice.  Slices promoted
+    # from the registry carry it; legacy slices that survived through
+    # apply_registry_to_monitored's "preserve rows absent from registry"
+    # path default to 5 (the fwd_ret_5 validation horizon — faithful
+    # to the original measured edge).
+    if "exit_horizon" not in result.columns:
+        result["exit_horizon"] = 5
+    result["exit_horizon"] = result["exit_horizon"].fillna(5).astype(int)
     after = len(result)
     print(f"sync_monitored: {before} -> {after} ({after - before:+d})")
     result.to_csv(MONITORED, index=False)
