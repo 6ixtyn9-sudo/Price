@@ -1,32 +1,6 @@
-symbol,timeframe,slice_combination,side,source_note,bin_mode
-ARM,1d,state_ext=stretched_up + state_slope=flat + state_vol=high_vol,long,manual_standalone,rolling
-RIVN,1d,state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol,long,manual_standalone,rolling
-RIVN,1d,state_slope=downtrend + state_vol=high_vol,long,manual_standalone,rolling
-HUM,1d,state_volume=vol_surge + state_ext=neutral,short,manual_standalone,rolling
-LCID,1d,state_ext=stretched_up + state_ret_5=ret_down,short,manual_standalone,rolling
-AMC,1d,state_ext=stretched_up + state_slope=flat + state_vol=mid_vol,long,manual_standalone,rolling
-LLY,1d,state_ext=stretched_down + state_vol=low_vol,long,manual_standalone,rolling
-BITO,1d,state_volume=vol_quiet + state_ext=neutral,short,manual_standalone,rolling
-ETHE,1d,state_ext=stretched_up + state_slope=uptrend + state_vol=high_vol,long,manual_standalone,rolling
-ETHE,1d,state_slope=uptrend + state_vol=high_vol,long,manual_standalone,rolling
-MU,1d,state_ext=stretched_down + state_vol=mid_vol,long,manual_standalone,rolling
-MU,1d,state_ext=stretched_down + state_slope=downtrend + state_vol=mid_vol,long,manual_standalone,rolling
-BAC,1d,state_ext=neutral + state_slope=flat + state_vol=high_vol,short,manual_standalone,rolling
-HUM,1d,state_ext=neutral + state_slope=flat + state_vol=mid_vol,long,manual_standalone,rolling
-ARM,1d,state_ext=stretched_up + state_slope=downtrend,long,manual_standalone,rolling
-MU,1d,state_ext=neutral + state_slope=flat + state_vol=mid_vol,long,manual_standalone,rolling
-ARM,1h,state_volume=vol_quiet + state_ext=stretched_down + state_slope=flat,long,manual_standalone,rolling
-SHOP,1d,state_ext=neutral + state_slope=uptrend + state_vol=low_vol,long,manual_standalone,rolling
-NIO,1d,state_slope=flat + state_vol=high_vol,long,manual_standalone,rolling
-INTC,1d,state_ext=stretched_up + state_slope=flat + state_vol=mid_vol,long,manual_standalone,rolling
-ETHE,1d,state_volume=vol_quiet + state_ext=stretched_up + state_slope=uptrend,long,manual_standalone,rolling
-INTC,1d,state_ext=neutral + state_slope=uptrend + state_vol=mid_vol,short,manual_standalone,rolling
-AA,1d,state_ext=stretched_down + state_slope=flat + state_vol=mid_vol,short,manual_standalone,rolling
-INTC,1d,state_ext=stretched_down + state_slope=downtrend + state_vol=mid_vol,long,manual_standalone,rolling
-MU,1d,state_slope=downtrend + state_vol=mid_vol,long,manual_standalone,rolling
-INTC,1h,state_session=lunch + state_slope=flat + state_vol=low_vol,long,manual_standalone,rolling
-SNOW,1h,state_volume=vol_surge + state_ext=neutral + state_slope=uptrend,long,shard_1h_standalone,rolling
-MU,1h,state_volume=vol_quiet + state_ext=stretched_up + state_slope=flat,long,shard_1h_standalone,rolling
-MU,1h,state_ext=neutral + state_slope=uptrend + state_vol=mid_vol,long,shard_1h_standalone,rolling
-SPOT,1h,state_volume=vol_surge + state_ext=stretched_down + state_slope=flat,short,shard_1h_standalone,rolling
-AMD,1h,state_session=afternoon + state_slope=uptrend + state_vol=low_vol,long,shard_1h_standalone,rolling
+symbol,timeframe,slice_combination,side,source_note,bin_mode,exit_horizon,stop_atr_mult
+AMAT,15m,state_session=afternoon + state_ret_5=ret_down,long,auto_promoted_strict_candidate,rolling,5,
+ASML,15m,cross_TLT_state_slope=uptrend + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,5,
+GDXJ,15m,state_slope=uptrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,5,
+GDXJ,15m,state_session=afternoon + state_slope=uptrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,5,
+GE,15m,cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral,short,auto_promoted_strict_candidate,rolling,5,
