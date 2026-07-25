@@ -97,7 +97,7 @@ def run_shard(
             timeframe=timeframe,
             min_samples=min_samples,
             append=False,
-            cond_symbols=list(condition_symbols),
+            cond_symbols=[s for s in list(condition_symbols) if s and s.strip()],
             bin_mode=bin_mode,
             profile=profile,
         )
