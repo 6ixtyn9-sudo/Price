@@ -280,6 +280,7 @@ jobs:
             --output-dir "localdata/research/crypto/shards/${{ matrix.shard_id }}" \
             ${COND_FLAGS} \
             --bin-mode rolling \
+            ${COND_FLAGS} \
             --profile crypto \
             --cost-bps 15.0 \
             --short-cost-bps 5.0
