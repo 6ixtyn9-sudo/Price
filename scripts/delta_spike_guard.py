@@ -8,6 +8,16 @@ GUARDED = [
     "localdata/paper_trade_log.csv",
     "localdata/candidate_leaderboard.csv",
     "localdata/monitored_slices.csv",
+    # Crypto lane
+    "localdata/trade_journal_crypto.csv",
+    "localdata/paper_trade_log_crypto.csv",
+    "localdata/monitored_slices_crypto.csv",
+    "localdata/live_forward_returns_crypto.csv",
+    # Futures lane
+    "localdata/trade_journal_futures.csv",
+    "localdata/paper_trade_log_futures.csv",
+    "localdata/monitored_slices_futures.csv",
+    "localdata/live_forward_returns_futures.csv",
 ]
 SPIKE_FACTOR = 10.0
 SPIKE_MIN_DELTA = 50

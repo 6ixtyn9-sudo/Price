@@ -15,6 +15,8 @@ on:
         description: "Daily loss kill switch"
         required: false
         default: "200"
+  schedule:
+    - cron: "30 */2 * * *"  # every 2 hours at :30 past, offset from equities hour
 
 concurrency:
   group: live-capture-crypto
@@ -125,18 +127,16 @@ jobs:
       - name: Sync dynamic crypto book from latest research
         run: |
           echo "=== Syncing dynamic crypto book ==="
-          # Try merged root first, then 1d scoped, then existing file
+          # Read monitored candidates from research output — do NOT run research_crypto.py here.
+          # The capture job must not regenerate research (unbounded runtime, can timeout).
+          # Research is a separate workflow (research_crypto_discovery.yml).
           for RESEARCH_DIR in localdata/research/crypto localdata/research/crypto/1d; do
-            if [ -f "$RESEARCH_DIR/candidate_leaderboard_crypto_rolling.csv" ]; then
-              echo "Found research in $RESEARCH_DIR, rebuilding monitored candidates"
-              python scripts/research_crypto.py --timeframes 1d --regime-only --output-dir "$RESEARCH_DIR" || echo "regime-only rebuild failed for $RESEARCH_DIR"
-              if [ -f "$RESEARCH_DIR/monitored_candidates_crypto.csv" ] && [ -s "$RESEARCH_DIR/monitored_candidates_crypto.csv" ]; then
-                echo "Using $RESEARCH_DIR/monitored_candidates_crypto.csv as live book"
-                python scripts/sync_monitored_crypto.py --candidates-path "$RESEARCH_DIR/monitored_candidates_crypto.csv" --output-path localdata/monitored_slices_crypto.csv && break
-              fi
+            if [ -f "$RESEARCH_DIR/monitored_candidates_crypto.csv" ] && [ -s "$RESEARCH_DIR/monitored_candidates_crypto.csv" ]; then
+              echo "Using $RESEARCH_DIR/monitored_candidates_crypto.csv as live book"
+              python scripts/sync_monitored_crypto.py --candidates-path "$RESEARCH_DIR/monitored_candidates_crypto.csv" --output-path localdata/monitored_slices_crypto.csv && break
             fi
           done
-          # Fallback to clean_mixed if still empty
+          # Fallback to clean_mixed if candidates are empty
           if [ ! -s localdata/monitored_slices_crypto.csv ]; then
             echo "monitored_candidates empty, trying fallback clean_mixed"
             for LB in localdata/research/crypto/candidate_leaderboard_crypto_rolling.csv localdata/research/crypto/1d/candidate_leaderboard_crypto_rolling.csv; do
@@ -155,10 +155,10 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
           if [ -f localdata/monitored_slices_crypto.csv ]; then
-            SYMBOLS=$(python3 -c "import pandas as pd, os, sys; df=pd.read_csv('localdata/monitored_slices_crypto.csv'); print(' '.join(sorted(df['symbol'].unique()))) if not df.empty else ''; " )
-          else
-            SYMBOLS=$(python3 -c "import importlib.util, sys; spec = importlib.util.spec_from_file_location('research_crypto', 'scripts/research_crypto.py'); mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); print(' '.join(mod.load_crypto_symbols()))")
+            SYMBOLS=$(python3 -c "import pandas as pd; df=pd.read_csv('localdata/monitored_slices_crypto.csv'); print(' '.join(sorted(df['symbol'].unique()))) if not df.empty else ''")
           fi
+          # No book or empty book → use safe default universe for ingest
+          # (research_crypto.py must NOT be imported here — separate workflow concern)
           if [ -z "$SYMBOLS" ]; then SYMBOLS="BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD"; fi
           echo "Capturing crypto for: $SYMBOLS BTC/USD ETH/USD"
           python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 1d --days 1825 --skip-postprocess
@@ -174,7 +174,7 @@ jobs:
             --max-open ${{ inputs.max_open || '3' }} \
             --max-daily-loss ${{ inputs.max_daily_loss || '200' }} \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
-            --exit-horizon 5 --max-per-group 2 --stop-atr-mult 2.0 \
+            --max-per-group 2 \
             --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.02 --whipsaw-limit 2 \
             --cost-spread-bps 5.0 --cost-slippage-bps 10.0 --allow-shorts \
@@ -234,11 +234,10 @@ jobs:
           if ((${#existing[@]})); then git add "${existing[@]}"; fi
           if git diff --cached --quiet; then echo "No crypto output changes"; exit 0; fi
           git commit -m "chore(live-capture-crypto): update workflow output [skip ci]"
-          # Queue-safe commit: retry with exponential backoff, no force-with-lease race
-          for attempt in 1 2 3 4 5; do
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" || sleep 5
-            git push || sleep $((5*attempt))
-            if [ $? -eq 0 ]; then break; fi
+          # Queue-safe commit: retry with exponential backoff
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push && break
+            sleep $((attempt * 5))
           done
 
       # Repo-wide cleanup: roll off stale run_id-suffixed warehouse/ops-state caches

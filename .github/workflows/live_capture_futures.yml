@@ -91,9 +91,9 @@ jobs:
             localdata/cooldown_journal_futures.json
             localdata/monitored_slices_futures.csv
             localdata/research/futures
-          key: live-ops-state-futures-v1-${{ runner.os }}-${{ github.run_id }}
+          key: live-ops-state-futures-v2-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            live-ops-state-futures-v1-${{ runner.os }}-
+            live-ops-state-futures-v2-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -115,58 +115,22 @@ jobs:
       - name: Sync dynamic futures book from latest research
         run: |
           echo "=== Syncing dynamic futures book ==="
+          FOUND_CANDIDATES=false
           for RESEARCH_DIR in localdata/research/futures localdata/research/futures/1d; do
-            if [ -f "$RESEARCH_DIR/monitored_candidates_futures.csv" ] && [ -s "$RESEARCH_DIR/monitored_candidates_futures.csv" ]; then
-              echo "Using $RESEARCH_DIR/monitored_candidates_futures.csv as live book"
-              python - <<PY
-          import pandas as pd
-          from pathlib import Path
-          cand = Path("$RESEARCH_DIR/monitored_candidates_futures.csv")
-          out = Path("localdata/monitored_slices_futures.csv")
-          df = pd.read_csv(cand)
-          if df.empty:
-              # Header-only shortlist: the futures regime registry currently emits
-              # zero paper candidates, so research_futures.py writes the CSV with
-              # columns but no rows. Never clobber the restored book with an empty
-              # file — the leaderboard fallback below is the intended path until
-              # the registry produces real candidates.
-              print("candidates file has 0 rows; keeping restored book / fallback")
-          else:
-              keep = [c for c in ["symbol","timeframe","slice_combination","side","bin_mode"] if c in df.columns]
-              df[keep].to_csv(out, index=False)
-              print(f"Wrote {len(df)} rows to {out}")
-          PY
-              break
+            if [ -f "$RESEARCH_DIR/monitored_candidates_futures.csv" ]; then
+              echo "Found monitored candidates in $RESEARCH_DIR"
+              python scripts/sync_monitored_futures.py \
+                --candidates-path "$RESEARCH_DIR/monitored_candidates_futures.csv" \
+                --output-path localdata/monitored_slices_futures.csv && FOUND_CANDIDATES=true && break
             fi
           done
-          if [ ! -s localdata/monitored_slices_futures.csv ]; then
-            echo "No futures candidates yet, will use latest leaderboard top late_emerging as dynamic book"
-            for LB in localdata/research/futures/candidate_leaderboard_futures_rolling.csv localdata/research/futures/1d/candidate_leaderboard_futures_rolling.csv; do
-              if [ -f "$LB" ]; then
-                python - <<PY
-          import pandas as pd
-          lb_path="$LB"
-          lb = pd.read_csv(lb_path)
-          if lb.empty:
-              exit(0)
-          filt = lb[lb['triage_bucket'].astype(str).str.startswith(('clean_','late_'))].copy()
-          if filt.empty:
-              # take any positive mean
-              filt = lb[lb['valid_mean_ret_costadj']>0].copy()
-          filt = filt.sort_values(['search_wide_bh_pass','valid_mean_ret_costadj'], ascending=[False,False]).head(8)
-          if not filt.empty:
-              out = filt[['symbol','timeframe','slice_combination','side','bin_mode']].copy() if 'bin_mode' in filt.columns else filt[['symbol','timeframe','slice_combination','side']].copy()
-              if 'bin_mode' not in out.columns:
-                  out['bin_mode']='rolling'
-              out.to_csv('localdata/monitored_slices_futures.csv', index=False)
-              print(f"Wrote {len(out)} fallback rows")
-          PY
-                break
-              fi
-            done
+          if [ "$FOUND_CANDIDATES" = false ]; then
+            echo "No monitored_candidates_futures.csv found — gate produced zero. Book stays empty."
+            python scripts/sync_monitored_futures.py --output-path localdata/monitored_slices_futures.csv || true
           fi
           ls -lh localdata/monitored_slices_futures.csv || echo "no futures book yet"
-          cat localdata/monitored_slices_futures.csv 2>/dev/null | head -20 || true
+          echo "Current futures book ($(wc -l < localdata/monitored_slices_futures.csv 2>/dev/null || echo 0) lines):"
+          cat localdata/monitored_slices_futures.csv 2>/dev/null || echo "no book (gate produced zero candidates — expected)"
 
       - name: Ingest futures universe (yfinance primary)
         env:
@@ -176,9 +140,13 @@ jobs:
           if [ -f localdata/monitored_slices_futures.csv ]; then
             SYMBOLS=$(python3 -c "import pandas as pd; df=pd.read_csv('localdata/monitored_slices_futures.csv'); print(' '.join(sorted(df['symbol'].unique()))) if not df.empty else ''")
           else
-            SYMBOLS="FUT/ES FUT/NQ FUT/CL FUT/GC FUT/ZN"
+            SYMBOLS=""
           fi
-          if [ -z "$SYMBOLS" ]; then SYMBOLS="FUT/ES FUT/NQ FUT/CL FUT/GC FUT/ZN"; fi
+          if [ -z "$SYMBOLS" ]; then
+            echo "Futures book empty — gate produced zero tradeable candidates. Skipping ingest."
+            echo "::notice::No tradeable futures candidates — gate produced zero. Skipping ingest and paper trade."
+            exit 0
+          fi
           echo "Capturing futures for: $SYMBOLS"
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 365
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1h --days 365
@@ -195,7 +163,7 @@ jobs:
             --max-open ${{ inputs.max_open || '2' }} \
             --max-daily-loss ${{ inputs.max_daily_loss || '200' }} \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.003 \
-            --exit-horizon 5 --max-per-group 2 --stop-atr-mult 2.0 \
+            --max-per-group 2 \
             --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.02 --whipsaw-limit 2 \
             --cost-spread-bps 2.0 --cost-slippage-bps 5.0 --allow-shorts \
@@ -235,7 +203,7 @@ jobs:
             localdata/cooldown_journal_futures.json
             localdata/monitored_slices_futures.csv
             localdata/research/futures
-          key: live-ops-state-futures-v1-${{ runner.os }}-${{ github.run_id }}
+          key: live-ops-state-futures-v2-${{ runner.os }}-${{ github.run_id }}
 
       - name: Save research warehouse cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9

@@ -1,0 +1,20 @@
+{
+  "equities": {
+    "consecutive_empty": 0,
+    "last_non_empty_count": 142,
+    "last_non_empty_at": "2026-07-26T17:24:55.754072+00:00",
+    "last_check_at": "2026-07-26T17:24:55.754072+00:00"
+  },
+  "crypto": {
+    "consecutive_empty": 0,
+    "last_non_empty_count": 15,
+    "last_non_empty_at": "2026-07-26T17:24:55.754072+00:00",
+    "last_check_at": "2026-07-26T17:24:55.754072+00:00"
+  },
+  "futures": {
+    "consecutive_empty": 1,
+    "last_non_empty_count": null,
+    "last_non_empty_at": null,
+    "last_check_at": "2026-07-26T17:24:55.754072+00:00"
+  }
+}
