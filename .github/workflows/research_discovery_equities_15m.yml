@@ -10,7 +10,7 @@ on:
       batch_size:
         description: "Symbols per shard"
         required: false
-        default: "10"
+        default: "40"
   workflow_call:
     inputs:
       parent_run_id:
@@ -20,7 +20,7 @@ on:
       batch_size:
         required: false
         type: string
-        default: "10"
+        default: "40"
 
 concurrency:
   group: research-discovery-15m
@@ -46,7 +46,7 @@ jobs:
       - name: Build shard plan
         id: plan
         env:
-          BATCH_SIZE: ${{ inputs.batch_size || '10' }}
+          BATCH_SIZE: ${{ inputs.batch_size || '40' }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os, re
@@ -112,7 +112,6 @@ jobs:
             --symbols-json "$SHARD_SYMBOLS_JSON" \
             --output-dir "localdata/research/shards/${{ matrix.shard_id }}" \
             --condition-on USO TLT \
-            --min-samples 30 \
             --bin-mode rolling
       - name: Upload shard output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -161,6 +160,11 @@ jobs:
             --promote-proposals \
             --apply-monitored-slices \
             --allow-partial
+      - name: Sync rolling monitored book and execution edge metrics
+        if: ${{ needs.shards.result == 'success' }}
+        env:
+          DISCOVERY_RUN_ID: ${{ github.run_id }}
+        run: python3 scripts/sync_monitored.py
       - name: Run regime diagnostics on merged top 25
         run: |
           python scripts/validate_slices.py \
@@ -194,15 +198,8 @@ jobs:
           for attempt in 1 2 3 4 5; do
             git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
             if [ "$attempt" = 5 ]; then
-              echo "::error::git push failed after 3 attempts"
+              echo "::error::git push failed after 5 attempts"
               exit 1
             fi
-            sleep $((attempt * 10))
+            sleep $((attempt * 5))
           done
-      - name: Upload merge output (always, even on push failure)
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: merge-output-15m
-          path: localdata/research/merged/15m
-          retention-days: 3

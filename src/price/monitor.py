@@ -500,6 +500,34 @@ def scan_all_slices(
         else []
     )
 
+    # ── Lane scoping ─────────────────────────────────────────────────
+    # Equities, crypto, and futures share one Alpaca paper account but run in
+    # separate workflows with different max_open limits. Without scoping,
+    # crypto (max_open=3) sees 11 equity positions and blocks itself.
+    # Filter exposure to only symbols in THIS lane's monitored book so each
+    # lane's risk gate counts only its own positions/orders.
+    monitored_symbols: set[str] = set()
+    for s in slices:
+        sym = str(s.get("symbol", "")).strip().upper()
+        if sym:
+            monitored_symbols.add(sym)
+    if monitored_symbols:
+        before_pos = len(open_positions_list)
+        open_positions_list = [
+            p for p in open_positions_list
+            if str(p.get("symbol", "")).strip().upper() in monitored_symbols
+        ]
+        if before_pos != len(open_positions_list):
+            print(f"  Lane scope: filtered {before_pos} → {len(open_positions_list)} open positions "
+                  f"(monitored symbols: {len(monitored_symbols)})")
+        before_ord = len(open_orders_list)
+        open_orders_list = [
+            o for o in open_orders_list
+            if str(o.get("symbol", "")).strip().upper() in monitored_symbols
+        ]
+        if before_ord != len(open_orders_list):
+            print(f"  Lane scope: filtered {before_ord} → {len(open_orders_list)} open orders")
+
     # Treat pending/open orders like open exposure for risk gating so repeated
     # weekend/after-hours scans cannot queue duplicate DAY market orders before
     # the first accepted order has had a chance to fill or expire.

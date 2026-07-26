@@ -234,21 +234,24 @@ def submit_entry(
         # Alpaca requires limit_price to have at most 2 decimals when >= $1.00,
         # and at most 4 decimals when < $1.00.
         rounded_limit = round(float(limit_price), 2 if limit_price >= 1.0 else 4)
+        # Crypto pairs need GTC — Alpaca rejects DAY for crypto (422: invalid time_in_force)
+        tif = TimeInForce.GTC if "/" in symbol else TimeInForce.DAY
         order_data = LimitOrderRequest(
             symbol=symbol.upper(),
             qty=qty,
             side=order_side,
-            time_in_force=TimeInForce.DAY,
+            time_in_force=tif,
             limit_price=rounded_limit,
             client_order_id=client_order_id,
         )
         order_type = "limit"
     else:
+        tif = TimeInForce.GTC if "/" in symbol else TimeInForce.DAY
         order_data = MarketOrderRequest(
             symbol=symbol.upper(),
             qty=qty,
             side=order_side,
-            time_in_force=TimeInForce.DAY,
+            time_in_force=tif,
             client_order_id=client_order_id,
         )
         order_type = "market"
@@ -262,7 +265,7 @@ def submit_entry(
             "side": side,
             "order_type": order_type,
             "limit_price": limit_price,
-            "time_in_force": "day",
+            "time_in_force": "gtc" if "/" in symbol else "day",
             "status": _enum_value(order.status),
             "submitted_at": str(order.submitted_at),
             "slice_label": slice_label,
@@ -761,7 +764,7 @@ def submit_exit(symbol: str, qty: int, side: str = "sell") -> dict:
         symbol=symbol.upper(),
         qty=qty,
         side=order_side,
-        time_in_force=TimeInForce.DAY,
+        time_in_force=TimeInForce.GTC if "/" in symbol else TimeInForce.DAY,
     )
 
     try:
@@ -772,7 +775,7 @@ def submit_exit(symbol: str, qty: int, side: str = "sell") -> dict:
             "qty": qty,
             "side": side,
             "order_type": "market",
-            "time_in_force": "day",
+            "time_in_force": "gtc" if "/" in symbol else "day",
             "status": _enum_value(order.status),
             "submitted_at": str(order.submitted_at),
         }
