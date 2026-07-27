@@ -1287,3 +1287,5 @@ stop_intent,stop_state_cleared,SPG,position no longer open (stopped out or close
 stop_intent,stop_state_cleared,XBI,position no longer open (stopped out or closed by another exit policy),,,2026-07-27T13:36:03.368784+00:00,2026-07-27T13:37:34.163811+00:00,,,,,,,False,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_unchanged,AMAT,,461.1236,,2026-07-27T13:36:03.368789+00:00,2026-07-27T13:37:34.203021+00:00,,,,initial,3.0,-0.113,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_ratchet_failed,KLAC,"{""code"":40410000,""message"":""order not found""}",,,2026-07-27T13:36:03.368792+00:00,2026-07-27T13:37:34.242277+00:00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,KLAC,position no longer open (stopped out or closed by another exit policy),,,2026-07-27T14:36:04.434176+00:00,2026-07-27T14:37:33.986564+00:00,,,,,,,False,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,AMAT,position no longer open (stopped out or closed by another exit policy),,,2026-07-27T14:36:04.434188+00:00,2026-07-27T14:37:34.025956+00:00,,,,,,,False,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
