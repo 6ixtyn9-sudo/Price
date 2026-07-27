@@ -129,13 +129,16 @@ def test_summarize_baseline_train_valid_uses_same_chronological_split():
     assert baseline["valid"]["mean_return"] == 0.02
 
 def test_summarize_parent_baselines_train_valid_finds_strongest_parent():
-    """Parent-excess fairness: both parents now share the child's observation set.
+    """Parent-excess uses the strongest simpler parent on the full eligible frame.
 
-    With 10 bars, state_b=y holds on rows 6 and 9 (fwd_ret 0.02, 0.06).
-    The child filter (state_a=x + state_b=y) restricts to these 2 bars.
-    Both parents are now evaluated on the SAME 2-bar subset, so they tie.
-    state_a=x wins the tie-break because it's the first parent yielded by
-    iter_parent_slice_filters (single-element combos come first).
+    This is the intentionally conservative design: a child slice must beat the
+    best simpler parent regime in the same chronological window, not just the
+    parent restricted to the child's own observation set.
+
+    With 10 bars and a 70/30 split, the validation window is rows 7-9 with
+    returns 0.02, 0.04, 0.06. Parent state_a=x holds on all 3 valid rows
+    (mean 0.04). Parent state_b=y holds only on row 9 (mean 0.06), so
+    state_b=y is the strongest valid parent.
     """
     df = pd.DataFrame(
         {
@@ -155,10 +158,7 @@ def test_summarize_parent_baselines_train_valid_finds_strongest_parent():
         min_samples=1,
     )
 
-    # Both parents now tie (evaluated on same 2-bar child subset).
-    # state_a=x wins the tie-break (first parent from iter_parent_slice_filters).
-    assert parent["valid"]["filter"] == "state_a=x"
-    # The 2 child bars split: bar 6 (0.02) → train, bar 9 (0.06) → valid.
+    assert parent["valid"]["filter"] == "state_b=y"
     assert parent["valid"]["sample_count"] == 1
     assert parent["valid"]["mean_return"] == 0.06
 
