@@ -384,14 +384,17 @@ def reconcile_stops(
             try:
                 pending_df = get_orders_for_symbol_fn(symbol, status="open")
                 if pending_df is not None and not pending_df.empty:
-                    non_stop = pending_df[pending_df["type"] != "stop"]
-                    if not non_stop.empty:
+                    pending_market_close = pending_df[
+                        (pending_df["type"] != "stop")
+                        & (pending_df["type"].astype(str).str.lower() == "market")
+                    ]
+                    if not pending_market_close.empty:
                         intents.append({
                             "action": "stop_deferred_close_pending",
                             "symbol": symbol,
                             "reason": (
-                                f"non-stop close order already pending "
-                                f"({non_stop.iloc[0].get('order_id', '?')}) "
+                                f"market close order already pending "
+                                f"({pending_market_close.iloc[0].get('order_id', '?')}) "
                                 f"for {symbol}; skipping new stop to avoid "
                                 "the cancel-resubmit cycle"
                             ),

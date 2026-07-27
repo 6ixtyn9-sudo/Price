@@ -868,12 +868,16 @@ def close_position(symbol: str, cancel_open_orders: bool = True,
     # order here breaks the cycle: the market sell fills when it fills,
     # and reconcile_stops() (patched separately) skips stop creation when
     # it sees the pending close.
+    pending_df = None
     try:
         pending_df = get_orders_for_symbol(symbol, status="open")
         if pending_df is not None and not pending_df.empty:
-            non_stop = pending_df[pending_df["type"] != "stop"]
-            if not non_stop.empty:
-                existing = non_stop.iloc[0]
+            pending_market_close = pending_df[
+                (pending_df["type"] != "stop")
+                & (pending_df["type"].astype(str).str.lower() == "market")
+            ]
+            if not pending_market_close.empty:
+                existing = pending_market_close.iloc[0]
                 result = {
                     "order_id": str(existing["order_id"]),
                     "symbol": symbol.upper(),
@@ -881,7 +885,7 @@ def close_position(symbol: str, cancel_open_orders: bool = True,
                     "status": "close_already_pending",
                     "submitted_at": str(existing.get("submitted_at", "")),
                     "reason": (
-                        "non-stop close order already pending for "
+                        "market close order already pending for "
                         f"{symbol}; skipping cancel+resubmit to avoid "
                         "the hourly cancel-resubmit cycle"
                     ),
@@ -894,11 +898,11 @@ def close_position(symbol: str, cancel_open_orders: bool = True,
                 _append_journal(result, action="exit")
                 return result
     except Exception:  # noqa: BLE001 - must never block a close
-        pass
+        pending_df = None
 
     if cancel_open_orders:
         try:
-            open_orders = get_orders_for_symbol(symbol, status="open")
+            open_orders = pending_df if pending_df is not None else get_orders_for_symbol(symbol, status="open")
             canceled_ids = set()
             for _, row in open_orders.iterrows():
                 cancel_order(row["order_id"])
