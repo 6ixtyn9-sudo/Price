@@ -10,7 +10,7 @@ on:
       batch_size:
         description: "Symbols per shard"
         required: false
-        default: "40"
+        default: "10"
   workflow_call:
     inputs:
       parent_run_id:
@@ -20,7 +20,7 @@ on:
       batch_size:
         required: false
         type: string
-        default: "40"
+        default: "10"
 
 concurrency:
   group: research-discovery-15m
