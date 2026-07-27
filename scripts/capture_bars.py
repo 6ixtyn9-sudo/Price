@@ -76,8 +76,15 @@ def capture_bars(
             existing_df = load_from_warehouse(symbol, tf)
             if not existing_df.empty:
                 latest_ts = pd.to_datetime(existing_df['bar_ts_utc'].max())
-                start_dt = latest_ts - timedelta(days=1)
-                print(f"Incremental update: Existing data found. Querying starting at {start_dt}.")
+                earliest_ts = pd.to_datetime(existing_df['bar_ts_utc'].min())
+                historic_start = end_dt - timedelta(days=days_lookback)
+                if earliest_ts > historic_start + timedelta(days=7):
+                    gap_days = max(1, (earliest_ts - historic_start).days)
+                    print(f"Deep backfill: existing starts {earliest_ts.date()}, fetching {gap_days}d gap to ~{historic_start.date()}")
+                    start_dt = historic_start
+                else:
+                    start_dt = latest_ts - timedelta(days=1)
+                    print(f"Incremental update: Existing data found. Querying starting at {start_dt}.")
             else:
                 start_dt = end_dt - timedelta(days=days_lookback)
                 print(f"No existing data. Querying history of {days_lookback} days (starting at {start_dt}).")
