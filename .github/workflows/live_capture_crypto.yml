@@ -242,7 +242,11 @@ jobs:
           git commit -m "chore(live-capture-crypto): update workflow output [skip ci]"
           # Queue-safe commit: retry with exponential backoff
           for attempt in 1 2 3; do
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push && break
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
+            if [ "$attempt" = 3 ]; then
+              echo "::error::git push failed after 3 attempts"
+              exit 1
+            fi
             sleep $((attempt * 5))
           done
 
