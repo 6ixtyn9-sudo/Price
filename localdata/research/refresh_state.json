@@ -1,6 +1,6 @@
 {
-  "updated_at_utc": "2026-07-27T10:51:15.690328+00:00",
-  "symbols": 236,
+  "updated_at_utc": "2026-07-27T22:06:53.039701+00:00",
+  "symbols": 221,
   "timeframes": [
     "1d",
     "1h",
@@ -14,10 +14,6 @@
     "AAPL:1d": {
       "count": 6281,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "AAVE/USD:1d": {
-      "count": 2124,
-      "last_bar": "2026-07-26 00:00:00+00:00"
     },
     "ABBV:1d": {
       "count": 4665,
@@ -34,10 +30,6 @@
     "ACWI:1d": {
       "count": 5865,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "ADA/USD:1d": {
-      "count": 3182,
-      "last_bar": "2026-07-26 00:00:00+00:00"
     },
     "ADBE:1d": {
       "count": 6281,
@@ -107,10 +99,6 @@
       "count": 6281,
       "last_bar": "2026-07-24 04:00:00+00:00"
     },
-    "AVAX/USD:1d": {
-      "count": 2136,
-      "last_bar": "2026-07-26 00:00:00+00:00"
-    },
     "AVGO:1d": {
       "count": 5522,
       "last_bar": "2026-07-24 04:00:00+00:00"
@@ -131,10 +119,6 @@
       "count": 6281,
       "last_bar": "2026-07-24 04:00:00+00:00"
     },
-    "BCH/USD:1d": {
-      "count": 3182,
-      "last_bar": "2026-07-26 00:00:00+00:00"
-    },
     "BIDU:1d": {
       "count": 6281,
       "last_bar": "2026-07-24 04:00:00+00:00"
@@ -154,10 +138,6 @@
     "BSX:1d": {
       "count": 6281,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "BTC/USD:1d": {
-      "count": 4331,
-      "last_bar": "2026-07-26 00:00:00+00:00"
     },
     "C:1d": {
       "count": 6281,
@@ -207,10 +187,6 @@
       "count": 6281,
       "last_bar": "2026-07-24 04:00:00+00:00"
     },
-    "CRV/USD:1d": {
-      "count": 2173,
-      "last_bar": "2026-07-26 00:00:00+00:00"
-    },
     "CRWD:1d": {
       "count": 3044,
       "last_bar": "2026-07-24 04:00:00+00:00"
@@ -251,14 +227,6 @@
       "count": 1759,
       "last_bar": "2026-07-24 04:00:00+00:00"
     },
-    "DOGE/USD:1d": {
-      "count": 3182,
-      "last_bar": "2026-07-26 00:00:00+00:00"
-    },
-    "DOT/USD:1d": {
-      "count": 2167,
-      "last_bar": "2026-07-26 00:00:00+00:00"
-    },
     "DUK:1d": {
       "count": 5026,
       "last_bar": "2026-07-24 04:00:00+00:00"
@@ -282,10 +250,6 @@
     "EQIX:1d": {
       "count": 5026,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "ETH/USD:1d": {
-      "count": 3182,
-      "last_bar": "2026-07-26 00:00:00+00:00"
     },
     "ETHA:1d": {
       "count": 503,
@@ -483,10 +447,6 @@
       "count": 5026,
       "last_bar": "2026-07-24 04:00:00+00:00"
     },
-    "LINK/USD:1d": {
-      "count": 3182,
-      "last_bar": "2026-07-26 00:00:00+00:00"
-    },
     "LLY:1d": {
       "count": 5026,
       "last_bar": "2026-07-24 04:00:00+00:00"
@@ -510,10 +470,6 @@
     "LRCX:1d": {
       "count": 5026,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "LTC/USD:1d": {
-      "count": 4331,
-      "last_bar": "2026-07-26 00:00:00+00:00"
     },
     "MA:1d": {
       "count": 5026,
@@ -731,10 +687,6 @@
       "count": 1395,
       "last_bar": "2026-07-24 04:00:00+00:00"
     },
-    "SOL/USD:1d": {
-      "count": 2299,
-      "last_bar": "2026-07-26 00:00:00+00:00"
-    },
     "SOXX:1d": {
       "count": 5026,
       "last_bar": "2026-07-24 04:00:00+00:00"
@@ -750,10 +702,6 @@
     "SPY:1d": {
       "count": 6280,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "SUSHI/USD:1d": {
-      "count": 2159,
-      "last_bar": "2026-07-26 00:00:00+00:00"
     },
     "T:1d": {
       "count": 5026,
@@ -806,10 +754,6 @@
     "UNH:1d": {
       "count": 5026,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "UNI/USD:1d": {
-      "count": 2472,
-      "last_bar": "2026-07-27 00:00:00+00:00"
     },
     "UNP:1d": {
       "count": 5026,
@@ -938,10 +882,6 @@
     "XOP:1d": {
       "count": 6280,
       "last_bar": "2026-07-24 04:00:00+00:00"
-    },
-    "XRP/USD:1d": {
-      "count": 3182,
-      "last_bar": "2026-07-26 00:00:00+00:00"
     },
     "XRT:1d": {
       "count": 5026,
@@ -1902,12 +1842,10 @@
   "eligible_discovery_symbols": [
     "AA:1d",
     "AAPL:1d",
-    "AAVE/USD:1d",
     "ABBV:1d",
     "ABNB:1d",
     "ABT:1d",
     "ACWI:1d",
-    "ADA/USD:1d",
     "ADBE:1d",
     "ADI:1d",
     "AEP:1d",
@@ -1925,19 +1863,16 @@
     "ARKW:1d",
     "ARM:1d",
     "ASML:1d",
-    "AVAX/USD:1d",
     "AVGO:1d",
     "AXP:1d",
     "BA:1d",
     "BABA:1d",
     "BAC:1d",
-    "BCH/USD:1d",
     "BIDU:1d",
     "BITO:1d",
     "BLK:1d",
     "BND:1d",
     "BSX:1d",
-    "BTC/USD:1d",
     "C:1d",
     "CAT:1d",
     "CBOE:1d",
@@ -1950,7 +1885,6 @@
     "COP:1d",
     "COST:1d",
     "CRM:1d",
-    "CRV/USD:1d",
     "CRWD:1d",
     "CSX:1d",
     "CVS:1d",
@@ -1961,15 +1895,12 @@
     "DIA:1d",
     "DIS:1d",
     "DKNG:1d",
-    "DOGE/USD:1d",
-    "DOT/USD:1d",
     "DUK:1d",
     "EEM:1d",
     "EFA:1d",
     "ELV:1d",
     "EOG:1d",
     "EQIX:1d",
-    "ETH/USD:1d",
     "ETHA:1d",
     "ETHE:1d",
     "ETN:1d",
@@ -2019,14 +1950,12 @@
     "KRE:1d",
     "LCID:1d",
     "LIN:1d",
-    "LINK/USD:1d",
     "LLY:1d",
     "LMT:1d",
     "LNG:1d",
     "LOW:1d",
     "LQD:1d",
     "LRCX:1d",
-    "LTC/USD:1d",
     "MA:1d",
     "MCD:1d",
     "MDLZ:1d",
@@ -2081,12 +2010,10 @@
     "SNOW:1d",
     "SO:1d",
     "SOFI:1d",
-    "SOL/USD:1d",
     "SOXX:1d",
     "SPG:1d",
     "SPOT:1d",
     "SPY:1d",
-    "SUSHI/USD:1d",
     "T:1d",
     "TAN:1d",
     "TGT:1d",
@@ -2100,7 +2027,6 @@
     "UBER:1d",
     "UNG:1d",
     "UNH:1d",
-    "UNI/USD:1d",
     "UNP:1d",
     "UPS:1d",
     "URA:1d",
@@ -2133,12 +2059,11 @@
     "XME:1d",
     "XOM:1d",
     "XOP:1d",
-    "XRP/USD:1d",
     "XRT:1d",
     "XYZ:1d"
   ],
-  "eligible_discovery_symbol_count": 236,
-  "required_discovery_symbol_count": 118,
+  "eligible_discovery_symbol_count": 221,
+  "required_discovery_symbol_count": 110,
   "min_new_daily_bars": 5,
   "discovery_requested": true,
   "fresh_data_gate_open": true,
@@ -2153,5 +2078,5 @@
   "monitored_slices_modified": false,
   "automatic_promotion_enabled": false,
   "workflow": "research_refresh",
-  "generated_at_utc": "2026-07-27T10:51:15+00:00"
+  "generated_at_utc": "2026-07-27T22:06:53+00:00"
 }
