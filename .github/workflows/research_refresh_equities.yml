@@ -141,7 +141,7 @@ jobs:
           python scripts/capture_bars.py \
             --tier allowlist \
             --timeframes 1d 1h \
-            --days 1825 \
+            --days 7300 \
             --skip-postprocess
           python scripts/capture_bars.py \
             --tier allowlist \
