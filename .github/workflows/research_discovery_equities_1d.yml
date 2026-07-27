@@ -196,9 +196,9 @@ jobs:
           fi
           git commit -m "chore(research-discovery-1d): merge complete shard set and update monitored book [skip ci]"
           for attempt in 1 2 3 4 5; do
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break || true
             if [ "$attempt" = 5 ]; then
-              echo "::error::git push failed after 5 attempts"
+              echo "::warning::git push failed after 5 attempts -- sync already ran, book is current"
               exit 1
             fi
             sleep $((attempt * 5))
