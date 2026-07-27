@@ -857,3 +857,9 @@ entry_signal,skip,XLF,no_state_data,,,2026-07-27T08:59:45.505546+00:00,2026-07-2
 state_unavailable,skip,XLF,nan_state_features,,,2026-07-27T08:59:45.509712+00:00,2026-07-27T08:59:50.894191+00:00,,,,,,,,state_ext=stretched_up + state_slope=flat,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
 entry_signal,skip,XLK,no_state_data,,,2026-07-27T08:59:45.522364+00:00,2026-07-27T08:59:50.906810+00:00,,,,,,,no_state_data,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,False,False,,,
 state_unavailable,skip,XLK,nan_state_features,,,2026-07-27T08:59:45.526566+00:00,2026-07-27T08:59:50.919877+00:00,,,,,,,,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
+stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-27T10:46:23.843214+00:00,2026-07-27T10:47:41.509318+00:00,initial,3.0,0.101,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,JPM,,331.44,,2026-07-27T10:46:23.843222+00:00,2026-07-27T10:47:41.522286+00:00,initial,3.0,0.494,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_ratchet_failed,KLAC,"{""code"":40410000,""message"":""order not found""}",,,2026-07-27T10:46:23.843226+00:00,2026-07-27T10:47:41.534659+00:00,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-27T10:46:23.843230+00:00,2026-07-27T10:47:41.546817+00:00,initial,10.0,-0.196,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SPG,,217.23,,2026-07-27T10:46:23.843233+00:00,2026-07-27T10:47:41.559090+00:00,initial,5.0,0.401,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,XBI,,142.37,,2026-07-27T10:46:23.843237+00:00,2026-07-27T10:47:41.571298+00:00,initial,15.0,0.18,,,,,,,,,,,,,,,,,,,,,
