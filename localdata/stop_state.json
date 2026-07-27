@@ -13,20 +13,6 @@
     "opened_at": "2026-07-15T17:18:36.397786+00:00",
     "updated_at": "2026-07-15T17:18:36.397786+00:00"
   },
-  "SBUX": {
-    "symbol": "SBUX",
-    "side": "long",
-    "qty": 10.0,
-    "entry_price": 104.745,
-    "initial_stop_price": 98.9,
-    "current_stop_price": 98.9,
-    "r_per_share": 5.844999999999999,
-    "stage": "initial",
-    "extreme_price": 104.745,
-    "stop_order_id": "1e0fcf20-e23f-4c49-934e-ebaeb3a45b96",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "AMAT": {
     "symbol": "AMAT",
     "side": "long",
@@ -38,48 +24,6 @@
     "stage": "initial",
     "extreme_price": 550.613333,
     "stop_order_id": "3e3b0b15-f5a1-45af-96fd-151ffc889c26",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "JPM": {
-    "symbol": "JPM",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 348.046667,
-    "initial_stop_price": 331.44,
-    "current_stop_price": 331.44,
-    "r_per_share": 16.606667000000016,
-    "stage": "initial",
-    "extreme_price": 348.046667,
-    "stop_order_id": "c35b43fe-7407-47ea-ad3b-47bcc454d7b0",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "SPG": {
-    "symbol": "SPG",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 226.186,
-    "initial_stop_price": 217.23,
-    "current_stop_price": 217.23,
-    "r_per_share": 8.956000000000017,
-    "stage": "initial",
-    "extreme_price": 226.186,
-    "stop_order_id": "2463b90b-bbd8-4f7a-be84-447bb46d40d4",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "XBI": {
-    "symbol": "XBI",
-    "side": "long",
-    "qty": 15.0,
-    "entry_price": 151.37,
-    "initial_stop_price": 142.37,
-    "current_stop_price": 142.37,
-    "r_per_share": 9.0,
-    "stage": "initial",
-    "extreme_price": 151.37,
-    "stop_order_id": "e8f782d7-e30d-41dd-8db7-20db2d9654a8",
     "opened_at": "",
     "updated_at": ""
   }
