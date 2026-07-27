@@ -873,3 +873,13 @@ entry_signal,skip,XLF,no_state_data,,,2026-07-27T12:33:08.632313+00:00,2026-07-2
 state_unavailable,skip,XLF,nan_state_features,,,2026-07-27T12:33:08.640911+00:00,2026-07-27T12:33:20.737289+00:00,,,,,,,,state_ext=stretched_up + state_slope=flat,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
 entry_signal,skip,XLK,no_state_data,,,2026-07-27T12:33:08.655746+00:00,2026-07-27T12:33:20.750899+00:00,,,,,,,no_state_data,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,False,False,,,
 state_unavailable,skip,XLK,nan_state_features,,,2026-07-27T12:33:08.664270+00:00,2026-07-27T12:33:20.764029+00:00,,,,,,,,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
+stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-27T12:46:01.388429+00:00,2026-07-27T12:46:13.495618+00:00,initial,3.0,0.027,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,JPM,,331.44,,2026-07-27T12:46:01.388437+00:00,2026-07-27T12:46:13.509179+00:00,initial,3.0,0.536,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_ratchet_failed,KLAC,"{""code"":40410000,""message"":""order not found""}",,,2026-07-27T12:46:01.388442+00:00,2026-07-27T12:46:13.522203+00:00,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SBUX,,98.9,,2026-07-27T12:46:01.388446+00:00,2026-07-27T12:46:13.534818+00:00,initial,10.0,-0.127,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SPG,,217.23,,2026-07-27T12:46:01.388449+00:00,2026-07-27T12:46:13.547632+00:00,initial,5.0,0.401,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,XBI,,142.37,,2026-07-27T12:46:01.388452+00:00,2026-07-27T12:46:13.560414+00:00,initial,15.0,0.12,,,,,,,,,,,,,,,,,,,,,
+entry_signal,skip,XLF,no_state_data,,,2026-07-27T12:46:01.408446+00:00,2026-07-27T12:46:13.573195+00:00,,,,,,,no_state_data,state_ext=stretched_up + state_slope=flat,,,,,1d,,,,,,insample,False,False,,,
+state_unavailable,skip,XLF,nan_state_features,,,2026-07-27T12:46:01.418030+00:00,2026-07-27T12:46:13.586572+00:00,,,,,,,,state_ext=stretched_up + state_slope=flat,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
+entry_signal,skip,XLK,no_state_data,,,2026-07-27T12:46:01.434370+00:00,2026-07-27T12:46:13.599857+00:00,,,,,,,no_state_data,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,False,False,,,
+state_unavailable,skip,XLK,nan_state_features,,,2026-07-27T12:46:01.443365+00:00,2026-07-27T12:46:13.613162+00:00,,,,,,,,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
