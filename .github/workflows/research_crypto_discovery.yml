@@ -280,7 +280,6 @@ jobs:
             --output-dir "localdata/research/crypto/shards/${{ matrix.shard_id }}" \
             ${COND_FLAGS} \
             --bin-mode rolling \
-            ${COND_FLAGS} \
             --profile crypto \
             --cost-bps 15.0 \
             --short-cost-bps 5.0
@@ -428,9 +427,12 @@ jobs:
           if git diff --cached --quiet; then echo "No crypto research changes"; exit 0; fi
           git commit -m "chore(research-crypto-discovery): update crypto research state [skip ci]"
           for attempt in 1 2 3 4 5; do
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" || sleep 5
-            git push || sleep $((5*attempt))
-            [ $? -eq 0 ] && break
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
+            if [ "$attempt" = 5 ]; then
+              echo "::error::git push failed after 5 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
           done
       - name: Upload merged crypto research artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
