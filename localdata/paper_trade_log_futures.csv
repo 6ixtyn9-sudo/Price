@@ -883,3 +883,13 @@ entry_signal,skip,XLF,no_state_data,,,2026-07-27T12:46:01.408446+00:00,2026-07-2
 state_unavailable,skip,XLF,nan_state_features,,,2026-07-27T12:46:01.418030+00:00,2026-07-27T12:46:13.586572+00:00,,,,,,,,state_ext=stretched_up + state_slope=flat,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
 entry_signal,skip,XLK,no_state_data,,,2026-07-27T12:46:01.434370+00:00,2026-07-27T12:46:13.599857+00:00,,,,,,,no_state_data,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,False,False,,,
 state_unavailable,skip,XLK,nan_state_features,,,2026-07-27T12:46:01.443365+00:00,2026-07-27T12:46:13.613162+00:00,,,,,,,,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
+stop_intent,stop_state_cleared,SBUX,position no longer open (stopped out or closed by another exit policy),,,2026-07-27T13:46:21.008272+00:00,2026-07-27T13:46:30.798440+00:00,,,,False,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,JPM,position no longer open (stopped out or closed by another exit policy),,,2026-07-27T13:46:21.008288+00:00,2026-07-27T13:46:30.811280+00:00,,,,False,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,SPG,position no longer open (stopped out or closed by another exit policy),,,2026-07-27T13:46:21.008293+00:00,2026-07-27T13:46:30.823533+00:00,,,,False,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,XBI,position no longer open (stopped out or closed by another exit policy),,,2026-07-27T13:46:21.008297+00:00,2026-07-27T13:46:30.835699+00:00,,,,False,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,AMAT,,461.12,,2026-07-27T13:46:21.008301+00:00,2026-07-27T13:46:30.847856+00:00,initial,3.0,-0.207,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_ratchet_failed,KLAC,"{""code"":40410000,""message"":""order not found""}",,,2026-07-27T13:46:21.008304+00:00,2026-07-27T13:46:30.860113+00:00,,,,,,,,,,,,,,,,,,,,,,,,
+entry_signal,skip,XLF,no_state_data,,,2026-07-27T13:46:21.023204+00:00,2026-07-27T13:46:30.872206+00:00,,,,,,,no_state_data,state_ext=stretched_up + state_slope=flat,,,,,1d,,,,,,insample,False,False,,,
+state_unavailable,skip,XLF,nan_state_features,,,2026-07-27T13:46:21.032016+00:00,2026-07-27T13:46:30.884922+00:00,,,,,,,,state_ext=stretched_up + state_slope=flat,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
+entry_signal,skip,XLK,no_state_data,,,2026-07-27T13:46:21.044910+00:00,2026-07-27T13:46:30.897465+00:00,,,,,,,no_state_data,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,False,False,,,
+state_unavailable,skip,XLK,nan_state_features,,,2026-07-27T13:46:21.053675+00:00,2026-07-27T13:46:30.971927+00:00,,,,,,,,cross_TLT_state_slope=uptrend + state_ext=neutral,,,,,1d,,,,,,insample,,,2026-07-24 04:00:00+00:00,,{}
