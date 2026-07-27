@@ -158,9 +158,17 @@ jobs:
           # No book or empty book → use safe default universe for ingest
           # (research_crypto.py must NOT be imported here — separate workflow concern)
           if [ -z "$SYMBOLS" ]; then SYMBOLS="BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD"; fi
+          PARQUET_COUNT=$(find localdata/warehouse -name "*.parquet" 2>/dev/null | wc -l | tr -d " ")
+          if [ "$PARQUET_COUNT" -lt 20 ]; then
+            CRYPTO_DAYS_1D=1825; CRYPTO_DAYS_15M=365
+            echo "Crypto ingest: cold warehouse ($PARQUET_COUNT files) — full backfill"
+          else
+            CRYPTO_DAYS_1D=7; CRYPTO_DAYS_15M=7
+            echo "Crypto ingest: warm warehouse ($PARQUET_COUNT files) — incremental 7d"
+          fi
           echo "Capturing crypto for: $SYMBOLS BTC/USD ETH/USD"
-          python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 1d --days 1825 --skip-postprocess
-          python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 15m --days 365
+          python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 1d --days $CRYPTO_DAYS_1D --skip-postprocess
+          python scripts/capture_bars.py --symbols $SYMBOLS BTC/USD ETH/USD --timeframes 15m --days $CRYPTO_DAYS_15M
 
       - name: Run paper trade crypto (dynamic book)
         env:
