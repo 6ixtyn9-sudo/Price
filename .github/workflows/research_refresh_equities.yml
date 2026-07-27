@@ -132,30 +132,42 @@ jobs:
             exit 1
           fi
 
-      - name: Capture full active universe
+      - name: Capture full equity universe
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
-          python scripts/capture_bars.py \
-            --tier allowlist \
-            --timeframes 1d 1h \
-            --days 7300 \
-            
-          python scripts/capture_bars.py \
-            --tier allowlist \
-            --timeframes 15m \
-            --days 365
-          if ! jq -e '.all | type == "array"' localdata/explicit_allowlist.json >/dev/null; then
-            echo "::error::localdata/explicit_allowlist.json missing or invalid .all array"
+          if ! jq -e '.equities | type == "array"' localdata/explicit_allowlist.json >/dev/null; then
+            echo "::error::localdata/explicit_allowlist.json missing or invalid .equities array"
             exit 1
           fi
-          mapfile -t ACTIVE_SYMBOLS < <(jq -r '.all[]' localdata/explicit_allowlist.json)
+          mapfile -t ACTIVE_SYMBOLS < <(jq -r '.equities[]' localdata/explicit_allowlist.json)
+          if [ "${#ACTIVE_SYMBOLS[@]}" -eq 0 ]; then
+            echo "::error::No equity symbols resolved from .equities"
+            exit 1
+          fi
           if [ "${#ACTIVE_SYMBOLS[@]}" -gt 500 ]; then
             echo "::error::Refusing research refresh: ${#ACTIVE_SYMBOLS[@]} symbols > cap 500"
             exit 1
           fi
+          for sym in "${ACTIVE_SYMBOLS[@]}"; do
+            if [[ "$sym" == */* || "$sym" == FUT/* ]]; then
+              echo "::error::Equity refresh received non-equity symbol: $sym"
+              exit 1
+            fi
+          done
+
+          python scripts/capture_bars.py \
+            --symbols "${ACTIVE_SYMBOLS[@]}" \
+            --timeframes 1d 1h \
+            --days 7300
+
+          python scripts/capture_bars.py \
+            --symbols "${ACTIVE_SYMBOLS[@]}" \
+            --timeframes 15m \
+            --days 365
+
           printf '%s\n' "${ACTIVE_SYMBOLS[@]}" > localdata/active_symbols.txt
 
       - name: Run autonomous research controller

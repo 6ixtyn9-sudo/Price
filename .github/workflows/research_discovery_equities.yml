@@ -66,9 +66,12 @@ jobs:
           if not os.path.exists("localdata/explicit_allowlist.json"):
               raise SystemExit("localdata/explicit_allowlist.json not found")
           payload = json.load(open("localdata/explicit_allowlist.json"))
-          if "all" not in payload or not isinstance(payload["all"], list):
-              raise SystemExit("explicit_allowlist.json missing '.all' array")
-          symbols = [str(s).strip().upper() for s in payload["all"]]
+          if "equities" not in payload or not isinstance(payload["equities"], list):
+              raise SystemExit("explicit_allowlist.json missing '.equities' array")
+          symbols = [str(s).strip().upper() for s in payload["equities"]]
+          bad_scope = [s for s in symbols if "/" in s or s.startswith("FUT/")]
+          if bad_scope:
+              raise SystemExit("Equity discovery received non-equity symbols: " + ", ".join(bad_scope[:10]))
           invalid = [s for s in symbols if not symbol_pattern.fullmatch(s)]
           if invalid:
               raise SystemExit("Invalid symbols in explicit_allowlist.json: " + ", ".join(invalid[:10]))
