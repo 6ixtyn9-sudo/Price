@@ -168,7 +168,6 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: |
           python scripts/paper_trade.py \
-            --side long \
             --max-notional ${{ inputs.max_notional || '500' }} \
             --max-open ${{ inputs.max_open || '3' }} \
             --max-daily-loss ${{ inputs.max_daily_loss || '200' }} \
