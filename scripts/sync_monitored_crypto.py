@@ -77,6 +77,10 @@ def build_from_clean_mixed(leaderboard_path: Path, output_path: Path, top_n: int
         out["side"] = "long"
     if "bin_mode" not in out.columns:
         out["bin_mode"] = "rolling"
+    before = len(out)
+    out = out[out["side"] == "long"]
+    if before != len(out):
+        print(f"long-only filter: {before} -> {len(out)} slices ({before-len(out)} shorts removed)")
     out.to_csv(output_path, index=False)
     print(f"Wrote {len(out)} rows to {output_path} from top {top_n} clean_survivor (fallback)")
     return True
