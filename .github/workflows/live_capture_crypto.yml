@@ -15,8 +15,6 @@ on:
         description: "Daily loss kill switch"
         required: false
         default: "200"
-  schedule:
-    - cron: "30 */2 * * *"  # every 2 hours at :30 past, offset from equities hour
 
 concurrency:
   group: live-capture-crypto

@@ -42,11 +42,6 @@ def build_from_candidates(candidates_path: Path, output_path: Path) -> bool:
         out["bin_mode"] = "rolling"
     out["side"] = out["side"].astype(str).str.lower()
     out["bin_mode"] = out["bin_mode"].astype(str).str.lower()
-    # Alpaca crypto is spot-only. Filter to long-only.
-    before = len(out)
-    out = out[out["side"] == "long"]
-    if before != len(out):
-        print(f"long-only filter: {before} -> {len(out)} slices ({before-len(out)} shorts removed)")
     # Alpaca crypto is spot-only — no shorting possible. Filter to long-only
     # so the paper book only contains tradeable slices.
     before = len(out)
