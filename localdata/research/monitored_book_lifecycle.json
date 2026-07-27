@@ -1,10 +1,12 @@
 {
   "previous_book_count": 142,
-  "new_book_count": 140,
+  "new_book_count": 138,
   "added_candidates": [],
   "removed_candidates": [
+    "DE|1d|state_ext=neutral + state_vol=high_vol|short|rolling",
     "GOLD|1h|state_ext=stretched_up + state_vol=mid_vol|long|rolling",
-    "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling"
+    "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling",
+    "XLU|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling"
   ],
   "retained_candidates": [
     "AAPL|1d|cross_USO_state_ext=neutral + state_ext=stretched_down|long|rolling",
@@ -40,7 +42,6 @@
     "CSX|1h|state_slope=flat + state_vol=mid_vol|long|rolling",
     "C|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_up|long|rolling",
     "DE|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
-    "DE|1d|state_ext=neutral + state_vol=high_vol|short|rolling",
     "EOG|1h|cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
     "ETHA|1h|cross_USO_state_vol=high_vol + state_ext=stretched_up|short|rolling",
     "ETHE|1h|cross_USO_state_vol=high_vol + state_ext=stretched_up|short|rolling",
@@ -140,7 +141,6 @@
     "XLE|1d|state_ext=stretched_down + state_ret_5=ret_flat|long|rolling",
     "XLE|1d|state_volume=vol_normal + state_ext=stretched_down|long|rolling",
     "XLK|1h|state_session=afternoon + state_ext=stretched_down|long|rolling",
-    "XLU|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling",
     "XME|1h|state_session=lunch + state_slope=uptrend + state_vol=mid_vol|long|rolling",
     "XOP|1d|state_ext=stretched_down + state_ret_1=ret_flat|long|rolling",
     "XOP|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=low_vol|long|rolling",
@@ -150,9 +150,11 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {
+    "DE|1d|state_ext=neutral + state_vol=high_vol|short|rolling": "registry_status:research_only",
     "GOLD|1h|state_ext=stretched_up + state_vol=mid_vol|long|rolling": "registry_status:research_only",
-    "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling": "registry_status:research_only"
+    "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling": "registry_status:research_only",
+    "XLU|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling": "registry_status:research_only"
   },
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "30222432116"
 }
