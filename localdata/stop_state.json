@@ -26,5 +26,19 @@
     "stop_order_id": "aa06a0c8-6ac6-4f09-9042-1e1d412728e0",
     "opened_at": "2026-07-28T18:19:37.934947+00:00",
     "updated_at": "2026-07-28T18:19:37.934947+00:00"
+  },
+  "AEP": {
+    "symbol": "AEP",
+    "side": "long",
+    "qty": 6.0,
+    "entry_price": 133.488333,
+    "initial_stop_price": 128.74118081319756,
+    "current_stop_price": 128.74118081319756,
+    "r_per_share": 4.747152186802457,
+    "stage": "initial",
+    "extreme_price": 133.488333,
+    "stop_order_id": "b3b5d1c3-ac6c-4d24-9f96-590c4e2948e1",
+    "opened_at": "2026-07-28T20:19:58.190827+00:00",
+    "updated_at": "2026-07-28T20:19:58.190827+00:00"
   }
 }
