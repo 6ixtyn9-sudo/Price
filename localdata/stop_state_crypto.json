@@ -12,19 +12,5 @@
     "stop_order_id": "f14afe82-2045-488e-83c1-de2c3dedb51d",
     "opened_at": "",
     "updated_at": ""
-  },
-  "XLE": {
-    "symbol": "XLE",
-    "side": "long",
-    "qty": 15.0,
-    "entry_price": 57.38,
-    "initial_stop_price": 56.46,
-    "current_stop_price": 56.46,
-    "r_per_share": 0.9200000000000017,
-    "stage": "initial",
-    "extreme_price": 57.38,
-    "stop_order_id": "aa06a0c8-6ac6-4f09-9042-1e1d412728e0",
-    "opened_at": "",
-    "updated_at": ""
   }
 }
