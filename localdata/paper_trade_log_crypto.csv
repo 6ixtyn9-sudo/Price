@@ -1299,3 +1299,4 @@ stop_intent,stop_adopted,SPY,found an existing resting stop order (f14afe82-2045
 stop_intent,stop_pending,KLAC,"no ATR available for KLAC (1d); cannot compute initial stop this scan, will retry",,,2026-07-28T15:36:10.135676+00:00,2026-07-28T15:37:31.020245+00:00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_pending,LRCX,"no ATR available for LRCX (1d); cannot compute initial stop this scan, will retry",,,2026-07-28T15:36:10.135684+00:00,2026-07-28T15:37:31.062021+00:00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_unchanged,SPY,,732.45,,2026-07-28T15:36:10.135689+00:00,2026-07-28T15:37:31.103002+00:00,,,,initial,1.0,0.526,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SPY,,732.45,,2026-07-28T16:36:28.869465+00:00,2026-07-28T16:37:43.855658+00:00,,,,initial,1.0,0.454,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
