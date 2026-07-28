@@ -6370,3 +6370,57 @@ Measure fill rate by timeframe + return-vs-gap-size. This is the one thing
 that decides whether the current book's P&L means anything.
 Only then consider a gap-size cap, and only if the n is real.
 Anti-drift rules stand. No options, no forex, no 4th lane, no leverage.
+
+Addendum (2026-07-28, same session) — sector concentration is invisible to the risk gate
+Operator observation: the AMAT/KLAC drawdown was caused by China semiconductor
+news, not by slice failure. The exits worked — both closed 2026-07-27, account
+flat at $99,952.60, zero open positions. Correct behaviour under a genuine
+sector shock, and the more important signal than the P&L.
+
+But it exposes a structural gap. Sector exposure in the current 204-slice book:
+
+text
+
+cluster         slices  symbols  risk_groups
+semis               39       11           31
+megacap_tech        19        9           16
+health              12        6           11
+banks_fin            8        5            8
+energy               6        5            6
+TOTAL               84  (41% of the book)
+risk_group_key() groups by ENTRY CONDITION, not sector — deliberately, and
+the docstring explains why (a hand-kept sector map is itself an overfit risk
+and needs maintenance). Consequence: KLAC's 8 slice variants read as up to 8
+independent bets. The 39 semi slices span 31 distinct groups, so
+max_positions_per_risk_group: 3 never binds on sector. With
+max_open_positions: 12, a single session could in principle open 12
+positions that are all one macro bet.
+
+On this event it cost little (2 positions). Not proposing a fix — one event is
+not evidence, and the obvious remedy is exactly the sector map the design
+rejects. Logging it as a measurement question to run alongside the fill-rate
+study: is the book's diversification real or nominal? Both questions ask
+whether 204 slices across 79 symbols represent 204 independent bets or a much
+smaller number of correlated ones.
+
+If it turns out to need addressing, the design-consistent route is probably a
+derived exposure measure (e.g. realized return correlation between open
+positions, computed from the warehouse) rather than a static sector taxonomy.
+
+Framing correction: this is a multi-year research programme
+Operator: "this is a long term project... it's not something that will work in
+a month's time."
+
+That is the correct frame and it should govern future agent behaviour. The
+system currently has 21 round-trips at ~1.3 per slice against a >=5-per-slice
+rule. Several findings in this session — the -0.76 gap/return correlation
+(n=8), the 62% fill rate (n=16), this sector observation (n=1 event) — are
+directionally interesting and statistically worthless. They are logged so they
+can be RE-TESTED at n=100+, not acted on now.
+
+Implication for agents: the highest-value contribution is usually a
+measurement, a correction, or a durable note — not a code change. This session
+shipped exactly one behavioural change (the merge-race fix, which addressed a
+reproducible data-corruption bug) and discarded two proposed changes (the
+drift-cap gate, built on a sign error; the gap-size cap, fitted to n=2). That
+ratio is healthy, not a shortfall.
