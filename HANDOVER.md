@@ -6199,3 +6199,174 @@ Do not add new features, new lanes, or new complexity. The anti-drift rules stan
 The fresh-data gate will self-open around July 28. When it does, sharded discovery runs automatically, the softened gate admits new candidates, and the book refreshes without operator intervention.
 Watch for: does fill velocity stay high into next week? Do the single-symbol hourly slices maintain positive P&L after 20+ round-trips? Does KLAC's 5-bar horizon exit lock in the $6+ gain?
 Known unresolved: crypto and futures promotion pipelines are completely separate from equities. _tradeable_candidate() has zero effect on crypto/futures. Crypto has 15 1d regime candidates that never fire. Futures has 4 session-based leaderboard fallback slices producing zero fills. These lanes are infrastructure-ready but evidence-barren.
+
+Watch for: does fill velocity stay high into next week? Do the single-symbol hourly slices maintain positive P&L after 20+ round-trips? Does KLAC's 5-bar horizon exit lock in the $6+ gain?
+Known unresolved: crypto and futures promotion pipelines are completely separate from equities. _tradeable_candidate() has zero effect on crypto/futures. Crypto has 15 1d regime candidates that never fire. Futures has 4 session-based leaderboard fallback slices producing zero fills. These lanes are infrastructure-ready but evidence-barren.
+
+Session Update — Discovery Merge Race Fixed, Signal-to-Fill Sign Correction (2026-07-28)
+Date: 2026-07-28
+Agent: Arena.ai Agent Mode
+
+Context
+Discovery runs #13 (15m) and #12 (1h) both ended Failure after 5h58m and
+4h28m. All 24 shards across both runs succeeded and uploaded artifacts; both
+runs died in the merge job's commit step with exit code 1.
+
+Root cause: three timeframes racing on the same derived files
+research_refresh_equities.yml dispatches 1d/1h/15m discovery concurrently
+(dispatch-discovery-1d/1h/15m). Each has its own concurrency group, so
+nothing serialises them — by design. But all three commit the same files:
+
+text
+
+localdata/monitored_slices.csv
+localdata/monitored_edge_metrics.csv
+localdata/research/monitored_book_lifecycle.json
+sync_monitored.py rebuilds these FROM SCRATCH every run, so each job
+produces a whole-file rewrite, not an incremental edit. The old retry loop was:
+
+text
+
+git pull --rebase --autostash origin main && git push --force-with-lease && break || true
+Two whole-file rewrites of the same CSV always conflict. The rebase halted
+mid-flight leaving .git/rebase-merge, and attempts 2-5 died instantly with
+"Pulling is not possible because you have unmerged files" — swallowed by
+|| true. All five retries burned in ~20 seconds, then exit 1.
+
+Reproduced locally with three concurrent writers against a bare repo: 1
+pushed, 2 failed identically, and the winner's book contained ONLY its own
+timeframe — silently discarding the other two. This was corrupting the book,
+not just going red.
+
+Fix (commits 91efdb7, 3820c50)
+New 
+commit_research_book.sh
+. The monitored book is DERIVED state, so
+it must never be text-merged. On a rejected push the script discards its
+commit, hard-resets onto the fetched remote tip (no rebase -> nothing can
+conflict), restores only localdata/research/merged/<tf>/ (the artifacts that
+run owns), re-runs sync_monitored.py to re-derive the book from the union of
+every timeframe registry now on disk, and retries with jittered backoff.
+Last writer wins AND includes everyone else's work.
+
+Verified: same 3-way race against the fix -> 3/3 pushed (attempts 1, 2, 3),
+final book contained all three timeframes.
+
+Also: expected_shards.json moved to merged/<tf>/expected_shards.json (was a
+single shared path all three workflows clobbered). upload-artifact repinned
+to v7.0.1 and download-artifact to v8.0.1 (Node 24) in the three discovery
+workflows.
+
+Note: this creates a helper script, which the working-style section normally
+forbids. Justified because the logic is identical across three workflows and
+inlining it triples the surface area of the exact bug being fixed.
+
+Still on old v4 (Node 20) pins, warnings only: research_crypto.yml,
+research_futures.yml, research_crypto_discovery.yml,
+research_futures_discovery.yml, research_discovery_equities.yml.
+
+CORRECTION: signal_to_fill_bps sign — do not "fix" this
+An earlier analysis in this session misread signal_to_fill_bps as adverse
+slippage and nearly shipped a drift-cap gate. That was wrong. In
+attribution.py:
+
+text
+
+gap = (entry_price - signal_close) / signal_close     # positive = paid MORE = adverse
+adverse = max(gap, 0.0) * 10000
+All 16 round-trips have signal_to_fill_bps <= 0, and realized_slippage_bps
+is 0.0 on all 16. There is zero adverse signal-to-fill drift in the book.
+Every fill was at or better than the signal-bar close.
+
+This is by construction, not luck. paper_trade.py:155 sets
+limit_price = sig.get("close_adj") — entries are LIMIT at the signal-bar
+close, and the code hard-blocks the entry rather than falling back to a market
+order. A limit order cannot fill adversely past its own limit.
+
+AMAT's -246.86 bps means it filled $14 BELOW the signal close (favourable),
+not above it. A future agent reading that number as slippage will try to
+"fix" the best execution in the book. Do not.
+
+New finding: large pre-market gap fills are the WORST trades
+Pairing each entry fill's price improvement against that round-trip's return:
+
+text
+
+symbol   improvement   realized return
+AMAT       +247 bps        -6.59%
+XBI        +155 bps        +0.18%
+KLAC        +19 bps        +7.37%
+JPM          +5 bps        +3.37%
+SPG          +2 bps        +0.86%
+
+correlation(price improvement, realized return) = -0.76
+gaps > 50 bps (n=2): mean return -3.21%
+gaps <= 50 bps (n=6): mean return +2.63%
+Mechanism: 11 of 17 entries are submitted pre-open (the :17 cron lands at
+:20-:22 SAST, ~8 min before the 15:30 open), so they queue into the opening
+auction. A 247 bps overnight gap-down means NEWS — information the daily-bar
+features never saw. The discount is compensation for risk that then
+materialises. The winners are the boring fills where price barely moved from
+the signal close, because there the validated state still holds.
+
+Fragility: n=8. Dropping AMAT moves r from -0.76 to -0.30. Directional, not
+conclusive. Do not build a gap-size cap on this yet — at n=2 in the
+
+50 bps bucket that is fitting to AMAT.
+
+Open question (highest ROI, not yet measured): 38% of signals never fill
+Entry limit orders, from the Alpaca blotter:
+
+text
+
+resolved: 16    filled: 10 (62%)    expired: 6 (38%)
+expired: VRTX, TGT, CSX, JPM, AVGO, CBOE — all longs, price moved UP and away
+A limit at the signal close only fills when price comes back to it. Research
+measured ALL signal bars; live trades only the ~62% that retraced. The live
+sample is therefore biased toward mean reversion regardless of whether the
+slice is real. Realized P&L currently cannot validate the research, because
+it is measuring a different distribution.
+
+Next measurement (read-only, no code change): fill rate by timeframe, and
+whether expired signals would have won. regime_opportunity_rates.csv already
+tracks order_fill_rate but nobody has read it by timeframe. Run it together
+with return-vs-gap-size — same query, answers both.
+
+Cadence observation (not actioned)
+191 of 204 monitored slices (94%) are 1d; 15m has 7 and 1h has 6. Live capture
+scans hourly, so ~8 of 9 daily scans re-check unchanged daily state. The book
+changes once a day but costs 9 GHA runs to service. Operator has explicitly
+declined new cron jobs (cron-job.org traffic). If this is revisited, the change
+is FEWER runs, not more — and only after discovery rebalances the timeframe mix.
+
+Current posture (2026-07-28)
+Paper only. $99,952.60 equity, 0 open positions, daily change $0.
+204 monitored slices (1d:191, 1h:6, 15m:7). 176 long / 28 short.
+21 round-trips, $30.43 realized. All preliminary (~1.3 RTs per slice vs the
+=5 rule).
+
+stop_atr_mult still 0/204 populated — N4 from the 2026-07-26 audit stands.
+exit_horizon populated 204/204 (values 5 and 3), but check_exits() still
+reads the global exit_policy.horizon_bars — Phase 1 gap unchanged.
+Fresh-data gate is OPEN: fresh_data_gate_open=true,
+sharded_discovery_required=true, discovery_ran=false, 221/110 eligible
+symbols. The 00:00 SAST refresh will chain all three discovery workflows
+concurrently — the first live exercise of the merge fix.
+What NOT to do
+Do not "fix" signal_to_fill_bps. Negative is favourable. See correction above.
+Do not delay entries past the open to avoid pre-market. The limit-at-signal-
+close order makes pre-market queueing free optionality: it captures gap-downs
+and simply skips gap-ups.
+Do not build a gap-size entry cap until the fill-rate study is done (n=2).
+Do not trigger research_discovery_equities_all.yml manually. Discovery is
+only ever chained by Research Refresh; the two standalone discovery crons are
+deliberately DISABLED on cron-job.org as redundant double-spend.
+Do not act on 21 round-trips. The >=5-per-slice rule is not close to met.
+Next agent guidance
+Confirm the 00:00 SAST run: each merge job should log
+commit_research_book: pushed <tf> on attempt N. Attempts 2-3 on the later
+two timeframes are the fix working, not a failure.
+Measure fill rate by timeframe + return-vs-gap-size. This is the one thing
+that decides whether the current book's P&L means anything.
+Only then consider a gap-size cap, and only if the n is real.
+Anti-drift rules stand. No options, no forex, no 4th lane, no leverage.
