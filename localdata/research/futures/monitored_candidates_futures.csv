@@ -1,1 +1,2 @@
 symbol,timeframe,slice_combination,side,bin_mode,overall_regime_status,best_regime,best_regime_mean_ret_costadj,best_regime_p_value_nw,triage_bucket,valid_n,valid_mean_ret_costadj,valid_p_value_nw,walk_forward_pass_pattern,search_wide_bh_pass,search_wide_bonferroni_pass,source_note
+FUT/NQ,1h,state_session=afternoon + state_slope=flat,long,rolling,bear_regime_candidate,bear,0.001457867177587836,0.002756985335495621,rejected_unsupported,140,0.0003237750341366,0.6166348774540305,0,False,False,bear_regime_candidate
