@@ -13,20 +13,6 @@
     "opened_at": "",
     "updated_at": ""
   },
-  "XLE": {
-    "symbol": "XLE",
-    "side": "long",
-    "qty": 15.0,
-    "entry_price": 57.38,
-    "initial_stop_price": 56.464285997663225,
-    "current_stop_price": 56.464285997663225,
-    "r_per_share": 0.9157140023367744,
-    "stage": "initial",
-    "extreme_price": 57.38,
-    "stop_order_id": "aa06a0c8-6ac6-4f09-9042-1e1d412728e0",
-    "opened_at": "2026-07-28T18:19:37.934947+00:00",
-    "updated_at": "2026-07-28T18:19:37.934947+00:00"
-  },
   "AEP": {
     "symbol": "AEP",
     "side": "long",
