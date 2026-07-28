@@ -1300,3 +1300,7 @@ stop_intent,stop_pending,KLAC,"no ATR available for KLAC (1d); cannot compute in
 stop_intent,stop_pending,LRCX,"no ATR available for LRCX (1d); cannot compute initial stop this scan, will retry",,,2026-07-28T15:36:10.135684+00:00,2026-07-28T15:37:31.062021+00:00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_unchanged,SPY,,732.45,,2026-07-28T15:36:10.135689+00:00,2026-07-28T15:37:31.103002+00:00,,,,initial,1.0,0.526,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_unchanged,SPY,,732.45,,2026-07-28T16:36:28.869465+00:00,2026-07-28T16:37:43.855658+00:00,,,,initial,1.0,0.454,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_pending,KLAC,"no ATR available for KLAC (1d); cannot compute initial stop this scan, will retry",,,2026-07-28T17:36:20.875677+00:00,2026-07-28T17:37:51.582419+00:00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_pending,LRCX,"no ATR available for LRCX (1d); cannot compute initial stop this scan, will retry",,,2026-07-28T17:36:20.875694+00:00,2026-07-28T17:37:51.624048+00:00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_unchanged,SPY,,732.45,,2026-07-28T17:36:20.875700+00:00,2026-07-28T17:37:51.664556+00:00,,,,initial,1.0,0.548,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_pending,XLE,"no ATR available for XLE (1d); cannot compute initial stop this scan, will retry",,,2026-07-28T17:36:20.875704+00:00,2026-07-28T17:37:51.704721+00:00,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
