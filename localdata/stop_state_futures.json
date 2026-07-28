@@ -1,1 +1,16 @@
-{}
+{
+  "SPY": {
+    "symbol": "SPY",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 738.4,
+    "initial_stop_price": 732.4544199916294,
+    "current_stop_price": 732.4544199916294,
+    "r_per_share": 5.945580008370565,
+    "stage": "initial",
+    "extreme_price": 738.4,
+    "stop_order_id": "f14afe82-2045-488e-83c1-de2c3dedb51d",
+    "opened_at": "2026-07-28T13:46:32.216244+00:00",
+    "updated_at": "2026-07-28T13:46:32.216244+00:00"
+  }
+}
