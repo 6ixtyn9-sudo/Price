@@ -33,18 +33,18 @@ class ProfitPolicy:
     """Profit-protection configuration. All checks are opt-in via thresholds > 0."""
 
     # Hard R-multiple take-profit. Exit when unrealized_R >= take_profit_r.
-    take_profit_r: Optional[float] = 3.0
+    take_profit_r: Optional[float] = None
 
     # End-of-day profit lock (equities only by default).
     # Exit when unrealized_R >= eod_profit_lock_r AND within
     # eod_lock_minutes_before_close minutes of the regular-session close.
-    eod_profit_lock_r: Optional[float] = 0.75
+    eod_profit_lock_r: Optional[float] = None
     eod_lock_minutes_before_close: int = 45
 
     # Profit giveback lock.
     # Exit when max_unrealized_R >= giveback_trigger_r AND current
     # unrealized_R has fallen by >= max_giveback_r from the peak.
-    giveback_trigger_r: Optional[float] = 2.0
+    giveback_trigger_r: Optional[float] = None
     max_giveback_r: float = 1.0
 
     # Asset-class behavioural flags.

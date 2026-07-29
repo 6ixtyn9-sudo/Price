@@ -319,6 +319,9 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
                 if not slice_lbl:
                     slice_lbl = _str(exit_row, "slice_label", "unknown")
 
+                bh_val = _get(exit_row, "bars_held", None)
+                bh = int(bh_val) if bh_val is not None else None
+
                 round_trips.append(RoundTrip(
                     symbol=str(symbol).upper(),
                     slice_combination=slice_lbl,
@@ -330,6 +333,7 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
                     exit_ts=str(exit_ts),
                     gross_pnl=gross_pnl,
                     gross_return=gross_return,
+                    bars_held=bh,
                     timeframe=_str(ent_row, "timeframe", ""),
                     bin_mode=_str(ent_row, "bin_mode", "insample"),
                     entry_order_id=_str(ent_row, "order_id", ""),
