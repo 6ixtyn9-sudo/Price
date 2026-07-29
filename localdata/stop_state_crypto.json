@@ -1,1 +1,30 @@
-{}
+{
+  "LRCX": {
+    "symbol": "LRCX",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 260.58,
+    "initial_stop_price": 216.05142682756696,
+    "current_stop_price": 216.05142682756696,
+    "r_per_share": 44.528573172433035,
+    "stage": "initial",
+    "extreme_price": 260.58,
+    "stop_order_id": "44dde768-f3c9-4634-9a91-d750c4f28b20",
+    "opened_at": "2026-07-29T19:36:35.189739+00:00",
+    "updated_at": "2026-07-29T19:36:35.189739+00:00"
+  },
+  "XLF": {
+    "symbol": "XLF",
+    "side": "long",
+    "qty": 17.0,
+    "entry_price": 56.88,
+    "initial_stop_price": 55.54144390345982,
+    "current_stop_price": 55.54144390345982,
+    "r_per_share": 1.3385560965401788,
+    "stage": "initial",
+    "extreme_price": 56.88,
+    "stop_order_id": "2b33cc9e-2b85-4dee-86b2-aaa2a0ee12e6",
+    "opened_at": "2026-07-29T19:36:35.802607+00:00",
+    "updated_at": "2026-07-29T19:36:35.802607+00:00"
+  }
+}
