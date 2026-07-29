@@ -1,18 +1,4 @@
 {
-  "SPY": {
-    "symbol": "SPY",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 738.4,
-    "initial_stop_price": 732.45,
-    "current_stop_price": 732.45,
-    "r_per_share": 5.949999999999932,
-    "stage": "initial",
-    "extreme_price": 738.4,
-    "stop_order_id": "f14afe82-2045-488e-83c1-de2c3dedb51d",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "AEP": {
     "symbol": "AEP",
     "side": "long",
