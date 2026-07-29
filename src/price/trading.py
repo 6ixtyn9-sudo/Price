@@ -114,6 +114,74 @@ def get_open_positions() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def get_latest_price(symbol: str) -> Optional[float]:
+    """Best-effort latest traded price for a symbol from Alpaca.
+
+    Returns None on any failure (unsupported asset class, API hiccup,
+    market closed, etc.). Deliberately never raises: callers use this to
+    gate entries and must fail OPEN (allow the entry) when no price is
+    available, so a transient quote outage cannot block all trading.
+    """
+    try:
+        client = get_trading_client()
+        trade = client.get_latest_trade(symbol)
+        price = getattr(trade, "price", None)
+        return float(price) if price is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def signal_fill_gap_bps(
+    signal_close: Optional[float], live_price: Optional[float]
+) -> Optional[float]:
+    """Signed gap (live - signal) / signal, in basis points. None if not
+    computable.
+
+    Convention matches attribution.signal_to_fill_bps: NEGATIVE means the
+    live/fill price is BELOW the signal close. For a long, a deeply negative
+    gap is the signature of a falling-knife fill -- the daily signal fired on
+    bar N's close, but the order filled on day N+1 after price had already
+    fallen well through the signal level.
+    """
+    try:
+        if signal_close is None or live_price is None:
+            return None
+        sc, lp = float(signal_close), float(live_price)
+        if sc != sc or lp != lp or sc <= 0:
+            return None
+        return (lp - sc) / sc * 10000.0
+    except (TypeError, ValueError):
+        return None
+
+
+def is_stale_entry(
+    side: str,
+    signal_close: Optional[float],
+    live_price: Optional[float],
+    max_adverse_bps: float,
+) -> tuple:
+    """Decide whether an entry should be skipped because the live price has
+    moved against the signal by more than ``max_adverse_bps`` (the setup is
+    stale / already invalidated).
+
+    Long  -> adverse when live is FAR BELOW signal (falling-knife fill).
+    Short -> adverse when live is FAR ABOVE signal (rallied after the signal).
+
+    Returns ``(stale: bool, gap_bps: Optional[float])``. ``max_adverse_bps``
+    <= 0 disables the guard. If the gap cannot be computed (no live price),
+    returns ``(False, None)`` -- fail open, never block trading on a missing
+    quote.
+    """
+    if max_adverse_bps is None or max_adverse_bps <= 0:
+        return False, None
+    gap = signal_fill_gap_bps(signal_close, live_price)
+    if gap is None:
+        return False, None
+    is_short = str(side).strip().lower() in ("sell", "short")
+    adverse = gap < -max_adverse_bps if not is_short else gap > max_adverse_bps
+    return adverse, gap
+
+
 
 def _remove_position_from_ledger(symbol: str) -> None:
     import glob

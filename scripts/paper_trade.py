@@ -91,7 +91,7 @@ def _strip_known_keys(sig: dict, keys: List[str]) -> dict:
     return {k: v for k, v in sig.items() if k not in keys}
 
 
-def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int]:
+def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill_bps: float = 0.0) -> Dict[str, int]:
     """For each signal in the list, either submit a real order, log a
     blocked entry, or close a position. Returns counts for the summary."""
     counts = {
@@ -173,6 +173,36 @@ def _handle_signals(signals: List[dict], dry_run: bool = False) -> Dict[str, int
                     **_strip_known_keys(sig, ["action"]),
                 })
                 continue
+
+            # Falling-knife guard. Daily-bar signals are acted on the next
+            # trading session; a limit pegged to the signal close then fills
+            # instantly at the (much lower) live price, buying into a decline
+            # that already invalidated the setup. Skip the entry when the live
+            # price has moved against the signal by more than the threshold.
+            # Fail OPEN: if no live price is available, do not block trading.
+            if max_adverse_fill_bps and max_adverse_fill_bps > 0:
+                from price.trading import get_latest_price, is_stale_entry
+                _entry_side = sig.get("suggested_side", "buy")
+                _live = get_latest_price(symbol)
+                _stale, _gap = is_stale_entry(
+                    _entry_side, limit_price, _live, max_adverse_fill_bps
+                )
+                if _stale:
+                    counts["entry_blocked"] += 1
+                    _append_audit({
+                        "action": "block",
+                        "reason": "stale_signal_adverse_gap",
+                        "blocked_reasons": (
+                            f"live {_live:.2f} is {_gap:.0f} bps vs signal close "
+                            f"{float(limit_price):.2f} (adverse beyond "
+                            f"-{max_adverse_fill_bps:.0f} bps); setup likely "
+                            f"invalidated by the post-signal move -- skipping"
+                        ),
+                        "live_price": _live,
+                        "signal_to_fill_bps": _gap,
+                        **_strip_known_keys(sig, ["action"]),
+                    })
+                    continue
 
             if qty <= 0:
                 counts["entry_blocked"] += 1
@@ -418,6 +448,11 @@ def main() -> int:
                         help="Apply EOD profit lock to futures symbols. Off by default.")
     parser.add_argument("--pure-horizon-exits", action="store_true",
                         help="Ignore stable state-break exits when a position has an active horizon (>0), holding unconditionally for its validated fwd_ret_N horizon.")
+    parser.add_argument("--max-adverse-fill-bps", type=float, default=200.0,
+                        help="Skip an entry when the LIVE price has moved against the signal close by more than this many bps "
+                             "(long: price fell below signal; short: price rose above). Prevents buying next-day falling-knife "
+                             "fills, where a daily signal's limit (pegged to bar N close) fills deep into a day N+1 decline. "
+                             "0 disables. Default 200 bps (2.0 percent).")
     args = parser.parse_args()
 
     if args.halt:
@@ -484,6 +519,7 @@ def main() -> int:
     print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}, "
           f"respect_r_multiple_gate={exit_policy.respect_r_multiple_gate}, "
           f"pure_horizon_exits={exit_policy.pure_horizon_exits}, "
+          f"max_adverse_fill_bps={args.max_adverse_fill_bps}, "
           f"profit_policy={profit_policy}")
     print(f"Cost model: {cost_model.to_dict()}")
 
@@ -515,7 +551,7 @@ def main() -> int:
             entry_sync_blocked=not reconciliation_health.get("ok", False),
             reconciliation_health=reconciliation_health,
         )
-        counts = _handle_signals(signals, dry_run=args.dry_run)
+        counts = _handle_signals(signals, dry_run=args.dry_run, max_adverse_fill_bps=args.max_adverse_fill_bps)
         print("\n=== pass summary ===")
         for k, v in counts.items():
             print(f"  {k}: {v}")
