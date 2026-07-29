@@ -281,3 +281,72 @@ def test_entry_context_bin_mode_defaults_without_type_error(monkeypatch):
 
     context = _load_entry_context()
     assert context["XLF"]["bin_mode"] == "insample"
+
+
+def test_check_exits_uses_per_slice_horizon_overrides_global(monkeypatch):
+    df = _syn_warehouse(80)
+    # exit_horizon=3 in ctx, while ExitPolicy has horizon_bars=10.
+    # bars_held is 4 -> should exit because 4 >= 3.
+    ctx = {"XLF": {
+        "slice_combination": SLICE,
+        "timeframe": "1d",
+        "entry_bar_ts": "2026-01-16",
+        "submitted_at": "2026-01-16",
+        "exit_horizon": 3,
+    }}
+    _setup(monkeypatch, df, ctx, STABLE_MATCH)
+
+    intents = check_exits(
+        _positions_df(),
+        {"XLF": SLICE},
+        exit_policy=ExitPolicy(horizon_bars=10),
+    )
+    assert intents[0]["action"] == "exit"
+    assert intents[0]["horizon_bars"] == 3
+    assert "horizon reached" in intents[0]["reason"]
+
+
+def test_check_exits_lookups_horizon_from_monitored_book_if_missing_in_context(monkeypatch):
+    df = _syn_warehouse(80)
+    # ctx has NO exit_horizon.
+    ctx = {"XLF": {
+        "slice_combination": SLICE,
+        "timeframe": "1d",
+        "entry_bar_ts": "2026-01-16",
+        "submitted_at": "2026-01-16",
+    }}
+    _setup(monkeypatch, df, ctx, STABLE_MATCH)
+    monkeypatch.setattr(
+        "price.position_manager.lookup_slice_parameters",
+        lambda symbol, slice_combo: {"exit_horizon": 3, "stop_atr_mult": 1.5},
+    )
+
+    intents = check_exits(
+        _positions_df(),
+        {"XLF": SLICE},
+        exit_policy=ExitPolicy(horizon_bars=10),
+    )
+    assert intents[0]["action"] == "exit"
+    assert intents[0]["horizon_bars"] == 3
+    assert "horizon reached" in intents[0]["reason"]
+
+
+def test_pure_horizon_exits_ignores_state_break(monkeypatch):
+    df = _syn_warehouse(80)
+    last_ts = str(df["bar_ts_utc"].iloc[-1])
+    ctx = {"XLF": {
+        "slice_combination": SLICE,
+        "timeframe": "1d",
+        "entry_bar_ts": last_ts,
+        "submitted_at": last_ts,
+        "exit_horizon": 10,
+    }}
+    _setup(monkeypatch, df, ctx, STABLE_MISMATCH)
+
+    intents = check_exits(
+        _positions_df(),
+        {"XLF": SLICE},
+        exit_policy=ExitPolicy(horizon_bars=10, pure_horizon_exits=True),
+    )
+    assert intents[0]["action"] == "hold"
+    assert "horizon" not in intents[0]["reason"]

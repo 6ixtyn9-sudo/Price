@@ -416,6 +416,8 @@ def main() -> int:
                         help="Apply EOD profit lock to crypto symbols. Off by default.")
     parser.add_argument("--eod-futures", action="store_true",
                         help="Apply EOD profit lock to futures symbols. Off by default.")
+    parser.add_argument("--pure-horizon-exits", action="store_true",
+                        help="Ignore stable state-break exits when a position has an active horizon (>0), holding unconditionally for its validated fwd_ret_N horizon.")
     args = parser.parse_args()
 
     if args.halt:
@@ -477,9 +479,11 @@ def main() -> int:
         horizon_bars=args.exit_horizon,
         respect_r_multiple_gate=not args.no_r_gate,
         profit_policy=profit_policy,
+        pure_horizon_exits=args.pure_horizon_exits,
     )
     print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}, "
           f"respect_r_multiple_gate={exit_policy.respect_r_multiple_gate}, "
+          f"pure_horizon_exits={exit_policy.pure_horizon_exits}, "
           f"profit_policy={profit_policy}")
     print(f"Cost model: {cost_model.to_dict()}")
 

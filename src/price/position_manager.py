@@ -174,11 +174,16 @@ class ExitPolicy:
     winner that already confirmed and is being protected by a ratcheting
     stop. Set False to restore the original unconditional horizon exit
     (legacy behaviour, e.g. for slices with no protective-stop tracking).
+
+    pure_horizon_exits (default False): when True and ps_horizon > 0, ignores
+    stable state-break exits during the active horizon window, holding
+    unconditionally for the validated fwd_ret_N horizon without early whipsaw.
     """
 
     horizon_bars: int = 5
     respect_r_multiple_gate: bool = True
     profit_policy: Optional['ProfitPolicy'] = None
+    pure_horizon_exits: bool = False
 
 
 def _parse_ts(ts) -> Optional[datetime]:
@@ -371,12 +376,21 @@ def _recover_entry_context_from_paper_trade_log(
     if not slice_combo:
         return None
 
+    exit_h = candidate.get("exit_horizon")
+    try:
+        exit_h = int(float(exit_h)) if exit_h is not None and str(exit_h).strip() not in ("", "nan") else None
+    except (TypeError, ValueError):
+        exit_h = None
+    stop_mult = _clean_val(candidate.get("stop_atr_mult"))
+
     return {
         "slice_combination": slice_combo,
         "timeframe": _clean_val(candidate.get("timeframe")),
         "bin_mode": _clean_val(candidate.get("bin_mode"), "rolling"),
         "entry_bar_ts": _clean_val(candidate.get("bar_ts_utc")),
         "submitted_at": _clean_val(candidate.get("timestamp_utc")),
+        "exit_horizon": exit_h,
+        "stop_atr_mult": stop_mult,
         "context_source": source,
     }
 
@@ -414,14 +428,59 @@ def _recover_entry_context_from_monitored_slices(
     if not slice_combo:
         return None
 
+    exit_h = r.get("exit_horizon")
+    try:
+        exit_h = int(float(exit_h)) if exit_h is not None and str(exit_h).strip() not in ("", "nan") else None
+    except (TypeError, ValueError):
+        exit_h = None
+    stop_mult = _clean_val(r.get("stop_atr_mult"))
+
     return {
         "slice_combination": slice_combo,
         "timeframe": _clean_val(r.get("timeframe")),
         "bin_mode": _clean_val(r.get("bin_mode"), "rolling"),
         "entry_bar_ts": None,
         "submitted_at": None,
+        "exit_horizon": exit_h,
+        "stop_atr_mult": stop_mult,
         "context_source": "monitored_slices_single",
     }
+
+
+def lookup_slice_parameters(symbol: str, slice_combination: str) -> dict:
+    """Look up exit_horizon and stop_atr_mult for a specific symbol/slice
+    from any monitored_slices*.csv file. Never raises."""
+    try:
+        import os
+        import glob
+        from price.config import DATA_DIR
+        paths = glob.glob(str(DATA_DIR / "monitored_slices*.csv"))
+        for p in paths:
+            if not os.path.exists(p):
+                continue
+            df = pd.read_csv(p, low_memory=False)
+            if df.empty or "symbol" not in df.columns or "slice_combination" not in df.columns:
+                continue
+            matches = df[
+                (df["symbol"].astype(str).str.upper() == symbol.upper())
+                & (df["slice_combination"].astype(str).str.strip() == slice_combination.strip())
+            ]
+            if not matches.empty:
+                r = matches.iloc[0]
+                eh = r.get("exit_horizon")
+                try:
+                    eh = int(float(eh)) if eh is not None and str(eh).strip() not in ("", "nan") else None
+                except (TypeError, ValueError):
+                    eh = None
+                sm = _clean_val(r.get("stop_atr_mult"))
+                try:
+                    sm = float(sm) if sm is not None and str(sm).strip() not in ("", "nan") else None
+                except (TypeError, ValueError):
+                    sm = None
+                return {"exit_horizon": eh, "stop_atr_mult": sm}
+    except Exception:  # noqa: BLE001
+        pass
+    return {"exit_horizon": None, "stop_atr_mult": None}
 
 
 import glob
@@ -716,16 +775,17 @@ def check_exits(
         stable_str = " + ".join(f"{k}={v}" for k, v in stable.items())
         current_stable = {k: current_state.get(k, "") for k in stable}
 
-        exit_reasons: List[str] = []
-        if mismatches:
-            exit_reasons.append("stable filter broken: " + "; ".join(mismatches))
-
         # Per-slice exit horizon: the slice's own optimal horizon from
         # discovery, or the global policy default when unavailable.
         # Deliberate None-check, NOT truthiness: exit_horizon=0 means
         # "disable the horizon exit for this slice" (state-break only),
         # and `or default` would silently override the operator's intent.
         ps_horizon = ctx.get("exit_horizon")
+        if ps_horizon is None and slice_combo:
+            # Phase 1 wiring: look up slice's configured horizon from monitored book
+            slice_params = lookup_slice_parameters(symbol, slice_combo)
+            ps_horizon = slice_params.get("exit_horizon")
+
         if ps_horizon is None:
             ps_horizon = exit_policy.horizon_bars
         try:
@@ -734,6 +794,13 @@ def check_exits(
             ps_horizon = exit_policy.horizon_bars
         if ps_horizon <= 0:
             ps_horizon = exit_policy.horizon_bars
+
+        exit_reasons: List[str] = []
+        if mismatches:
+            if exit_policy.pure_horizon_exits and ps_horizon > 0:
+                pass  # pure horizon mode: ignore stable state-break during active horizon hold window
+            else:
+                exit_reasons.append("stable filter broken: " + "; ".join(mismatches))
 
         r_gate_active = False
         if (
