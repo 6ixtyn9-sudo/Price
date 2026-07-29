@@ -1374,3 +1374,6 @@ stop_intent,stop_unchanged,HON,,231.4143,,2026-07-29T15:36:23.359853+00:00,2026-
 stop_intent,stop_unchanged,HON,,231.4143,,2026-07-29T16:36:20.951899+00:00,2026-07-29T16:37:53.653473+00:00,,,,initial,5.0,-0.282,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_attached,KLAC,,144.4961,37a6d1cc-39da-404c-8b0f-e2b37434cd31,2026-07-29T16:36:20.951914+00:00,2026-07-29T16:37:53.695898+00:00,29.0514,232.41,14.5257,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 stop_intent,stop_attached,LRCX,,209.2514,1c6ef376-8883-47d0-9a0d-a45051bb341c,2026-07-29T16:36:20.951919+00:00,2026-07-29T16:37:53.737710+00:00,44.5286,133.59,22.2643,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,HON,position no longer open (stopped out or closed by another exit policy),,,2026-07-29T17:36:28.177535+00:00,2026-07-29T17:38:29.051574+00:00,,,,,,,False,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,KLAC,position no longer open (stopped out or closed by another exit policy),,,2026-07-29T17:36:28.177554+00:00,2026-07-29T17:38:29.084281+00:00,,,,,,,False,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+stop_intent,stop_state_cleared,LRCX,position no longer open (stopped out or closed by another exit policy),,,2026-07-29T17:36:28.177558+00:00,2026-07-29T17:38:29.116349+00:00,,,,,,,False,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
