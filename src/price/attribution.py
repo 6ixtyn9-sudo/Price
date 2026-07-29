@@ -117,6 +117,7 @@ class RoundTrip:
     gross_pnl: float               # (exit-entry)*qty for long, negated for short
     gross_return: float            # gross_pnl / (entry_price*qty), signed by side
     bars_held: Optional[int] = None
+    exit_reason: str = ""
     timeframe: str = ""
     bin_mode: str = "insample"
     entry_order_id: str = ""
@@ -134,6 +135,7 @@ class RoundTrip:
             "gross_pnl": round(self.gross_pnl, 4),
             "gross_return": round(self.gross_return, 6),
             "bars_held": self.bars_held,
+            "exit_reason": self.exit_reason,
             "timeframe": self.timeframe,
             "bin_mode": self.bin_mode,
             "entry_order_id": self.entry_order_id,
@@ -319,9 +321,6 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
                 if not slice_lbl:
                     slice_lbl = _str(exit_row, "slice_label", "unknown")
 
-                bh_val = _get(exit_row, "bars_held", None)
-                bh = int(bh_val) if bh_val is not None else None
-
                 round_trips.append(RoundTrip(
                     symbol=str(symbol).upper(),
                     slice_combination=slice_lbl,
@@ -333,7 +332,6 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
                     exit_ts=str(exit_ts),
                     gross_pnl=gross_pnl,
                     gross_return=gross_return,
-                    bars_held=bh,
                     timeframe=_str(ent_row, "timeframe", ""),
                     bin_mode=_str(ent_row, "bin_mode", "insample"),
                     entry_order_id=_str(ent_row, "order_id", ""),
@@ -476,6 +474,42 @@ def attribute_pnl(
     if journal is None:
         journal = load_trade_journal()
     round_trips = reconstruct_round_trips(journal)
+
+    # bars_held and exit_reason are computed at exit by check_exits and recorded in the paper
+    # audit log (paper_trade_log.csv) keyed by exit order_id. The trade journal
+    # never carries them, so backfill them here. Best-effort: never crash on reporting.
+    _pl = Path(paper_log_path) if paper_log_path else PAPER_TRADE_LOG_PATH
+    try:
+        if _pl.exists():
+            _log = pd.read_csv(_pl)
+            if {"order_id", "action"}.issubset(_log.columns):
+                _exit_meta: Dict[str, dict] = {}
+                has_bh = "bars_held" in _log.columns
+                has_rsn = "reason" in _log.columns
+                for _, _r in _log[_log["action"] == "exit"].iterrows():
+                    _oid = str(_r.get("order_id")).strip()
+                    if _oid and _oid.lower() not in ("", "nan", "none"):
+                        _meta = {}
+                        if has_bh:
+                            _bh = _r.get("bars_held")
+                            try:
+                                _meta["bars_held"] = int(float(_bh)) if pd.notna(_bh) else None
+                            except (TypeError, ValueError):
+                                _meta["bars_held"] = None
+                        if has_rsn:
+                            _rsn = _r.get("reason")
+                            _meta["exit_reason"] = str(_rsn) if pd.notna(_rsn) else ""
+                        _exit_meta[_oid] = _meta
+                for _rt in round_trips:
+                    if _rt.exit_order_id and _rt.exit_order_id in _exit_meta:
+                        _m = _exit_meta[_rt.exit_order_id]
+                        if "bars_held" in _m and _rt.bars_held is None:
+                            _rt.bars_held = _m["bars_held"]
+                        if "exit_reason" in _m and not _rt.exit_reason:
+                            _rt.exit_reason = _m["exit_reason"]
+    except Exception:  # noqa: BLE001
+        pass
+
     expected = load_expected_returns(leaderboard_path)
     slippage, signed_gap = _measure_signal_gaps(round_trips, paper_log_path)
 
