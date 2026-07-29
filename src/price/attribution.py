@@ -282,6 +282,16 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
             exit_price = _get(exit_row, "resolved_price", 0.0)
 
             while exit_qty_remaining > 1e-9 and pending_entries:
+                # CAUSALITY GUARD: an exit can only close an entry that
+                # already happened. Without this, once all genuinely prior
+                # entries are consumed the FIFO queue happily pops a LATER
+                # entry and books a round-trip that exits before it enters.
+                # Measured 2026-07-29: 6 of 25 round-trips were impossible,
+                # inflating reported realized P&L by +260.47 while the broker
+                # account was actually down -111.07. The docstring said
+                # "matched FIFO by timestamp"; the code never checked.
+                if pending_entries[0][0] > exit_ts:
+                    break
                 ent_ts, ent_row = pending_entries.pop(0)
                 ent_qty = pending_residuals.pop(id(ent_row), _get(ent_row, "resolved_qty", 0.0))
                 if ent_qty <= 0:

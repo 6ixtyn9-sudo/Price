@@ -347,3 +347,45 @@ def test_attribute_pnl_json_serializable(tmp_path):
     report = attribute_pnl(journal=j)
     s = json.dumps(report, default=str)
     assert json.loads(s)["summary"]["n_round_trips"] == 1
+
+
+def test_exit_cannot_close_a_later_entry():
+    """Causality guard: a round-trip must never exit before it enters.
+
+    Regression for the 2026-07-29 finding. FIFO matching consumed entries in
+    timestamp order but never checked that the popped entry PRECEDED the exit.
+    Once genuinely-prior entries were exhausted, an exit paired with a future
+    entry and booked fictional profit: 6 of 25 live round-trips were
+    impossible, inflating reported P&L by +260.47 while the broker account was
+    down -111.07.
+    """
+    import pandas as pd
+    from price.attribution import reconstruct_round_trips
+
+    rows = [
+        ("entry", 9, 217.15, "2026-07-14T15:24:00Z", "e1"),
+        ("exit",  9, 213.47, "2026-07-22T15:22:00Z", "x1"),
+        ("exit",  8, 202.79, "2026-07-27T16:20:00Z", "x2"),  # no prior entry left
+        ("entry", 4, 194.00, "2026-07-28T15:31:00Z", "e2"),  # LATER than x2
+        ("entry", 8, 191.17, "2026-07-28T17:24:00Z", "e3"),  # LATER than x2
+    ]
+    j = pd.DataFrame([{
+        "action": a, "symbol": "KLAC", "qty": q, "filled_qty": q,
+        "filled_avg_price": p, "status": "filled", "broker_status": "filled",
+        "submitted_at": t, "timestamp_utc": t, "order_id": oid,
+        "side": "buy" if a == "entry" else "sell", "timeframe": "1d",
+        "bin_mode": "rolling", "slice_label": "test", "entry_bar_ts": t,
+    } for a, q, p, t, oid in rows])
+
+    rts = reconstruct_round_trips(j)
+    ts = dict(zip(j["order_id"], j["submitted_at"]))
+
+    for r in rts:
+        assert ts[r.exit_order_id] >= ts[r.entry_order_id], (
+            f"round-trip exits {ts[r.exit_order_id]} before it enters "
+            f"{ts[r.entry_order_id]}"
+        )
+
+    # Only the one genuine round-trip survives; the two phantoms are dropped.
+    assert len(rts) == 1
+    assert round(sum(r.gross_pnl for r in rts), 2) == -33.12
