@@ -350,3 +350,26 @@ def test_pure_horizon_exits_ignores_state_break(monkeypatch):
     )
     assert intents[0]["action"] == "hold"
     assert "horizon" not in intents[0]["reason"]
+
+
+def test_pure_horizon_exits_still_exits_when_bars_held_unknown(monkeypatch):
+    # Immortal-trade guard: if we cannot bound how long we've held
+    # (bars_held is None because entry_bar_ts/submitted_at are missing),
+    # pure-horizon mode must NOT suppress the state-break exit, or the
+    # position could be held indefinitely with no time stop.
+    df = _syn_warehouse(80)
+    ctx = {"XLF": {
+        "slice_combination": SLICE,
+        "timeframe": "1d",
+        "exit_horizon": 10,
+        # No entry_bar_ts and no submitted_at -> bars_held is None.
+    }}
+    _setup(monkeypatch, df, ctx, STABLE_MISMATCH)
+
+    intents = check_exits(
+        _positions_df(),
+        {"XLF": SLICE},
+        exit_policy=ExitPolicy(horizon_bars=10, pure_horizon_exits=True),
+    )
+    assert intents[0]["action"] == "exit"
+    assert "stable filter broken" in intents[0]["reason"]

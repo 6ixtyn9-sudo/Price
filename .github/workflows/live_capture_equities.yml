@@ -117,7 +117,8 @@ jobs:
             --eod-profit-lock-r 0.75 \
             --eod-lock-minutes 45 \
             --giveback-trigger-r 2.0 \
-            --max-giveback-r 1.0
+            --max-giveback-r 1.0 \
+            --pure-horizon-exits
 
       - name: Run live forward-return capture
         env:

@@ -797,8 +797,19 @@ def check_exits(
 
         exit_reasons: List[str] = []
         if mismatches:
-            if exit_policy.pure_horizon_exits and ps_horizon > 0:
-                pass  # pure horizon mode: ignore stable state-break during active horizon hold window
+            # Pure-horizon hold suppresses the state-break exit ONLY during the
+            # active window: we can bound the hold (bars_held known) AND we are
+            # still short of the horizon. If bars_held is unknown we cannot
+            # bound the hold, so we degrade to the legacy state-break exit
+            # rather than risk an immortal (unbounded) trade that only a
+            # trailing/profit stop can ever close.
+            if (
+                exit_policy.pure_horizon_exits
+                and ps_horizon > 0
+                and bars_held is not None
+                and bars_held < ps_horizon
+            ):
+                pass  # pure horizon mode: ignore stable state-break during the active hold window only
             else:
                 exit_reasons.append("stable filter broken: " + "; ".join(mismatches))
 
