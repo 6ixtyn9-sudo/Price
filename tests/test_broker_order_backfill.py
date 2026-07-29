@@ -78,6 +78,26 @@ def _fake_fetch_fn(df):
     return _fn
 
 
+def _short_entry_and_cover(symbol="AMC", qty=480.0):
+    """A filled short sale followed by its filled buy-to-cover."""
+    return pd.DataFrame([
+        {
+            "order_id": f"{symbol}-short-entry", "client_order_id": "",
+            "symbol": symbol, "side": "sell", "order_type": "limit",
+            "status": "filled", "qty": qty, "filled_qty": qty,
+            "filled_avg_price": 2.19, "filled_at": "2026-07-20T14:30:00+00:00",
+            "submitted_at": "2026-07-20T14:19:00+00:00", "created_at": "2026-07-20T14:19:00+00:00",
+        },
+        {
+            "order_id": f"{symbol}-short-cover", "client_order_id": "",
+            "symbol": symbol, "side": "buy", "order_type": "market",
+            "status": "filled", "qty": qty, "filled_qty": qty,
+            "filled_avg_price": 2.21, "filled_at": "2026-07-20T14:46:00+00:00",
+            "submitted_at": "2026-07-20T14:45:00+00:00", "created_at": "2026-07-20T14:45:00+00:00",
+        },
+    ])
+
+
 @pytest.fixture(autouse=True)
 def _isolated_journal(tmp_path, monkeypatch):
     """Redirect the trade journal so tests never touch localdata/."""
@@ -389,3 +409,52 @@ def test_attribution_reconstructs_from_enter_exit_actions():
     assert report["summary"]["total_realized_pnl"] == pytest.approx(20.0)
     # The unattributed note must be present.
     assert any("UNATTRIBUTED_BROKER_FILL" in n for n in report["notes"])
+
+
+def test_backfill_classifies_missing_short_cover_as_exit(tmp_path):
+    """Regression: AMC/BITO buy-to-cover must not become a new long entry."""
+    journal_path = tmp_path / "trade_journal.csv"
+    fills = _short_entry_and_cover("AMC", 480.0)
+
+    # The short sale was journaled by the live runner; only the broker-confirmed
+    # market buy cover is absent, matching the live AMC/BITO failure.
+    existing = fills.iloc[[0]].copy()
+    existing["action"] = "entry"
+    existing["slice_label"] = "known-short-slice"
+    existing.to_csv(journal_path, index=False)
+
+    result = trading.backfill_trade_journal_from_broker_orders(
+        journal_path=journal_path,
+        dry_run=False,
+        _get_filled_orders_fn=_fake_fetch_fn(fills),
+    )
+    assert result["rows_to_add"] == 1
+    assert result["enter_rows_added"] == 0
+    assert result["exit_rows_added"] == 1
+
+    journal = pd.read_csv(journal_path)
+    cover = journal[journal["order_id"] == "AMC-short-cover"].iloc[0]
+    assert cover["action"] == "exit"
+    assert cover["side"] == "buy"
+
+    rts = reconstruct_round_trips(journal)
+    assert len(rts) == 1
+    assert rts[0].side == "short"
+    assert rts[0].qty == 480.0
+    assert rts[0].gross_pnl == pytest.approx(-9.6)
+
+
+def test_backfill_classifies_missing_short_entry_sell_as_enter(tmp_path):
+    """A sell from flat is a short entry, not an exit."""
+    journal_path = tmp_path / "trade_journal.csv"
+    fills = _short_entry_and_cover("BITO", 101.0).iloc[[0]].copy()
+
+    result = trading.backfill_trade_journal_from_broker_orders(
+        journal_path=journal_path,
+        dry_run=False,
+        _get_filled_orders_fn=_fake_fetch_fn(fills),
+    )
+    assert result["rows_to_add"] == 1
+    assert result["enter_rows_added"] == 1
+    assert result["exit_rows_added"] == 0
+    assert pd.read_csv(journal_path).iloc[0]["action"] == "enter"

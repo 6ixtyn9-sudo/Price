@@ -1117,6 +1117,46 @@ def get_recent_filled_orders(lookback_days: int = 60) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _infer_backfill_actions_from_signed_fills(broker_orders: pd.DataFrame) -> dict:
+    """Return {order_id: enter|exit} using chronological signed inventory.
+
+    Alpaca order side is an execution direction, not an economic action: a
+    sell may open a short and a buy may cover it.  The full broker fill stream
+    is therefore grouped by symbol and replayed in time.  Paper trading does
+    not intentionally reverse a position in one order; if a historical fill
+    crosses through zero, retain it as an ``exit`` (the close component) rather
+    than falsely claiming a new entry for attribution.
+    """
+    if broker_orders is None or broker_orders.empty:
+        return {}
+
+    orders = broker_orders.copy()
+    orders["_fill_ts"] = pd.to_datetime(
+        orders.get("filled_at", orders.get("submitted_at")), errors="coerce", utc=True,
+    )
+    orders = orders.dropna(subset=["_fill_ts"]).sort_values(["symbol", "_fill_ts", "order_id"])
+    actions = {}
+    for symbol, group in orders.groupby(orders["symbol"].astype(str).str.upper(), sort=False):
+        signed_qty = 0.0
+        for _, order in group.iterrows():
+            order_id = str(order.get("order_id", "")).strip()
+            side = str(order.get("side", "")).lower()
+            try:
+                qty = float(order.get("filled_qty"))
+            except (TypeError, ValueError):
+                continue
+            if not order_id or qty <= 0 or side not in {"buy", "sell"}:
+                continue
+
+            delta = qty if side == "buy" else -qty
+            # A fill closes when it reduces an already-open opposite signed
+            # inventory. Otherwise it opens/adds to a position.
+            action = "exit" if signed_qty and signed_qty * delta < 0 else "enter"
+            actions[order_id] = action
+            signed_qty += delta
+    return actions
+
+
 def backfill_trade_journal_from_broker_orders(
     journal_path: Optional[Path] = None,
     lookback_days: int = 60,
@@ -1136,9 +1176,10 @@ def backfill_trade_journal_from_broker_orders(
       - Never reads or infers context from would_enter, stop_adopted,
         dry-run rows, or any non-entry audit rows.
 
-    action convention (matches trade_journal.csv):
-        buy  -> action = "enter"
-        sell -> action = "exit"
+    Entry/exit is inferred from the *chronological signed broker fill
+    inventory*, never from order side alone. A sell can open a short and a
+    buy can cover it (and vice versa for longs). The prior buy->enter,
+    sell->exit rule corrupted short-cover attribution in live history.
 
     Returns a summary dict:
         {
@@ -1188,6 +1229,11 @@ def backfill_trade_journal_from_broker_orders(
             "dry_run": dry_run,
         }
 
+    # Replay the complete broker stream, including orders already journaled,
+    # before selecting missing rows.  Existing journal presence must not alter
+    # the signed inventory used to classify a later missing fill.
+    inferred_actions = _infer_backfill_actions_from_signed_fills(broker_orders)
+
     # --- Determine which orders are new ---
     new_rows = []
     n_skipped = 0
@@ -1202,14 +1248,12 @@ def backfill_trade_journal_from_broker_orders(
             continue
 
         side = str(o.get("side", "")).lower()
-        if side in ("buy",):
-            action = "enter"
-        elif side in ("sell",):
-            action = "exit"
-        else:
-            # Ambiguous side (e.g. "short_cover", "short_entry") — still
-            # record as broker fill but flag clearly.
-            action = "exit" if "sell" in side else "enter"
+        action = inferred_actions.get(oid)
+        if action not in {"enter", "exit"}:
+            # get_recent_filled_orders should already exclude this case, but
+            # never write an order whose economic effect is unknowable.
+            n_skipped += 1
+            continue
 
         filled_at = str(o.get("filled_at", "")).strip()
         submitted_at = str(o.get("submitted_at", "")).strip()
