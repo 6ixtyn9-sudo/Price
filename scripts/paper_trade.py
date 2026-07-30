@@ -196,6 +196,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
             # (DYNAMIC, ATR-scaled) threshold. Fail OPEN: no live price or no
             # computable threshold -> do not block trading.
             _adverse_bps = resolve_adverse_threshold_bps(_atr, signal_close, adverse_atr_mult, max_adverse_fill_bps)
+            adverse_guard_state = "disabled"
             if _adverse_bps is not None and _adverse_bps > 0:
                 from price.trading import get_latest_price, is_stale_entry
                 _entry_side = sig.get("suggested_side", "buy")
@@ -221,6 +222,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
                         **_strip_known_keys(sig, ["action"]),
                     })
                     continue
+                adverse_guard_state = "skipped_no_price" if _gap is None else "passed"
 
             if qty <= 0:
                 counts["entry_blocked"] += 1
@@ -250,6 +252,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
                     "qty": qty,
                     "slice_label": slice_label,
                     "limit_price": limit_price,
+                    "adverse_guard": adverse_guard_state,
                     **_strip_known_keys(sig, ["action", "symbol", "qty"]),
                 })
                 continue
@@ -280,6 +283,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
                 "order_id": result.get("order_id"),
                 "order_status": result.get("status"),
                 "error": result.get("error"),
+                "adverse_guard": adverse_guard_state,
                 **_strip_known_keys(sig, ["action", "symbol", "qty"]),
             })
 

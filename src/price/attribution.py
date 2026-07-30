@@ -40,7 +40,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from price.config import DATA_DIR
-
+from price.cost_model import default_cost_model
 
 TRADE_JOURNAL_PATH = DATA_DIR / "trade_journal.csv"
 PAPER_TRADE_LOG_PATH = DATA_DIR / "paper_trade_log.csv"
@@ -524,7 +524,9 @@ def attribute_pnl(
         n = len(rts)
         mean_ret = sum(r.gross_return for r in rts) / n
         slip = slippage.get(key)
-        net = mean_ret - (slip * 2.0 / 10000.0) if slip is not None else None
+        # Use the global cost model for expected drag; do not double-count the signal gap slippage.
+        cm = default_cost_model()
+        net = mean_ret - cm.round_trip_drag()
         slice_attrs.append(SliceAttribution(
             slice_combination=first.slice_combination,
             symbol=first.symbol,

@@ -278,6 +278,15 @@ def get_current_state(
     if df_warehouse.empty:
         return None
 
+    if "bar_ts_utc" in df_warehouse.columns:
+        import datetime
+        last_ts = pd.to_datetime(df_warehouse["bar_ts_utc"].iloc[-1], errors="coerce", utc=True)
+        if pd.notna(last_ts):
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            if (now_utc - last_ts).days > 7:
+                # Warehouse is stale, gracefully refuse to trade to avoid inaccurate state evaluation
+                return None
+
     if "close_adj" not in df_warehouse.columns:
         df_warehouse["open_adj"] = df_warehouse.get("open_raw", df_warehouse.get("open", np.nan))
         df_warehouse["high_adj"] = df_warehouse.get("high_raw", df_warehouse.get("high", np.nan))

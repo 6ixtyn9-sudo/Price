@@ -934,8 +934,29 @@ def submit_exit(symbol: str, qty: int, side: str = "sell") -> dict:
         time_in_force=TimeInForce.GTC if "/" in symbol else TimeInForce.DAY,
     )
 
+    pre_close_snapshot = {}
+    try:
+        positions = get_open_positions()
+        if positions is not None and not positions.empty:
+            match = positions[positions["symbol"].astype(str).str.upper() == symbol.upper()]
+            if not match.empty:
+                row = match.iloc[0]
+                pre_close_snapshot = {
+                    "avg_entry_price": float(row.get("avg_entry_price")) if row.get("avg_entry_price") is not None else None,
+                    "current_price": float(row.get("current_price")) if row.get("current_price") is not None else None,
+                }
+    except Exception:  # noqa: BLE001
+        pre_close_snapshot = {}
+
     try:
         order = client.submit_order(order_data)
+        filled_price = getattr(order, "filled_avg_price", None)
+        if filled_price is not None:
+            try:
+                filled_price = float(filled_price)
+            except Exception:
+                filled_price = None
+                
         result = {
             "order_id": str(order.id),
             "symbol": symbol.upper(),
@@ -945,6 +966,8 @@ def submit_exit(symbol: str, qty: int, side: str = "sell") -> dict:
             "time_in_force": "gtc" if "/" in symbol else "day",
             "status": _enum_value(order.status),
             "submitted_at": str(order.submitted_at),
+            "avg_entry_price": pre_close_snapshot.get("avg_entry_price"),
+            "current_price": filled_price if filled_price is not None else pre_close_snapshot.get("current_price"),
         }
     except Exception as e:
         result = {
@@ -955,6 +978,8 @@ def submit_exit(symbol: str, qty: int, side: str = "sell") -> dict:
             "order_type": "market",
             "status": "rejected",
             "error": str(e),
+            "avg_entry_price": pre_close_snapshot.get("avg_entry_price"),
+            "current_price": pre_close_snapshot.get("current_price"),
         }
 
     _append_journal(result, action="exit")
