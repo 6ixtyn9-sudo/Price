@@ -1,18 +1,4 @@
 {
-  "LRCX": {
-    "symbol": "LRCX",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 260.58,
-    "initial_stop_price": 216.05,
-    "current_stop_price": 216.05,
-    "r_per_share": 44.52999999999997,
-    "stage": "initial",
-    "extreme_price": 260.58,
-    "stop_order_id": "44dde768-f3c9-4634-9a91-d750c4f28b20",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "XLF": {
     "symbol": "XLF",
     "side": "long",
@@ -52,20 +38,6 @@
     "stage": "initial",
     "extreme_price": 240.23,
     "stop_order_id": "41680664-e2a5-4194-a0c8-b7f17e75307e",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "KLAC": {
-    "symbol": "KLAC",
-    "side": "long",
-    "qty": 13.0,
-    "entry_price": 182.44,
-    "initial_stop_price": 154.77,
-    "current_stop_price": 154.77,
-    "r_per_share": 27.669999999999987,
-    "stage": "initial",
-    "extreme_price": 182.44,
-    "stop_order_id": "8b570e43-50e2-48db-93ae-c68a0c248f4a",
     "opened_at": "",
     "updated_at": ""
   }
