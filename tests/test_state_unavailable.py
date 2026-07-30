@@ -40,7 +40,7 @@ def temp_warehouse(tmp_path, monkeypatch):
     # the *adj columns directly rather than relying on
     # propagate_adjustment_factors to derive them.
     xlf = pd.DataFrame({
-        "bar_ts_utc": pd.date_range("2026-04-01", periods=n, freq="D", tz="UTC"),
+        "bar_ts_utc": pd.date_range(pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=n - 1), periods=n, freq="D", tz="UTC"),
         "open_raw": [50.0 + i * 0.1 for i in range(n)],
         "high_raw": [50.5 + i * 0.1 for i in range(n)],
         "low_raw": [49.5 + i * 0.1 for i in range(n)],
@@ -58,7 +58,7 @@ def temp_warehouse(tmp_path, monkeypatch):
     # so compute_price_features can run -- the NaN on close_adj
     # is what should trigger state_unavailable in monitor.
     spy = pd.DataFrame({
-        "bar_ts_utc": pd.date_range("2026-04-01", periods=n, freq="D", tz="UTC"),
+        "bar_ts_utc": pd.date_range(pd.Timestamp.now(tz="UTC").normalize() - pd.Timedelta(days=n - 1), periods=n, freq="D", tz="UTC"),
         "open_raw": [400.0 + i * 0.1 for i in range(n)],
         "high_raw": [401.0 + i * 0.1 for i in range(n)],
         "low_raw": [399.0 + i * 0.1 for i in range(n)],
