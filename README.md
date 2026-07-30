@@ -56,3 +56,8 @@ git status --short
 git pull --ff-only
 git log --oneline --decorate -3
 PYTHONPATH=src python3 scripts/attribute_pnl.py --sync-broker --json
+
+
+# The merge fails because your local localdata/ diverges from GHA's. Discard it before pulling so there's nothing to conflict:
+
+git checkout -- localdata/ && git pull --rebase origin main
