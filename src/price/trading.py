@@ -182,6 +182,34 @@ def is_stale_entry(
     return adverse, gap
 
 
+def entry_limit_with_premium(
+    signal_close: Optional[float], premium_bps: float = 0.0
+) -> Optional[float]:
+    """Entry LIMIT price, raised by ``premium_bps`` above the signal close.
+
+    Winner-capture: the limit previously sat exactly on the signal close, so a
+    limit *buy* could only fill when price was at/below the signal -- the
+    engine filled falling-knife setups (since capped by the adverse-fill guard)
+    and systematically MISSED every setup that rallied after the signal.
+    Raising the limit a touch lets modest follow-through rallies fill; the
+    raised limit itself caps the upside (a blowoff above the premium simply
+    won't fill, so no chasing). The adverse-fill guard still measures against
+    ``signal_close`` (the researched entry), not this raised limit.
+
+    Returns None if ``signal_close`` is missing/non-finite/<= 0.
+    """
+    try:
+        sc = float(signal_close)
+        if sc != sc or sc <= 0:
+            return None
+        p = float(premium_bps) if premium_bps is not None else 0.0
+        if p != p:
+            p = 0.0
+        return sc * (1.0 + p / 10000.0)
+    except (TypeError, ValueError):
+        return None
+
+
 
 def _remove_position_from_ledger(symbol: str) -> None:
     import glob
