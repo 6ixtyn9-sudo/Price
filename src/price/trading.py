@@ -211,6 +211,74 @@ def entry_limit_with_premium(
 
 
 
+def _atr_bps(atr_price: Optional[float], signal_close: Optional[float]) -> Optional[float]:
+    """Volatility of one bar, expressed in basis points of the signal close.
+
+    This is the dynamic unit for the entry bands: a move of N ATRs means N
+    typical bars, regardless of the symbol's price level or absolute
+    volatility. A $500 semi and a $50 ETF are both judged in their OWN
+    volatility units, so a flat bps cutoff is never the wrong size. Returns
+    None if not computable.
+    """
+    try:
+        a, sc = float(atr_price), float(signal_close)
+        if a != a or sc != sc or a <= 0 or sc <= 0:
+            return None
+        return a / sc * 10000.0
+    except (TypeError, ValueError):
+        return None
+
+
+def resolve_adverse_threshold_bps(
+    atr_price: Optional[float],
+    signal_close: Optional[float],
+    atr_mult: float,
+    cap_bps: float = 0.0,
+) -> Optional[float]:
+    """Dynamic falling-knife threshold in bps.
+
+    PRIMARY mechanism: ``atr_mult`` x ATR(bps) -- reject an entry when the
+    live price has moved more than this many typical bars against the signal.
+    Volatility-normalised, so a sleepy utility gets a tight band and a
+    high-beta name gets a wide one, automatically -- no static bps guess that
+    is simultaneously too loose for one symbol and too tight for another.
+
+    ``cap_bps`` (> 0) is an OPTIONAL hard ceiling; 0 = uncapped. Returns None
+    when no threshold can be computed (no ATR / no mult): callers must then
+    DISABLE the guard (fail open), never block trading on missing vol data.
+    """
+    atr_bps = _atr_bps(atr_price, signal_close)
+    if atr_bps is None or not atr_mult or atr_mult <= 0:
+        return float(cap_bps) if cap_bps and cap_bps > 0 else None
+    thr = atr_mult * atr_bps
+    if cap_bps and cap_bps > 0:
+        thr = min(thr, float(cap_bps))
+    return thr
+
+
+def resolve_entry_premium_bps(
+    atr_price: Optional[float],
+    signal_close: Optional[float],
+    atr_mult: float,
+    cap_bps: float = 0.0,
+) -> float:
+    """Dynamic winner-capture premium in bps (how far above the signal close
+    the entry LIMIT is raised so modest rallies still fill).
+
+    PRIMARY: ``atr_mult`` x ATR(bps) -- pay up to this many typical bars
+    above the signal to capture follow-through. ``cap_bps`` (> 0) is an
+    OPTIONAL hard ceiling; 0 = uncapped. Returns 0.0 when it can't be
+    computed (no ATR) -- callers then set the limit on the signal close.
+    """
+    atr_bps = _atr_bps(atr_price, signal_close)
+    if atr_bps is None or not atr_mult or atr_mult <= 0:
+        return float(cap_bps) if cap_bps and cap_bps > 0 else 0.0
+    prem = atr_mult * atr_bps
+    if cap_bps and cap_bps > 0:
+        prem = min(prem, float(cap_bps))
+    return prem
+
+
 def _remove_position_from_ledger(symbol: str) -> None:
     import glob
     import os

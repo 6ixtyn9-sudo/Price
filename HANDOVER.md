@@ -5853,28 +5853,28 @@ Exit-horizon CLI flag removal does nothing. My fix (remove --exit-horizon 5 from
 stop_atr_mult is non-functional everywhere. Column is NaN (or missing) for all equity rows, missing from crypto. The column was plumbed but never populated from the leaderboard. float(NaN) → NaN → fallback to limits.stop_atr_multiple — accidentally correct but not evidence of working per-slice plumbing.
 
 New findings Antigravity discovered:
-ID	Severity	Finding	Fixed?
-N1	HIGH	delta_spike_guard.py only guards equity paths — crypto/futures journals have zero spike protection	✅ Yes
-N2	HIGH	15 crypto slices are regime-conditional shorts running without --regime-filter — bear-regime slices execute in bull markets	⬜ No (needs operator decision)
-N3	MEDIUM	Crypto push loop is broken — if [ $? -eq 0 ]; then break; fi checks sleep exit code (always 0), not git push. Always runs all 5 attempts.	✅ Yes
-N4	MEDIUM	stop_atr_mult column is NaN/missing for ALL slices — per-slice stop sizing is non-functional	⬜ No (Phase 1)
-N5	MEDIUM	Futures ingest wastes API calls on 5 hardcoded symbols when book is empty	✅ Yes (fixed in this session)
-N6	LOW	monitor.py hardcoded DEFAULT_MONITORED_SLICES fallback trades 4 unvalidated slices on fresh runner with cache miss	⬜ No
-N7	LOW	Futures ingest uses --days 365 regardless of warehouse freshness	⬜ No
-N8	LOW	system_health.py exists but is called from no workflow	⬜ No
+ID Severity Finding Fixed?
+N1 HIGH delta_spike_guard.py only guards equity paths — crypto/futures journals have zero spike protection ✅ Yes
+N2 HIGH 15 crypto slices are regime-conditional shorts running without --regime-filter — bear-regime slices execute in bull markets ⬜ No (needs operator decision)
+N3 MEDIUM Crypto push loop is broken — if [ $? -eq 0 ]; then break; fi checks sleep exit code (always 0), not git push. Always runs all 5 attempts. ✅ Yes
+N4 MEDIUM stop_atr_mult column is NaN/missing for ALL slices — per-slice stop sizing is non-functional ⬜ No (Phase 1)
+N5 MEDIUM Futures ingest wastes API calls on 5 hardcoded symbols when book is empty ✅ Yes (fixed in this session)
+N6 LOW monitor.py hardcoded DEFAULT_MONITORED_SLICES fallback trades 4 unvalidated slices on fresh runner with cache miss ⬜ No
+N7 LOW Futures ingest uses --days 365 regardless of warehouse freshness ⬜ No
+N8 LOW system_health.py exists but is called from no workflow ⬜ No
 Phase 0 surgical fixes deployed
 All fixes are on main — no new features, no architecture changes, no lane additions:
 
-P0-F1: Created 
+P0-F1: Created
 sync_monitored_futures.py
 Replaces the 40-line inlined Python in live_capture_futures.yml with a proper script that calls _tradeable_candidate(). Writes header-only CSV when 0 candidates pass (gate honest). Emits GITHUB_STEP_SUMMARY diagnostic.
 
 P0-F2: Removed research_crypto.py from crypto capture job
 The sync step in live_capture_crypto.yml no longer calls python scripts/research_crypto.py --timeframes 1d --regime-only. It only reads existing monitored_candidates_crypto.csv via sync_monitored_crypto.py. Research is a separate workflow; capture jobs must not launch research.
 
-P0-F3: Created 
+P0-F3: Created
 canary_empty_book.py
-Cross-lane empty-book canary. Exits 1 if ALL books are empty (probable gate regression). Warns on unexpected-empty (equities, crypto). Logs expected-empty (futures). Tracks consecutive emptiness in 
+Cross-lane empty-book canary. Exits 1 if ALL books are empty (probable gate regression). Warns on unexpected-empty (equities, crypto). Logs expected-empty (futures). Tracks consecutive emptiness in
 book_history.json
 .
 
@@ -5890,7 +5890,7 @@ Added 6 crypto/futures paths to GUARDED list: trade_journal_crypto.csv, paper_tr
 P0-F7: Clear futures rogue entries
 
 monitored_slices_futures.csv
- cleared to header-only. The 4 entries (FUT/CL, FUT/NQ×2, FUT/ES) were from the leaderboard fallback that bypassed _tradeable_candidate().
+cleared to header-only. The 4 entries (FUT/CL, FUT/NQ×2, FUT/ES) were from the leaderboard fallback that bypassed _tradeable_candidate().
 
 P0-F8: Removed --exit-horizon and --stop-atr-mult CLI flags from all three workflows
 Equities: removed --exit-horizon 5 --stop-atr-mult 2.0
@@ -6403,7 +6403,7 @@ ratio is healthy, not a shortfall.
 
 Session Update — Phase 1 Per-Slice Wiring Deployed & Test Window Bug Fixed (2026-07-29)
 Context
-Operator requested implementation of Phase 1 Per-Slice Wiring (check_exits() and stop_atr_mult plumbing) as outlined in the July 26 Phase 0 audit and Phase 1 roadmap in 
+Operator requested implementation of Phase 1 Per-Slice Wiring (check_exits() and stop_atr_mult plumbing) as outlined in the July 26 Phase 0 audit and Phase 1 roadmap in
 HANDOVER.md
 .
 
@@ -6414,19 +6414,18 @@ position_manager.py
 
 check_exits() now resolves ps_horizon from the position's journaled exit_horizon OR looks up exit_horizon from the monitored book (monitored_slices*.csv) via lookup_slice_parameters(symbol, slice_combo) when the journal entry is missing or legacy.
 Global exit_policy.horizon_bars is now strictly a fallback when neither the trade journal nor the monitored book defines a horizon for that slice.
-Added two new unit tests in 
+Added two new unit tests in
 test_position_manager.py
- (test_check_exits_uses_per_slice_horizon_overrides_global and test_check_exits_lookups_horizon_from_monitored_book_if_missing_in_context).
-Plumbed stop_atr_mult & exit_horizon across all 3 Substrates (scripts/sync_monitored*.py & 
+(test_check_exits_uses_per_slice_horizon_overrides_global and test_check_exits_lookups_horizon_from_monitored_book_if_missing_in_context).
+Plumbed stop_atr_mult & exit_horizon across all 3 Substrates (scripts/sync_monitored*.py &
 research_lifecycle.py
 ):
-
 
 sync_monitored.py
 : Populates stop_atr_mult and enriches exit_horizon from the union leaderboard (_load_union_leaderboard()) when available, preserving any manual per-slice overrides in monitored_slices.csv.
 
 sync_monitored_crypto.py
- and 
+and
 sync_monitored_futures.py
 : Added exit_horizon (default 5) and stop_atr_mult (default None) columns to both monitored books so all three substrates (equities, crypto, futures) share an identical schema.
 Fixed EOD Time-Window Bug in Test Suite (
@@ -6437,17 +6436,53 @@ Resolved an issue where running pytest within 45 minutes of the NYSE regular-ses
 Set @dataclass class ProfitPolicy defaults to None for opt-in thresholds (take_profit_r=None, eod_profit_lock_r=None, giveback_trigger_r=None), matching the class docstring ("all checks are opt-in via thresholds > 0") while keeping explicit CLI flags in paper_trade.py.
 Added Pure Horizon Hold Mode (--pure-horizon-exits / pure_horizon_exits) to Eliminate Hourly Whipsaw:
 
-Operator observation: hourly (1h) slices (AMT, HUM, GOLD) were exiting after 1–2 bars on stable_state_break and re-entering higher an hour later when state flipped back, paying spread/slippage twice. This violated research validation (fwd_ret_N), which measures holding unconditionally for 
+Operator observation: hourly (1h) slices (AMT, HUM, GOLD) were exiting after 1–2 bars on stable_state_break and re-entering higher an hour later when state flipped back, paying spread/slippage twice. This violated research validation (fwd_ret_N), which measures holding unconditionally for
 N
 N bars.
-Added pure_horizon_exits: bool = False to ExitPolicy and --pure-horizon-exits flag to 
+Added pure_horizon_exits: bool = False to ExitPolicy and --pure-horizon-exits flag to
 paper_trade.py
 . When enabled, any position with an active time horizon (ps_horizon > 0) ignores stable_state_break during the hold window, holding for its validated horizon without premature whipsaw. Defaults to False to preserve legacy hybrid behavior unless opted in.
 Verification & Current Posture
 Test suite: 505 passed, 1 skipped (100% pass rate).
 All three sync scripts (sync_monitored.py, sync_monitored_crypto.py, sync_monitored_futures.py) run cleanly and generate consistent 8-column monitored schemas.
-Anti-drift rules stand: no leverage, no options/forex, no premature P&L culling before 
+Anti-drift rules stand: no leverage, no options/forex, no premature P&L culling before
 n
 ≥
 5
 n≥5 round-trips per slice.
+
+Session Update — Whipsaw Exit Hardening, Falling-Knife Entry Guard, Winner-Capture & Dynamic ATR Entry Bands (2026-07-30)
+Date: 2026-07-30
+
+Context
+A red-team pass (Antigravity) stress-tested the 2026-07-29 Phase 1 work. Of its 5 findings, one was a real bug in the new code (immortal trade when bars_held is unknown — already fixed in d98cefc); the "CRITICAL sync-script override" was correctly REJECTED because preserving manual overrides inside the derived monitored_slices.csv would violate the repo's "derived book, last-writer-wins, never text-merged" doctrine (the exact corruption commit_research_book.sh was built to prevent). The rest drove two high-ROI fixes plus a visibility upgrade. The session then attacked the two halves of the realized-P&L bleed separately: premature exits (whipsaw) and bad entries (falling knives + missed winners).
+
+Summary of Changes Shipped (on main, through ddd0467)
+
+bars_held + exit_reason attribution backfill (c038b45)
+
+ROOT CAUSE: reconstruct_round_trips read bars_held from the TRADE JOURNAL, which has no such column (28 cols, none named bars_held) -> always null. The value lives in the PAPER AUDIT LOG (paper_trade_log.csv), written by check_exits and keyed by the exit order_id.
+FIX: attribute_pnl() backfills BOTH bars_held and exit_reason by joining each round trip's exit_order_id to the audit log's exit rows. Proven: 31/32 round trips now populate both (was 0/32). This unlocked per-trade diagnosis: "horizon reached" (legit) vs "stable filter broken" (premature).
+held=0 carve-out for pure-horizon (27da1ec)
+
+A state-break on the very first bar (bars_held == 0) is an entry that never confirmed (typically a next-day falling-knife fill), NOT transient whipsaw. Pure-horizon now requires bars_held >= 1 before suppressing the state-break exit, so a never-confirmed entry still exits instead of being dragged to its horizon. The immortal-trade guard (bars_held unknown -> still exit) from d98cefc stands.
+Falling-knife entry guard (8cb373f): --max-adverse-fill-bps (default 200)
+
+ROOT CAUSE: the entry limit sat exactly on the signal-bar close, and daily signals are acted on the NEXT session. A limit BUY above a falling market fills instantly at the lower live price -> the "limit" gave zero protection and systematically bought declines. Proven on LRCX (signal 291.61 @ 07-27, filled 265.79 @ 07-28, -885 bps) and KLAC (re-filled lower every day of its crash).
+FIX: before submitting, fetch the live price (trading.get_latest_price) and skip the entry when it has moved more than the threshold bps against the signal close (trading.is_stale_entry). Fails OPEN (no live price -> allow). Proven it would have blocked the 8 worst knives and avoided ~$592 of ~$678 realized loss, with 0 false positives on good fills.
+Winner-capture (ddd0467): --entry-premium-bps (default 50)
+
+The mirror problem: because the limit sat ON the signal close, the engine could ONLY fill when price fell. All 28 historical fills were <= 0 bps -- it never once captured a setup that rallied. Anti-selecting its own edge.
+FIX: raise the limit by the premium bps above the signal close so modest rallies fill; the raised limit caps the upside (no chasing); the adverse guard still measures against the signal close.
+Visibility, Verification & Current Posture
+
+Test suite on shipped main (ddd0467): 520 passed.
+bars_held / exit_reason now visible per round trip -- the key diagnostic for confirming in live runs whether pure-horizon and the entry guards are working (watch: stale_signal_adverse_gap blocks in the audit log; signal_to_fill_bps distribution shifting toward 0 and finally showing POSITIVE values from captured rallies; hourly exits running to horizon instead of bailing on state-break).
+PENDING / NOT YET SHIPPED -- Dynamic ATR-scaled entry bands
+The static bps thresholds (200 adverse / 50 premium) are the wrong abstraction: a flat 200 bps is huge for a sleepy utility and meaningless for a $500 semi. The dynamic version replaces them with ATR multiples (the engine's existing volatility unit, already used by --trail-atr-mult), so each symbol's band is sized to its own typical bar.
+
+New helpers in trading.py: _atr_bps, resolve_adverse_threshold_bps, resolve_entry_premium_bps. Thresholds = mult x ATR(bps) computed from the signal's sizing_atr.
+New flags: --adverse-atr-mult (default 1.0), --entry-premium-atr-mult (default 0.25). The static bps flags (--max-adverse-fill-bps, --entry-premium-bps) become OPTIONAL HARD CAPS, default 0 (off) -> purely dynamic by default.
+STATUS: implemented + tested in the agent workspace (525 passed, 1 skipped; incl. a proof test that the same -300 bps move is blocked for a low-vol name at 3 ATR but allowed for a high-vol name at 0.6 ATR), BUT NOT ON MAIN. The operator's apply/commit was a NO-OP ("nothing to commit, working tree clean"): after git reset --hard origin/main the tree was at ddd0467 (static winner-capture, already on main) and the 3-file delta was never applied to the operator's machine. main is therefore still the STATIC version.
+TO LAND: apply the clean dynamic delta to src/price/trading.py (+68), scripts/paper_trade.py (+61), tests/test_entry_stale_guard.py (+58) -- the workspace diff vs main ddd0467 is exactly this (winner-capture is already in the base, so the diff is dynamic-only, plus discardable localdata churn). Then commit "feat(entries): dynamic ATR-scaled entry bands" and push.
+Anti-drift rules stand: no leverage, no options/forex, no premature P&L culling before n>=5.

@@ -41,7 +41,7 @@ from price.config import DATA_DIR
 from price.monitor import scan_all_slices
 from price.position_manager import ExitPolicy
 from price.risk_limits import RiskLimits, record_entry, set_halt_flag
-from price.trading import close_position, submit_entry, entry_limit_with_premium
+from price.trading import close_position, submit_entry, entry_limit_with_premium, resolve_adverse_threshold_bps, resolve_entry_premium_bps
 
 
 import os
@@ -91,7 +91,7 @@ def _strip_known_keys(sig: dict, keys: List[str]) -> dict:
     return {k: v for k, v in sig.items() if k not in keys}
 
 
-def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill_bps: float = 0.0, entry_premium_bps: float = 0.0) -> Dict[str, int]:
+def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill_bps: float = 0.0, entry_premium_bps: float = 0.0, adverse_atr_mult: float = 0.0, entry_premium_atr_mult: float = 0.0) -> Dict[str, int]:
     """For each signal in the list, either submit a real order, log a
     blocked entry, or close a position. Returns counts for the summary."""
     counts = {
@@ -177,9 +177,14 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
             # modest post-signal rallies still fill. Without this the limit sat
             # exactly on the signal close, so the engine could ONLY fill when
             # price fell (kitchen-sink fills) and missed every setup that rose
-            # -- anti-selecting its own edge. The adverse-fill guard below still
-            # measures against `signal_close`; the raised limit caps the upside.
-            limit_price = entry_limit_with_premium(signal_close, entry_premium_bps)
+            # -- anti-selecting its own edge. The premium is DYNAMIC: scaled by
+            # the signal's own ATR (entry_premium_atr_mult), so a high-beta name
+            # gets a wider band and a sleepy one a tight band, automatically.
+            # entry_premium_bps (>0) is an optional hard CAP on that. The
+            # adverse-fill guard below still measures against `signal_close`.
+            _atr = sig.get("sizing_atr")
+            _premium_bps = resolve_entry_premium_bps(_atr, signal_close, entry_premium_atr_mult, entry_premium_bps)
+            limit_price = entry_limit_with_premium(signal_close, _premium_bps)
             if limit_price is None:
                 limit_price = signal_close
 
@@ -187,13 +192,15 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
             # trading session; a limit then fills at the live price, buying into
             # a decline that already invalidated the setup. Skip the entry when
             # the live price has moved against the SIGNAL CLOSE by more than the
-            # threshold. Fail OPEN: if no live price is available, do not block.
-            if max_adverse_fill_bps and max_adverse_fill_bps > 0:
+            # (DYNAMIC, ATR-scaled) threshold. Fail OPEN: no live price or no
+            # computable threshold -> do not block trading.
+            _adverse_bps = resolve_adverse_threshold_bps(_atr, signal_close, adverse_atr_mult, max_adverse_fill_bps)
+            if _adverse_bps is not None and _adverse_bps > 0:
                 from price.trading import get_latest_price, is_stale_entry
                 _entry_side = sig.get("suggested_side", "buy")
                 _live = get_latest_price(symbol)
                 _stale, _gap = is_stale_entry(
-                    _entry_side, signal_close, _live, max_adverse_fill_bps
+                    _entry_side, signal_close, _live, _adverse_bps
                 )
                 if _stale:
                     counts["entry_blocked"] += 1
@@ -202,12 +209,14 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
                         "reason": "stale_signal_adverse_gap",
                         "blocked_reasons": (
                             f"live {_live:.2f} is {_gap:.0f} bps vs signal close "
-                            f"{float(signal_close):.2f} (adverse beyond "
-                            f"-{max_adverse_fill_bps:.0f} bps); setup likely "
-                            f"invalidated by the post-signal move -- skipping"
+                            f"{float(signal_close):.2f} (adverse beyond dynamic "
+                            f"threshold {_adverse_bps:.0f} bps = "
+                            f"{adverse_atr_mult:g} ATR); setup likely invalidated "
+                            f"by the post-signal move -- skipping"
                         ),
                         "live_price": _live,
                         "signal_to_fill_bps": _gap,
+                        "adverse_threshold_bps": _adverse_bps,
                         **_strip_known_keys(sig, ["action"]),
                     })
                     continue
@@ -456,17 +465,21 @@ def main() -> int:
                         help="Apply EOD profit lock to futures symbols. Off by default.")
     parser.add_argument("--pure-horizon-exits", action="store_true",
                         help="Ignore stable state-break exits when a position has an active horizon (>0), holding unconditionally for its validated fwd_ret_N horizon.")
-    parser.add_argument("--max-adverse-fill-bps", type=float, default=200.0,
-                        help="Skip an entry when the LIVE price has moved against the signal close by more than this many bps "
-                             "(long: price fell below signal; short: price rose above). Prevents buying next-day falling-knife "
-                             "fills, where a daily signal's limit (pegged to bar N close) fills deep into a day N+1 decline. "
-                             "0 disables. Default 200 bps (2.0 percent).")
-    parser.add_argument("--entry-premium-bps", type=float, default=50.0,
-                        help="Raise the entry LIMIT this many bps ABOVE the signal close so modest post-signal rallies still "
-                             "fill (winner-capture). Without this the limit sits exactly on the signal close, so the engine "
-                             "only fills when price falls and misses every setup that rises. The adverse-fill guard still "
-                             "measures against the signal close; the raised limit itself caps the upside (no chasing). "
-                             "0 = legacy behaviour (limit == signal close). Default 50 bps (0.5 percent).")
+    parser.add_argument("--adverse-atr-mult", type=float, default=1.0,
+                        help="DYNAMIC falling-knife threshold: skip an entry when the live price has moved more "
+                             "than this many ATRs against the signal close (long: fell; short: rose). "
+                             "Volatility-normalised, so each symbol gets a band sized to its own typical bar. "
+                             "Default 1.0 (one typical bar). 0 disables the dynamic guard.")
+    parser.add_argument("--max-adverse-fill-bps", type=float, default=0.0,
+                        help="Optional HARD CAP (bps) on the dynamic adverse threshold --adverse-atr-mult. "
+                             "0 (default) = uncapped, i.e. purely dynamic. Set >0 to impose a ceiling.")
+    parser.add_argument("--entry-premium-atr-mult", type=float, default=0.25,
+                        help="DYNAMIC winner-capture: raise the entry LIMIT this many ATRs above the signal "
+                             "close so modest post-signal rallies fill. 0 disables (limit sits on signal close). "
+                             "Default 0.25 ATR.")
+    parser.add_argument("--entry-premium-bps", type=float, default=0.0,
+                        help="Optional HARD CAP (bps) on the dynamic entry premium --entry-premium-atr-mult. "
+                             "0 (default) = uncapped, i.e. purely dynamic. Set >0 to impose a ceiling.")
     args = parser.parse_args()
 
     if args.halt:
@@ -534,7 +547,9 @@ def main() -> int:
           f"respect_r_multiple_gate={exit_policy.respect_r_multiple_gate}, "
           f"pure_horizon_exits={exit_policy.pure_horizon_exits}, "
           f"max_adverse_fill_bps={args.max_adverse_fill_bps}, "
+          f"adverse_atr_mult={args.adverse_atr_mult}, "
           f"entry_premium_bps={args.entry_premium_bps}, "
+          f"entry_premium_atr_mult={args.entry_premium_atr_mult}, "
           f"profit_policy={profit_policy}")
     print(f"Cost model: {cost_model.to_dict()}")
 
@@ -566,7 +581,7 @@ def main() -> int:
             entry_sync_blocked=not reconciliation_health.get("ok", False),
             reconciliation_health=reconciliation_health,
         )
-        counts = _handle_signals(signals, dry_run=args.dry_run, max_adverse_fill_bps=args.max_adverse_fill_bps, entry_premium_bps=args.entry_premium_bps)
+        counts = _handle_signals(signals, dry_run=args.dry_run, max_adverse_fill_bps=args.max_adverse_fill_bps, entry_premium_bps=args.entry_premium_bps, adverse_atr_mult=args.adverse_atr_mult, entry_premium_atr_mult=args.entry_premium_atr_mult)
         print("\n=== pass summary ===")
         for k, v in counts.items():
             print(f"  {k}: {v}")
