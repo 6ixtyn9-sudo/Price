@@ -1,8 +1,7 @@
 regime,status,count
 bull,unsupported,83
 bull,regime_switching_research_only,48
-bear,unsupported,78
-bear,regime_switching_research_only,52
-bear,bear_regime_candidate,1
-neutral,unsupported,79
-neutral,regime_switching_research_only,52
+bear,unsupported,77
+bear,regime_switching_research_only,54
+neutral,unsupported,80
+neutral,regime_switching_research_only,51
