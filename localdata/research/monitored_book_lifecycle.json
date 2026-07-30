@@ -1,13 +1,8 @@
 {
-  "previous_book_count": 595,
+  "previous_book_count": 594,
   "new_book_count": 594,
-  "added_candidates": [
-    "MDT|15m|state_session=lunch + state_slope=uptrend + state_vol=mid_vol|short|rolling"
-  ],
-  "removed_candidates": [
-    "C|15m|cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
-    "ITA|15m|state_session=afternoon + state_slope=downtrend|long|rolling"
-  ],
+  "added_candidates": [],
+  "removed_candidates": [],
   "retained_candidates": [
     "ABBV|1d|state_ext=neutral + state_ret_1=ret_down|long|rolling",
     "ABT|1d|cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
@@ -456,6 +451,7 @@
     "LRCX|1d|cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
     "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "LRCX|1d|state_volume=vol_normal + state_slope=downtrend|long|rolling",
+    "MDT|15m|state_session=lunch + state_slope=uptrend + state_vol=mid_vol|short|rolling",
     "MDT|1d|state_volume=vol_quiet + state_slope=flat|long|rolling",
     "META|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "META|1d|cross_TLT_state_slope=uptrend + state_slope=downtrend|long|rolling",
@@ -604,12 +600,7 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {
-    "C|15m|cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling": "registry_status:research_only",
-    "ITA|15m|state_session=afternoon + state_slope=downtrend|long|rolling": "registry_status:research_only"
-  },
-  "promotion_reasons": {
-    "MDT|15m|state_session=lunch + state_slope=uptrend + state_vol=mid_vol|short|rolling": "paper_proposal"
-  },
+  "removal_reasons": {},
+  "promotion_reasons": {},
   "discovery_run_id": null
 }
