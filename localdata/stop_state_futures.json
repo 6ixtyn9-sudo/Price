@@ -40,5 +40,47 @@
     "stop_order_id": "269fed12-2909-4c64-bcc2-df3440f8321c",
     "opened_at": "",
     "updated_at": ""
+  },
+  "HON": {
+    "symbol": "HON",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 240.23,
+    "initial_stop_price": 226.51,
+    "current_stop_price": 226.51,
+    "r_per_share": 13.719999999999999,
+    "stage": "initial",
+    "extreme_price": 240.23,
+    "stop_order_id": "41680664-e2a5-4194-a0c8-b7f17e75307e",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "KLAC": {
+    "symbol": "KLAC",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 182.44,
+    "initial_stop_price": 154.77,
+    "current_stop_price": 154.77,
+    "r_per_share": 27.669999999999987,
+    "stage": "initial",
+    "extreme_price": 182.44,
+    "stop_order_id": "8b570e43-50e2-48db-93ae-c68a0c248f4a",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "NOW": {
+    "symbol": "NOW",
+    "side": "long",
+    "qty": 22.0,
+    "entry_price": 109.78,
+    "initial_stop_price": 96.72,
+    "current_stop_price": 96.72,
+    "r_per_share": 13.060000000000002,
+    "stage": "initial",
+    "extreme_price": 109.78,
+    "stop_order_id": "6ef18dcf-8be8-41be-b0ce-7df21a38785c",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
