@@ -27,34 +27,6 @@
     "opened_at": "",
     "updated_at": ""
   },
-  "HON": {
-    "symbol": "HON",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 238.63,
-    "initial_stop_price": 224.91,
-    "current_stop_price": 224.91,
-    "r_per_share": 13.719999999999999,
-    "stage": "initial",
-    "extreme_price": 238.63,
-    "stop_order_id": "e8a6664b-5daf-4548-b1e7-6d8afed86f37",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "KLAC": {
-    "symbol": "KLAC",
-    "side": "long",
-    "qty": 13.0,
-    "entry_price": 184.99,
-    "initial_stop_price": 157.32,
-    "current_stop_price": 157.32,
-    "r_per_share": 27.670000000000016,
-    "stage": "initial",
-    "extreme_price": 184.99,
-    "stop_order_id": "534dabf9-c305-4a7a-b651-53e1d3082bf1",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "short",
