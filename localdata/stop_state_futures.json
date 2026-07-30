@@ -82,5 +82,19 @@
     "stop_order_id": "6ef18dcf-8be8-41be-b0ce-7df21a38785c",
     "opened_at": "",
     "updated_at": ""
+  },
+  "SMCI": {
+    "symbol": "SMCI",
+    "side": "long",
+    "qty": 33.0,
+    "entry_price": 27.69,
+    "initial_stop_price": 23.55,
+    "current_stop_price": 23.55,
+    "r_per_share": 4.140000000000001,
+    "stage": "initial",
+    "extreme_price": 27.69,
+    "stop_order_id": "a8bda25a-9fdd-417e-8324-4458a05e4c1d",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
