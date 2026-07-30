@@ -333,7 +333,35 @@ def test_check_exits_lookups_horizon_from_monitored_book_if_missing_in_context(m
 
 def test_pure_horizon_exits_ignores_state_break(monkeypatch):
     df = _syn_warehouse(80)
-    last_ts = str(df["bar_ts_utc"].iloc[-1])
+    # Entry one bar before the latest -> bars_held = 1 (inside the active
+    # window, past the held=0 carve-out). State breaks but horizon (10) not
+    # yet reached -> pure-horizon mode suppresses the state-break exit.
+    second_last_ts = str(df["bar_ts_utc"].iloc[-2])
+    ctx = {"XLF": {
+        "slice_combination": SLICE,
+        "timeframe": "1d",
+        "entry_bar_ts": second_last_ts,
+        "submitted_at": second_last_ts,
+        "exit_horizon": 10,
+    }}
+    _setup(monkeypatch, df, ctx, STABLE_MISMATCH)
+
+    intents = check_exits(
+        _positions_df(),
+        {"XLF": SLICE},
+        exit_policy=ExitPolicy(horizon_bars=10, pure_horizon_exits=True),
+    )
+    assert intents[0]["action"] == "hold"
+    assert "horizon" not in intents[0]["reason"]
+
+
+def test_pure_horizon_exits_does_NOT_suppress_immediate_state_break(monkeypatch):
+    # held=0 carve-out: a state-break on the very first bar means the entry
+    # was invalidated immediately (e.g. a next-day falling-knife fill). That
+    # is NOT transient whipsaw, so pure-horizon mode must NOT suppress it --
+    # exit instead of holding a confirmed-invalid entry out to the horizon.
+    df = _syn_warehouse(80)
+    last_ts = str(df["bar_ts_utc"].iloc[-1])  # entry at the last bar -> bars_held = 0
     ctx = {"XLF": {
         "slice_combination": SLICE,
         "timeframe": "1d",
@@ -348,8 +376,8 @@ def test_pure_horizon_exits_ignores_state_break(monkeypatch):
         {"XLF": SLICE},
         exit_policy=ExitPolicy(horizon_bars=10, pure_horizon_exits=True),
     )
-    assert intents[0]["action"] == "hold"
-    assert "horizon" not in intents[0]["reason"]
+    assert intents[0]["action"] == "exit"
+    assert "stable filter broken" in intents[0]["reason"]
 
 
 def test_pure_horizon_exits_still_exits_when_bars_held_unknown(monkeypatch):

@@ -798,15 +798,22 @@ def check_exits(
         exit_reasons: List[str] = []
         if mismatches:
             # Pure-horizon hold suppresses the state-break exit ONLY during the
-            # active window: we can bound the hold (bars_held known) AND we are
-            # still short of the horizon. If bars_held is unknown we cannot
-            # bound the hold, so we degrade to the legacy state-break exit
-            # rather than risk an immortal (unbounded) trade that only a
-            # trailing/profit stop can ever close.
+            # active window: we can bound the hold (bars_held known), at least
+            # one bar has confirmed since entry (bars_held >= 1), AND we are
+            # still short of the horizon.
+            #   - bars_held is None -> cannot bound the hold -> degrade to the
+            #     legacy state-break exit (avoids immortal, unbounded trades).
+            #   - bars_held == 0 -> the state is ALREADY broken on the first
+            #     evaluation; that is an entry that never confirmed (typically
+            #     a next-day falling-knife fill where the move already
+            #     invalidated the setup), NOT transient whipsaw. Keep the
+            #     state-break exit rather than holding a confirmed-invalid
+            #     entry to the horizon.
             if (
                 exit_policy.pure_horizon_exits
                 and ps_horizon > 0
                 and bars_held is not None
+                and bars_held >= 1
                 and bars_held < ps_horizon
             ):
                 pass  # pure horizon mode: ignore stable state-break during the active hold window only
