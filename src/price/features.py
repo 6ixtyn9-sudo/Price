@@ -166,7 +166,20 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
     
     fwd_low_5 = low.rolling(5).min().shift(-5)
     df['fwd_mae_5'] = (fwd_low_5 / close) - 1.0
-    
+
+    # Per-slice stop calibration inputs. Expose ATR as a column and the
+    # direction-aware MAX ADVERSE EXCURSION in ATR units over the 5-bar hold:
+    #   long  -> how far below entry the min-low reached (close - fwd_low_5)
+    #   short -> how far above entry the max-high reached (fwd_high_5 - close)
+    # Clipped at 0 so "no adverse move" contributes 0 (the stop wouldn't have
+    # been hit). Downstream takes a high PERCENTILE of this per slice to set
+    # best_stop_atr_mult -- a percentile of the slice's own adverse
+    # distribution, NOT an in-sample optimum, so it does not overfit.
+    df['feat_atr'] = atr
+    _atr_safe = atr.where(atr > 0)
+    df['fwd_mae_atr_5_long'] = ((close - fwd_low_5).clip(lower=0.0) / _atr_safe)
+    df['fwd_mae_atr_5_short'] = ((fwd_high_5 - close).clip(lower=0.0) / _atr_safe)
+
     cost = 0.0002
     df['target_positive_5bar'] = (df['fwd_ret_5'] > cost).astype(int)
     

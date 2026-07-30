@@ -393,6 +393,10 @@ def build_registry(
             "valid_excess_vs_baseline": row.get("valid_excess_vs_baseline"),
             "valid_excess_vs_best_parent": row.get("valid_excess_vs_best_parent"),
             "triage_bucket": _clean(row.get("triage_bucket")),            "optimal_horizon": int(row.get("best_fwd_horizon", 5) or 5),
+            "stop_atr_mult": (
+                float(row.get("best_stop_atr_mult"))
+                if pd.notna(row.get("best_stop_atr_mult")) else None
+            ),
             "leverage_gate_pass": leverage_gate,
             "leverage_gate_reason": (
                 "risk data unavailable: lifecycle has no per-candidate ATR/R input; "
@@ -461,6 +465,10 @@ def apply_registry_to_monitored(
             "source_note": "auto_promoted_strict_candidate",
             "bin_mode": row.get("bin_mode", "insample"),
             "exit_horizon": int(float(row.get("optimal_horizon", 5))) if not pd.isna(row.get("optimal_horizon", 5)) else 5,
+            "stop_atr_mult": (
+                float(row.get("stop_atr_mult"))
+                if pd.notna(row.get("stop_atr_mult")) else None
+            ),
         })
         existing_keys.add(key)
 

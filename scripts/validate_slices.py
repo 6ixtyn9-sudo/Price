@@ -1367,6 +1367,28 @@ def run_regime_stratified_diagnostics(
     return diagnostics_df
 
 
+def _calibrate_stop_atr_mult(
+    adverse_atr_values,
+    percentile: float = 0.90,
+    lo: float = 1.5,
+    hi: float = 5.0,
+):
+    """Per-slice stop multiplier = a high percentile of the slice's own
+    max-adverse-excursion (in ATR) over the hold, clamped to [lo, hi].
+
+    Non-overfit by design: a percentile of the adverse distribution places the
+    stop beyond where the slice TYPICALLY ventures adversely -- not at an
+    in-sample stop chosen to maximize historical P&L (that would overfit).
+    Returns None when there are too few instances (<5) to characterize it, so
+    the caller falls back to the global default instead of guessing.
+    """
+    s = pd.Series(adverse_atr_values, dtype="float64").dropna()
+    s = s[s >= 0]
+    if len(s) < 5:
+        return None
+    return float(min(hi, max(lo, s.quantile(percentile))))
+
+
 def run_candidate_leaderboard(
     slices_path: str = DISCOVERED_SLICES_PATH,
     n_folds: int = 4,
@@ -1572,6 +1594,7 @@ def run_candidate_leaderboard(
     # the one-size-fits-all global --exit-horizon flag.
     HORIZONS = [3, 5, 10, 20]
     horizon_map: dict[tuple, int] = {}
+    stop_map: dict[tuple, float | None] = {}
     frame_cache: dict = {}
 
     for _, row in leaderboard.iterrows():
@@ -1579,6 +1602,7 @@ def run_candidate_leaderboard(
         tf = row["timeframe"]
         combo = row["slice_combination"]
         side = str(row.get("side", "long") or "long").lower()
+        stop_map[(sym, tf, combo)] = None  # default; overwritten on success
 
         try:
             sf = parse_slice_combination(combo)
@@ -1619,11 +1643,21 @@ def run_candidate_leaderboard(
                     best_mean = avg
                     best_h = h
             horizon_map[(sym, tf, combo)] = best_h
+            # Per-slice stop multiplier = high percentile of the slice's own
+            # adverse excursion (ATR) over the hold, clamped to [1.5, 5.0].
+            # Mirrors best_fwd_horizon; non-overfit (percentile, not optimum).
+            _adv_col = "fwd_mae_atr_5_short" if side == "short" else "fwd_mae_atr_5_long"
+            if _adv_col in window.columns:
+                stop_map[(sym, tf, combo)] = _calibrate_stop_atr_mult(window[_adv_col])
         except Exception:
             horizon_map[(sym, tf, combo)] = 5
 
     leaderboard["best_fwd_horizon"] = [
         horizon_map.get((r["symbol"], r["timeframe"], r["slice_combination"]), 5)
+        for _, r in leaderboard.iterrows()
+    ]
+    leaderboard["best_stop_atr_mult"] = [
+        stop_map.get((r["symbol"], r["timeframe"], r["slice_combination"]))
         for _, r in leaderboard.iterrows()
     ]
 
