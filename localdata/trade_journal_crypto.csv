@@ -300,4 +300,4 @@ a4523f50-1774-40a2-8270-d9e2cd3f17e3,NOW,23.0,sell,stop,93.91,gtc,canceled,2026-
 8b570e43-50e2-48db-93ae-c68a0c248f4a,KLAC,13.0,sell,stop,154.77,gtc,canceled,2026-07-30 17:36:19.848406+00:00,protective_stop_submit,2026-07-30T17:36:19.862340+00:00,canceled,0.0,,,2026-07-30T19:36:27.511174+00:00,,,,,,,,,,,,
 6ef18dcf-8be8-41be-b0ce-7df21a38785c,NOW,22.0,sell,stop,96.72,gtc,canceled,2026-07-30 17:36:19.995166+00:00,protective_stop_submit,2026-07-30T17:36:20.000687+00:00,canceled,0.0,,,2026-07-30T18:36:20.013020+00:00,,,,,,,,,,,,
 a8bda25a-9fdd-417e-8324-4458a05e4c1d,SMCI,33.0,sell,stop,23.55,gtc,canceled,2026-07-30 18:36:32.279620+00:00,protective_stop_submit,2026-07-30T18:36:32.307905+00:00,canceled,0.0,,,2026-07-30T19:36:27.511174+00:00,,,,,,,,,,,,
-e663fc9f-504b-403f-9b2b-bfe2abd2dd61,AEP,7.0,sell,stop,123.1,gtc,pending_new,2026-07-30 19:36:42.795082+00:00,protective_stop_submit,2026-07-30T19:36:42.833028+00:00,,,,,,,,,,,,,,,,,
+e663fc9f-504b-403f-9b2b-bfe2abd2dd61,AEP,7.0,sell,stop,123.1,gtc,canceled,2026-07-30 19:36:42.795082+00:00,protective_stop_submit,2026-07-30T19:36:42.833028+00:00,canceled,0.0,,,2026-07-30T20:36:20.580972+00:00,,,,,,,,,,,,

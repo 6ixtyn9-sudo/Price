@@ -1,18 +1,4 @@
 {
-  "LRCX": {
-    "symbol": "LRCX",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 260.58,
-    "initial_stop_price": 216.05142682756696,
-    "current_stop_price": 216.05142682756696,
-    "r_per_share": 44.528573172433035,
-    "stage": "initial",
-    "extreme_price": 260.58,
-    "stop_order_id": "44dde768-f3c9-4634-9a91-d750c4f28b20",
-    "opened_at": "2026-07-29T19:36:35.189739+00:00",
-    "updated_at": "2026-07-29T19:36:35.189739+00:00"
-  },
   "XLF": {
     "symbol": "XLF",
     "side": "long",
@@ -54,61 +40,5 @@
     "stop_order_id": "41680664-e2a5-4194-a0c8-b7f17e75307e",
     "opened_at": "2026-07-30T17:36:19.314281+00:00",
     "updated_at": "2026-07-30T17:36:19.314281+00:00"
-  },
-  "KLAC": {
-    "symbol": "KLAC",
-    "side": "long",
-    "qty": 13.0,
-    "entry_price": 182.44,
-    "initial_stop_price": 154.77428737095423,
-    "current_stop_price": 154.77428737095423,
-    "r_per_share": 27.66571262904576,
-    "stage": "initial",
-    "extreme_price": 182.44,
-    "stop_order_id": "8b570e43-50e2-48db-93ae-c68a0c248f4a",
-    "opened_at": "2026-07-30T17:36:19.458445+00:00",
-    "updated_at": "2026-07-30T17:36:19.458445+00:00"
-  },
-  "NOW": {
-    "symbol": "NOW",
-    "side": "long",
-    "qty": 22.0,
-    "entry_price": 109.78,
-    "initial_stop_price": 96.7242858014788,
-    "current_stop_price": 96.7242858014788,
-    "r_per_share": 13.055714198521205,
-    "stage": "initial",
-    "extreme_price": 109.78,
-    "stop_order_id": "6ef18dcf-8be8-41be-b0ce-7df21a38785c",
-    "opened_at": "2026-07-30T17:36:19.962525+00:00",
-    "updated_at": "2026-07-30T17:36:19.962525+00:00"
-  },
-  "SMCI": {
-    "symbol": "SMCI",
-    "side": "long",
-    "qty": 33.0,
-    "entry_price": 27.69,
-    "initial_stop_price": 23.548571188790458,
-    "current_stop_price": 23.548571188790458,
-    "r_per_share": 4.1414288112095425,
-    "stage": "initial",
-    "extreme_price": 27.69,
-    "stop_order_id": "a8bda25a-9fdd-417e-8324-4458a05e4c1d",
-    "opened_at": "2026-07-30T18:36:32.104307+00:00",
-    "updated_at": "2026-07-30T18:36:32.104307+00:00"
-  },
-  "AEP": {
-    "symbol": "AEP",
-    "side": "long",
-    "qty": 7.0,
-    "entry_price": 127.85,
-    "initial_stop_price": 123.10141784667968,
-    "current_stop_price": 123.10141784667968,
-    "r_per_share": 4.748582153320314,
-    "stage": "initial",
-    "extreme_price": 127.85,
-    "stop_order_id": "e663fc9f-504b-403f-9b2b-bfe2abd2dd61",
-    "opened_at": "2026-07-30T19:36:42.609957+00:00",
-    "updated_at": "2026-07-30T19:36:42.609957+00:00"
   }
 }
