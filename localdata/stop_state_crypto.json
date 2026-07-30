@@ -40,5 +40,47 @@
     "stop_order_id": "269fed12-2909-4c64-bcc2-df3440f8321c",
     "opened_at": "2026-07-30T15:36:31.626891+00:00",
     "updated_at": "2026-07-30T15:36:31.626891+00:00"
+  },
+  "HON": {
+    "symbol": "HON",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 240.23,
+    "initial_stop_price": 226.50857099260602,
+    "current_stop_price": 226.50857099260602,
+    "r_per_share": 13.721429007393974,
+    "stage": "initial",
+    "extreme_price": 240.23,
+    "stop_order_id": "41680664-e2a5-4194-a0c8-b7f17e75307e",
+    "opened_at": "2026-07-30T17:36:19.314281+00:00",
+    "updated_at": "2026-07-30T17:36:19.314281+00:00"
+  },
+  "KLAC": {
+    "symbol": "KLAC",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 182.44,
+    "initial_stop_price": 154.77428737095423,
+    "current_stop_price": 154.77428737095423,
+    "r_per_share": 27.66571262904576,
+    "stage": "initial",
+    "extreme_price": 182.44,
+    "stop_order_id": "8b570e43-50e2-48db-93ae-c68a0c248f4a",
+    "opened_at": "2026-07-30T17:36:19.458445+00:00",
+    "updated_at": "2026-07-30T17:36:19.458445+00:00"
+  },
+  "NOW": {
+    "symbol": "NOW",
+    "side": "long",
+    "qty": 22.0,
+    "entry_price": 109.78,
+    "initial_stop_price": 96.7242858014788,
+    "current_stop_price": 96.7242858014788,
+    "r_per_share": 13.055714198521205,
+    "stage": "initial",
+    "extreme_price": 109.78,
+    "stop_order_id": "6ef18dcf-8be8-41be-b0ce-7df21a38785c",
+    "opened_at": "2026-07-30T17:36:19.962525+00:00",
+    "updated_at": "2026-07-30T17:36:19.962525+00:00"
   }
 }
