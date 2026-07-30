@@ -184,7 +184,8 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
             # adverse-fill guard below still measures against `signal_close`.
             _atr = sig.get("sizing_atr")
             _premium_bps = resolve_entry_premium_bps(_atr, signal_close, entry_premium_atr_mult, entry_premium_bps)
-            limit_price = entry_limit_with_premium(signal_close, _premium_bps)
+            _is_short_entry = sig.get("suggested_side", "buy").lower() in ("sell", "short")
+            limit_price = entry_limit_with_premium(signal_close, _premium_bps, is_short=_is_short_entry)
             if limit_price is None:
                 limit_price = signal_close
 
@@ -470,16 +471,16 @@ def main() -> int:
                              "than this many ATRs against the signal close (long: fell; short: rose). "
                              "Volatility-normalised, so each symbol gets a band sized to its own typical bar. "
                              "Default 1.0 (one typical bar). 0 disables the dynamic guard.")
-    parser.add_argument("--max-adverse-fill-bps", type=float, default=0.0,
+    parser.add_argument("--max-adverse-fill-bps", type=float, default=200.0,
                         help="Optional HARD CAP (bps) on the dynamic adverse threshold --adverse-atr-mult. "
-                             "0 (default) = uncapped, i.e. purely dynamic. Set >0 to impose a ceiling.")
+                             "0 = uncapped, i.e. purely dynamic. Set >0 to impose a ceiling. Default 200.0.")
     parser.add_argument("--entry-premium-atr-mult", type=float, default=0.25,
                         help="DYNAMIC winner-capture: raise the entry LIMIT this many ATRs above the signal "
                              "close so modest post-signal rallies fill. 0 disables (limit sits on signal close). "
                              "Default 0.25 ATR.")
-    parser.add_argument("--entry-premium-bps", type=float, default=0.0,
+    parser.add_argument("--entry-premium-bps", type=float, default=100.0,
                         help="Optional HARD CAP (bps) on the dynamic entry premium --entry-premium-atr-mult. "
-                             "0 (default) = uncapped, i.e. purely dynamic. Set >0 to impose a ceiling.")
+                             "0 = uncapped, i.e. purely dynamic. Set >0 to impose a ceiling. Default 100.0.")
     args = parser.parse_args()
 
     if args.halt:

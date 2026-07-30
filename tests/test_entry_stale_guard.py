@@ -121,6 +121,14 @@ def test_winner_capture_caps_upside_no_chasing():
     assert live > limit  # limit buy would NOT fill -> signal expires, no chase
 
 
+def test_short_side_premium_lowers_limit():
+    # A short limit should be LOWER than the signal close by the premium,
+    # so it fills on follow-through declines, rather than requiring a rally.
+    signal_close = 100.0
+    limit = entry_limit_with_premium(signal_close, 50.0, is_short=True)
+    assert limit == pytest.approx(99.5)
+
+
 # --- dynamic (ATR-scaled) resolve helpers --------------------------------
 
 def test_dynamic_threshold_scales_with_atr_not_a_flat_bps():

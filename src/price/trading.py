@@ -183,7 +183,7 @@ def is_stale_entry(
 
 
 def entry_limit_with_premium(
-    signal_close: Optional[float], premium_bps: float = 0.0
+    signal_close: Optional[float], premium_bps: float = 0.0, is_short: bool = False
 ) -> Optional[float]:
     """Entry LIMIT price, raised by ``premium_bps`` above the signal close.
 
@@ -205,7 +205,10 @@ def entry_limit_with_premium(
         p = float(premium_bps) if premium_bps is not None else 0.0
         if p != p:
             p = 0.0
-        return sc * (1.0 + p / 10000.0)
+        if is_short:
+            return sc * (1.0 - p / 10000.0)
+        else:
+            return sc * (1.0 + p / 10000.0)
     except (TypeError, ValueError):
         return None
 
