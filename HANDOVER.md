@@ -6486,3 +6486,39 @@ New flags: --adverse-atr-mult (default 1.0), --entry-premium-atr-mult (default 0
 STATUS: implemented + tested in the agent workspace (525 passed, 1 skipped; incl. a proof test that the same -300 bps move is blocked for a low-vol name at 3 ATR but allowed for a high-vol name at 0.6 ATR), BUT NOT ON MAIN. The operator's apply/commit was a NO-OP ("nothing to commit, working tree clean"): after git reset --hard origin/main the tree was at ddd0467 (static winner-capture, already on main) and the 3-file delta was never applied to the operator's machine. main is therefore still the STATIC version.
 TO LAND: apply the clean dynamic delta to src/price/trading.py (+68), scripts/paper_trade.py (+61), tests/test_entry_stale_guard.py (+58) -- the workspace diff vs main ddd0467 is exactly this (winner-capture is already in the base, so the diff is dynamic-only, plus discardable localdata churn). Then commit "feat(entries): dynamic ATR-scaled entry bands" and push.
 Anti-drift rules stand: no leverage, no options/forex, no premature P&L culling before n>=5.
+
+Session Update — Dynamic Bands Landed, Red-Team Passes 2-3, Silent-Failure Fixes & MAE-Calibrated Stops (2026-07-30, continued)
+Date: 2026-07-30 (later)
+
+The "PENDING dynamic ATR entry bands" note above is now RESOLVED. This section records everything that shipped after it.
+
+Dynamic ATR bands landed + caps + short-side fix (da78807 -> ff055e2)
+
+The dynamic version shipped (--adverse-atr-mult 1.0, --entry-premium-atr-mult 0.25; static bps flags became optional caps). A red-team counterfactual backtest then caught that the UNCAPPED 1.0 ATR default was far too loose for high-vol names: on the 32 historical round trips it would have blocked only 2 trades -> -$622 (barely better than no guard), because the semi knives (AMAT/KLAC/LRCX/ASML) have high ATR so "1.0 ATR" = 700-950 bps thresholds that treated -600 bps crashes as normal volatility.
+FIX: --max-adverse-fill-bps default 0 -> 200 (hard cap on the dynamic adverse band), --entry-premium-bps default 0 -> 100 (cap on the chase premium). With the cap, the shipped config reproduces static-200 performance (-$86, 0 winners wrongly blocked) while keeping volatility-tight bands for low-vol names. Independently verified: resolve_adverse_threshold_bps with mult=1.0, cap=200 -> -$86 over the 32 trips.
+SHORT-SIDE PREMIUM FIX: entry_limit_with_premium now takes is_short and SUBTRACTS the premium for shorts (a limit SELL must LOWER to capture follow-through declines; raising it only filled on adverse rallies). Wired via sig["suggested_side"].
+Red-Team Pass 2 — sector-concentration blind spot (DEFERRED, documented)
+
+risk_group_key groups by ENTRY CONDITION, not sector. The four bleeding semis (KLAC/LRCX/AMAT/ASML, -$591 = 87% of the loss) spanned 7 different condition-groups, so max_positions_per_risk_group could not contain them. The entry guard (cap 200) now blocks most of those specific (adverse) fills, so the historical episode is largely prevented going forward; the structural gap remains for future in-band correlated declines. DEFERRED: a per-sector cap is the fix but is a doctrine tradeoff (the risk_group_key docstring deliberately avoids hand-kept sector maps). Queue, don't rush.
+Red-Team Pass 3 — silent / invisible failures fixed (87e5310 + d73b599)
+
+Stale-warehouse guard: get_current_state now returns None (skip, emits state_unavailable) if the latest warehouse bar_ts_utc is >7 days old -- prevents trading on stale signals. (d73b599 anchored the test fixture to now() so the guard doesn't flag the synthetic data.)
+Fail-open visibility: the entry loop now writes adverse_guard = passed | skipped_no_price | disabled to the enter/would_enter audit rows, so a knife that slips because get_latest_price failed is no longer indistinguishable from a clean entry.
+Cost-model honesty: attribute_pnl now subtracts default_cost_model().round_trip_drag() from mean_gross_return -> net_of_cost_return (was equal to gross; realized edge was overstated). NOTE: uses the DEFAULT cost model, not each lane's configured --cost-spread-bps/--cost-slippage-bps (minor; honest for equities, slightly off for crypto/futures) -- deferred refinement.
+submit_exit hygiene: now snapshots qty/avg_entry_price/current_price like close_position. (submit_exit is currently dead code -- the live exit paths close_position and append_synthetic_exit already journal those fields -- so this is future-proofing, not an active fix. Red-team initially over-called it "the most dangerous active bug"; verified it was not active.)
+RULED OUT: exit-side immortal paths -- respect_r_multiple_gate correctly degrades to the horizon time-stop when stop_state is missing, so no unbounded holds.
+Last Phase 1 gap closed -- MAE-calibrated per-slice stop_atr_mult (f32d5cd -> 9a947bc)
+
+Was: stop_atr_mult 0/594 populated (discovery never emitted it; global --trail-atr-mult 3.0 used for all). Closed at the SOURCE, non-overfit, mirroring best_fwd_horizon:
+features.py: exposes feat_atr + direction-aware fwd_mae_atr_5_long / fwd_mae_atr_5_short (max adverse excursion in ATR over the 5-bar hold, clipped at 0). Derived from already-computed fwd_mae_5/fwd_mfe_5 + ATR.
+validate_slices.py: _calibrate_stop_atr_mult = 90th percentile of the slice's own adverse-atr distribution, clamped to [1.5, 5.0]; emitted as best_stop_atr_mult next to best_fwd_horizon. Percentile (not an in-sample optimum) -> does not overfit.
+research_lifecycle.py: carries best_stop_atr_mult -> registry stop_atr_mult -> monitored book stop_atr_mult (the downstream entry/stop plumbing already reads it).
+DATA-FLOW NOTE: the code gap is closed; the monitored book still shows 0/594 until the next research cycle (research_discovery/research_refresh, which runs validate_slices --candidate-leaderboard) recomputes features -> leaderboard -> registry -> monitored. live_capture runs sync_monitored but NOT full validation, so it will not emit it. One research run populates every slice.
+Calibrated to the 5-bar adverse window (primary horizon); for horizon-3 hourly slices this is slightly conservative (bounded by the 5.0 clamp). Could be made horizon-exact later if it matters.
+Current Posture (end of session)
+
+Test suite: 533 passed, 1 skipped (green). No known silent gaps.
+Engine summary: pure-horizon exits (+ immortal guard + held=0 carve-out); dynamic ATR entry bands (knife guard 1.0 ATR/cap 200 + winner-capture 0.25 ATR/cap 100, side-aware); MAE-calibrated per-slice stops; bars_held/exit_reason + honest cost-model attribution; stale-warehouse refusal; fail-open audit visibility.
+DEFERRED (need live data or are doctrine tradeoffs, not bugs): sector-concentration cap; conviction-sizing sparsity (expected_returns table is sparse -> most slices size at neutral conviction 1.0; fix is populating expected_returns, research-side); per-lane cost model in attribution; explicit stale_warehouse reason (currently shows as generic no_completed_state); horizon-exact MAE.
+NEXT: run ONE research cycle to populate stop_atr_mult, then let it trade 1-2 weeks and measure the three proof points: (1) signal_to_fill_bps finally positive (winner-capture), (2) stale_signal_adverse_gap blocks with dyn_thr=200 on high-vol names, (3) hourly exit_reason -> horizon reached. Do NOT tune off small samples.
+Anti-drift rules stand: no leverage, no options/forex, no premature P&L culling before n>=5.
