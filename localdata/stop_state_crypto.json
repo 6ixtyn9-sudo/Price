@@ -82,5 +82,61 @@
     "stop_order_id": "990b43e8-5e83-4818-97b5-ba1a22e63ed0",
     "opened_at": "2026-07-31T13:36:20.813518+00:00",
     "updated_at": "2026-07-31T13:36:20.813518+00:00"
+  },
+  "ASML": {
+    "symbol": "ASML",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 1667.94,
+    "initial_stop_price": 1510.28,
+    "current_stop_price": 1510.28,
+    "r_per_share": 157.66000000000008,
+    "stage": "initial",
+    "extreme_price": 1667.94,
+    "stop_order_id": "96468502-9b6d-4386-9b9f-210a20fd35ad",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "FDX": {
+    "symbol": "FDX",
+    "side": "long",
+    "qty": 8.0,
+    "entry_price": 309.08,
+    "initial_stop_price": 294.51,
+    "current_stop_price": 294.51,
+    "r_per_share": 14.569999999999993,
+    "stage": "initial",
+    "extreme_price": 309.08,
+    "stop_order_id": "1551c940-32db-44f1-850d-316c946432a5",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "KLAC": {
+    "symbol": "KLAC",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 181.917692,
+    "initial_stop_price": 169.51,
+    "current_stop_price": 169.51,
+    "r_per_share": 12.407691999999997,
+    "stage": "initial",
+    "extreme_price": 181.917692,
+    "stop_order_id": "7a399d40-50ee-497c-a6e3-dbcd4c55a2d9",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "XLB": {
+    "symbol": "XLB",
+    "side": "long",
+    "qty": 18.0,
+    "entry_price": 50.41,
+    "initial_stop_price": 48.637141789027616,
+    "current_stop_price": 48.637141789027616,
+    "r_per_share": 1.7728582109723772,
+    "stage": "initial",
+    "extreme_price": 50.41,
+    "stop_order_id": "e6a0f8d2-c2c8-493e-b2d8-2c1d6a56693b",
+    "opened_at": "2026-07-31T14:36:24.619914+00:00",
+    "updated_at": "2026-07-31T14:36:24.619914+00:00"
   }
 }
