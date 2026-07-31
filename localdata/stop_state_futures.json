@@ -1,18 +1,4 @@
 {
-  "XLF": {
-    "symbol": "XLF",
-    "side": "long",
-    "qty": 17.0,
-    "entry_price": 56.88,
-    "initial_stop_price": 55.54,
-    "current_stop_price": 55.54,
-    "r_per_share": 1.3400000000000034,
-    "stage": "initial",
-    "extreme_price": 56.88,
-    "stop_order_id": "2b33cc9e-2b85-4dee-86b2-aaa2a0ee12e6",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "short",
@@ -68,48 +54,6 @@
     "stop_order_id": "96468502-9b6d-4386-9b9f-210a20fd35ad",
     "opened_at": "2026-07-31T13:46:42.353855+00:00",
     "updated_at": "2026-07-31T13:46:42.353855+00:00"
-  },
-  "FDX": {
-    "symbol": "FDX",
-    "side": "long",
-    "qty": 8.0,
-    "entry_price": 309.08,
-    "initial_stop_price": 294.5057114955357,
-    "current_stop_price": 294.5057114955357,
-    "r_per_share": 14.574288504464286,
-    "stage": "initial",
-    "extreme_price": 309.08,
-    "stop_order_id": "1551c940-32db-44f1-850d-316c946432a5",
-    "opened_at": "2026-07-31T13:46:43.053074+00:00",
-    "updated_at": "2026-07-31T13:46:43.053074+00:00"
-  },
-  "GDXJ": {
-    "symbol": "GDXJ",
-    "side": "long",
-    "qty": 9.0,
-    "entry_price": 96.846667,
-    "initial_stop_price": 88.79,
-    "current_stop_price": 88.79,
-    "r_per_share": 8.05666699999999,
-    "stage": "initial",
-    "extreme_price": 96.846667,
-    "stop_order_id": "9ad0ba68-b935-4e40-b17a-60786e8370e9",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "NOW": {
-    "symbol": "NOW",
-    "side": "long",
-    "qty": 22.0,
-    "entry_price": 108.26,
-    "initial_stop_price": 95.04,
-    "current_stop_price": 95.04,
-    "r_per_share": 13.219999999999999,
-    "stage": "initial",
-    "extreme_price": 108.26,
-    "stop_order_id": "990b43e8-5e83-4818-97b5-ba1a22e63ed0",
-    "opened_at": "",
-    "updated_at": ""
   },
   "KLAC": {
     "symbol": "KLAC",
