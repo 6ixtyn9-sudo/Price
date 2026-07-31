@@ -283,3 +283,4 @@ e663fc9f-504b-403f-9b2b-bfe2abd2dd61,canceled,order_cancel,2026-07-30T19:48:00.6
 1551c940-32db-44f1-850d-316c946432a5,canceled,protective_stop_submit,2026-07-31T13:46:43.270434+00:00,FDX,sell,2026-07-31 13:46:43.234968+00:00,8.0,,,canceled,0.0,,,2026-07-31T15:46:05.878074+00:00,,294.51,,stop,gtc,,,,,,,,,
 ,rejected,protective_stop_replace,2026-07-31T14:46:39.090374+00:00,,,,,,,,,,,,41680664-e2a5-4194-a0c8-b7f17e75307e,226.51,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,,,
 ,rejected,protective_stop_replace,2026-07-31T15:46:10.819079+00:00,,,,,,,,,,,,41680664-e2a5-4194-a0c8-b7f17e75307e,226.51,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,,,
+,rejected,protective_stop_replace,2026-07-31T16:46:34.917899+00:00,,,,,,,,,,,,41680664-e2a5-4194-a0c8-b7f17e75307e,226.51,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,,,
