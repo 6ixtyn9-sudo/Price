@@ -283,8 +283,12 @@ def get_current_state(
         last_ts = pd.to_datetime(df_warehouse["bar_ts_utc"].iloc[-1], errors="coerce", utc=True)
         if pd.notna(last_ts):
             now_utc = datetime.datetime.now(datetime.timezone.utc)
-            if (now_utc - last_ts).days > 7:
-                # Warehouse is stale, gracefully refuse to trade to avoid inaccurate state evaluation
+            age_hours = (now_utc - last_ts).total_seconds() / 3600.0
+            # Timeframe-aware staleness: tighter for intraday, looser for daily.
+            # ~8 bars of lag max per timeframe. Prevents acting on stale intraday state.
+            _MAX_STALE_HOURS = {"15m": 2.0, "1h": 8.0, "1d": 72.0}
+            max_stale = _MAX_STALE_HOURS.get(timeframe, 72.0)
+            if age_hours > max_stale:
                 return None
 
     if "close_adj" not in df_warehouse.columns:
