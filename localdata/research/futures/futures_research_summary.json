@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-30T00:31:58.059379+00:00",
+  "generated_at_utc": "2026-07-31T00:31:51.658772+00:00",
   "bin_mode": "rolling",
   "symbols": [
     "FUT/ES",
@@ -238,8 +238,8 @@
     }
   ],
   "regime_status_counts": {
-    "regime_switching_research_only": 100,
-    "unsupported": 31
+    "regime_switching_research_only": 101,
+    "unsupported": 30
   },
   "regime_leaderboard_rows": {
     "bull": 131,
