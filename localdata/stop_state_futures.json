@@ -1,18 +1,4 @@
 {
-  "CRWD": {
-    "symbol": "CRWD",
-    "side": "short",
-    "qty": 13.0,
-    "entry_price": 181.44,
-    "initial_stop_price": 202.29,
-    "current_stop_price": 202.29,
-    "r_per_share": 20.849999999999994,
-    "stage": "initial",
-    "extreme_price": 181.44,
-    "stop_order_id": "269fed12-2909-4c64-bcc2-df3440f8321c",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "HON": {
     "symbol": "HON",
     "side": "long",
@@ -24,20 +10,6 @@
     "stage": "initial",
     "extreme_price": 240.23,
     "stop_order_id": "41680664-e2a5-4194-a0c8-b7f17e75307e",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "AEP": {
-    "symbol": "AEP",
-    "side": "long",
-    "qty": 7.0,
-    "entry_price": 127.63,
-    "initial_stop_price": 122.4,
-    "current_stop_price": 122.4,
-    "r_per_share": 5.22999999999999,
-    "stage": "initial",
-    "extreme_price": 127.63,
-    "stop_order_id": "c803fa0d-3fb2-4589-9632-f9d82a66959d",
     "opened_at": "",
     "updated_at": ""
   },
@@ -54,20 +26,6 @@
     "stop_order_id": "96468502-9b6d-4386-9b9f-210a20fd35ad",
     "opened_at": "2026-07-31T13:46:42.353855+00:00",
     "updated_at": "2026-07-31T13:46:42.353855+00:00"
-  },
-  "KLAC": {
-    "symbol": "KLAC",
-    "side": "long",
-    "qty": 13.0,
-    "entry_price": 181.917692,
-    "initial_stop_price": 169.51,
-    "current_stop_price": 169.51,
-    "r_per_share": 12.407691999999997,
-    "stage": "initial",
-    "extreme_price": 181.917692,
-    "stop_order_id": "7a399d40-50ee-497c-a6e3-dbcd4c55a2d9",
-    "opened_at": "",
-    "updated_at": ""
   },
   "XLB": {
     "symbol": "XLB",
