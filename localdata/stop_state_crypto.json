@@ -1,18 +1,4 @@
 {
-  "XLF": {
-    "symbol": "XLF",
-    "side": "long",
-    "qty": 17.0,
-    "entry_price": 56.712941,
-    "initial_stop_price": 55.374370813929964,
-    "current_stop_price": 55.374370813929964,
-    "r_per_share": 1.3385701860700334,
-    "stage": "initial",
-    "extreme_price": 56.712941,
-    "stop_order_id": "45dbc266-b36e-416a-bb14-3c08c18e895a",
-    "opened_at": "2026-07-30T14:36:29.642505+00:00",
-    "updated_at": "2026-07-30T14:36:29.642505+00:00"
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "short",
@@ -55,34 +41,6 @@
     "opened_at": "2026-07-31T13:36:20.466047+00:00",
     "updated_at": "2026-07-31T13:36:20.466047+00:00"
   },
-  "GDXJ": {
-    "symbol": "GDXJ",
-    "side": "long",
-    "qty": 9.0,
-    "entry_price": 96.846667,
-    "initial_stop_price": 88.79095171156528,
-    "current_stop_price": 88.79095171156528,
-    "r_per_share": 8.05571528843471,
-    "stage": "initial",
-    "extreme_price": 96.846667,
-    "stop_order_id": "9ad0ba68-b935-4e40-b17a-60786e8370e9",
-    "opened_at": "2026-07-31T13:36:20.628878+00:00",
-    "updated_at": "2026-07-31T13:36:20.628878+00:00"
-  },
-  "NOW": {
-    "symbol": "NOW",
-    "side": "long",
-    "qty": 22.0,
-    "entry_price": 108.26,
-    "initial_stop_price": 95.04428540910993,
-    "current_stop_price": 95.04428540910993,
-    "r_per_share": 13.215714590890068,
-    "stage": "initial",
-    "extreme_price": 108.26,
-    "stop_order_id": "990b43e8-5e83-4818-97b5-ba1a22e63ed0",
-    "opened_at": "2026-07-31T13:36:20.813518+00:00",
-    "updated_at": "2026-07-31T13:36:20.813518+00:00"
-  },
   "ASML": {
     "symbol": "ASML",
     "side": "long",
@@ -94,20 +52,6 @@
     "stage": "initial",
     "extreme_price": 1667.94,
     "stop_order_id": "96468502-9b6d-4386-9b9f-210a20fd35ad",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "FDX": {
-    "symbol": "FDX",
-    "side": "long",
-    "qty": 8.0,
-    "entry_price": 309.08,
-    "initial_stop_price": 294.51,
-    "current_stop_price": 294.51,
-    "r_per_share": 14.569999999999993,
-    "stage": "initial",
-    "extreme_price": 309.08,
-    "stop_order_id": "1551c940-32db-44f1-850d-316c946432a5",
     "opened_at": "",
     "updated_at": ""
   },
