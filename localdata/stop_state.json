@@ -124,5 +124,19 @@
     "stop_order_id": "990b43e8-5e83-4818-97b5-ba1a22e63ed0",
     "opened_at": "",
     "updated_at": ""
+  },
+  "XLB": {
+    "symbol": "XLB",
+    "side": "long",
+    "qty": 18.0,
+    "entry_price": 50.41,
+    "initial_stop_price": 48.64,
+    "current_stop_price": 48.64,
+    "r_per_share": 1.769999999999996,
+    "stage": "initial",
+    "extreme_price": 50.41,
+    "stop_order_id": "e6a0f8d2-c2c8-493e-b2d8-2c1d6a56693b",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
