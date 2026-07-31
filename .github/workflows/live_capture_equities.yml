@@ -119,6 +119,7 @@ jobs:
             --giveback-trigger-r 2.0 \
             --max-giveback-r 1.0 \
             --pure-horizon-exits
+            --regime-filter
 
       - name: Run live forward-return capture
         env:

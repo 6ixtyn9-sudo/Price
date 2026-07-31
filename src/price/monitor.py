@@ -35,7 +35,7 @@ from price.discovery import apply_state_bins, attach_cross_asset_states
 from price.features import compute_price_features
 from price.leverage import total_open_notional
 from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
-from price.regime import check_regime
+from price.regime import check_regime, regime_blocks_entry
 from price.risk_limits import RiskLimits, check_entry, risk_group_key
 from price.sizing import compute_atr_14, compute_position_size, load_edge_metrics
 from price.stop_manager import reconcile_stops
@@ -785,12 +785,13 @@ def scan_all_slices(
                     "localdata/monitored_edge_metrics.csv or regenerate "
                     "candidate_leaderboard.csv."
                 )
-            # Regime gate outcome: when the macro regime is hostile AND the
-            # filter is enabled, block the entry regardless of the risk gate.
-            # Folded into the audit trail as a tradable=False reason so the
-            # operator can see regime-blocking separately from risk-blocking.
-            regime_blocked = (
-                regime_filter_enabled and not regime_state.favourable()
+            # Regime gate outcome (SIDE-AWARE via regime.regime_blocks_entry):
+            # longs blocked in a confirmed bear (dip-buy-into-a-crash), shorts
+            # blocked in a confirmed bull; neutral/unknown always pass.
+            regime_blocked = regime_blocks_entry(
+                str(s.get("side", "long") or "long"),
+                regime_state.regime,
+                regime_filter_enabled,
             )
 
             # T5 macro-event blackout gate (FOMC/CPI/NFP/OPEX dates).

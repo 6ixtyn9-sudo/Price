@@ -91,6 +91,23 @@ class RegimeState:
         }
 
 
+def regime_blocks_entry(side: str, regime: str, enabled: bool) -> bool:
+    """Side-aware regime deployment gate.
+
+    Returns True when an entry should be BLOCKED:
+      - LONG  blocked in a confirmed BEAR (the dip-buy-into-a-crash failure)
+      - SHORT blocked in a confirmed BULL (shorting into a rally)
+    neutral / unknown never block (permissive; fail-open on missing macro
+    data). When ``enabled`` is False the gate is a no-op (never blocks).
+    """
+    if not enabled:
+        return False
+    is_short = str(side).strip().lower() in ("sell", "short")
+    if is_short:
+        return regime == "bull"
+    return regime == "bear"
+
+
 def assess_regime(
     regime_symbol: str,
     timeframe: str = "1d",

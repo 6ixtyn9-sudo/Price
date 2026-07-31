@@ -24,8 +24,41 @@ from price.regime import (  # noqa: E402
     RegimeState,
     assess_regime,
     check_regime,
+    regime_blocks_entry,
     resolve_regime_symbol,
 )
+
+
+# ---------------------------------------------------------------------------
+# regime_blocks_entry (side-aware gate decision)
+# ---------------------------------------------------------------------------
+
+def test_gate_disabled_never_blocks():
+    for side in ("long", "short"):
+        for regime in ("bull", "bear", "neutral", "unknown"):
+            assert regime_blocks_entry(side, regime, enabled=False) is False
+
+
+def test_long_blocked_in_bear_only():
+    assert regime_blocks_entry("long", "bear", True) is True
+    for regime in ("bull", "neutral", "unknown"):
+        assert regime_blocks_entry("long", regime, True) is False
+
+
+def test_short_blocked_in_bull_only():
+    assert regime_blocks_entry("short", "bull", True) is True
+    for regime in ("bear", "neutral", "unknown"):
+        assert regime_blocks_entry("short", regime, True) is False
+
+
+def test_short_allowed_in_bear():
+    # The key side-aware fix: a SHORT in a bear is NOT blocked (that's the
+    # profitable direction). The old side-blind gate wrongly blocked it.
+    assert regime_blocks_entry("short", "bear", True) is False
+
+
+def test_long_allowed_in_bull():
+    assert regime_blocks_entry("long", "bull", True) is False
 
 
 def _wh(monkeypatch, tmp_path, symbol, closes, freq="D"):

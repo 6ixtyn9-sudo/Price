@@ -429,9 +429,10 @@ def main() -> int:
                         "stretched_down+downtrend). 0 disables (every symbol = independent slot, "
                         "legacy behaviour).")
     parser.add_argument("--regime-filter", action="store_true",
-                        help="Enable the regime deployment gate. When on, a matched slice is blocked "
-                        "from entry if its macro regime (SMA-50/200 trend of the slice's own symbol, "
-                        "or a configured regime_symbol) is 'bear'. Converts the regime-conditional "
+                        help="Enable the side-aware regime deployment gate. When on, a LONG entry is blocked if its "
+                             "macro regime (SMA-50/200 trend of the slice's own symbol, or a configured regime_symbol) "
+                             "is 'bear' (the dip-buy-into-a-crash failure), and a SHORT entry is blocked in a 'bull' "
+                             "regime. neutral/unknown always pass (permissive / fail-open). Converts the regime-conditional "
                         "finding into an automatic dismount during hostile macro periods. Default off "
                         "(zero-risk to the live book); fails open on missing data.")
     parser.add_argument("--cost-spread-bps", type=float, default=1.0,
