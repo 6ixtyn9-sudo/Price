@@ -1595,6 +1595,7 @@ def run_candidate_leaderboard(
     HORIZONS = [3, 5, 10, 20]
     horizon_map: dict[tuple, int] = {}
     stop_map: dict[tuple, float | None] = {}
+    expected_return_map: dict[tuple, float | None] = {}
     frame_cache: dict = {}
 
     for _, row in leaderboard.iterrows():
@@ -1603,6 +1604,7 @@ def run_candidate_leaderboard(
         combo = row["slice_combination"]
         side = str(row.get("side", "long") or "long").lower()
         stop_map[(sym, tf, combo)] = None  # default; overwritten on success
+        expected_return_map[(sym, tf, combo)] = None
 
         try:
             sf = parse_slice_combination(combo)
@@ -1643,6 +1645,16 @@ def run_candidate_leaderboard(
                     best_mean = avg
                     best_h = h
             horizon_map[(sym, tf, combo)] = best_h
+
+            best_h_for_ret = best_h
+            ret_col = f"fwd_ret_{best_h_for_ret}"
+            if ret_col in window.columns:
+                rets_er = window[ret_col].dropna()
+                if len(rets_er) >= 5:
+                    er = float(rets_er.mean())
+                    if side == "short":
+                        er = -er
+                    expected_return_map[(sym, tf, combo)] = er
             # Per-slice stop multiplier = high percentile of the slice's own
             # adverse excursion (ATR) over the hold, clamped to [1.5, 5.0].
             # Mirrors best_fwd_horizon; non-overfit (percentile, not optimum).
@@ -1660,6 +1672,65 @@ def run_candidate_leaderboard(
         stop_map.get((r["symbol"], r["timeframe"], r["slice_combination"]))
         for _, r in leaderboard.iterrows()
     ]
+    leaderboard["expected_return"] = [
+        expected_return_map.get((r["symbol"], r["timeframe"], r["slice_combination"]))
+        for _, r in leaderboard.iterrows()
+    ]
+
+    from price.regime import attach_regime_labels
+
+    regime_valid_map = {}
+
+    for _, row in leaderboard.head(50).iterrows():  # top 50 candidates
+        sym, tf, combo = row["symbol"], row["timeframe"], row["slice_combination"]
+        side = str(row.get("side", "long") or "long").lower()
+        try:
+            sf = parse_slice_combination(combo)
+            _cross = cross_symbols_from_filter(sf)
+            ck = (sym, tf, tuple(sorted((s, tuple(f)) for s, f in _cross.items())), bin_mode)
+            ef = frame_cache.get(ck)
+            if ef is None or ef.empty:
+                continue
+
+            regime_symbol = sym  # use own symbol as regime proxy
+            ef_labelled = attach_regime_labels(ef.copy(), regime_symbol)
+
+            stable = {k: v for k, v in sf.items()
+                      if k not in ("state_session", "state_dow", "state_month")}
+            matched = pd.Series(True, index=ef_labelled.index)
+            for field, value in stable.items():
+                if field not in ef_labelled.columns:
+                    matched = pd.Series(False, index=ef_labelled.index)
+                    break
+                matched = matched & (ef_labelled[field].astype(str) == value)
+
+            window = ef_labelled[matched]
+            best_h = horizon_map.get((sym, tf, combo), 5)
+            ret_col = f"fwd_ret_{best_h}"
+            if ret_col not in window.columns or "regime" not in window.columns:
+                continue
+
+            regime_valid = {}
+            for regime in ("bull", "neutral", "bear"):
+                regime_window = window[window["regime"] == regime]
+                rets = regime_window[ret_col].dropna()
+                if len(rets) >= 5:
+                    mean_ret = float(rets.mean())
+                    if side == "short":
+                        mean_ret = -mean_ret
+                    regime_valid[regime] = mean_ret > 0
+                else:
+                    regime_valid[regime] = None  # insufficient data
+            regime_valid_map[(sym, tf, combo)] = regime_valid
+        except Exception:
+            regime_valid_map[(sym, tf, combo)] = {}
+
+    # Add columns
+    for regime in ("bull", "neutral", "bear"):
+        leaderboard[f"valid_in_{regime}"] = [
+            regime_valid_map.get((r["symbol"], r["timeframe"], r["slice_combination"]), {}).get(regime)
+            for _, r in leaderboard.iterrows()
+        ]
 
     leaderboard = annotate_search_wide_significance(
         leaderboard, p_threshold=p_threshold

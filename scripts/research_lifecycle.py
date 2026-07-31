@@ -397,6 +397,14 @@ def build_registry(
                 float(row.get("best_stop_atr_mult"))
                 if pd.notna(row.get("best_stop_atr_mult")) else None
             ),
+            "expected_return": (
+                float(row.get("expected_return"))
+                if pd.notna(row.get("expected_return")) and row.get("expected_return") is not None
+                else None
+            ),
+            "valid_in_bull": row.get("valid_in_bull"),
+            "valid_in_neutral": row.get("valid_in_neutral"),
+            "valid_in_bear": row.get("valid_in_bear"),
             "leverage_gate_pass": leverage_gate,
             "leverage_gate_reason": (
                 "risk data unavailable: lifecycle has no per-candidate ATR/R input; "

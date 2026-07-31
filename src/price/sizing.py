@@ -107,6 +107,7 @@ class SliceEdge:
     search_wide_bh_pass: bool
     search_wide_bonferroni_pass: bool
     triage_bucket: str = ""
+    expected_return: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -118,6 +119,7 @@ class SliceEdge:
             "search_wide_bh_pass": self.search_wide_bh_pass,
             "search_wide_bonferroni_pass": self.search_wide_bonferroni_pass,
             "triage_bucket": self.triage_bucket,
+            "expected_return": self.expected_return,
         }
 
 
@@ -201,9 +203,10 @@ def compute_conviction(
             reasons=["no leaderboard edge data; using neutral conviction (reproduces equal-notional)"],
         )
 
-    # Net the execution drag off the validation-cost-adjusted edge.
+    # Net the execution drag off the validation-cost-adjusted edge or expected return.
     exec_drag = cost_model.round_trip_drag() if cost_model else 0.0
-    net_edge = edge.mean_return - exec_drag
+    edge_metric = edge.expected_return if edge.expected_return is not None else edge.mean_return
+    net_edge = edge_metric - exec_drag
 
     # A cost-negated edge earns ~no capital and is explicitly NOT rescued by
     # the KNOWN_CONVICTION_FLOOR (a cost-eating trade is not a survivor
@@ -214,12 +217,12 @@ def compute_conviction(
             conviction=0.05,
             mode="cost_negated",
             components={
-                "gross_edge": round(edge.mean_return, 6),
+                "gross_edge": round(edge_metric, 6),
                 "exec_drag": round(exec_drag, 6),
                 "net_edge": round(net_edge, 6),
             },
             reasons=[
-                f"cost-negated: gross edge {edge.mean_return:.4f} - exec drag "
+                f"cost-negated: gross edge {edge_metric:.4f} - exec drag "
                 f"{exec_drag:.4f} = net {net_edge:.4f} <= 0; conviction floored to 0.05",
             ],
         )
@@ -439,6 +442,7 @@ def _load_edge_metrics_from(
         search_wide_bh_pass=_get_bool("search_wide_bh_pass"),
         search_wide_bonferroni_pass=_get_bool("search_wide_bonferroni_pass"),
         triage_bucket=str(row.get("triage_bucket", "") or ""),
+        expected_return=_get_float("expected_return") if "expected_return" in matches.columns and pd.notna(row.get("expected_return")) else None,
     )
 
 
