@@ -27,20 +27,6 @@
     "opened_at": "2026-07-31T13:46:42.353855+00:00",
     "updated_at": "2026-07-31T13:46:42.353855+00:00"
   },
-  "XLB": {
-    "symbol": "XLB",
-    "side": "long",
-    "qty": 18.0,
-    "entry_price": 50.41,
-    "initial_stop_price": 48.64,
-    "current_stop_price": 48.64,
-    "r_per_share": 1.769999999999996,
-    "stage": "initial",
-    "extreme_price": 50.41,
-    "stop_order_id": "e6a0f8d2-c2c8-493e-b2d8-2c1d6a56693b",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "NOW": {
     "symbol": "NOW",
     "side": "long",
@@ -69,20 +55,6 @@
     "opened_at": "2026-07-31T18:46:39.252162+00:00",
     "updated_at": "2026-07-31T18:46:39.252162+00:00"
   },
-  "AMAT": {
-    "symbol": "AMAT",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 514.76,
-    "initial_stop_price": 435.9,
-    "current_stop_price": 435.9,
-    "r_per_share": 78.86000000000001,
-    "stage": "initial",
-    "extreme_price": 514.76,
-    "stop_order_id": "7d99527a-6ce1-4e04-a085-72d2ec8c9bc4",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "short",
@@ -94,20 +66,6 @@
     "stage": "initial",
     "extreme_price": 190.14,
     "stop_order_id": "ff4be9a6-6a5c-4508-a2f3-a70ccc4981b8",
-    "opened_at": "",
-    "updated_at": ""
-  },
-  "SMCI": {
-    "symbol": "SMCI",
-    "side": "long",
-    "qty": 32.0,
-    "entry_price": 28.25,
-    "initial_stop_price": 23.85,
-    "current_stop_price": 23.85,
-    "r_per_share": 4.399999999999999,
-    "stage": "initial",
-    "extreme_price": 28.25,
-    "stop_order_id": "87b219b9-b0ca-45d6-b7a5-4dd9fb7375bb",
     "opened_at": "",
     "updated_at": ""
   }
