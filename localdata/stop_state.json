@@ -82,5 +82,19 @@
     "stop_order_id": "e6a0f8d2-c2c8-493e-b2d8-2c1d6a56693b",
     "opened_at": "",
     "updated_at": ""
+  },
+  "NOW": {
+    "symbol": "NOW",
+    "side": "long",
+    "qty": 22.0,
+    "entry_price": 111.08,
+    "initial_stop_price": 97.86,
+    "current_stop_price": 97.86,
+    "r_per_share": 13.219999999999999,
+    "stage": "initial",
+    "extreme_price": 111.08,
+    "stop_order_id": "ff4f019e-936f-4b35-9768-8a8afc40898f",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
