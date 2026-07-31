@@ -285,3 +285,4 @@ e663fc9f-504b-403f-9b2b-bfe2abd2dd61,canceled,order_cancel,2026-07-30T19:48:00.6
 ,rejected,protective_stop_replace,2026-07-31T15:46:10.819079+00:00,,,,,,,,,,,,41680664-e2a5-4194-a0c8-b7f17e75307e,226.51,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,,,
 ,rejected,protective_stop_replace,2026-07-31T16:46:34.917899+00:00,,,,,,,,,,,,41680664-e2a5-4194-a0c8-b7f17e75307e,226.51,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,,,
 ,rejected,protective_stop_replace,2026-07-31T17:46:16.106876+00:00,,,,,,,,,,,,41680664-e2a5-4194-a0c8-b7f17e75307e,226.51,"{""code"":42210000,""message"":""order is not open""}",,,,,,,,,,,
+62301a56-9578-4003-b18d-47f4b1d8b30a,pending_new,protective_stop_submit,2026-07-31T18:46:39.484700+00:00,AEP,sell,2026-07-31 18:46:39.447349+00:00,7.0,,,,,,,,,123.23,,stop,gtc,,,,,,,,,
