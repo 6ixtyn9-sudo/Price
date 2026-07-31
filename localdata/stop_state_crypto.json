@@ -40,5 +40,47 @@
     "stop_order_id": "41680664-e2a5-4194-a0c8-b7f17e75307e",
     "opened_at": "2026-07-30T17:36:19.314281+00:00",
     "updated_at": "2026-07-30T17:36:19.314281+00:00"
+  },
+  "AEP": {
+    "symbol": "AEP",
+    "side": "long",
+    "qty": 7.0,
+    "entry_price": 127.63,
+    "initial_stop_price": 122.39713126046317,
+    "current_stop_price": 122.39713126046317,
+    "r_per_share": 5.232868739536831,
+    "stage": "initial",
+    "extreme_price": 127.63,
+    "stop_order_id": "c803fa0d-3fb2-4589-9632-f9d82a66959d",
+    "opened_at": "2026-07-31T13:36:20.466047+00:00",
+    "updated_at": "2026-07-31T13:36:20.466047+00:00"
+  },
+  "GDXJ": {
+    "symbol": "GDXJ",
+    "side": "long",
+    "qty": 9.0,
+    "entry_price": 96.846667,
+    "initial_stop_price": 88.79095171156528,
+    "current_stop_price": 88.79095171156528,
+    "r_per_share": 8.05571528843471,
+    "stage": "initial",
+    "extreme_price": 96.846667,
+    "stop_order_id": "9ad0ba68-b935-4e40-b17a-60786e8370e9",
+    "opened_at": "2026-07-31T13:36:20.628878+00:00",
+    "updated_at": "2026-07-31T13:36:20.628878+00:00"
+  },
+  "NOW": {
+    "symbol": "NOW",
+    "side": "long",
+    "qty": 22.0,
+    "entry_price": 108.26,
+    "initial_stop_price": 95.04428540910993,
+    "current_stop_price": 95.04428540910993,
+    "r_per_share": 13.215714590890068,
+    "stage": "initial",
+    "extreme_price": 108.26,
+    "stop_order_id": "990b43e8-5e83-4818-97b5-ba1a22e63ed0",
+    "opened_at": "2026-07-31T13:36:20.813518+00:00",
+    "updated_at": "2026-07-31T13:36:20.813518+00:00"
   }
 }
