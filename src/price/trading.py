@@ -874,6 +874,27 @@ def reconcile_trade_journal(
 
         if not updates:
             continue
+
+        if (info and not info.get("error") and info.get("filled_avg_price")
+                and info.get("status") in ("filled", "partially_filled")):
+            sig_meta = signal_metadata.get(order_id)
+            if sig_meta:
+                sig_close = sig_meta.get("close_adj")
+                fill_price = info.get("filled_avg_price")
+                try:
+                    sig_close_f = float(sig_close)
+                    fill_price_f = float(fill_price)
+                    if sig_close_f > 0:
+                        gap_bps = (fill_price_f - sig_close_f) / sig_close_f * 10000.0
+                        if abs(gap_bps) > 200:
+                            symbol = row.get("symbol", "UNKNOWN")
+                            print(
+                                f"  ⚠️  STALE FILL: {symbol} order {order_id} filled "
+                                f"{gap_bps:+.0f} bps from signal close {sig_close_f:.2f} "
+                                f"(fill={fill_price_f:.2f}) -- exceeds 200 bps adverse threshold"
+                            )
+                except (TypeError, ValueError):
+                    pass
         row_changed = any(not _same(row.get(col), value) for col, value in updates.items())
         if not row_changed:
             continue
