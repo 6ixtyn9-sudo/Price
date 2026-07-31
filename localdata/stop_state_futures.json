@@ -110,5 +110,33 @@
     "stop_order_id": "990b43e8-5e83-4818-97b5-ba1a22e63ed0",
     "opened_at": "",
     "updated_at": ""
+  },
+  "KLAC": {
+    "symbol": "KLAC",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 181.917692,
+    "initial_stop_price": 169.51,
+    "current_stop_price": 169.51,
+    "r_per_share": 12.407691999999997,
+    "stage": "initial",
+    "extreme_price": 181.917692,
+    "stop_order_id": "7a399d40-50ee-497c-a6e3-dbcd4c55a2d9",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "XLB": {
+    "symbol": "XLB",
+    "side": "long",
+    "qty": 18.0,
+    "entry_price": 50.41,
+    "initial_stop_price": 48.64,
+    "current_stop_price": 48.64,
+    "r_per_share": 1.769999999999996,
+    "stage": "initial",
+    "extreme_price": 50.41,
+    "stop_order_id": "e6a0f8d2-c2c8-493e-b2d8-2c1d6a56693b",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
