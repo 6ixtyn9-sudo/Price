@@ -6,7 +6,7 @@ on:
       live_symbols:
         description: "Symbols to capture (space-separated)"
         required: false
-        default: "SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XOP XLB KLAC"
+        default: "SPY QQQ IWM DIA GLD TLT USO XLK XLF XLE XLI XLV XLY XLP XLU XLRE XLC XME XOP XRT SMH SOXX IYT IYR IBB XBI KRE KBE AAPL MSFT NVDA GOOGL AMZN META TSLA JPM V JNJ WMT PG MA HD UNH CVX ABBV LLY MRK PEP KO BAC AVGO COST MCD TMO CSX CRM ACN ABT LIN DHR NKE TXN INTC AMD QCOM NFLX ORCL PFE DIS CMCSA VZ ADBE"
 
 concurrency:
   group: live-capture
