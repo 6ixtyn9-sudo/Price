@@ -6522,3 +6522,49 @@ Engine summary: pure-horizon exits (+ immortal guard + held=0 carve-out); dynami
 DEFERRED (need live data or are doctrine tradeoffs, not bugs): sector-concentration cap; conviction-sizing sparsity (expected_returns table is sparse -> most slices size at neutral conviction 1.0; fix is populating expected_returns, research-side); per-lane cost model in attribution; explicit stale_warehouse reason (currently shows as generic no_completed_state); horizon-exact MAE.
 NEXT: run ONE research cycle to populate stop_atr_mult, then let it trade 1-2 weeks and measure the three proof points: (1) signal_to_fill_bps finally positive (winner-capture), (2) stale_signal_adverse_gap blocks with dyn_thr=200 on high-vol names, (3) hourly exit_reason -> horizon reached. Do NOT tune off small samples.
 Anti-drift rules stand: no leverage, no options/forex, no premature P&L culling before n>=5.
+Session Update — Side-Aware Regime Gate Enabled + Full-System Audit (2026-07-31)
+Date: 2026-07-31
+
+Side-aware regime gate LIVE on equities
+- src/price/regime.py: new regime_blocks_entry(side, regime, enabled) — LONGS blocked
+  in confirmed SMA-50/200 bear (death cross), SHORTS blocked in confirmed bull.
+  neutral/unknown never block (permissive, fail-open). Uses each slice's own symbol's
+  50/200 SMA (no regime_symbol column in the book yet; default = own symbol).
+- src/price/monitor.py: replaced the old side-blind gate (not favourable()) with the
+  side-aware helper. Critical fix: a SHORT in a bear is now ALLOWED (the old gate
+  wrongly blocked it — shorting a bear is the profitable direction).
+- .github/workflows/live_capture_equities.yml: --regime-filter ON (with correct   line continuation — a missing backslash was caught and fixed before it crashed the
+  workflow).
+- tests/test_regime.py: 5 new tests pinning the side-aware logic.
+- EQUITIES ONLY (intentional). Crypto/futures not gated — different market structure
+  (24/7, no RTH sessions). Add the flag to those workflows if/when wanted.
+
+Entry guard + winner-capture confirmed ACTIVE via argparse defaults
+- --max-adverse-fill-bps (default 200), --adverse-atr-mult (default 1.0),
+  --entry-premium-atr-mult (default 0.25), --entry-premium-bps (default 100) are
+  type=float with non-zero defaults. They are ACTIVE in ALL workflows without needing
+  explicit YAML flags. (An antigravity audit initially flagged these as "dormant" —
+  corrected: float defaults apply automatically; only store_true flags need explicit
+  passing.)
+
+Full-system audit (antigravity pass) — NO REAL GAPS
+- Ran full test suite, checked all 17 subsystems. False positives corrected (argparse
+  defaults, equities-first scoping, operational flags). Confirmed working: bars_held,
+  exit_reason, cost model, stale-warehouse guard, stop_atr_mult (598/598), YAML syntax,
+  interaction ordering (regime gate runs before live-price fetch), no unused functions.
+
+Momentum slices already in the book
+- 167 of 598 monitored slices are uptrend-conditioned (dip-buys in uptrends =
+  elevator-catching). state_trend_strength IS computed, binned, and evaluated by
+  discovery for equities — pure momentum (strong_trend → long) was evaluated but did
+  NOT survive validation for equities at these timeframes. No code gap; the edge
+  doesn't currently validate. Daily discovery runs will surface it if/when it appears.
+
+First post-fix live data (2026-07-30/31)
+- Post-fix trades net positive (~+$108 on ~15 new round trips). First positive
+  signal_to_fill_bps values ever (FDX +7/+17, HON +17/+19, CRWD +27, AEP +19).
+  All post-fix exits are "horizon reached" (pure-horizon working). Clean fills
+  (entry guard working). CRWD shorts losing (edge issue, not execution — regime gate
+  should help going forward). Legacy tail (KLAC/LRCX daily knives) still closing.
+
+Anti-drift rules stand.
