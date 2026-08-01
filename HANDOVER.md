@@ -6568,3 +6568,32 @@ First post-fix live data (2026-07-30/31)
   should help going forward). Legacy tail (KLAC/LRCX daily knives) still closing.
 
 Anti-drift rules stand.
+
+### 2026-08-01 — Item 10 (regime-adaptive deployment) shipped + verified; discovery runtime triaged
+**Discovery runtime: 7h → 4h is straggler/queue variance, not a regression**
+Triaged why Research Discovery Equities 15m dropped from ~7h to ~4h.
+Run #16 (07-30) = 5h49m; Run #17 (07-31) = 3h59m. Identical config in both (same workflow, same 221-equity universe, same 12 shards, all green) → the drop is not a code or universe change.
+Decomposed via per-job timestamps: wall-clock = (runner queue wait) + (slowest shard). Run #16 had ~zero queue wait but one straggler shard ran ~5h40m (the long pole). Run #17 had ~1–1.5h queue wait but no straggler (max ~2h10m) → net faster despite more queue time.
+Straggler cause is non-deterministic: a single ticker's 15m history stalling/retrying on yfinance/Tiingo, or shared-runner CPU contention. Levers if it becomes a real problem: shrink batch_size (smaller shards), or add a per-symbol fetch timeout/retry-cap in research_shard.py.
+Separately confirmed the 07-27 "scope equity workflows to equities only" fix (payload["all"] 236 → payload["equities"] 221, hard-rejecting / and FUT/) is a real but minor reduction that predates both runs.
+Nothing skipped: all 12 shards success in both runs; --allow-partial did not trigger.
+
+**Items 7+8 output confirmed populated (run #17)**
+`monitored_edge_metrics.csv` now carries `expected_return`, `valid_in_bull/neutral/bear`, `best_stop_atr_mult`, `best_fwd_horizon` per slice — the columns previously flagged "pending weekend run" are done.
+Example of correct regime-conditionality: ARKW's uptrend long validates in bull+neutral but not bear.
+
+**Item 10: per-slice regime-adaptive deployment — SHIPPED (506952c) + verified**
+- `regime.per_slice_regime_verdict(regime, valid_regimes)` → "block"|"allow"|"defer". Authoritative when the slice carries `valid_regimes` and the macro regime is known (overrides the blunt global side-aware rule in both directions — blocks an out-of-regime slice, and allows a slice research validated in a regime the global rule would have blocked). Defers (fail-open) when no `valid_regimes` or regime unknown/gate_disabled.
+- `research_lifecycle.apply_registry_to_monitored` now emits a `valid_regimes` JSON column (e.g. `["bull","neutral"]`) via new `_valid_regimes_json`, derived from the registry's `valid_in_bull/neutral/bear`. `build_registry` already carried those flags; `research_merge` delegates to `build_registry`, so the chain is: shard leaderboard → `build_registry` → `candidate_registry.csv` (has `valid_in_*`) → `apply_registry_to_monitored` (now emits `valid_regimes`) → book.
+- `monitor._load_explicit_monitored_slices` parses `valid_regimes` JSON into the slice record; `scan_all_slices` applies the verdict immediately after `regime_blocks_entry`, with `regime_reason = None` initialized unconditionally, and threads a distinct `regime_out_of_sample` block reason into both the live and dry-run audit paths (vs the old `regime_hostile`).
+- No workflow change — rides the existing `--regime-filter` flag (equities only). Crypto/futures have no flag and no `valid_regimes` → defer → unchanged.
+- Tests: 7 `per_slice_regime_verdict` cases + 1 `scan_all_slices` override test (mocked `check_regime`→bear; slice with `valid_regimes=["bear"]` allowed, `["bull"]` blocked) + lifecycle emission test. Full suite: 550 passed.
+
+**Process note — the push incident**
+Item 10 was committed locally but not pushed on the first pass: the command log ran `git commit` twice (with stash/rebase) but never `git push`. Verification on `origin/main` caught it (no `per_slice_regime_verdict` in `regime.py`; the latest `regime.py` commit was still the 07-31 side-aware gate). Reaffirmed doctrine: confirm on `origin/main` before accepting "done" — a local commit + green local tests ≠ shipped.
+
+**Next steps**
+- Monday verify: `valid_regimes` column present in `monitored_slices.csv` after the weekend discovery runs; first proof point is a "regime out of sample (...)" block in `paper_trade_log.csv` under `--regime-filter`.
+- Two-week post-fix observation window continues (`signal_to_fill_bps` positive; horizon-reached exits; regime/stale blocks accumulating).
+- Deferred (post-observation): sector-concentration cap (`risk_group_key` groups by entry-condition, not sector → correlated semis bypassed the per-group cap); per-lane cost model in attribution (uses `default_cost_model()`, wrong for crypto/futures); explicit `stale_warehouse` reason (currently surfaces as generic `no_completed_state`); horizon-exact MAE (calibrated to 5-bar window, conservative for horizon-3 slices).
+- Minor test cleanup (not urgent): `test_alpaca`/`test_tiingo` return DataFrames instead of asserting (`PytestReturnNotNoneWarning`) — those tests pass regardless of content.
