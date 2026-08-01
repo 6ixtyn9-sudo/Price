@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-31T00:31:51.658772+00:00",
+  "generated_at_utc": "2026-08-01T00:32:10.147195+00:00",
   "bin_mode": "rolling",
   "symbols": [
     "FUT/ES",
@@ -239,17 +239,47 @@
   ],
   "regime_status_counts": {
     "regime_switching_research_only": 101,
-    "unsupported": 30
+    "unsupported": 29,
+    "neutral_regime_candidate": 1
   },
   "regime_leaderboard_rows": {
     "bull": 131,
     "bear": 131,
     "neutral": 131
   },
-  "regime_candidate_count": 0,
-  "top_regime_candidates": [],
-  "monitored_candidate_count": 0,
-  "monitored_candidate_symbols": [],
-  "monitored_candidate_status_counts": {},
-  "top_monitored_candidates": []
+  "regime_candidate_count": 1,
+  "top_regime_candidates": [
+    {
+      "symbol": "FUT/NQ",
+      "timeframe": "1h",
+      "slice_combination": "state_ext=stretched_up + state_slope=uptrend",
+      "side": "long",
+      "overall_regime_status": "neutral_regime_candidate",
+      "best_regime": "neutral",
+      "best_regime_mean_ret_costadj": 0.0029300277489009113,
+      "best_regime_p_value_nw": 0.0006607560116522748,
+      "walk_forward_pass_pattern": "1"
+    }
+  ],
+  "monitored_candidate_count": 1,
+  "monitored_candidate_symbols": [
+    "FUT/NQ"
+  ],
+  "monitored_candidate_status_counts": {
+    "neutral_regime_candidate": 1
+  },
+  "top_monitored_candidates": [
+    {
+      "symbol": "FUT/NQ",
+      "timeframe": "1h",
+      "slice_combination": "state_ext=stretched_up + state_slope=uptrend",
+      "side": "long",
+      "overall_regime_status": "neutral_regime_candidate",
+      "best_regime": "neutral",
+      "best_regime_mean_ret_costadj": 0.0029300277489009113,
+      "best_regime_p_value_nw": 0.0006607560116522748,
+      "triage_bucket": "parent_underperformed",
+      "walk_forward_pass_pattern": "1"
+    }
+  ]
 }
