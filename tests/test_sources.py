@@ -15,7 +15,7 @@ ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 TIINGO_API_KEY = os.getenv("TIINGO_API_KEY")
 
-def test_alpaca():
+def fetch_alpaca():
     print("--- Testing Alpaca ---")
     if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
         print("Alpaca keys missing in .env")
@@ -44,7 +44,10 @@ def test_alpaca():
         print(f"Alpaca error: {e}")
         return None
 
-def test_tiingo():
+def test_alpaca():
+    fetch_alpaca()
+
+def fetch_tiingo():
     print("\n--- Testing Tiingo ---")
     if not TIINGO_API_KEY:
         print("Tiingo API key missing in .env")
@@ -69,9 +72,12 @@ def test_tiingo():
         print(f"Tiingo error: {e}")
         return None
 
+def test_tiingo():
+    fetch_tiingo()
+
 if __name__ == "__main__":
-    alpaca_df = test_alpaca()
-    tiingo_df = test_tiingo()
+    alpaca_df = fetch_alpaca()
+    tiingo_df = fetch_tiingo()
     
     if alpaca_df is not None and tiingo_df is not None:
         print("\n--- Comparison ---")
