@@ -9,6 +9,7 @@ activation remains a separate decision.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -31,6 +32,22 @@ def _num(value, default=None):
 
 def _truthy(value) -> bool:
     return str(value).strip().lower() in {"true", "1", "yes"}
+
+
+def _valid_regimes_json(row) -> str:
+    """Serialize a registry row's validated regimes to a JSON list string.
+
+    Mirrors build_registry's carry-through of valid_in_bull/neutral/bear.
+    A slice validated nowhere yields '[]' -> the monitor defers to the
+    global side-aware rule for that slice.
+    """
+    regimes = []
+    for label, col in (("bull", "valid_in_bull"),
+                       ("neutral", "valid_in_neutral"),
+                       ("bear", "valid_in_bear")):
+        if _truthy(row.get(col)):
+            regimes.append(label)
+    return json.dumps(regimes)
 
 
 def normalize_walk_forward_patterns(frame: pd.DataFrame) -> pd.DataFrame:
@@ -477,6 +494,7 @@ def apply_registry_to_monitored(
                 float(row.get("stop_atr_mult"))
                 if pd.notna(row.get("stop_atr_mult")) else None
             ),
+            "valid_regimes": _valid_regimes_json(row),
         })
         existing_keys.add(key)
 

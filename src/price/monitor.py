@@ -21,6 +21,7 @@ ever reach trading.submit_entry(). See HANDOVER.md,
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
+import json
 import re
 
 import numpy as np
@@ -35,7 +36,7 @@ from price.discovery import apply_state_bins, attach_cross_asset_states
 from price.features import compute_price_features
 from price.leverage import total_open_notional
 from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
-from price.regime import check_regime, regime_blocks_entry
+from price.regime import check_regime, per_slice_regime_verdict, regime_blocks_entry
 from price.risk_limits import RiskLimits, check_entry, risk_group_key
 from price.sizing import compute_atr_14, compute_position_size, load_edge_metrics
 from price.stop_manager import reconcile_stops
@@ -159,17 +160,25 @@ def _load_explicit_monitored_slices() -> Optional[List[dict]]:
         # Optional deployment metadata. `regime_symbol` is functional: the
         # regime gate uses it as the macro/sector series for this slice. Keep
         # it when present instead of silently discarding the operator's gate.
-        for optional_col in ("regime_symbol", "source_note", "exit_horizon", "stop_atr_mult"):
+        for optional_col in ("regime_symbol", "source_note", "exit_horizon", "stop_atr_mult", "valid_regimes"):
             if optional_col in rows.columns and pd.notna(row.get(optional_col)):
                 value = str(row.get(optional_col)).strip()
-                if value:
-                    if optional_col in ("exit_horizon", "stop_atr_mult"):
-                        try:
-                            record[optional_col] = float(value) if optional_col == "stop_atr_mult" else int(float(value))
-                        except (TypeError, ValueError):
-                            pass
-                    else:
-                        record[optional_col] = value.upper() if optional_col == "regime_symbol" else value
+                if not value:
+                    continue
+                if optional_col == "valid_regimes":
+                    try:
+                        parsed = json.loads(value)
+                    except (TypeError, ValueError):
+                        continue
+                    if isinstance(parsed, list) and parsed:
+                        record["valid_regimes"] = [str(r).strip().lower() for r in parsed if r]
+                elif optional_col in ("exit_horizon", "stop_atr_mult"):
+                    try:
+                        record[optional_col] = float(value) if optional_col == "stop_atr_mult" else int(float(value))
+                    except (TypeError, ValueError):
+                        pass
+                else:
+                    record[optional_col] = value.upper() if optional_col == "regime_symbol" else value
         bin_mode = str(row.get("bin_mode", "insample") or "insample").lower()
         if bin_mode not in VALID_BIN_MODES:
             print(f"monitored_slices.csv row {idx}: invalid bin_mode {bin_mode!r}; skipping")
@@ -797,6 +806,21 @@ def scan_all_slices(
                 regime_state.regime,
                 regime_filter_enabled,
             )
+            # Per-slice regime-adaptive deployment (Item 10). When the
+            # slice carries the regimes it was validated in and the macro
+            # regime is known, that verdict is AUTHORITATIVE: deploy only
+            # in a regime the slice survived, even if the blunt side-aware
+            # rule would have allowed or blocked it. Slices with no
+            # valid_regimes, or an unknown/disabled macro regime, defer to
+            # the global rule above (fail-open unchanged).
+            regime_reason = None
+            if regime_filter_enabled:
+                verdict = per_slice_regime_verdict(regime_state.regime, s.get("valid_regimes"))
+                if verdict == "block":
+                    regime_blocked = True
+                    regime_reason = "regime_out_of_sample"
+                elif verdict == "allow":
+                    regime_blocked = False
 
             # T5 macro-event blackout gate (FOMC/CPI/NFP/OPEX dates).
             # Pure risk control independent of slice selection: no new
@@ -855,11 +879,18 @@ def scan_all_slices(
                 tradable = risk_result.allowed
                 if regime_blocked:
                     tradable = False
-                    gate_reasons.insert(
-                        0,
-                        f"regime hostile ({regime_state.regime} on "
-                        f"{regime_state.symbol}); entry blocked",
-                    )
+                    if regime_reason == "regime_out_of_sample":
+                        gate_reasons.insert(
+                            0,
+                            f"regime out of sample ({regime_state.regime} not in "
+                            f"{s.get('valid_regimes')}); entry blocked",
+                        )
+                    else:
+                        gate_reasons.insert(
+                            0,
+                            f"regime hostile ({regime_state.regime} on "
+                            f"{regime_state.symbol}); entry blocked",
+                        )
                 if blackout:
                     tradable = False
                     gate_reasons.insert(
@@ -886,10 +917,16 @@ def scan_all_slices(
                 gate_reasons = ["dry_run"]
                 tradable = not regime_blocked and not entry_sync_blocked and not blackout
                 if regime_blocked:
-                    gate_reasons.append(
-                        f"regime hostile ({regime_state.regime} on "
-                        f"{regime_state.symbol}); entry blocked",
-                    )
+                    if regime_reason == "regime_out_of_sample":
+                        gate_reasons.append(
+                            f"regime out of sample ({regime_state.regime} not in "
+                            f"{s.get('valid_regimes')}); entry blocked",
+                        )
+                    else:
+                        gate_reasons.append(
+                            f"regime hostile ({regime_state.regime} on "
+                            f"{regime_state.symbol}); entry blocked",
+                        )
                 if blackout:
                     gate_reasons.append(
                         "macro-event blackout (FOMC/CPI/NFP/OPEX); new entries paused",

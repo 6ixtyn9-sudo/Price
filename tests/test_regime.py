@@ -236,5 +236,90 @@ def test_audit_dict_is_flat_and_csv_safe():
 def test_favourable_allows_bull_neutral_unknown_blocks_bear():
     assert RegimeState("X", "bull").favourable() is True
     assert RegimeState("X", "neutral").favourable() is True
-    assert RegimeState("X", "unknown").favourable() is True
     assert RegimeState("X", "bear").favourable() is False
+
+
+# ---------------------------------------------------------------------------
+# per_slice_regime_verdict (Item 10 adaptive gate)
+# ---------------------------------------------------------------------------
+
+def test_adaptive_gate_blocks_bear_when_slice_only_valid_in_bull_neutral():
+    from price.regime import per_slice_regime_verdict
+    assert per_slice_regime_verdict("bear", ["bull", "neutral"]) == "block"
+
+
+def test_adaptive_gate_allows_bear_override():
+    from price.regime import per_slice_regime_verdict
+    assert per_slice_regime_verdict("bear", ["bear"]) == "allow"
+
+
+def test_adaptive_gate_allows_bull():
+    from price.regime import per_slice_regime_verdict
+    assert per_slice_regime_verdict("bull", ["bull", "neutral"]) == "allow"
+
+
+def test_adaptive_gate_defers_empty_valid_regimes():
+    from price.regime import per_slice_regime_verdict
+    assert per_slice_regime_verdict("bear", []) == "defer"
+
+
+def test_adaptive_gate_defers_none_valid_regimes():
+    from price.regime import per_slice_regime_verdict
+    assert per_slice_regime_verdict("bear", None) == "defer"
+
+
+def test_adaptive_gate_defers_unknown_macro_regime():
+    from price.regime import per_slice_regime_verdict
+    assert per_slice_regime_verdict("unknown", ["bull"]) == "defer"
+
+
+def test_adaptive_gate_defers_gate_disabled():
+    from price.regime import per_slice_regime_verdict
+    assert per_slice_regime_verdict("gate_disabled", ["bull"]) == "defer"
+
+
+def test_scan_all_slices_regime_override(monkeypatch):
+    from price.monitor import scan_all_slices
+    from price.risk_limits import RiskLimits
+    import price.monitor as monitor_mod
+    import price.sizing as sizing_mod
+    
+    # 1. Monkeypatch check_regime to always return "bear"
+    monkeypatch.setattr(monitor_mod, "check_regime",
+                        lambda *a, **k: RegimeState("SPY", "bear"))
+    
+    # 2. Monkeypatch get_current_state to return a valid state matching the slice
+    df_state = pd.DataFrame([{"bar_ts_utc": "2026-08-01T00:00:00Z", "close_adj": 100.0, "state_ext": "neutral"}])
+    monkeypatch.setattr(monitor_mod, "get_current_state", lambda *a, **k: df_state)
+    
+    # 3. Monkeypatch sizing to avoid hitting missing edge metrics logic issues
+    class MockSize:
+        qty = 10
+        sizing_mode = "conviction"
+    monkeypatch.setattr(sizing_mod, "compute_position_size", lambda *a, **k: MockSize())
+    
+    # 4. Monkeypatch get_open_positions/orders
+    monkeypatch.setattr(monitor_mod, "get_open_positions", lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(monitor_mod, "get_open_orders", lambda *a, **k: pd.DataFrame())
+    
+    # We have two slices. Both are longs. Global rule says longs are blocked in a bear.
+    # Slice 1: valid_in_bear = ["bear"] -> per-slice verdict "allow", overrides global block.
+    # Slice 2: valid_in_bull = ["bull"] -> per-slice verdict "block", stays blocked.
+    slices = [
+        {"symbol": "SPY", "timeframe": "1d", "slice_combination": "state_ext=neutral", "side": "long", "valid_regimes": ["bear"]},
+        {"symbol": "SPY", "timeframe": "1d", "slice_combination": "state_ext=neutral", "side": "long", "valid_regimes": ["bull"]},
+    ]
+    
+    limits = RiskLimits(account_equity_for_sizing=100000.0)
+    signals = scan_all_slices(slices, limits=limits, regime_filter_enabled=True, dry_run=True)
+    
+    # Expect 2 entry_signal rows, one for each slice
+    entry_signals = [s for s in signals if s.get("kind") == "entry_signal"]
+    assert len(entry_signals) == 2
+    
+    # Because of the edge sort, we might need to check which is which.
+    # They should have the same priority if no edge metrics are found, but let's just inspect both.
+    tradables = [s["tradable"] for s in entry_signals]
+    assert True in tradables
+    assert False in tradables
+

@@ -108,6 +108,26 @@ def regime_blocks_entry(side: str, regime: str, enabled: bool) -> bool:
     return regime == "bear"
 
 
+def per_slice_regime_verdict(regime: str, valid_regimes) -> str:
+    """Per-slice regime-adaptive deployment verdict.
+
+    Returns 'block' | 'allow' | 'defer':
+      - 'block' : macro regime is a KNOWN bull/bear/neutral the slice was
+                  NOT validated in -> do not deploy.
+      - 'allow' : macro regime is known AND in the slice's valid regimes ->
+                  deploy (authoritative override of the blunt side-aware
+                  rule, e.g. allows a bear-validated long in a bear).
+      - 'defer' : slice has no per-slice regime data, OR macro regime is
+                  unknown/gate_disabled -> caller applies its existing
+                  global side-aware rule (which itself fails open).
+    """
+    if not valid_regimes:
+        return "defer"
+    if regime not in ("bull", "bear", "neutral"):
+        return "defer"
+    return "allow" if regime in valid_regimes else "block"
+
+
 def assess_regime(
     regime_symbol: str,
     timeframe: str = "1d",
