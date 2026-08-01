@@ -1,20 +1,8 @@
 {
-  "previous_book_count": 166,
+  "previous_book_count": 164,
   "new_book_count": 164,
-  "added_candidates": [
-    "CRM|15m|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|short|rolling",
-    "ETHA|15m|state_session=afternoon + state_slope=uptrend + state_vol=mid_vol|short|rolling",
-    "MU|15m|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up|long|rolling",
-    "UBER|15m|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling"
-  ],
-  "removed_candidates": [
-    "CRM|15m|state_session=afternoon + state_ext=stretched_up|short|rolling",
-    "GDXJ|15m|state_session=afternoon + state_slope=uptrend + state_vol=low_vol|long|rolling",
-    "GDX|15m|state_session=afternoon + state_slope=uptrend + state_vol=low_vol|long|rolling",
-    "MDT|15m|state_session=lunch + state_slope=uptrend + state_vol=mid_vol|short|rolling",
-    "SMCI|15m|state_ext=neutral + state_slope=uptrend + state_vol=low_vol|long|rolling",
-    "SMCI|15m|state_session=afternoon + state_ext=neutral + state_slope=uptrend|long|rolling"
-  ],
+  "added_candidates": [],
+  "removed_candidates": [],
   "retained_candidates": [
     "ABBV|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=low_vol|long|rolling",
     "ABBV|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling",
@@ -52,6 +40,7 @@
     "CBOE|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=flat|long|rolling",
     "CME|1d|state_volume=vol_surge + state_ext=neutral|long|rolling",
     "CMG|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
+    "CRM|15m|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|short|rolling",
     "CRWD|1h|state_session=morning + state_ext=stretched_up + state_slope=flat|long|rolling",
     "DASH|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
     "DE|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
@@ -64,6 +53,7 @@
     "DUK|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "EQIX|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "EQIX|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
+    "ETHA|15m|state_session=afternoon + state_slope=uptrend + state_vol=mid_vol|short|rolling",
     "ETN|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "GD|1d|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling",
     "GE|1d|cross_TLT_state_vol=high_vol + state_ext=stretched_up|long|rolling",
@@ -97,6 +87,7 @@
     "MSFT|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "MS|1h|state_session=afternoon + state_slope=downtrend + state_vol=low_vol|long|rolling",
     "MS|1h|state_slope=downtrend + state_vol=low_vol|long|rolling",
+    "MU|15m|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up|long|rolling",
     "NEE|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "NEE|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "NEM|1h|state_slope=downtrend + state_vol=low_vol|long|rolling",
@@ -141,6 +132,7 @@
     "TMO|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=neutral + state_ext=neutral|long|rolling",
     "TSLA|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "TXN|1d|cross_USO_state_slope=uptrend + state_slope=uptrend|long|rolling",
+    "UBER|15m|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling",
     "UNP|1d|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "UPS|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "VOO|1d|state_slope=uptrend + state_vol=mid_vol|long|rolling",
@@ -177,31 +169,8 @@
     "XYZ|1d|state_volume=vol_quiet + state_ext=stretched_up + state_slope=uptrend|long|rolling",
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
-  "changed_sides_or_slices": [
-    {
-      "symbol": "CRM",
-      "timeframe": "15m",
-      "previous": [
-        "CRM|15m|state_session=afternoon + state_ext=stretched_up|short|rolling"
-      ],
-      "current": [
-        "CRM|15m|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|short|rolling"
-      ]
-    }
-  ],
-  "removal_reasons": {
-    "CRM|15m|state_session=afternoon + state_ext=stretched_up|short|rolling": "slice_changed",
-    "GDXJ|15m|state_session=afternoon + state_slope=uptrend + state_vol=low_vol|long|rolling": "registry_status:research_only",
-    "GDX|15m|state_session=afternoon + state_slope=uptrend + state_vol=low_vol|long|rolling": "registry_status:research_only",
-    "MDT|15m|state_session=lunch + state_slope=uptrend + state_vol=mid_vol|short|rolling": "registry_status:research_only",
-    "SMCI|15m|state_ext=neutral + state_slope=uptrend + state_vol=low_vol|long|rolling": "registry_status:research_only",
-    "SMCI|15m|state_session=afternoon + state_ext=neutral + state_slope=uptrend|long|rolling": "registry_status:research_only"
-  },
-  "promotion_reasons": {
-    "CRM|15m|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|short|rolling": "paper_proposal",
-    "ETHA|15m|state_session=afternoon + state_slope=uptrend + state_vol=mid_vol|short|rolling": "paper_proposal",
-    "MU|15m|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up|long|rolling": "paper_proposal",
-    "UBER|15m|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling": "paper_proposal"
-  },
+  "changed_sides_or_slices": [],
+  "removal_reasons": {},
+  "promotion_reasons": {},
   "discovery_run_id": null
 }
