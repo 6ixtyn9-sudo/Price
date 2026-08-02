@@ -1,10 +1,11 @@
 {
-  "previous_book_count": 164,
-  "new_book_count": 163,
-  "added_candidates": [],
-  "removed_candidates": [
-    "HUM|1d|cross_USO_state_slope=uptrend + cross_TLT_state_ext=stretched_down + state_ext=stretched_down|long|rolling"
+  "previous_book_count": 163,
+  "new_book_count": 165,
+  "added_candidates": [
+    "AMGN|1h|state_session=morning + state_slope=downtrend + state_vol=high_vol|long|rolling",
+    "PLTR|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling"
   ],
+  "removed_candidates": [],
   "retained_candidates": [
     "ABBV|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=low_vol|long|rolling",
     "ABBV|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling",
@@ -171,9 +172,10 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {
-    "HUM|1d|cross_USO_state_slope=uptrend + cross_TLT_state_ext=stretched_down + state_ext=stretched_down|long|rolling": "registry_status:research_only"
+  "removal_reasons": {},
+  "promotion_reasons": {
+    "AMGN|1h|state_session=morning + state_slope=downtrend + state_vol=high_vol|long|rolling": "paper_proposal",
+    "PLTR|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling": "paper_proposal"
   },
-  "promotion_reasons": {},
   "discovery_run_id": null
 }
