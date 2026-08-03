@@ -313,5 +313,5 @@ ff4f019e-936f-4b35-9768-8a8afc40898f,NOW,22.0,sell,stop,97.86,gtc,canceled,2026-
 7d99527a-6ce1-4e04-a085-72d2ec8c9bc4,AMAT,1.0,sell,stop,435.9,gtc,canceled,2026-07-31 18:36:48.815063+00:00,protective_stop_submit,2026-07-31T18:36:48.853363+00:00,canceled,0.0,,,2026-07-31T19:36:06.248980+00:00,,,,,,,,,,,,
 ff4be9a6-6a5c-4508-a2f3-a70ccc4981b8,CRWD,13.0,buy,stop,210.7,gtc,canceled,2026-07-31 18:36:49.548757+00:00,protective_stop_submit,2026-07-31T18:36:49.663129+00:00,canceled,0.0,,,2026-08-03T13:36:14.672859+00:00,,,,,,,,,,,,
 87b219b9-b0ca-45d6-b7a5-4dd9fb7375bb,SMCI,32.0,sell,stop,23.85,gtc,canceled,2026-07-31 18:36:50.346987+00:00,protective_stop_submit,2026-07-31T18:36:50.387480+00:00,canceled,0.0,,,2026-07-31T19:36:06.248980+00:00,,,,,,,,,,,,
-e0f02e70-1859-43cf-86d0-0dd51f3c3cca,AMAT,1.0,sell,stop,421.18,gtc,pending_new,2026-08-03 13:36:33.557456+00:00,protective_stop_submit,2026-08-03T13:36:33.597829+00:00,,,,,,,,,,,,,,,,,
-6f1caaa0-f9bd-47fd-854d-a9b0e5ffa31f,SMCI,32.0,sell,stop,22.8,gtc,pending_new,2026-08-03 13:36:34.297440+00:00,protective_stop_submit,2026-08-03T13:36:34.334042+00:00,,,,,,,,,,,,,,,,,
+e0f02e70-1859-43cf-86d0-0dd51f3c3cca,AMAT,1.0,sell,stop,421.18,gtc,new,2026-08-03 13:36:33.557456+00:00,protective_stop_submit,2026-08-03T13:36:33.597829+00:00,new,0.0,,,2026-08-03T14:36:10.392766+00:00,,,,,,,,,,,,
+6f1caaa0-f9bd-47fd-854d-a9b0e5ffa31f,SMCI,32.0,sell,stop,22.8,gtc,new,2026-08-03 13:36:34.297440+00:00,protective_stop_submit,2026-08-03T13:36:34.334042+00:00,new,0.0,,,2026-08-03T14:36:10.392766+00:00,,,,,,,,,,,,
