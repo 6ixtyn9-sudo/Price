@@ -68,5 +68,33 @@
     "stop_order_id": "62301a56-9578-4003-b18d-47f4b1d8b30a",
     "opened_at": "",
     "updated_at": ""
+  },
+  "AMAT": {
+    "symbol": "AMAT",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 505.28,
+    "initial_stop_price": 421.1785857282366,
+    "current_stop_price": 421.1785857282366,
+    "r_per_share": 84.10141427176339,
+    "stage": "initial",
+    "extreme_price": 505.28,
+    "stop_order_id": "e0f02e70-1859-43cf-86d0-0dd51f3c3cca",
+    "opened_at": "2026-08-03T13:36:33.358464+00:00",
+    "updated_at": "2026-08-03T13:36:33.358464+00:00"
+  },
+  "SMCI": {
+    "symbol": "SMCI",
+    "side": "long",
+    "qty": 32.0,
+    "entry_price": 27.54,
+    "initial_stop_price": 22.798571352277484,
+    "current_stop_price": 22.798571352277484,
+    "r_per_share": 4.7414286477225165,
+    "stage": "initial",
+    "extreme_price": 27.54,
+    "stop_order_id": "6f1caaa0-f9bd-47fd-854d-a9b0e5ffa31f",
+    "opened_at": "2026-08-03T13:36:34.106933+00:00",
+    "updated_at": "2026-08-03T13:36:34.106933+00:00"
   }
 }
