@@ -55,20 +55,6 @@
     "opened_at": "",
     "updated_at": ""
   },
-  "CRWD": {
-    "symbol": "CRWD",
-    "side": "short",
-    "qty": 13.0,
-    "entry_price": 190.14,
-    "initial_stop_price": 210.7,
-    "current_stop_price": 210.7,
-    "r_per_share": 20.560000000000002,
-    "stage": "initial",
-    "extreme_price": 190.14,
-    "stop_order_id": "ff4be9a6-6a5c-4508-a2f3-a70ccc4981b8",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "AMAT": {
     "symbol": "AMAT",
     "side": "long",
