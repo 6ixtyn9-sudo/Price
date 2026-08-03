@@ -68,5 +68,47 @@
     "stop_order_id": "ff4be9a6-6a5c-4508-a2f3-a70ccc4981b8",
     "opened_at": "",
     "updated_at": ""
+  },
+  "AMAT": {
+    "symbol": "AMAT",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 505.28,
+    "initial_stop_price": 421.18,
+    "current_stop_price": 421.18,
+    "r_per_share": 84.09999999999997,
+    "stage": "initial",
+    "extreme_price": 505.28,
+    "stop_order_id": "e0f02e70-1859-43cf-86d0-0dd51f3c3cca",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "SMCI": {
+    "symbol": "SMCI",
+    "side": "long",
+    "qty": 32.0,
+    "entry_price": 27.54,
+    "initial_stop_price": 22.8,
+    "current_stop_price": 22.8,
+    "r_per_share": 4.739999999999998,
+    "stage": "initial",
+    "extreme_price": 27.54,
+    "stop_order_id": "6f1caaa0-f9bd-47fd-854d-a9b0e5ffa31f",
+    "opened_at": "",
+    "updated_at": ""
+  },
+  "XLB": {
+    "symbol": "XLB",
+    "side": "long",
+    "qty": 18.0,
+    "entry_price": 50.487222,
+    "initial_stop_price": 48.63,
+    "current_stop_price": 48.63,
+    "r_per_share": 1.8572220000000002,
+    "stage": "initial",
+    "extreme_price": 50.487222,
+    "stop_order_id": "b207dd39-fdd7-4147-843b-2e2961f3d9d4",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
