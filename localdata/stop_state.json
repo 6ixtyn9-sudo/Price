@@ -110,5 +110,19 @@
     "stop_order_id": "b207dd39-fdd7-4147-843b-2e2961f3d9d4",
     "opened_at": "",
     "updated_at": ""
+  },
+  "KLAC": {
+    "symbol": "KLAC",
+    "side": "short",
+    "qty": 9.0,
+    "entry_price": 181.54,
+    "initial_stop_price": 188.20080474853515,
+    "current_stop_price": 188.20080474853515,
+    "r_per_share": 6.660804748535156,
+    "stage": "initial",
+    "extreme_price": 181.54,
+    "stop_order_id": "750e15ef-1b3c-4674-aabc-9a8c5d806dc7",
+    "opened_at": "2026-08-03T15:21:16.542475+00:00",
+    "updated_at": "2026-08-03T15:21:16.542475+00:00"
   }
 }
