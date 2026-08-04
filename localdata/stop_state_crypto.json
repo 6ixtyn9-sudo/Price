@@ -69,20 +69,6 @@
     "opened_at": "2026-08-03T13:36:33.358464+00:00",
     "updated_at": "2026-08-03T13:36:33.358464+00:00"
   },
-  "XLB": {
-    "symbol": "XLB",
-    "side": "long",
-    "qty": 18.0,
-    "entry_price": 50.487222,
-    "initial_stop_price": 48.63,
-    "current_stop_price": 48.63,
-    "r_per_share": 1.8572220000000002,
-    "stage": "initial",
-    "extreme_price": 50.487222,
-    "stop_order_id": "b207dd39-fdd7-4147-843b-2e2961f3d9d4",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "WMT": {
     "symbol": "WMT",
     "side": "long",
