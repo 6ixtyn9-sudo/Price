@@ -110,5 +110,19 @@
     "stop_order_id": "750e15ef-1b3c-4674-aabc-9a8c5d806dc7",
     "opened_at": "2026-08-03T15:21:16.542475+00:00",
     "updated_at": "2026-08-03T15:21:16.542475+00:00"
+  },
+  "WMT": {
+    "symbol": "WMT",
+    "side": "long",
+    "qty": 8.0,
+    "entry_price": 108.84625,
+    "initial_stop_price": 103.37,
+    "current_stop_price": 103.37,
+    "r_per_share": 5.476249999999993,
+    "stage": "initial",
+    "extreme_price": 108.84625,
+    "stop_order_id": "6e14e906-6c79-461c-a56b-8e457c9770ec",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
