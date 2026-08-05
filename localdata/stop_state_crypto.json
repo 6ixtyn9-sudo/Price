@@ -111,20 +111,6 @@
     "opened_at": "2026-08-05T13:36:36.294599+00:00",
     "updated_at": "2026-08-05T13:36:36.294599+00:00"
   },
-  "AMAT": {
-    "symbol": "AMAT",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 540.4,
-    "initial_stop_price": 457.8600132533482,
-    "current_stop_price": 457.8600132533482,
-    "r_per_share": 82.53998674665179,
-    "stage": "initial",
-    "extreme_price": 540.4,
-    "stop_order_id": "1d68ef54-e293-4ef9-90c4-35a48b1ebf36",
-    "opened_at": "2026-08-05T18:36:16.516498+00:00",
-    "updated_at": "2026-08-05T18:36:16.516498+00:00"
-  },
   "CMG": {
     "symbol": "CMG",
     "side": "long",
