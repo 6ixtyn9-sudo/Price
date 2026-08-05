@@ -1,18 +1,4 @@
 {
-  "HON": {
-    "symbol": "HON",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 240.23,
-    "initial_stop_price": 226.50857099260602,
-    "current_stop_price": 226.50857099260602,
-    "r_per_share": 13.721429007393974,
-    "stage": "initial",
-    "extreme_price": 240.23,
-    "stop_order_id": "41680664-e2a5-4194-a0c8-b7f17e75307e",
-    "opened_at": "2026-07-30T17:36:19.314281+00:00",
-    "updated_at": "2026-07-30T17:36:19.314281+00:00"
-  },
   "ASML": {
     "symbol": "ASML",
     "side": "long",
@@ -27,20 +13,6 @@
     "opened_at": "",
     "updated_at": ""
   },
-  "NOW": {
-    "symbol": "NOW",
-    "side": "long",
-    "qty": 22.0,
-    "entry_price": 111.08,
-    "initial_stop_price": 97.86428540910993,
-    "current_stop_price": 97.86428540910993,
-    "r_per_share": 13.215714590890068,
-    "stage": "initial",
-    "extreme_price": 111.08,
-    "stop_order_id": "ff4f019e-936f-4b35-9768-8a8afc40898f",
-    "opened_at": "2026-07-31T16:36:21.351219+00:00",
-    "updated_at": "2026-07-31T16:36:21.351219+00:00"
-  },
   "AEP": {
     "symbol": "AEP",
     "side": "long",
@@ -54,20 +26,6 @@
     "stop_order_id": "62301a56-9578-4003-b18d-47f4b1d8b30a",
     "opened_at": "",
     "updated_at": ""
-  },
-  "AMAT": {
-    "symbol": "AMAT",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 505.28,
-    "initial_stop_price": 421.1785857282366,
-    "current_stop_price": 421.1785857282366,
-    "r_per_share": 84.10141427176339,
-    "stage": "initial",
-    "extreme_price": 505.28,
-    "stop_order_id": "e0f02e70-1859-43cf-86d0-0dd51f3c3cca",
-    "opened_at": "2026-08-03T13:36:33.358464+00:00",
-    "updated_at": "2026-08-03T13:36:33.358464+00:00"
   },
   "WMT": {
     "symbol": "WMT",
