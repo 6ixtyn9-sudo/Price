@@ -110,5 +110,19 @@
     "stop_order_id": "1b6a4437-20c7-444a-b477-a727e2382a76",
     "opened_at": "",
     "updated_at": ""
+  },
+  "AMAT": {
+    "symbol": "AMAT",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 540.4,
+    "initial_stop_price": 457.86,
+    "current_stop_price": 457.86,
+    "r_per_share": 82.53999999999996,
+    "stage": "initial",
+    "extreme_price": 540.4,
+    "stop_order_id": "1d68ef54-e293-4ef9-90c4-35a48b1ebf36",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
