@@ -124,5 +124,19 @@
     "stop_order_id": "1d68ef54-e293-4ef9-90c4-35a48b1ebf36",
     "opened_at": "",
     "updated_at": ""
+  },
+  "CMG": {
+    "symbol": "CMG",
+    "side": "long",
+    "qty": 44.0,
+    "entry_price": 34.15,
+    "initial_stop_price": 30.62,
+    "current_stop_price": 30.62,
+    "r_per_share": 3.5299999999999976,
+    "stage": "initial",
+    "extreme_price": 34.15,
+    "stop_order_id": "e2855d83-6621-4c63-877a-a4974c1a3b78",
+    "opened_at": "",
+    "updated_at": ""
   }
 }
