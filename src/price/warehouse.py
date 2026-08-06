@@ -3,7 +3,7 @@ import json
 import pandas as pd
 from datetime import datetime, timezone
 
-from price.config import WAREHOUSE_DIR, SYMBOL_PATTERN, is_crypto
+from price.config import WAREHOUSE_DIR, SYMBOL_PATTERN, is_crypto, is_futures
 
 def _sanitize_symbol(symbol: str) -> str:
     """
@@ -132,7 +132,7 @@ def adjustment_integrity_violations(df: pd.DataFrame) -> list:
     return reasons
 
 
-def _write_adjustment_quarantine(symbol: str, violations: list) -> None:
+def _write_adjustment_quarantine(symbol: str, violations: list, kind: str = "quarantine") -> None:
     """Append a quarantine record; ledger failure must never break ingest."""
     try:
         ledger = WAREHOUSE_DIR / _ADJUSTMENT_QUARANTINE_LEDGER
@@ -140,6 +140,7 @@ def _write_adjustment_quarantine(symbol: str, violations: list) -> None:
         record = {
             "symbol": symbol,
             "timeframe": "1d",
+            "kind": kind,
             "quarantined_at_utc": datetime.now(timezone.utc).isoformat(),
             "violations": violations,
         }
@@ -147,6 +148,108 @@ def _write_adjustment_quarantine(symbol: str, violations: list) -> None:
             fh.write(json.dumps(record) + "\n")
     except Exception as exc:  # pragma: no cover - defensive
         print(f"⚠️  Could not write adjustment quarantine ledger: {exc}")
+
+
+# ── Adjustment provenance checks (equity daily frames) ───────────────────────
+# The booked-event auditor above checks a frame against ITSELF. These checks
+# compare it against the history it is about to merge into — closing the
+# middle band: a fallback source that writes the full unadjusted dummy
+# signature (adj == raw, factors 1.0, no booked events) silently overwrote
+# adjusted history through keep-last dedup, and two legitimately-adjusted
+# sources could disagree about the same ex-date without tripping any rule.
+# Vendor-refresh safety: global restatements shift the adjusted LEVELS of the
+# whole series together — the checks compare ratio *discontinuities* across
+# shared dates, never levels, so an honest re-adjustment refresh is not blocked.
+_PROV_STEP_TOL = 0.005   # 0.5% ratio discontinuity between adjusted sources
+
+
+def _is_full_dummy_frame(df: pd.DataFrame) -> bool:
+    """Full unadjusted-dummy signature: every *_adj equals *_raw, factors all
+    1.0, no booked events anywhere in the frame."""
+    if df is None or df.empty or "adj_factor" not in df.columns:
+        return False
+    factor = pd.to_numeric(df["adj_factor"], errors="coerce")
+    if not ((factor - 1.0).abs() <= 1e-9).all():
+        return False
+    if "split_factor" in df.columns:
+        split = pd.to_numeric(df["split_factor"], errors="coerce").fillna(1.0)
+        if not ((split - 1.0).abs() <= 1e-9).all():
+            return False
+    if "dividend_cash" in df.columns:
+        div = pd.to_numeric(df["dividend_cash"], errors="coerce").fillna(0.0)
+        if not (div.abs() <= 1e-9).all():
+            return False
+    if "close_adj" in df.columns and "close_raw" in df.columns:
+        ca = pd.to_numeric(df["close_adj"], errors="coerce")
+        cr = pd.to_numeric(df["close_raw"], errors="coerce")
+        both = ca.notna() & cr.notna()
+        if both.any() and not ((ca[both] - cr[both]).abs() <= 1e-9).all():
+            return False
+    return True
+
+
+def adjustment_provenance_violations(incoming: pd.DataFrame, existing: pd.DataFrame) -> list:
+    """Audit an incoming DAILY equity frame against stored history.
+
+    (1) A full-dummy frame landing over dates whose stored rows carry real
+        adjustment factors is a provenance regression: merged keep-last dedup
+        would silently overwrite adjusted history with raw prices.
+    (2) When BOTH sides are genuinely adjusted but disagree *discontinuously*
+        across shared dates (ratio of adjusted closes steps at a shared
+        boundary), the two sources disagree about an ex-date — quarantine
+        rather than pick a lineage silently.
+    The healing direction is deliberately allowed: a genuinely-adjusted frame
+    landing over dummy history repairs it (split self-heal pattern).
+    """
+    reasons: list = []
+    incoming_dummy = _is_full_dummy_frame(incoming)
+    if incoming_dummy:
+        if existing is not None and not existing.empty and "adj_factor" in existing.columns:
+            f = pd.to_numeric(existing["adj_factor"], errors="coerce")
+            if ((f - 1.0).abs() > 1e-9).any():
+                reasons.append(
+                    "dummy_frame_over_adjusted_history: incoming frame is the full "
+                    "unadjusted dummy signature but stored history carries real "
+                    "adjustment factors; persisting would silently rewrite adjusted prices"
+                )
+        return reasons
+
+    if (
+        existing is None
+        or existing.empty
+        or _is_full_dummy_frame(existing)
+        or "close_adj" not in incoming.columns
+        or "close_adj" not in existing.columns
+        or "bar_ts_utc" not in incoming.columns
+        or "bar_ts_utc" not in existing.columns
+    ):
+        return reasons
+
+    inc = incoming.copy()
+    exi = existing.copy()
+    inc["_d"] = pd.to_datetime(inc["bar_ts_utc"], utc=True).dt.date
+    exi["_d"] = pd.to_datetime(exi["bar_ts_utc"], utc=True).dt.date
+    inc = inc.drop_duplicates(subset=["_d"], keep="last").set_index("_d")["close_adj"]
+    exi = exi.drop_duplicates(subset=["_d"], keep="last").set_index("_d")["close_adj"]
+    shared = inc.index.intersection(exi.index).sort_values()
+    if len(shared) < 2:
+        return reasons
+    a = pd.to_numeric(inc.loc[shared], errors="coerce")
+    b = pd.to_numeric(exi.loc[shared], errors="coerce")
+    ok = a.notna() & b.notna() & (b != 0)
+    a, b = a[ok], b[ok]
+    if len(a) < 2:
+        return reasons
+    ratio = a / b
+    steps = (ratio / ratio.shift(1) - 1.0).abs().dropna()
+    if not steps.empty and steps.max() > _PROV_STEP_TOL:
+        worst = steps.idxmax()
+        reasons.append(
+            f"conflicting_adjustment_sources @ {worst}: adjusted series disagree "
+            f"discontinuously at a shared date (ratio step {steps.max():.4f}); "
+            "refusing to rewrite stored adjustment lineage"
+        )
+    return reasons
 
 
 def load_from_warehouse(symbol: str, timeframe: str) -> pd.DataFrame:
@@ -178,6 +281,23 @@ def save_to_warehouse(df: pd.DataFrame):
         timeframe = _validate_timeframe(timeframe)
         if timeframe == "1d":
             violations = adjustment_integrity_violations(group)
+            if not violations and not (is_crypto(symbol) or is_futures(symbol)):
+                existing_1d = load_from_warehouse(symbol, "1d")
+                violations = adjustment_provenance_violations(group, existing_1d)
+                if not violations and _is_full_dummy_frame(group):
+                    # Fail-open on missing data: a dummy frame with NO contradicting
+                    # history cannot be proven wrong — persist it, but log the
+                    # provenance so the irreducible band is enumerable, not silent.
+                    _write_adjustment_quarantine(
+                        symbol,
+                        [
+                            "unverified_provenance: full unadjusted-dummy signature "
+                            "(adj == raw, factors 1.0, no booked events) and no "
+                            "contradicting stored history; adjustment status not "
+                            "independently confirmable"
+                        ],
+                        kind="unverified_provenance",
+                    )
             if violations:
                 print(
                     f"⛔ Adjustment-book violation: {symbol} | 1d frame NOT persisted "

@@ -364,3 +364,107 @@ def test_multi_symbol_save_quarantines_only_the_poisoned_symbol(temp_warehouse):
     assert price.warehouse.load_from_warehouse("POISON", "1d").empty
     assert len(price.warehouse.load_from_warehouse("CLEAN", "1d")) == 2
 
+
+# ---------------------------------------------------------------------------
+# Adjustment provenance: frame-vs-history contradictions (equity daily only)
+# ---------------------------------------------------------------------------
+
+def _adj_frame(rows, symbol):
+    return pd.DataFrame([_adj_bar(*a, symbol=symbol, **kw) for a, kw in rows])
+
+
+def _ledger_records(temp_warehouse):
+    ledger = temp_warehouse / price.warehouse._ADJUSTMENT_QUARANTINE_LEDGER
+    if not ledger.exists():
+        return []
+    return [_json.loads(l) for l in ledger.read_text().strip().splitlines()]
+
+
+def test_dummy_frame_over_adjusted_history_quarantined(temp_warehouse):
+    adjusted = _adj_frame([((0,), dict(adj_f=0.95, close=40.0)),
+                           ((1,), dict(adj_f=0.95, close=40.0)),
+                           ((2,), dict(adj_f=0.95, close=39.0))], "MIDBAND")
+    price.warehouse.save_to_warehouse(adjusted)
+    dummy = _adj_frame([((1,), dict(close=40.0)),
+                        ((2,), dict(close=39.0)),
+                        ((3,), dict(close=39.5))], "MIDBAND")
+    price.warehouse.save_to_warehouse(dummy)
+
+    loaded = price.warehouse.load_from_warehouse("MIDBAND", "1d")
+    shared = loaded[pd.to_datetime(loaded["bar_ts_utc"]).dt.day.between(2, 3)]
+    assert (pd.to_numeric(shared["adj_factor"]) == 0.95).all(), (
+        "dummy frame must NOT overwrite adjusted history on shared dates")
+    recs = _ledger_records(temp_warehouse)
+    assert any("dummy_frame_over_adjusted_history" in v
+               for r in recs if r["symbol"] == "MIDBAND" for v in r["violations"])
+
+
+def test_full_dummy_frame_persists_with_unverified_provenance_log(temp_warehouse):
+    dummy = _adj_frame([((0,), dict(close=40.0)), ((1,), dict(close=40.5))], "DUMMYEQ")
+    price.warehouse.save_to_warehouse(dummy)
+    assert len(price.warehouse.load_from_warehouse("DUMMYEQ", "1d")) == 2
+    recs = [r for r in _ledger_records(temp_warehouse) if r["symbol"] == "DUMMYEQ"]
+    assert len(recs) == 1 and recs[0]["kind"] == "unverified_provenance"
+    assert any("unverified_provenance" in v for v in recs[0]["violations"])
+
+
+def test_adjusted_frame_over_dummy_history_is_allowed_healing(temp_warehouse):
+    dummy = _adj_frame([((0,), dict(close=40.0)), ((1,), dict(close=39.0))], "HEALME")
+    price.warehouse.save_to_warehouse(dummy)
+    healed = _adj_frame([((0,), dict(adj_f=0.95, close=40.0)),
+                         ((1,), dict(adj_f=0.95, close=39.0))], "HEALME")
+    price.warehouse.save_to_warehouse(healed)
+    loaded = price.warehouse.load_from_warehouse("HEALME", "1d")
+    assert (pd.to_numeric(loaded["adj_factor"]) == 0.95).all()
+    recs = [r for r in _ledger_records(temp_warehouse)
+            if r["symbol"] == "HEALME" and r["kind"] == "quarantine"]
+    assert recs == [], "healing direction must not be quarantined"
+
+
+def test_adjusted_global_restatement_constant_ratio_persists(temp_warehouse):
+    v1 = _adj_frame([((0,), dict(adj_f=0.95, close=40.0)),
+                     ((1,), dict(adj_f=0.95, close=40.0)),
+                     ((2,), dict(adj_f=0.95, close=39.0))], "RESTATE")
+    price.warehouse.save_to_warehouse(v1)
+    # Vendor restates the whole series after a new action: levels shift,
+    # ratio across shared dates stays constant -> honest refresh, must pass.
+    v2 = _adj_frame([((1,), dict(adj_f=0.93, close=40.0)),
+                     ((2,), dict(adj_f=0.93, close=39.0)),
+                     ((3,), dict(adj_f=0.93, close=39.5))], "RESTATE")
+    price.warehouse.save_to_warehouse(v2)
+    loaded = price.warehouse.load_from_warehouse("RESTATE", "1d")
+    assert pd.to_numeric(loaded["adj_factor"]).iloc[-1] == 0.93
+
+
+def test_adjusted_frames_disagreeing_discontinuously_quarantined(temp_warehouse):
+    v1 = _adj_frame([((0,), dict(adj_f=0.95, close=40.0)),
+                     ((1,), dict(adj_f=0.95, close=40.0)),
+                     ((2,), dict(adj_f=0.95, close=39.0))], "CONFLICT")
+    price.warehouse.save_to_warehouse(v1)
+    # Same shared dates, but this source absorbed an extra event on bar 2:
+    # booked dividend matches its own step (passes the booked auditor), yet
+    # the adjusted ratio vs stored history STEPS at the shared boundary.
+    v2 = _adj_frame([((1,), dict(adj_f=0.95, close=40.0)),
+                     ((2,), dict(adj_f=0.90, div=2.1, close=39.0)),
+                     ((3,), dict(adj_f=0.90, close=39.2))], "CONFLICT")
+    price.warehouse.save_to_warehouse(v2)
+    loaded = price.warehouse.load_from_warehouse("CONFLICT", "1d")
+    assert (pd.to_numeric(loaded["adj_factor"]) == 0.95).all()
+    recs = _ledger_records(temp_warehouse)
+    assert any("conflicting_adjustment_sources" in v
+               for r in recs if r["symbol"] == "CONFLICT" for v in r["violations"])
+
+
+def test_crypto_and_futures_dummy_frames_persist_without_provenance_log(temp_warehouse):
+    crypto = _adj_frame([((0,), dict(close=60000.0)),
+                         ((1,), dict(close=60100.0))], "BTC/USD")
+    futures = _adj_frame([((0,), dict(close=5000.0)),
+                          ((1,), dict(close=5005.0))], "FUT/ES")
+    price.warehouse.save_to_warehouse(pd.concat([crypto, futures], ignore_index=True))
+    assert len(price.warehouse.load_from_warehouse("BTC/USD", "1d")) == 2
+    assert len(price.warehouse.load_from_warehouse("FUT/ES", "1d")) == 2
+    recs = _ledger_records(temp_warehouse)
+    assert not any(r["symbol"] in ("BTC/USD", "FUT/ES") for r in recs), (
+        "crypto/futures dummy frames are normal staging, not provenance gaps")
+
+
