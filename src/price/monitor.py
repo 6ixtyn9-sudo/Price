@@ -368,7 +368,7 @@ def get_current_state(
         df_warehouse["split_factor"] = 1.0
         df_warehouse["dividend_cash"] = 0.0
 
-    # Red-team gauntlet 5 (2026-08-06): an unadjusted split/corporate-action
+    # Corporate-action quarantine (2026-08-06): an unadjusted split/corporate-action
     # artifact poisons every quantile bin and ATR computed over this frame --
     # fail CLOSED for this symbol/timeframe ... Behind the staleness gate.
     ca_reason = _corporate_action_anomaly(df_warehouse, timeframe)

@@ -66,7 +66,7 @@ BREAKEVEN_TRIGGER_R = 1.0
 # "many small losses in one bad, choppy day."
 WHIPSAW_STOPOUT_LIMIT = 2
 
-# Red-team gauntlet 4 (2026-08-06): intraday slices whose per-horizon MAE
+# Opening-window stop buffer (2026-08-06): intraday slices whose per-horizon MAE
 # calibration clamps the entry stop at the 1.5x ATR(14) floor are hunted by
 # open-hour churn ... (Monte-Carlo, N=20k: 90.5% first-RTH-hour vs 41.5% midday)
 DEFAULT_INTRADAY_OPEN_STOP_BUFFER_MULT = 1.4
@@ -228,7 +228,7 @@ def update_trailing_stop(state: StopState, current_price: float,
     expected to have already exited the trade via the broker-side stop;
     this function still returns a valid (unchanged) state defensively.
 
-    KNOWN SHARP EDGE (documented, not a bug -- found during red-team
+    KNOWN SHARP EDGE (documented, not a bug -- found during adversarial
     review): the trail distance is recomputed from the CURRENT ATR every
     call, not the ATR the trade was entered/previously trailed under. If
     volatility crushes sharply between scans (e.g. a name goes from an
@@ -411,7 +411,7 @@ def record_stopout(symbol: str, path: Optional[Path] = None) -> None:
 def stopout_count_today(symbol: str, path: Optional[Path] = None) -> int:
     """Count of `symbol`'s stop-outs on today's UTC calendar date.
 
-    NOTE (checked during red-team review, judged acceptable): "today" is
+    NOTE (checked during adversarial review, judged acceptable): "today" is
     the UTC calendar date, not the US market's trading-session date. For
     US equities during regular session hours these coincide (regular
     session in UTC never crosses UTC midnight), so this is NOT a live bug

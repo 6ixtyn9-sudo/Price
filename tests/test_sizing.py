@@ -265,3 +265,42 @@ def test_load_edge_metrics_none_when_absent(tmp_path):
                    "slice_combination": "x"}]).to_csv(p, index=False)
     assert load_edge_metrics("QQQ", "1d", "x", p) is None
     assert load_edge_metrics("QQQ", "1d", "x", tmp_path / "nope.csv") is None
+
+def test_extreme_edge_clipped_to_conviction_one():
+    """compute_conviction with an astronomically large edge must clip to 1.0."""
+    from price.sizing import SliceEdge, compute_conviction
+
+    big_edge = SliceEdge(
+        mean_return=1e9,
+        excess_vs_parent=1e9,
+        walk_forward_pass_count=10,
+        scenario_survived_count=10,
+        valid_n=500,
+        search_wide_bh_pass=True,
+        search_wide_bonferroni_pass=True,
+        expected_return=1e9,
+    )
+    result = compute_conviction(edge=big_edge)
+    assert 0 < result.conviction <= 1.0, (
+        f"Conviction {result.conviction} must be in (0, 1] regardless of edge magnitude"
+    )
+
+
+def test_nan_edge_does_not_crash_sizing():
+    """A SliceEdge with NaN expected_return must still yield a safe conviction."""
+    from price.sizing import SliceEdge, compute_conviction
+
+    nan_edge = SliceEdge(
+        mean_return=float("nan"),
+        excess_vs_parent=0.0,
+        walk_forward_pass_count=0,
+        scenario_survived_count=0,
+        valid_n=50,
+        search_wide_bh_pass=False,
+        search_wide_bonferroni_pass=False,
+        expected_return=float("nan"),
+    )
+    # Must not raise; conviction should be the minimum safe value
+    result = compute_conviction(edge=nan_edge)
+    assert result.conviction >= 0
+

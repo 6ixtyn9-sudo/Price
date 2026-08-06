@@ -435,7 +435,7 @@ def reconcile_stops(
                 k_stop = None
             if k_stop is None or k_stop <= 0:
                 k_stop = getattr(limits, "stop_atr_multiple", 2.0)
-            # Red-team G4 (2026-08-06): widen intraday entry stops by the
+            # Open-window buffer (2026-08-06): widen intraday entry stops by the
             # opening-window session buffer ... The R-dollar budget applies the
             # SAME buffer, so the budget always reserves for this actual distance.
             k_stop = effective_stop_atr_mult(

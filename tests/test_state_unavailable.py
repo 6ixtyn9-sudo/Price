@@ -216,3 +216,122 @@ def test_state_unavailable_stale_warehouse_bar_too_old(monkeypatch):
     monkeypatch.setattr(monitor, "load_from_warehouse", lambda sym, tf: df_old)
     ctx = monitor._state_unavailable_context("SPY", "1d")
     assert "stale_warehouse_bar_too_old" in ctx["reason"]
+
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-06 hardening tests (standalone imports kept deliberately so this
+# block is portable across lineages; duplicate imports are harmless).
+# ---------------------------------------------------------------------------
+
+from pathlib import Path as _RTPath  # noqa: E402
+import sys as _RTsys  # noqa: E402
+
+for _sub in ("src", "scripts"):
+    _p = str(_RTPath(__file__).resolve().parent.parent / _sub)
+    if _p not in _RTsys.path:
+        _RTsys.path.insert(0, _p)
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+_ROOT = _RTPath(__file__).resolve().parent.parent  # repo root for data pins
+
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
+
+import price.monitor as mon  # noqa: E402
+
+def _frame(raw, age_last=20, extra=None):
+    last = datetime.now(timezone.utc) - timedelta(hours=age_last)
+    n = len(raw)
+    rows = []
+    for i, c in enumerate(raw):
+        row = {"bar_ts_utc": last - timedelta(hours=24 * (n - 1 - i)),
+               "open_raw": float(c), "high_raw": float(c) * 1.003,
+               "low_raw": float(c) * 0.997, "close_raw": float(c),
+               "volume_raw": 1_000_000.0}
+        if extra:
+            row.update({k: v[i] for k, v in extra.items()})
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _phantom():
+    return [100.0] * 69 + [67.0, 22.0]
+
+
+def _features_must_not_run(*a, **k):
+    raise RuntimeError("features must not run on a quarantined frame")
+
+
+def test_phantom_split_flagged():
+    c = _phantom()
+    df = _frame(c, extra={"close_adj": list(c), "split_factor": [1.0] * len(c),
+                          "adj_factor": [1.0] * len(c)})
+    reason = mon._corporate_action_anomaly(df, "1d")
+    assert reason and reason.startswith("corporate_action_unadjusted_move")
+
+
+def test_gate_quarantined_and_audited(monkeypatch):
+    if not hasattr(mon, "_state_unavailable_context"):
+        pytest.skip("lineage has no Workstream-4 audit ctx (P5 skipped per APPLY_NOTES)")
+    c = _phantom()
+    df = _frame(c, extra={"close_adj": list(c), "split_factor": [1.0] * len(c),
+                          "adj_factor": [1.0] * len(c)})
+    monkeypatch.setattr(mon, "load_from_warehouse", lambda s, t: df)
+    monkeypatch.setattr(mon, "compute_price_features", _features_must_not_run)
+    assert mon.get_current_state("SMCI", "1d") is None
+    ctx = mon._state_unavailable_context("SMCI", "1d")
+    assert ctx["reason"].startswith("corporate_action_unadjusted_move")
+
+
+def test_71_5h_bar_inside_stale_window_still_quarantined(monkeypatch):
+    df = _frame(_phantom(), age_last=71.5,
+                extra={"split_factor": [1.0] * 71, "adj_factor": [1.0] * 71})
+    monkeypatch.setattr(mon, "load_from_warehouse", lambda s, t: df)
+    monkeypatch.setattr(mon, "compute_price_features", _features_must_not_run)
+    assert mon._stale_warehouse_reason(df, "1d") is None  # 71.5h < 72h window
+    assert mon.get_current_state("SMCI", "1d") is None
+
+
+def test_earnings_gap_passes():
+    c = [100.0] * 69 + [100.0, 88.0]
+    df = _frame(c, extra={"close_adj": list(c), "split_factor": [1.0] * len(c),
+                          "adj_factor": [1.0] * len(c)})
+    assert mon._corporate_action_anomaly(df, "1d") is None
+
+
+def test_booked_split_passes():
+    c = [67.0] * 69 + [67.0, 22.0]
+    df = _frame(c, extra={"close_adj": list(c),
+                          "split_factor": [1.0] * 70 + [3.0],
+                          "adj_factor": [1.0] * len(c)})
+    assert mon._corporate_action_anomaly(df, "1d") is None
+
+
+def test_properly_adjusted_split_passes():
+    raw = [300.0] * 69 + [300.0, 100.0]
+    adj = [100.0] * 69 + [100.0, 100.0]
+    df = _frame(raw, extra={"close_adj": adj,
+                            "split_factor": [1.0] * 70 + [3.0],
+                            "adj_factor": [a / r for a, r in zip(adj, raw)]})
+    assert mon._corporate_action_anomaly(df, "1d") is None
+
+
+def test_stale_precedence_preserved(monkeypatch):
+    if not hasattr(mon, "_state_unavailable_context"):
+        pytest.skip("lineage has no Workstream-4 audit ctx (P5 skipped per APPLY_NOTES)")
+    c = _phantom()
+    df = _frame(c, age_last=100, extra={"close_adj": list(c),
+                                        "split_factor": [1.0] * len(c),
+                                        "adj_factor": [1.0] * len(c)})
+    monkeypatch.setattr(mon, "load_from_warehouse", lambda s, t: df)
+    monkeypatch.setattr(mon, "compute_price_features", _features_must_not_run)
+    assert mon.get_current_state("SMCI", "1d") is None
+    assert mon._state_unavailable_context("SMCI", "1d")["reason"].startswith(
+        "stale_warehouse_bar_too_old")
+
+
+def test_degenerate_frames_clean():
+    assert mon._corporate_action_anomaly(pd.DataFrame(), "1d") is None
+    assert mon._corporate_action_anomaly(None, "1d") is None
+    assert mon._corporate_action_anomaly(_frame([100.0]), "1d") is None

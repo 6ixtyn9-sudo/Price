@@ -324,3 +324,87 @@ def test_reset_stopout_journal(tmp_path):
     record_stopout("XOP", path=path)
     reset_stopout_journal(path=path)
     assert stopout_count_today("XOP", path=path) == 0
+
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-06 hardening tests (standalone imports kept deliberately so this
+# block is portable across lineages; duplicate imports are harmless).
+# ---------------------------------------------------------------------------
+
+from pathlib import Path as _RTPath  # noqa: E402
+import sys as _RTsys  # noqa: E402
+
+for _sub in ("src", "scripts"):
+    _p = str(_RTPath(__file__).resolve().parent.parent / _sub)
+    if _p not in _RTsys.path:
+        _RTsys.path.insert(0, _p)
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+_ROOT = _RTPath(__file__).resolve().parent.parent  # repo root for data pins
+
+from datetime import datetime, timezone  # noqa: E402
+
+import pytest  # noqa: E402
+
+from price.stops import effective_stop_atr_mult  # noqa: E402
+
+from price.stops import effective_stop_atr_mult  # noqa: E402
+
+_IN = datetime(2026, 8, 6, 13, 45, tzinfo=timezone.utc)    # first RTH hour
+_OUT = datetime(2026, 8, 6, 15, 0, tzinfo=timezone.utc)    # regular session
+_E0 = datetime(2026, 8, 6, 13, 30, tzinfo=timezone.utc)    # window opens
+_E1 = datetime(2026, 8, 6, 14, 30, tzinfo=timezone.utc)    # window closes
+
+
+def test_open_window_buffer_lifts_floor_slice_to_2p1():
+    # THE pinned consumers: LNG 1.500, MU 1.524, UBER 1.519 all land at ~2.1x.
+    assert effective_stop_atr_mult(1.5, "1h", now=_IN) == pytest.approx(2.1)
+    assert effective_stop_atr_mult(1.524313, "15m", now=_IN) == pytest.approx(2.1, abs=1e-3)
+    assert effective_stop_atr_mult(1.518789, "15m", now=_IN) == pytest.approx(2.1, abs=1e-3)
+
+
+def test_open_window_buffer_scales_subfloor_below_cap():
+    # 1.2 x 1.4 = 1.68 (< 2.1 cap) -> pure multiplier behavior under the floor.
+    assert effective_stop_atr_mult(1.2, "15m", now=_IN) == pytest.approx(1.68)
+
+
+def test_open_window_buffer_caps_midwidth_and_skips_wide():
+    # 2.0 -> 2.1 (NOT 2.8); already-wide 2.8 is NEVER over-widened.
+    assert effective_stop_atr_mult(2.0, "1h", now=_IN) == pytest.approx(2.1)
+    assert effective_stop_atr_mult(2.796041, "1h", now=_IN) == pytest.approx(2.796041)
+
+
+def test_open_window_buffer_noop_outside_window_and_daily():
+    assert effective_stop_atr_mult(1.5, "15m", now=_OUT) == pytest.approx(1.5)
+    assert effective_stop_atr_mult(1.5, "1d", now=_IN) == pytest.approx(1.5)
+    assert effective_stop_atr_mult(1.5, "1h", now=_IN, buffer_mult=1.0) == pytest.approx(1.5)
+
+
+def test_open_window_buffer_window_edges():
+    assert effective_stop_atr_mult(1.5, "1h", now=_E0) == pytest.approx(2.1)
+    assert effective_stop_atr_mult(1.5, "1h", now=_E1) == pytest.approx(1.5)
+
+
+def test_open_window_buffer_fail_safe_on_junk():
+    assert effective_stop_atr_mult(1.5, "1h", now="bad") == pytest.approx(1.5)
+    assert effective_stop_atr_mult("junk", "1h", now=_IN) == "junk"
+
+
+# ======================================================================
+
+def test_knife_cooldown_rolling_window_counts_recent_stopout(tmp_path):
+    """stopout_count_within_days correctly counts stop-outs in the last N days."""
+    journal = tmp_path / "stopout_journal.json"
+    record_stopout("KNIFE_SYM", path=journal)
+    assert stopout_count_within_days("KNIFE_SYM", days=2, path=journal) == 1
+
+
+def test_knife_cooldown_ignores_clean_symbol(tmp_path):
+    """stopout_count_within_days returns 0 for symbols with no stop-outs."""
+    journal = tmp_path / "stopout_journal.json"
+    assert stopout_count_within_days("CLEAN_SYM", days=2, path=journal) == 0
+
+
+
+from price.stops import record_stopout, stopout_count_within_days

@@ -171,3 +171,214 @@ def test_check_entry_sector_concentration_integration():
     )
     assert result.allowed is False
     assert any("sector 'SEMI_TECH' at concentration cap" in r for r in result.reasons)
+
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-06 hardening tests (standalone imports kept deliberately so this
+# block is portable across lineages; duplicate imports are harmless).
+# ---------------------------------------------------------------------------
+
+from pathlib import Path as _RTPath  # noqa: E402
+import sys as _RTsys  # noqa: E402
+
+for _sub in ("src", "scripts"):
+    _p = str(_RTPath(__file__).resolve().parent.parent / _sub)
+    if _p not in _RTsys.path:
+        _RTsys.path.insert(0, _p)
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+_ROOT = _RTPath(__file__).resolve().parent.parent  # repo root for data pins
+
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
+
+import price.monitor as mon  # noqa: E402
+import price.stops as stops  # noqa: E402
+
+def test_proposed_r_uses_same_open_window_buffer_as_attach(tmp_path, monkeypatch):
+    import inspect
+    if "proposed_r_dollars" not in inspect.getsource(mon.scan_all_slices):
+        pytest.skip("this lineage has no proposed_R aggregate-budget wiring")
+    from price.risk_limits import RiskLimits
+
+    def run(clock):
+        monkeypatch.setattr(mon, "get_open_positions", lambda: pd.DataFrame())
+        monkeypatch.setattr(mon, "get_open_orders", lambda: pd.DataFrame())
+        monkeypatch.setattr(mon, "get_today_realized_pnl", lambda: 0.0)
+        monkeypatch.setattr(mon, "reconcile_stops", lambda *a, **k: [])
+        monkeypatch.setattr(mon, "get_current_state", lambda *a, **k: pd.DataFrame([{
+            "bar_ts_utc": "2026-08-05", "close_adj": 100.0,
+            "state_ext": "neutral", "state_slope": "flat",
+        }]))
+        base = datetime.now(timezone.utc) - timedelta(hours=30)
+        wh = pd.DataFrame([{
+            "bar_ts_utc": base + timedelta(hours=i),
+            "high_adj": 101.0, "low_adj": 99.0, "close_adj": 100.0,
+        } for i in range(20)])
+        monkeypatch.setattr(mon, "load_from_warehouse", lambda s, t: wh)
+        captured = {}
+
+        def _spy(**kw):
+            captured.update(kw)
+            from price.risk_limits import RiskCheckResult
+            return RiskCheckResult(allowed=True, reasons=[], details={})
+
+        monkeypatch.setattr(mon, "check_entry", _spy)
+        monkeypatch.setattr(stops, "_now_utc", lambda: clock)
+        mon.scan_all_slices(
+            slices=[{"symbol": "SMCI", "timeframe": "1h",
+                     "slice_combination": "state_ext=neutral + state_slope=flat",
+                     "side": "long"}],
+            limits=RiskLimits(), dry_run=False,
+        )
+        return captured.get("proposed_r_dollars")
+
+    in_w = run(datetime(2026, 8, 6, 13, 45, tzinfo=timezone.utc))
+    out_w = run(datetime(2026, 8, 6, 15, 0, tzinfo=timezone.utc))
+    assert in_w and out_w and in_w / out_w == pytest.approx(1.05)  # 2.0 -> 2.1
+
+
+# ======================================================================
+
+def _pt(monkeypatch, tmp_path):
+    import paper_trade as pt
+    monkeypatch.setattr(pt, "AUDIT_LOG_PATH", tmp_path / "paper_trade_log.csv")
+    return pt
+
+
+def _sig():
+    return {
+        "kind": "entry_signal", "symbol": "SMCI", "timeframe": "1d",
+        "slice_combination": "state_ext=neutral + state_slope=flat",
+        "bin_mode": "insample", "matched": True, "tradable": True,
+        "suggested_side": "buy", "suggested_qty": 2,
+        "close_adj": 100.0, "sizing_atr": 2.5,
+        "timestamp_utc": "2026-08-06T13:35:00Z",
+    }
+
+
+def _wh(close, age_hours):
+    ts = datetime.now(timezone.utc) - timedelta(hours=age_hours)
+    return pd.DataFrame([{"bar_ts_utc": ts, "close_adj": float(close)}])
+
+
+def _drive(tmp_path, monkeypatch, wh_df):
+    import price.trading as trading
+    import price.warehouse as warehouse
+    pt = _pt(monkeypatch, tmp_path)
+    monkeypatch.setattr(trading, "get_latest_price", lambda s: None)  # quote outage
+    monkeypatch.setattr(warehouse, "load_from_warehouse", lambda s, t: wh_df)
+    counts = pt._handle_signals(
+        [_sig()], dry_run=True, max_adverse_fill_bps=200.0, adverse_atr_mult=1.0)
+    return counts, pd.read_csv(tmp_path / "paper_trade_log.csv").iloc[0]
+
+
+def test_quote_outage_warehouse_ref_blocks_knife(tmp_path, monkeypatch):
+    counts, row = _drive(tmp_path, monkeypatch, _wh(90.0, 20))
+    assert counts["entry_blocked"] == 1
+    assert row["reason"] == "stale_signal_adverse_gap_warehouse_ref"
+    assert float(row["signal_to_fill_bps"]) <= -1000 + 1e-9
+
+
+def test_quote_outage_within_threshold_passes(tmp_path, monkeypatch):
+    counts, row = _drive(tmp_path, monkeypatch, _wh(99.5, 20))
+    assert counts["entry_blocked"] == 0 and row["action"] == "would_enter"
+    assert row["adverse_guard"] == "passed_warehouse_ref"
+
+
+def test_stale_warehouse_bar_still_fails_open(tmp_path, monkeypatch):
+    counts, row = _drive(tmp_path, monkeypatch, _wh(90.0, 100))
+    assert counts["entry_blocked"] == 0 and row["adverse_guard"] == "skipped_no_price"
+
+
+def test_empty_warehouse_still_fails_open(tmp_path, monkeypatch):
+    counts, row = _drive(tmp_path, monkeypatch, pd.DataFrame())
+    assert counts["entry_blocked"] == 0 and row["adverse_guard"] == "skipped_no_price"
+
+
+def test_live_quote_path_unchanged(tmp_path, monkeypatch):
+    import price.trading as trading
+    import price.warehouse as warehouse
+    pt = _pt(monkeypatch, tmp_path)
+    monkeypatch.setattr(trading, "get_latest_price", lambda s: 90.0)
+    seen = []
+    monkeypatch.setattr(warehouse, "load_from_warehouse",
+                        lambda s, t: (seen.append(1) or pd.DataFrame()))
+    counts = pt._handle_signals(
+        [_sig()], dry_run=True, max_adverse_fill_bps=200.0, adverse_atr_mult=1.0)
+    row = pd.read_csv(tmp_path / "paper_trade_log.csv").iloc[0]
+    assert counts["entry_blocked"] == 1 and row["reason"] == "stale_signal_adverse_gap"
+    assert seen == []
+
+
+# ======================================================================
+
+def test_knife_cooldown_is_valid_risk_limits_field():
+    """knife_cooldown_days must be a named field on RiskLimits."""
+    limits = RiskLimits(knife_cooldown_days=2)
+    assert limits.knife_cooldown_days == 2
+
+    limits_off = RiskLimits(knife_cooldown_days=0)
+    assert limits_off.knife_cooldown_days == 0
+
+
+def test_sector_cap_blocks_third_semi_after_same_scan_commit(monkeypatch):
+    """Simulates the mutable sector_commit pattern used in scan_all_slices.
+
+    With NVDA open (1 SEMI) and KLAC approved in the same scan, the commit
+    list must be updated before LRCX is evaluated, blocking the 3rd SEMI.
+    """
+    import price.universe as univ
+    monkeypatch.setattr(
+        univ,
+        "get_symbol_sector",
+        lambda sym: "SEMI_TECH" if sym in ("KLAC", "LRCX", "AMAT", "NVDA") else None,
+    )
+
+    # Start with 1 open position (NVDA)
+    sector_commit = [{"symbol": "NVDA"}]
+
+    # KLAC: first candidate — should pass (count 1 < max 2)
+    allowed_klac = check_sector_concentration_cap("KLAC", sector_commit, max_per_sector=2)
+    assert allowed_klac, "KLAC should pass when only 1 SEMI open"
+
+    # Same-scan sector_commit append (the fix in scan_all_slices)
+    sector_commit.append({"symbol": "KLAC"})
+
+    # LRCX: second new candidate in same scan — must be blocked (count 2 >= max 2)
+    allowed_lrcx = check_sector_concentration_cap("LRCX", sector_commit, max_per_sector=2)
+    assert not allowed_lrcx, "LRCX (3rd SEMI) must be blocked by the sector cap after same-scan commit"
+
+    # AMAT: same scan — also blocked
+    allowed_amat = check_sector_concentration_cap("AMAT", sector_commit, max_per_sector=2)
+    assert not allowed_amat, "AMAT (4th SEMI) must also be blocked"
+
+
+def test_static_snapshot_would_have_admitted_all_three(monkeypatch):
+    """Prove the pre-fix vulnerability: a static (non-updated) snapshot lets all three through."""
+    import price.universe as univ
+    monkeypatch.setattr(
+        univ,
+        "get_symbol_sector",
+        lambda sym: "SEMI_TECH" if sym in ("KLAC", "LRCX", "AMAT", "NVDA") else None,
+    )
+
+    # Bug: exposure_snapshot is materialised once and never updated
+    exposure_snapshot = [{"symbol": "NVDA"}]
+
+    results = {}
+    for candidate in ("KLAC", "LRCX", "AMAT"):
+        results[candidate] = check_sector_concentration_cap(
+            candidate, exposure_snapshot, max_per_sector=2
+        )
+        # BUG: snapshot never updated, so all three pass!
+
+    # Before the fix, all three would pass — confirm the exploit
+    assert all(results.values()), (
+        "Static snapshot must let all three through (this is the vulnerability being fixed)"
+    )
+
+
+
+from price.risk_limits import check_sector_concentration_cap

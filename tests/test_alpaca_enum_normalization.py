@@ -1,4 +1,4 @@
-"""Tests for the CRITICAL enum-normalization bug found during red-team
+"""Tests for the CRITICAL enum-normalization bug found during adversarial
 review: Alpaca's SDK enums (PositionSide, OrderSide, OrderStatus, OrderType)
 are `str`-mixin enums where `str(x)` returns `"ClassName.MEMBER"`, NOT the
 actual value (`"long"`, `"rejected"`, etc.) -- even though the object

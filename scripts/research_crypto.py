@@ -19,8 +19,8 @@ search-wide correction pooled with equities, conditioning on USO/TLT, and no
 clean way to inspect crypto on its own. This script isolates crypto so we can
 answer the research question honestly before touching the live book.
 
-Red-team safety design
-----------------------
+Adversarial safety design
+-------------------------
 - No shared live artifacts are written.
 - validate_slices/discover_slices globals are temporarily redirected and then
   restored, so running this cannot clobber the current system's default

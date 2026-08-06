@@ -459,3 +459,105 @@ def test_existing_stop_quantity_reconciles_after_partial_fill(tmp_path, monkeypa
     assert intents[0]["action"] == "stop_ratcheted"
     assert calls == [("order-1", pytest.approx(94.0), 8.0)]
     assert load_stop_states(path=state_path)["XOP"].qty == 8.0
+
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-06 hardening tests (standalone imports kept deliberately so this
+# block is portable across lineages; duplicate imports are harmless).
+# ---------------------------------------------------------------------------
+
+from pathlib import Path as _RTPath  # noqa: E402
+import sys as _RTsys  # noqa: E402
+
+for _sub in ("src", "scripts"):
+    _p = str(_RTPath(__file__).resolve().parent.parent / _sub)
+    if _p not in _RTsys.path:
+        _RTsys.path.insert(0, _p)
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+_ROOT = _RTPath(__file__).resolve().parent.parent  # repo root for data pins
+
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
+
+import price.stop_manager as stop_manager  # noqa: E402
+import price.stops as stops  # noqa: E402
+
+def _attach(tmp_path, monkeypatch, limits, tframe, hour, minute):
+    monkeypatch.setattr(stop_manager, "_resolve_atr_for_symbol", lambda s, t: 3.0)
+    monkeypatch.setattr(
+        stops, "_now_utc",
+        lambda: datetime(2026, 8, 6, hour, minute, tzinfo=timezone.utc),
+    )
+    calls = []
+
+    def _submit(symbol, qty, stop_price, side):
+        calls.append((symbol, qty, stop_price, side))
+        return {"order_id": "ord-1", "status": "accepted"}
+
+    def _replace(order_id, new_stop_price):
+        return {"order_id": order_id, "status": "replaced"}
+
+    positions = pd.DataFrame([{
+        "symbol": "LNG", "side": "long", "qty": 16,
+        "avg_entry_price": 154.47, "current_price": 154.47,
+    }])
+    stop_manager.reconcile_stops(
+        positions, limits,
+        entry_context={"LNG": {"timeframe": tframe, "stop_atr_mult": 1.5}},
+        submit_protective_stop_fn=_submit,
+        replace_protective_stop_fn=_replace,
+        stop_state_path=tmp_path / "stop_state.json",
+        stopout_journal_path=tmp_path / "stopout_journal.json",
+        get_orders_for_symbol_fn=lambda s, status="open": pd.DataFrame(),
+    )
+    return calls
+
+
+class _Buffer:
+    stop_atr_multiple = 2.0
+    target_leverage_multiple = 1.0
+    intraday_open_stop_buffer_mult = 1.4
+
+
+class _NoBuffer:
+    stop_atr_multiple = 2.0
+    target_leverage_multiple = 1.0
+    intraday_open_stop_buffer_mult = 1.0
+
+
+def test_open_hour_attach_places_2p1x_floor_stop(tmp_path, monkeypatch):
+    calls = _attach(tmp_path, monkeypatch, _Buffer(), "1h", 13, 45)
+    assert calls == [("LNG", 16.0, pytest.approx(154.47 - 2.1 * 3.0), "long")]
+
+
+def test_midday_attach_places_unbuffered_stop(tmp_path, monkeypatch):
+    calls = _attach(tmp_path, monkeypatch, _Buffer(), "1h", 15, 0)
+    assert calls == [("LNG", 16.0, pytest.approx(154.47 - 1.5 * 3.0), "long")]
+
+
+def test_buffer_dial_one_disables_even_at_open(tmp_path, monkeypatch):
+    calls = _attach(tmp_path, monkeypatch, _NoBuffer(), "1h", 13, 45)
+    assert calls == [("LNG", 16.0, pytest.approx(154.47 - 1.5 * 3.0), "long")]
+
+
+def test_daily_timeframe_attach_never_buffered(tmp_path, monkeypatch):
+    calls = _attach(tmp_path, monkeypatch, _Buffer(), "1d", 13, 45)
+    assert calls == [("LNG", 16.0, pytest.approx(154.47 - 1.5 * 3.0), "long")]
+
+
+# ======================================================================
+
+def test_live_near_floor_intraday_slices_pinned():
+    path = _ROOT / "localdata" / "monitored_slices.csv"
+    df = pd.read_csv(path)
+    exposed = set(df.loc[
+        df["timeframe"].isin(["1h", "15m"])
+        & (pd.to_numeric(df["stop_atr_mult"], errors="coerce") < 1.55),
+        "symbol",
+    ].str.upper())
+    assert {"LNG", "MU", "UBER"} <= exposed, f"book changed: {exposed}"
+
+
+# ======================================================================

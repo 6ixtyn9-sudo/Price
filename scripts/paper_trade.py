@@ -93,7 +93,7 @@ def _strip_known_keys(sig: dict, keys: List[str]) -> dict:
 
 def _warehouse_adverse_reference(symbol: str, timeframe: Optional[str]) -> Optional[float]:
     """Quote-outage fallback reference price for the falling-knife guard.
-    ... Red-team gauntlet 1 (2026-08-06) ..."""
+    ... Quote-outage hardening (2026-08-06) ..."""
     try:
         import price.monitor as _mon
         from price.warehouse import load_from_warehouse
