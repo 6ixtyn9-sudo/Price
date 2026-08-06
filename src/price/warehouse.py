@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 from datetime import datetime, timezone
 
@@ -47,6 +49,106 @@ def _validate_timeframe(timeframe: str) -> str:
     return tf
 
 
+# ── Adjustment-book integrity gate (daily frames) ────────────────────────────
+# A booked corporate action (split_factor != 1 and/or dividend_cash > 0) MUST
+# move adj_factor through the ex-date; conversely a material adj_factor step
+# MUST carry a booked event. Staging paths that book an event next to a flat
+# factor — e.g. an ex-date special dividend whose price gap sits below the
+# 35% crash detector — would otherwise persist silently and hand adjusted-
+# price consumers a phantom drawdown. The gate refuses to PERSIST such daily
+# frames (fail-closed on integrity) while leaving the rest of the ingest run
+# untouched (fail-safe on availability), and writes a JSONL quarantine ledger.
+_ADJ_EVENT_MIN_MATERIALITY = 0.01   # 1% price impact: smaller mis-adjusted
+                                    # events cannot move sizing/ATR materially
+_ADJ_FACTOR_TRACK_TOL = 0.002       # 0.2%: band around "factor stayed flat"
+_ADJ_FACTOR_TRACK_REL = 0.25        # factor must track >=75% of expected step
+_ADJ_UNBOOKED_STEP_TOL = 0.01       # >=1% factor step with no booked event
+_ADJUSTMENT_QUARANTINE_LEDGER = "_adjustment_quarantine.jsonl"
+
+
+def adjustment_integrity_violations(df: pd.DataFrame) -> list:
+    """Audit a canonical DAILY frame's adjustment bookkeeping.
+
+    Booked corporate actions must move ``adj_factor``; material ``adj_factor``
+    steps must carry a booked action. Returns a list of reason strings
+    (empty = clean). Frames that lack bookkeeping columns, have < 2 bars, or
+    carry non-positive/NaN factors on a boundary are unauditable -> clean
+    (fail-open on missing data; the gate only fires on *contradictory* data).
+    """
+    reasons: list = []
+    if df is None or len(df) < 2 or "adj_factor" not in df.columns:
+        return reasons
+
+    work = df.copy()
+    if "bar_ts_utc" in work.columns:
+        work = work.sort_values("bar_ts_utc")
+    work = work.reset_index(drop=True)
+
+    factor = pd.to_numeric(work["adj_factor"], errors="coerce")
+    split = pd.to_numeric(
+        work["split_factor"] if "split_factor" in work.columns else 1.0,
+        errors="coerce",
+    ).fillna(1.0)
+    div = pd.to_numeric(
+        work["dividend_cash"] if "dividend_cash" in work.columns else 0.0,
+        errors="coerce",
+    ).fillna(0.0)
+    if "close_raw" in work.columns:
+        prev_close = pd.to_numeric(work["close_raw"], errors="coerce").shift(1)
+    else:
+        prev_close = pd.Series([float("nan")] * len(work))
+    prev_factor = factor.shift(1)
+    has_ts = "bar_ts_utc" in work.columns
+
+    for i in range(1, len(work)):
+        f_prev, f_now = prev_factor.iat[i], factor.iat[i]
+        if not (pd.notna(f_prev) and pd.notna(f_now)) or f_prev <= 0 or f_now <= 0:
+            continue  # junk factors on this boundary: unauditable, not a breach
+        ratio = f_now / f_prev
+        sf = split.iat[i] if pd.notna(split.iat[i]) else 1.0
+        dv = div.iat[i] if pd.notna(div.iat[i]) else 0.0
+        pc = prev_close.iat[i]
+        div_effect = (dv / pc) if (pd.notna(pc) and pc > 0 and dv > 0) else 0.0
+        material_event = abs(sf - 1.0) > 0.005 or div_effect >= _ADJ_EVENT_MIN_MATERIALITY
+
+        stamp = ""
+        if has_ts:
+            stamp = f" @ {work['bar_ts_utc'].iat[i]}"
+
+        if material_event:
+            expected = sf * ((1.0 - dv / pc) if (div_effect and pd.notna(pc)) else 1.0)
+            track_tol = max(_ADJ_FACTOR_TRACK_TOL, _ADJ_FACTOR_TRACK_REL * abs(expected - 1.0))
+            if abs(ratio - expected) > track_tol:
+                reasons.append(
+                    f"booked_event_factor_mismatch{stamp}: split_factor={sf}, "
+                    f"dividend_cash={dv} (prev_close={pc}); adj_factor step "
+                    f"{ratio:.4f} vs expected {expected:.4f}"
+                )
+        elif abs(ratio - 1.0) >= _ADJ_UNBOOKED_STEP_TOL:
+            reasons.append(
+                f"unbooked_adj_factor_step{stamp}: adj_factor step {ratio:.4f} "
+                "with no booked corporate action"
+            )
+    return reasons
+
+
+def _write_adjustment_quarantine(symbol: str, violations: list) -> None:
+    """Append a quarantine record; ledger failure must never break ingest."""
+    try:
+        ledger = WAREHOUSE_DIR / _ADJUSTMENT_QUARANTINE_LEDGER
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "symbol": symbol,
+            "timeframe": "1d",
+            "quarantined_at_utc": datetime.now(timezone.utc).isoformat(),
+            "violations": violations,
+        }
+        with ledger.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"⚠️  Could not write adjustment quarantine ledger: {exc}")
+
+
 def load_from_warehouse(symbol: str, timeframe: str) -> pd.DataFrame:
     safe_sym = _sanitize_symbol(symbol)
     timeframe = _validate_timeframe(timeframe)
@@ -74,6 +176,15 @@ def save_to_warehouse(df: pd.DataFrame):
         symbol = str(symbol).strip().upper()
         safe_sym = _sanitize_symbol(symbol)
         timeframe = _validate_timeframe(timeframe)
+        if timeframe == "1d":
+            violations = adjustment_integrity_violations(group)
+            if violations:
+                print(
+                    f"⛔ Adjustment-book violation: {symbol} | 1d frame NOT persisted "
+                    f"({len(violations)} issue(s)). First: {violations[0]}"
+                )
+                _write_adjustment_quarantine(symbol, violations)
+                continue
         partition_dir = _assert_within_warehouse(
             WAREHOUSE_DIR / f"symbol={safe_sym}" / f"timeframe={timeframe}"
         )
