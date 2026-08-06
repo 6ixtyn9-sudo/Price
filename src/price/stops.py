@@ -31,6 +31,7 @@ from dataclasses import dataclass, asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
+from zoneinfo import ZoneInfo
 
 from price.config import DATA_DIR
 
@@ -73,16 +74,28 @@ DEFAULT_INTRADAY_OPEN_STOP_BUFFER_MULT = 1.4
 
 _OPEN_BUFFER_TIMEFRAMES = ("15m", "1h")
 
-# Opening window: first 60 min of the US regular session (09:30-10:30 NY),
-# approximated as fixed 13:30-14:30 UTC; DST shifts it an hour -- worst case the
-# buffer applies early/late, which errs toward a slightly wider stop (safe side).
-_OPEN_BUFFER_WINDOW_UTC = ((13, 30), (14, 30))
+# Opening window: first 60 min of the US regular session on the New York wall
+# clock (09:30-10:30 ET). Fixed-UTC approximations drift an hour across DST —
+# winter EST would widen 08:30-09:30 ET and leave the actual cash open
+# UNPROTECTED (the dangerous direction); zoneinfo resolves EST/EDT itself.
+_OPEN_BUFFER_ET_START_MIN = 9 * 60 + 30
+_OPEN_BUFFER_ET_END_MIN = 10 * 60 + 30
+_NY_TZ = ZoneInfo("America/New_York")
 
 # The per-horizon MAE calibration floor the session buffer exists to lift.
 _OPEN_BUFFER_STOP_FLOOR = 1.5
 
 def _now_utc() -> datetime:           # clock seam (monkeypatchable)
     return datetime.now(timezone.utc)
+
+def _in_open_buffer_window(t: datetime) -> bool:
+    # Naive inputs are read as UTC (explicit dial/test seam; host-zone must
+    # never leak into the window math). Aware inputs convert normally.
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    et = t.astimezone(_NY_TZ)
+    minutes = et.hour * 60 + et.minute
+    return _OPEN_BUFFER_ET_START_MIN <= minutes < _OPEN_BUFFER_ET_END_MIN
 
 def effective_stop_atr_mult(k_stop, timeframe, now=None,
                             buffer_mult=DEFAULT_INTRADAY_OPEN_STOP_BUFFER_MULT):
@@ -98,12 +111,7 @@ def effective_stop_atr_mult(k_stop, timeframe, now=None,
             return km
         
         t = now if now is not None else _now_utc()
-        minutes = t.hour * 60 + t.minute
-        
-        h0, m0 = _OPEN_BUFFER_WINDOW_UTC[0]
-        h1, m1 = _OPEN_BUFFER_WINDOW_UTC[1]
-        
-        if h0 * 60 + m0 <= minutes < h1 * 60 + m1:
+        if _in_open_buffer_window(t):
             # Reconciled floor-lift (parallel-round adjudication 2026-08-06):
             # 1.5x -> 2.1x, sub-floor 1.2x -> 1.68x, mid 2.0x -> 2.1x, wide
             # 2.8x -> 2.8x (never over-widened -- the dollar-R cost is real).

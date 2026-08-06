@@ -386,6 +386,21 @@ def test_open_window_buffer_window_edges():
     assert effective_stop_atr_mult(1.5, "1h", now=_E1) == pytest.approx(1.5)
 
 
+def test_open_window_buffer_tracks_new_york_clock_across_dst():
+    # Winter EST: the cash open is 14:30 UTC, not 13:30. A fixed-UTC window
+    # would widen the PRE-MARKET hour and leave the actual open unprotected.
+    winter_premarket = datetime(2026, 1, 15, 13, 31, tzinfo=timezone.utc)  # 08:31 EST
+    winter_open_edge = datetime(2026, 1, 15, 14, 30, tzinfo=timezone.utc)  # 09:30 EST
+    winter_in_open = datetime(2026, 1, 15, 14, 31, tzinfo=timezone.utc)    # 09:31 EST
+    winter_close_edge = datetime(2026, 1, 15, 15, 30, tzinfo=timezone.utc)  # 10:30 EST
+    assert effective_stop_atr_mult(1.5, "1h", now=winter_premarket) == pytest.approx(1.5)
+    assert effective_stop_atr_mult(1.5, "1h", now=winter_open_edge) == pytest.approx(2.1)
+    assert effective_stop_atr_mult(1.5, "1h", now=winter_in_open) == pytest.approx(2.1)
+    assert effective_stop_atr_mult(1.5, "1h", now=winter_close_edge) == pytest.approx(1.5)
+    # Seam contract: naive datetimes are read as UTC (host zone must not leak)
+    assert effective_stop_atr_mult(1.5, "1h", now=datetime(2026, 1, 15, 14, 31)) == pytest.approx(2.1)
+
+
 def test_open_window_buffer_fail_safe_on_junk():
     assert effective_stop_atr_mult(1.5, "1h", now="bad") == pytest.approx(1.5)
     assert effective_stop_atr_mult("junk", "1h", now=_IN) == "junk"
