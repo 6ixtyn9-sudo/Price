@@ -1,14 +1,11 @@
 {
-  "previous_book_count": 166,
-  "new_book_count": 164,
+  "previous_book_count": 164,
+  "new_book_count": 166,
   "added_candidates": [
-    "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling"
+    "ITA|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling",
+    "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend|long|rolling"
   ],
-  "removed_candidates": [
-    "MS|1h|state_session=afternoon + state_slope=downtrend + state_vol=low_vol|long|rolling",
-    "SMH|1h|state_session=afternoon + state_slope=flat + state_vol=low_vol|long|rolling",
-    "SOXX|1h|state_session=lunch + state_slope=uptrend + state_vol=low_vol|long|rolling"
-  ],
+  "removed_candidates": [],
   "retained_candidates": [
     "ABBV|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=low_vol|long|rolling",
     "ABBV|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling",
@@ -82,6 +79,7 @@
     "JNJ|1d|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "JPM|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling",
     "KLAC|1d|cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
+    "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling",
     "KO|1d|cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
     "LNG|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=neutral + state_ext=stretched_down|long|rolling",
     "LNG|1d|state_slope=flat + state_vol=low_vol|long|rolling",
@@ -175,13 +173,10 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {
-    "MS|1h|state_session=afternoon + state_slope=downtrend + state_vol=low_vol|long|rolling": "registry_status:research_only",
-    "SMH|1h|state_session=afternoon + state_slope=flat + state_vol=low_vol|long|rolling": "registry_status:research_only",
-    "SOXX|1h|state_session=lunch + state_slope=uptrend + state_vol=low_vol|long|rolling": "registry_status:research_only"
-  },
+  "removal_reasons": {},
   "promotion_reasons": {
-    "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling": "paper_proposal"
+    "ITA|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling": "paper_proposal",
+    "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend|long|rolling": "paper_proposal"
   },
   "discovery_run_id": null
 }
