@@ -109,6 +109,21 @@ def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
 # observed earnings repricing in the universe; SMCI's worst miss was ~-23%).
 PHANTOM_CORPORATE_ACTION_MIN_MOVE = 0.35
 
+def _stale_warehouse_reason(df_warehouse: pd.DataFrame, timeframe: str) -> Optional[str]:
+    if "bar_ts_utc" in df_warehouse.columns:
+        import datetime
+        last_ts = pd.to_datetime(df_warehouse["bar_ts_utc"].iloc[-1], errors="coerce", utc=True)
+        if pd.notna(last_ts):
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            age_hours = (now_utc - last_ts).total_seconds() / 3600.0
+            # Timeframe-aware staleness: tighter for intraday, looser for daily.
+            # ~8 bars of lag max per timeframe. Prevents acting on stale intraday state.
+            _MAX_STALE_HOURS = {"15m": 2.0, "1h": 8.0, "1d": 72.0}
+            max_stale = _MAX_STALE_HOURS.get(timeframe, 72.0)
+            if age_hours > max_stale:
+                return f"stale_warehouse_bar_too_old: latest bar {last_ts} is >{max_stale}h old"
+    return None
+
 def _corporate_action_anomaly(df: pd.DataFrame, timeframe: str) -> Optional[str]:
     """Detect an unadjusted split/corporate-action artifact in a warehouse frame.
     Returns an audit-ready reason string, or None when the frame is clean."""
@@ -295,16 +310,11 @@ def _state_unavailable_context(symbol: str, timeframe: str) -> dict:
         ctx["reason"] = "nan_state_features"
         return ctx
 
-    if "bar_ts_utc" in df.columns:
-        last_ts = pd.to_datetime(latest.get("bar_ts_utc"), errors="coerce", utc=True)
-        if pd.notna(last_ts):
-            now_utc = datetime.now(timezone.utc)
-            age_hours = (now_utc - last_ts).total_seconds() / 3600.0
-            _MAX_STALE_HOURS = {"15m": 2.0, "1h": 8.0, "1d": 72.0}
-            max_stale = _MAX_STALE_HOURS.get(timeframe, 72.0)
-            if age_hours > max_stale:
-                ctx["reason"] = f"stale_warehouse_bar_too_old: latest bar {last_ts} is >{max_stale}h old"
-                
+    stale_reason = _stale_warehouse_reason(df, timeframe)
+    if stale_reason:
+        ctx["reason"] = stale_reason
+        return ctx
+
     ca_reason = _corporate_action_anomaly(df, timeframe)
     if ca_reason:
         ctx["reason"] = ca_reason
@@ -345,18 +355,9 @@ def get_current_state(
     if df_warehouse.empty:
         return None
 
-    if "bar_ts_utc" in df_warehouse.columns:
-        import datetime
-        last_ts = pd.to_datetime(df_warehouse["bar_ts_utc"].iloc[-1], errors="coerce", utc=True)
-        if pd.notna(last_ts):
-            now_utc = datetime.datetime.now(datetime.timezone.utc)
-            age_hours = (now_utc - last_ts).total_seconds() / 3600.0
-            # Timeframe-aware staleness: tighter for intraday, looser for daily.
-            # ~8 bars of lag max per timeframe. Prevents acting on stale intraday state.
-            _MAX_STALE_HOURS = {"15m": 2.0, "1h": 8.0, "1d": 72.0}
-            max_stale = _MAX_STALE_HOURS.get(timeframe, 72.0)
-            if age_hours > max_stale:
-                return None
+    stale_reason = _stale_warehouse_reason(df_warehouse, timeframe)
+    if stale_reason:
+        return None
 
     if "close_adj" not in df_warehouse.columns:
         df_warehouse["open_adj"] = df_warehouse.get("open_raw", df_warehouse.get("open", np.nan))
@@ -947,7 +948,9 @@ def scan_all_slices(
                     candidate_atr = compute_atr_14(load_from_warehouse(symbol, timeframe))
                     if candidate_atr is not None and qty > 0:
                         k_stop = getattr(limits, "stop_atr_multiple", DEFAULT_STOP_ATR_MULT)
-                        proposed_r_dollars = k_stop * candidate_atr * qty
+                        from price.stops import effective_stop_atr_mult
+                        buffered_k = effective_stop_atr_mult(k_stop, timeframe, buffer_mult=getattr(limits, "intraday_open_stop_buffer_mult", 1.4))
+                        proposed_r_dollars = buffered_k * candidate_atr * qty
                 except Exception:  # noqa: BLE001 - sizing/risk must never crash the scan
                     proposed_r_dollars = None
 

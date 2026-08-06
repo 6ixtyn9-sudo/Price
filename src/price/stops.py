@@ -109,9 +109,8 @@ def effective_stop_atr_mult(k_stop, timeframe, now=None,
             # 2.8x -> 2.8x (never over-widened -- the dollar-R cost is real).
             return max(km, bm * min(km, _OPEN_BUFFER_STOP_FLOOR))
         return km
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AttributeError):
         return k_stop
-
 
 @dataclass
 class StopState:
