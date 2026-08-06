@@ -393,6 +393,28 @@ def stopout_count_today(symbol: str, path: Optional[Path] = None) -> int:
     return count
 
 
+def stopout_count_within_days(symbol: str, days: int, path: Optional[Path] = None) -> int:
+    """Count of `symbol`'s stop-outs over the rolling last N days."""
+    if days <= 0:
+        return 0
+    from datetime import timedelta
+    journal = _load_stopout_journal(path)
+    events = journal.get(symbol.upper(), [])
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days)
+    count = 0
+    for iso in events:
+        try:
+            t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=timezone.utc)
+            if t >= cutoff:
+                count += 1
+        except (ValueError, TypeError):
+            continue
+    return count
+
+
 def is_whipsaw_blocked(symbol: str, limit: int = WHIPSAW_STOPOUT_LIMIT,
                         path: Optional[Path] = None) -> bool:
     """True if `symbol` has hit `limit` (default 2) same-day stop-outs and

@@ -18,6 +18,18 @@ from price.data_sources import (
 from price.warehouse import save_to_warehouse, load_from_warehouse, resample_15m_to_1h, propagate_adjustment_factors
 
 
+
+def _frame_has_split_event(df) -> bool:
+    """True when a fetched frame carries a genuine corporate-split marker.
+    split_factor == 1.0 everywhere (or the column missing) means no event.
+    NaN/malformed values count as no event (fail open).
+    """
+    if df is None or df.empty or "split_factor" not in df.columns:
+        return False
+    sf = pd.to_numeric(df["split_factor"], errors="coerce").fillna(1.0)
+    return bool((sf != 1.0).any())
+
+
 def _needs_resample_and_propagate(symbol: str, tf: str, source: str) -> bool:
     """Return True if this (symbol, tf, source) combo still needs the old
     15m→1h resample + adjustment-propagation pipeline.
@@ -108,6 +120,22 @@ def capture_bars(
                         df = fetch_alpaca_bars(symbol, tf, start_dt, end_dt)
 
                 if df is not None and not df.empty:
+                    # Split-repair root fix (G5): incremental pull containing a split
+                    # leaves history at stale adj factors — full re-pull fixes this.
+                    if (
+                        tf in ("1d", "1h")
+                        and use_universal_router
+                        and start_dt > end_dt - timedelta(days=days_lookback)
+                        and _frame_has_split_event(df)
+                    ):
+                        print(f"⚠️  Split event in incremental {tf} pull for {symbol}; refetching full {days_lookback}d window.")
+                        try:
+                            df_full = fetch_universal_bars(symbol, tf, end_dt - timedelta(days=days_lookback), end_dt)
+                            if df_full is not None and not df_full.empty:
+                                df = df_full
+                        except Exception as e:
+                            print(f"  Failed full re-pull for {symbol}: {e}")
+
                     print(f"Successfully fetched {len(df)} bars.")
                     save_to_warehouse(df)
                 else:

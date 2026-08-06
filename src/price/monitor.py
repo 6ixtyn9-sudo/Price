@@ -105,6 +105,44 @@ def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
     return out or None
 
 
+
+def _corporate_action_break_reason(df: pd.DataFrame, timeframe: str) -> Optional[str]:
+    """Return a break reason string if a corporate action artifact is detected."""
+    if df is None or df.empty or len(df) < 2:
+        return None
+    if "close_adj" not in df.columns:
+        return None
+    
+    _last = df["close_adj"].iloc[-1]
+    _prev = df["close_adj"].iloc[-2]
+    if _prev and _prev > 0:
+        _move = abs(_last / _prev - 1.0)
+        if _move > 0.20:
+            return "corporate_action_unresolved_adjustment"
+    
+    if "split_factor" in df.columns:
+        sf = df["split_factor"].iloc[-1]
+        if sf and sf != 1.0 and sf == sf:
+            return "corporate_action_unresolved_adjustment"
+            
+    if "dividend_cash" in df.columns:
+        div = df["dividend_cash"].iloc[-1]
+        if div and div > 0 and _prev and _prev > 0 and (div / _prev) > 0.03:
+            return "corporate_action_unresolved_adjustment"
+            
+    return None
+
+def _any_corporate_action_reason(symbol: str, df: pd.DataFrame, timeframe: str) -> Optional[str]:
+    reason = _corporate_action_break_reason(df, timeframe)
+    if reason:
+        return reason
+    if timeframe != "1d":
+        df_1d = load_from_warehouse(symbol, "1d")
+        if not df_1d.empty:
+            df_1d = df_1d.sort_values("bar_ts_utc").reset_index(drop=True)
+            return _corporate_action_break_reason(df_1d, "1d")
+    return None
+
 def _load_explicit_monitored_slices() -> Optional[List[dict]]:
     """Load an operator-curated monitored_slices.csv when present.
 
@@ -262,6 +300,11 @@ def _state_unavailable_context(symbol: str, timeframe: str) -> dict:
             max_stale = _MAX_STALE_HOURS.get(timeframe, 72.0)
             if age_hours > max_stale:
                 ctx["reason"] = f"stale_warehouse_bar_too_old: latest bar {last_ts} is >{max_stale}h old"
+                
+    corp_reason = _any_corporate_action_reason(symbol, df, timeframe)
+    if corp_reason:
+        ctx["reason"] = corp_reason
+        
     return ctx
 
 
@@ -323,6 +366,10 @@ def get_current_state(
     df_tail = df_warehouse.tail(lookback_bars).copy() if lookback_bars else df_warehouse.copy()
     df_tail = df_tail.sort_values("bar_ts_utc").reset_index(drop=True)
     df_tail = _drop_incomplete_intraday_rows(df_tail, timeframe)
+
+    if _any_corporate_action_reason(symbol, df_tail, timeframe):
+        print(f"Likely corporate-action/discontinuity for {symbol} ... refusing to compute state")
+        return None
 
     if len(df_tail) < 60:
         print(f"  Only {len(df_tail)} completed bars for {symbol} ({timeframe}); need ~60 for features.")
@@ -544,6 +591,19 @@ def scan_all_slices(
         sym = str(s.get("symbol", "")).strip().upper()
         if sym:
             monitored_symbols.add(sym)
+
+    # G2: Preserve out-of-book equity positions for the sector cap.
+    # We still filter exposure_for_entry_gate for the general max_open cap,
+    # but sector_commit will also include these unmonitored-but-sector-mapped positions.
+    unmonitored_sector_positions = []
+    if monitored_symbols:
+        from price.universe import get_symbol_sector as _get_sector
+        for p in open_positions_list:
+            sym = str(p.get("symbol", "")).strip().upper()
+            if sym and sym not in monitored_symbols:
+                # If it has a known equity sector, it belongs to this lane's sector cap
+                if _get_sector(sym):
+                    unmonitored_sector_positions.append(p)
     if monitored_symbols:
         before_pos = len(open_positions_list)
         open_positions_list = [
@@ -657,6 +717,7 @@ def scan_all_slices(
     # limits.max_aggregate_open_risk_pct of equity.
     open_stop_states = load_stop_states()
 
+    sector_commit = list(exposure_for_entry_gate) + unmonitored_sector_positions
     groups: Dict[tuple, List[dict]] = {}
     for s in slices:
         bin_mode = str(s.get("bin_mode", "insample") or "insample").lower()
@@ -847,6 +908,18 @@ def scan_all_slices(
             except Exception:
                 blackout = False
 
+
+            # G1: Knife cooldown check
+            knife_blocked = False
+            knife_reason = None
+            if getattr(limits, "knife_cooldown_days", 0) > 0:
+                from price.stops import stopout_count_within_days
+                cooldown_days = limits.knife_cooldown_days
+                recent_stopouts = stopout_count_within_days(symbol, cooldown_days)
+                if recent_stopouts > 0:
+                    knife_blocked = True
+                    knife_reason = f"blocked_by_knife_cooldown: {recent_stopouts} stop-out(s) in last {cooldown_days}d for {symbol}; catching-the-same-knife paused"
+
             side = str(s.get("side", "long") or "long").lower()
             if side not in ("long", "short"):
                 side = "long"
@@ -875,7 +948,7 @@ def scan_all_slices(
                     qty=qty,
                     price=close_adj,
                     limits=limits,
-                    open_positions=exposure_for_entry_gate,
+                    open_positions=sector_commit,
                     today_realized_pnl=today_pnl,
                     side=side,
                     symbol_risk_group=candidate_group,
@@ -914,6 +987,9 @@ def scan_all_slices(
                         0,
                         "broker reconciliation incomplete; new entry blocked",
                     )
+                if knife_blocked:
+                    tradable = False
+                    gate_reasons.insert(0, knife_reason)
                 status_label = "MATCH  " if tradable else "BLOCKED"
                 reasons_str = ", ".join(gate_reasons) if gate_reasons else "risk gate passed"
                 risk_payload = {
@@ -926,7 +1002,20 @@ def scan_all_slices(
                 }
             else:
                 gate_reasons = ["dry_run"]
-                tradable = not regime_blocked and not entry_sync_blocked and not blackout
+                tradable = not regime_blocked and not entry_sync_blocked and not blackout and not knife_blocked
+                
+                # Check sector cap in dry_run (G2)
+                from price.risk_limits import check_sector_concentration_cap
+                _dry_sector_ok = check_sector_concentration_cap(
+                    symbol, sector_commit,
+                    max_per_sector=getattr(limits, "max_positions_per_sector", 2),
+                )
+                if not _dry_sector_ok:
+                    tradable = False
+                    gate_reasons.append(
+                        f"blocked_by_sector_concentration_cap: sector limit reached for {symbol}"
+                    )
+
                 if regime_blocked:
                     if regime_reason == "regime_out_of_sample":
                         gate_reasons.append(
@@ -946,6 +1035,8 @@ def scan_all_slices(
                     gate_reasons.append(
                         "broker reconciliation incomplete; new entry blocked",
                     )
+                if knife_blocked:
+                    gate_reasons.append(knife_reason)
                 status_label = "MATCH  " if tradable else "BLOCKED"
                 reasons_str = ", ".join(gate_reasons)
                 risk_payload = {
@@ -953,7 +1044,6 @@ def scan_all_slices(
                     "reasons": gate_reasons,
                     "details": {"reconciliation_health": reconciliation_health},
                 }
-
             signal = {
                 "kind": "entry_signal",
                 "symbol": symbol,
@@ -977,6 +1067,9 @@ def scan_all_slices(
                 "risk_check": risk_payload,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             }
+            if tradable:
+                sector_commit.append({"symbol": symbol})
+                
             signals.append(signal)
             verb = "tradable" if tradable else "blocked"
             print(f"  {status_label} {s['slice_combination']}  ({verb}: {reasons_str})")

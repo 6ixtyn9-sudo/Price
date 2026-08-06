@@ -108,6 +108,7 @@ class RiskLimits:
     # stops mean more stop-outs; this exists so "small losses" doesn't
     # quietly become "many small losses in one choppy day." <= 0 disables.
     whipsaw_stopout_limit: int = 2
+    knife_cooldown_days: int = 2
     # ---- Leverage knobs (steady-state / overnight-hold only) ----
     # How much of the account's real margin capacity to actually use, as a
     # multiple of equity. 1.0 (default) == cash-secured, today's exact
