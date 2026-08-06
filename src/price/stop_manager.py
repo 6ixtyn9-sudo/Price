@@ -434,6 +434,29 @@ def reconcile_stops(
                 k_stop = None
             if k_stop is None or k_stop <= 0:
                 k_stop = getattr(limits, "stop_atr_multiple", 2.0)
+
+            # G4 session-buffer: widen the initial-stop floor during the
+            # US equity opening hour (13:30–14:30 UTC / 9:30–10:30 ET).
+            # Intraday slices LNG/MU/UBER calibrate at/near the 1.5× floor;
+            # opening-bar volatility is empirically 2.5–3× the hourly median,
+            # so 1.5× ATR is stop-hunted ~90% of the time in the first bar.
+            # Floor to 2.1× during this window only; never tightens the stop
+            # (if the slice already uses ≥2.1× its wider value is kept).
+            # Fail-open: if time cannot be determined, leave k_stop unchanged.
+            _OPENING_HOUR_K_FLOOR = 2.1
+            _OPENING_HOUR_K_APPLIES_TO = ("1h", "15m")
+            _slice_tf = ctx.get("timeframe", "")
+            if k_stop < _OPENING_HOUR_K_FLOOR and _slice_tf in _OPENING_HOUR_K_APPLIES_TO:
+                try:
+                    _now_utc = datetime.now(timezone.utc)
+                    _h, _m = _now_utc.hour, _now_utc.minute
+                    _minutes_since_midnight = _h * 60 + _m
+                    _open_start, _open_end = 13 * 60 + 30, 14 * 60 + 30  # 13:30–14:30 UTC
+                    if _open_start <= _minutes_since_midnight < _open_end:
+                        k_stop = _OPENING_HOUR_K_FLOOR
+                except Exception:  # noqa: BLE001
+                    pass  # fail-open
+
             new_state = new_stop_state(symbol, side, qty, entry_price, atr, k_stop=k_stop)
 
             if dry_run:
