@@ -623,3 +623,12 @@ def test_cross_symbols_from_filter_extracts_symbol_and_fields():
 
     # No cross fields -> empty dict (existing slices are unaffected).
     assert cross_symbols_from_filter({"state_ext": "neutral"}) == {}
+
+
+def test_calibrate_stop_atr_mult_basic():
+    from validate_slices import _calibrate_stop_atr_mult
+    vals = [1.0, 1.2, 1.5, 2.0, 2.2, 2.5, 3.0, 3.2, 3.5, 4.0]
+    res = _calibrate_stop_atr_mult(vals, percentile=0.90)
+    assert res is not None
+    assert 1.5 <= res <= 5.0
+    assert _calibrate_stop_atr_mult([1.0, 2.0]) is None  # < 5 instances -> None

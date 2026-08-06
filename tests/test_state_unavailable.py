@@ -202,3 +202,17 @@ def test_scan_threads_bin_mode_into_state_computation(monkeypatch):
     assert seen_modes == ["insample", "rolling"]
     matched = [s for s in signals if s.get("matched")]
     assert [s["bin_mode"] for s in matched] == ["insample", "rolling"]
+
+
+def test_state_unavailable_stale_warehouse_bar_too_old(monkeypatch):
+    import pandas as pd
+    from price import monitor
+
+    df_old = pd.DataFrame([{
+        "bar_ts_utc": pd.Timestamp("2026-07-01 12:00:00", tz="UTC"),
+        "close_raw": 100.0,
+        "close_adj": 100.0,
+    }])
+    monkeypatch.setattr(monitor, "load_from_warehouse", lambda sym, tf: df_old)
+    ctx = monitor._state_unavailable_context("SPY", "1d")
+    assert "stale_warehouse_bar_too_old" in ctx["reason"]

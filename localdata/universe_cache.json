@@ -190,6 +190,6 @@
     "count_stocks": 0,
     "count_crypto": 73,
     "source": "alpaca /v2/assets",
-    "generated_at_utc": "2026-07-30T08:19:49Z"
+    "generated_at_utc": "2026-08-06T16:08:02Z"
   }
 }

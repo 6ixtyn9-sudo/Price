@@ -1658,7 +1658,13 @@ def run_candidate_leaderboard(
             # Per-slice stop multiplier = high percentile of the slice's own
             # adverse excursion (ATR) over the hold, clamped to [1.5, 5.0].
             # Mirrors best_fwd_horizon; non-overfit (percentile, not optimum).
-            _adv_col = "fwd_mae_atr_5_short" if side == "short" else "fwd_mae_atr_5_long"
+            _adv_col = (
+                f"fwd_mae_atr_{best_h}_short"
+                if side == "short"
+                else f"fwd_mae_atr_{best_h}_long"
+            )
+            if _adv_col not in window.columns:
+                _adv_col = "fwd_mae_atr_5_short" if side == "short" else "fwd_mae_atr_5_long"
             if _adv_col in window.columns:
                 stop_map[(sym, tf, combo)] = _calibrate_stop_atr_mult(window[_adv_col])
         except Exception:

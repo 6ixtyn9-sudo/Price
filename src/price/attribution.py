@@ -350,38 +350,53 @@ def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[Roun
 
 def load_expected_returns(
     leaderboard_path: Optional[Path] = None,
+    fallback_paths: Optional[List[Path]] = None,
 ) -> Dict[str, float]:
     """{slice_combination: valid_mean_ret_costadj} from the leaderboard.
 
     Used to compare realized P&L to the validation expectation. Returns {}
-    when no leaderboard is present (graceful degradation).
+    when no leaderboard is present (graceful degradation). Scans fallback
+    paths in priority order so expected returns are populated across the book.
     """
-    p = Path(leaderboard_path) if leaderboard_path else CANDIDATE_LEADERBOARD_PATH
-    if not p.exists():
-        return {}
-    try:
-        lb = pd.read_csv(p)
-    except Exception:  # noqa: BLE001
-        return {}
-    if lb is None or lb.empty or "slice_combination" not in lb.columns:
-        return {}
-    col = "valid_mean_ret_costadj" if "valid_mean_ret_costadj" in lb.columns else None
-    if col is None:
-        return {}
+    if leaderboard_path is not None:
+        paths = [Path(leaderboard_path)]
+    elif fallback_paths is not None:
+        paths = [Path(p) for p in fallback_paths]
+    else:
+        paths = [
+            CANDIDATE_LEADERBOARD_PATH,
+            DATA_DIR / "monitored_edge_metrics.csv",
+            DATA_DIR / "research" / "merged" / "candidate_leaderboard_merged.csv",
+        ]
+
     out: Dict[str, float] = {}
-    for _, r in lb.iterrows():
-        sc = str(r.get("slice_combination", ""))
-        symbol = str(r.get("symbol", "")).upper()
-        timeframe = str(r.get("timeframe", ""))
-        side = str(r.get("side", "long") or "long").lower()
-        bin_mode = str(r.get("bin_mode", "insample") or "insample").lower()
-        v = r.get(col)
-        try:
-            v = float(v)
-        except (TypeError, ValueError):
+    for p in paths:
+        if not p.exists():
             continue
-        if sc and symbol and timeframe and v == v:
-            out[_identity_key(symbol, timeframe, sc, side, bin_mode)] = v
+        try:
+            lb = pd.read_csv(p)
+        except Exception:  # noqa: BLE001
+            continue
+        if lb is None or lb.empty or "slice_combination" not in lb.columns:
+            continue
+        col = "valid_mean_ret_costadj" if "valid_mean_ret_costadj" in lb.columns else ("expected_return" if "expected_return" in lb.columns else None)
+        if col is None:
+            continue
+        for _, r in lb.iterrows():
+            sc = str(r.get("slice_combination", ""))
+            symbol = str(r.get("symbol", "")).upper()
+            timeframe = str(r.get("timeframe", ""))
+            side = str(r.get("side", "long") or "long").lower()
+            bin_mode = str(r.get("bin_mode", "insample") or "insample").lower()
+            v = r.get(col)
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                continue
+            if sc and symbol and timeframe and v == v:
+                key = _identity_key(symbol, timeframe, sc, side, bin_mode)
+                if key not in out:
+                    out[key] = v
     return out
 
 

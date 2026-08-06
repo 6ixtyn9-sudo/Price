@@ -176,6 +176,29 @@ def test_load_expected_returns_missing_file():
     assert load_expected_returns(Path("/nonexistent/lb.csv")) == {}
 
 
+def test_load_expected_returns_fallback_paths(tmp_path):
+    lb1 = pd.DataFrame([{
+        "symbol": "KLAC", "timeframe": "1d",
+        "slice_combination": "state_ext=stretched_down + state_slope=downtrend",
+        "valid_mean_ret_costadj": 0.05,
+    }])
+    lb2 = pd.DataFrame([{
+        "symbol": "AAPL", "timeframe": "1h",
+        "slice_combination": "state_vol=low_vol",
+        "expected_return": 0.02,
+    }])
+    p1 = tmp_path / "lb1.csv"
+    p2 = tmp_path / "lb2.csv"
+    lb1.to_csv(p1, index=False)
+    lb2.to_csv(p2, index=False)
+    exp = load_expected_returns(fallback_paths=[p1, p2])
+    k1 = identity_key("KLAC", "1d", "state_ext=stretched_down + state_slope=downtrend")
+    k2 = identity_key("AAPL", "1h", "state_vol=low_vol")
+    assert k1 in exp and k2 in exp
+    assert abs(exp[k1] - 0.05) < 1e-9
+    assert abs(exp[k2] - 0.02) < 1e-9
+
+
 # ---------------------------------------------------------------------------
 # measure_realized_slippage
 # ---------------------------------------------------------------------------

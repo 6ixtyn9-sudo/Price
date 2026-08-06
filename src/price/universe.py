@@ -291,6 +291,31 @@ def is_equity_symbol(symbol: str) -> bool:
     # crude: contains / => crypto, else assume equity
     return "/" not in symbol
 
+
+EQUITY_SECTOR_MAP: Dict[str, str] = {
+    # Semiconductors / High-Beta Tech
+    "KLAC": "SEMI_TECH", "LRCX": "SEMI_TECH", "AMAT": "SEMI_TECH", "ASML": "SEMI_TECH",
+    "NVDA": "SEMI_TECH", "AMD": "SEMI_TECH", "INTC": "SEMI_TECH", "TSM": "SEMI_TECH",
+    "AVGO": "SEMI_TECH", "TXN": "SEMI_TECH", "QCOM": "SEMI_TECH", "SMCI": "SEMI_TECH",
+    "SMH": "SEMI_TECH", "SOXX": "SEMI_TECH", "XLK": "SEMI_TECH", "QQQ": "SEMI_TECH",
+    # Financials
+    "JPM": "FIN", "BAC": "FIN", "GS": "FIN", "MS": "FIN", "C": "FIN", "SCHW": "FIN", "XLF": "FIN",
+    # Energy
+    "XLE": "NRG", "XOP": "NRG", "OIH": "NRG", "USO": "NRG", "CVX": "NRG", "XOM": "NRG",
+    # Healthcare / Biotech
+    "XLV": "HLTH", "XBI": "HLTH", "HUM": "HLTH", "UNH": "HLTH", "ABBV": "HLTH", "JNJ": "HLTH",
+    # Industrials / Materials
+    "XLB": "IND", "XLI": "IND", "HON": "IND", "FDX": "IND", "GE": "IND", "CAT": "IND",
+    # Retail / Consumer
+    "WMT": "CONS", "CMG": "CONS", "SBUX": "CONS", "XLY": "CONS", "XLP": "CONS",
+}
+
+
+def get_symbol_sector(symbol: str) -> Optional[str]:
+    """Return canonical GICS sector ETF family for symbol, or None if unmapped."""
+    return EQUITY_SECTOR_MAP.get(str(symbol).upper().strip())
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Fetch Alpaca free-tier universe")

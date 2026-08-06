@@ -30,3 +30,10 @@ def test_is_crypto_symbol_helper():
     assert u.is_crypto_symbol("BTC/USD")
     assert u.is_crypto_symbol("ETH/USD")
     assert not u.is_crypto_symbol("AAPL")
+
+
+def test_get_symbol_sector():
+    assert u.get_symbol_sector("KLAC") == "SEMI_TECH"
+    assert u.get_symbol_sector("LRCX") == "SEMI_TECH"
+    assert u.get_symbol_sector("JPM") == "FIN"
+    assert u.get_symbol_sector("UNKNOWN_XYZ") is None

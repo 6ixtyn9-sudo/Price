@@ -251,6 +251,17 @@ def _state_unavailable_context(symbol: str, timeframe: str) -> dict:
 
     if pd.isna(close_adj):
         ctx["reason"] = "nan_state_features"
+        return ctx
+
+    if "bar_ts_utc" in df.columns:
+        last_ts = pd.to_datetime(latest.get("bar_ts_utc"), errors="coerce", utc=True)
+        if pd.notna(last_ts):
+            now_utc = datetime.now(timezone.utc)
+            age_hours = (now_utc - last_ts).total_seconds() / 3600.0
+            _MAX_STALE_HOURS = {"15m": 2.0, "1h": 8.0, "1d": 72.0}
+            max_stale = _MAX_STALE_HOURS.get(timeframe, 72.0)
+            if age_hours > max_stale:
+                ctx["reason"] = f"stale_warehouse_bar_too_old: latest bar {last_ts} is >{max_stale}h old"
     return ctx
 
 

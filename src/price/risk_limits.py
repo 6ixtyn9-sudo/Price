@@ -80,6 +80,10 @@ class RiskLimits:
     # stretched_down+downtrend). <= 0 disables the group cap (legacy
     # behaviour: every symbol counts as its own independent slot).
     max_positions_per_risk_group: int = 2
+    # Max concurrent open positions that share a GICS sector ETF family.
+    # Orthogonal to max_positions_per_risk_group. Prevents correlated cluster
+    # drawdowns (e.g. KLAC+LRCX+AMAT+ASML all in SEMI_TECH). <= 0 disables.
+    max_positions_per_sector: int = 2
     # ---- Protective-stop knobs (R-based "small losses, large profits") ----
     # Initial stop distance in multiples of ATR(14), set the moment a
     # position is filled. This is what actually makes the volatility
@@ -162,6 +166,32 @@ def risk_group_key(symbol: str, slice_combination: str) -> str:
     if not stable:
         return symbol.upper()
     return " + ".join(f"{k}={v}" for k, v in sorted(stable.items()))
+
+
+def check_sector_concentration_cap(
+    symbol: str,
+    open_positions: list,
+    max_per_sector: int = 2,
+) -> bool:
+    """Returns True if entering symbol respects the per-sector open cap.
+
+    Fails open (returns True) if symbol has no sector mapping in
+    EQUITY_SECTOR_MAP or if max_per_sector <= 0.
+    """
+    if max_per_sector <= 0:
+        return True
+    from price.universe import get_symbol_sector
+
+    target_sector = get_symbol_sector(symbol)
+    if not target_sector:
+        return True
+
+    count = 0
+    for pos in open_positions:
+        sym = str(pos.get("symbol", "")).upper()
+        if get_symbol_sector(sym) == target_sector:
+            count += 1
+    return count < max_per_sector
 
 
 @dataclass
@@ -300,6 +330,20 @@ def check_entry(
             reasons.append(
                 f"risk group '{symbol_risk_group}' at cap "
                 f"({group_count}/{limits.max_positions_per_risk_group})"
+            )
+
+    # Per-sector concentration cap: prevent catching correlated cluster knives
+    # (e.g. KLAC, LRCX, AMAT, ASML in SEMI_TECH). Orthogonal to risk_group_key.
+    if getattr(limits, "max_positions_per_sector", 2) > 0:
+        if not check_sector_concentration_cap(
+            symbol=symbol,
+            open_positions=open_positions,
+            max_per_sector=getattr(limits, "max_positions_per_sector", 2),
+        ):
+            from price.universe import get_symbol_sector
+            sec = get_symbol_sector(symbol)
+            reasons.append(
+                f"sector '{sec}' at concentration cap ({getattr(limits, 'max_positions_per_sector', 2)})"
             )
 
     if -today_realized_pnl >= limits.max_daily_realized_loss:

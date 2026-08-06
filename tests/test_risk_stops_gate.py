@@ -149,3 +149,25 @@ def test_check_entry_whipsaw_disabled_when_limit_zero(tmp_path, monkeypatch):
         open_positions=[], today_realized_pnl=0.0,
     )
     assert result.allowed is True
+
+
+def test_check_sector_concentration_cap_blocks_correlated_semis():
+    from price.risk_limits import check_sector_concentration_cap
+    open_pos = [{"symbol": "KLAC"}, {"symbol": "LRCX"}]
+    # 3rd semi must be blocked under cap=2
+    assert not check_sector_concentration_cap("AMAT", open_pos, max_per_sector=2)
+    # Orthogonal sector (SPY/JPM) must be allowed
+    assert check_sector_concentration_cap("JPM", open_pos, max_per_sector=2)
+    # Unmapped ticker must fail open
+    assert check_sector_concentration_cap("UNKNOWN_XYZ", open_pos, max_per_sector=2)
+
+
+def test_check_entry_sector_concentration_integration():
+    limits = _limits(max_positions_per_sector=2, max_open_positions=10)
+    open_pos = [{"symbol": "KLAC"}, {"symbol": "LRCX"}]
+    result = check_entry(
+        symbol="AMAT", qty=1, price=100.0, limits=limits,
+        open_positions=open_pos, today_realized_pnl=0.0,
+    )
+    assert result.allowed is False
+    assert any("sector 'SEMI_TECH' at concentration cap" in r for r in result.reasons)
