@@ -104,43 +104,47 @@ def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
         )
     return out or None
 
+# One-bar move above which an UNADJUSTED raw+adjusted close pair is treated as
+# a split/corporate-action artifact (below every 2:1+ split, above every
+# observed earnings repricing in the universe; SMCI's worst miss was ~-23%).
+PHANTOM_CORPORATE_ACTION_MIN_MOVE = 0.35
 
-
-def _corporate_action_break_reason(df: pd.DataFrame, timeframe: str) -> Optional[str]:
-    """Return a break reason string if a corporate action artifact is detected."""
+def _corporate_action_anomaly(df: pd.DataFrame, timeframe: str) -> Optional[str]:
+    """Detect an unadjusted split/corporate-action artifact in a warehouse frame.
+    Returns an audit-ready reason string, or None when the frame is clean."""
     if df is None or df.empty or len(df) < 2:
         return None
     if "close_adj" not in df.columns:
         return None
     
-    _last = df["close_adj"].iloc[-1]
-    _prev = df["close_adj"].iloc[-2]
-    if _prev and _prev > 0:
-        _move = abs(_last / _prev - 1.0)
-        if _move > 0.20:
-            return "corporate_action_unresolved_adjustment"
+    raw_col = "close_raw" if "close_raw" in df.columns else "close"
+    if raw_col not in df.columns:
+        return None
+        
+    _last_adj = df["close_adj"].iloc[-1]
+    _prev_adj = df["close_adj"].iloc[-2]
+    _last_raw = df[raw_col].iloc[-1]
+    _prev_raw = df[raw_col].iloc[-2]
     
-    if "split_factor" in df.columns:
-        sf = df["split_factor"].iloc[-1]
-        if sf and sf != 1.0 and sf == sf:
-            return "corporate_action_unresolved_adjustment"
-            
-    if "dividend_cash" in df.columns:
-        div = df["dividend_cash"].iloc[-1]
-        if div and div > 0 and _prev and _prev > 0 and (div / _prev) > 0.03:
-            return "corporate_action_unresolved_adjustment"
-            
-    return None
-
-def _any_corporate_action_reason(symbol: str, df: pd.DataFrame, timeframe: str) -> Optional[str]:
-    reason = _corporate_action_break_reason(df, timeframe)
-    if reason:
-        return reason
-    if timeframe != "1d":
-        df_1d = load_from_warehouse(symbol, "1d")
-        if not df_1d.empty:
-            df_1d = df_1d.sort_values("bar_ts_utc").reset_index(drop=True)
-            return _corporate_action_break_reason(df_1d, "1d")
+    if not (_prev_adj and _prev_adj > 0 and _prev_raw and _prev_raw > 0):
+        return None
+        
+    adj_move = abs(_last_adj / _prev_adj - 1.0)
+    raw_move = abs(_last_raw / _prev_raw - 1.0)
+    
+    if adj_move >= PHANTOM_CORPORATE_ACTION_MIN_MOVE and raw_move >= PHANTOM_CORPORATE_ACTION_MIN_MOVE:
+        sf_last = df["split_factor"].iloc[-1] if "split_factor" in df.columns else 1.0
+        sf_prev = df["split_factor"].iloc[-2] if "split_factor" in df.columns else 1.0
+        af_last = df["adj_factor"].iloc[-1] if "adj_factor" in df.columns else 1.0
+        af_prev = df["adj_factor"].iloc[-2] if "adj_factor" in df.columns else 1.0
+        
+        if sf_last == 1.0 and sf_prev == 1.0:
+            if abs(af_last - 1.0) < 0.05 and abs(af_prev - 1.0) < 0.05:
+                return (f"corporate_action_unadjusted_move: bar shows a {raw_move:.0%} raw AND "
+                        f"{adj_move:.0%} adjusted one-bar close move with split_factor=1.0 "
+                        f"and adj_factor~1.0 -- refusing to bin states until the frame is "
+                        f"re-adjusted or backfilled")
+                
     return None
 
 def _load_explicit_monitored_slices() -> Optional[List[dict]]:
@@ -301,9 +305,9 @@ def _state_unavailable_context(symbol: str, timeframe: str) -> dict:
             if age_hours > max_stale:
                 ctx["reason"] = f"stale_warehouse_bar_too_old: latest bar {last_ts} is >{max_stale}h old"
                 
-    corp_reason = _any_corporate_action_reason(symbol, df, timeframe)
-    if corp_reason:
-        ctx["reason"] = corp_reason
+    ca_reason = _corporate_action_anomaly(df, timeframe)
+    if ca_reason:
+        ctx["reason"] = ca_reason
         
     return ctx
 
@@ -363,13 +367,17 @@ def get_current_state(
         df_warehouse["split_factor"] = 1.0
         df_warehouse["dividend_cash"] = 0.0
 
+    # Red-team gauntlet 5 (2026-08-06): an unadjusted split/corporate-action
+    # artifact poisons every quantile bin and ATR computed over this frame --
+    # fail CLOSED for this symbol/timeframe ... Behind the staleness gate.
+    ca_reason = _corporate_action_anomaly(df_warehouse, timeframe)
+    if ca_reason is not None:
+        print(f"  {ca_reason} [{symbol} {timeframe}]")
+        return None
+
     df_tail = df_warehouse.tail(lookback_bars).copy() if lookback_bars else df_warehouse.copy()
     df_tail = df_tail.sort_values("bar_ts_utc").reset_index(drop=True)
     df_tail = _drop_incomplete_intraday_rows(df_tail, timeframe)
-
-    if _any_corporate_action_reason(symbol, df_tail, timeframe):
-        print(f"Likely corporate-action/discontinuity for {symbol} ... refusing to compute state")
-        return None
 
     if len(df_tail) < 60:
         print(f"  Only {len(df_tail)} completed bars for {symbol} ({timeframe}); need ~60 for features.")

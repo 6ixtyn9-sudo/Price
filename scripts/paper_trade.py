@@ -91,6 +91,30 @@ def _strip_known_keys(sig: dict, keys: List[str]) -> dict:
     return {k: v for k, v in sig.items() if k not in keys}
 
 
+def _warehouse_adverse_reference(symbol: str, timeframe: Optional[str]) -> Optional[float]:
+    """Quote-outage fallback reference price for the falling-knife guard.
+    ... Red-team gauntlet 1 (2026-08-06) ..."""
+    try:
+        import price.monitor as _mon
+        from price.warehouse import load_from_warehouse
+        tf = timeframe or "1d"
+        df = load_from_warehouse(symbol, tf)
+        if df is None or df.empty:
+            return None
+        df = _mon._drop_incomplete_intraday_rows(df, tf)
+        if df.empty:
+            return None
+        if _mon._stale_warehouse_reason(df, tf) is not None:
+            return None  # too old to say anything about today's price
+        for col in ("close_adj", "close_raw", "close"):
+            if col in df.columns:
+                px = float(df[col].iloc[-1])
+                return px if px == px and px > 0 else None
+        return None
+    except Exception:  # noqa: BLE001 - guard fallback must never crash the scan
+        return None
+
+
 def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill_bps: float = 0.0, entry_premium_bps: float = 0.0, adverse_atr_mult: float = 0.0, entry_premium_atr_mult: float = 0.0) -> Dict[str, int]:
     """For each signal in the list, either submit a real order, log a
     blocked entry, or close a position. Returns counts for the summary."""
@@ -201,6 +225,12 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
                 from price.trading import get_latest_price, is_stale_entry
                 _entry_side = sig.get("suggested_side", "buy")
                 _live = get_latest_price(symbol)
+                _ref_kind = "live"
+                if _live is None:
+                    _wh_ref = _warehouse_adverse_reference(symbol, sig.get("timeframe"))
+                    if _wh_ref is not None:
+                        _live = _wh_ref
+                        _ref_kind = "warehouse"
                 _stale, _gap = is_stale_entry(
                     _entry_side, signal_close, _live, _adverse_bps
                 )
@@ -217,21 +247,27 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
                     counts["entry_blocked"] += 1
                     _append_audit({
                         "action": "block",
-                        "reason": "stale_signal_adverse_gap",
+                        "reason": ("stale_signal_adverse_gap" if _ref_kind == "live"
+                                   else "stale_signal_adverse_gap_warehouse_ref"),
                         "blocked_reasons": (
-                            f"live {_live:.2f} is {_gap:.0f} bps vs signal close "
+                            f"{'live quote' if _ref_kind == 'live' else 'warehouse-ref (no live quote)'} "
+                            f"{_live:.2f} is {_gap:.0f} bps vs signal close "
                             f"{float(signal_close):.2f} (adverse beyond dynamic "
                             f"threshold {_adverse_bps:.0f} bps = "
                             f"{adverse_atr_mult:g} ATR); setup likely invalidated "
                             f"by the post-signal move -- skipping"
                         ),
                         "live_price": _live,
+                        "adverse_reference": _ref_kind,
                         "signal_to_fill_bps": _gap,
                         "adverse_threshold_bps": _adverse_bps,
                         **_strip_known_keys(sig, ["action"]),
                     })
                     continue
-                adverse_guard_state = "skipped_no_price" if _gap is None else "passed"
+                adverse_guard_state = (
+                    "skipped_no_price" if _gap is None
+                    else ("passed_warehouse_ref" if _ref_kind == "warehouse" else "passed")
+                )
 
             if qty <= 0:
                 counts["entry_blocked"] += 1

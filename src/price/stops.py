@@ -66,6 +66,52 @@ BREAKEVEN_TRIGGER_R = 1.0
 # "many small losses in one bad, choppy day."
 WHIPSAW_STOPOUT_LIMIT = 2
 
+# Red-team gauntlet 4 (2026-08-06): intraday slices whose per-horizon MAE
+# calibration clamps the entry stop at the 1.5x ATR(14) floor are hunted by
+# open-hour churn ... (Monte-Carlo, N=20k: 90.5% first-RTH-hour vs 41.5% midday)
+DEFAULT_INTRADAY_OPEN_STOP_BUFFER_MULT = 1.4
+
+_OPEN_BUFFER_TIMEFRAMES = ("15m", "1h")
+
+# Opening window: first 60 min of the US regular session (09:30-10:30 NY),
+# approximated as fixed 13:30-14:30 UTC; DST shifts it an hour -- worst case the
+# buffer applies early/late, which errs toward a slightly wider stop (safe side).
+_OPEN_BUFFER_WINDOW_UTC = ((13, 30), (14, 30))
+
+# The per-horizon MAE calibration floor the session buffer exists to lift.
+_OPEN_BUFFER_STOP_FLOOR = 1.5
+
+def _now_utc() -> datetime:           # clock seam (monkeypatchable)
+    return datetime.now(timezone.utc)
+
+def effective_stop_atr_mult(k_stop, timeframe, now=None,
+                            buffer_mult=DEFAULT_INTRADAY_OPEN_STOP_BUFFER_MULT):
+    """In the cash-open window (intraday only): the floor-lifted distance
+    max(k_stop, buffer_mult * min(k_stop, 1.5)) -- sub-floor stops scale by
+    the buffer, the lift caps at buffer_mult x 1.5 (1.4 -> 2.1), and
+    already-wide stops are returned untouched. Everything else / junk input:
+    k_stop unchanged (fail-open). 1.0 disables the buffer entirely."""
+    try:
+        km = float(k_stop)
+        bm = float(buffer_mult)
+        if bm <= 1.0 or timeframe not in _OPEN_BUFFER_TIMEFRAMES:
+            return km
+        
+        t = now if now is not None else _now_utc()
+        minutes = t.hour * 60 + t.minute
+        
+        h0, m0 = _OPEN_BUFFER_WINDOW_UTC[0]
+        h1, m1 = _OPEN_BUFFER_WINDOW_UTC[1]
+        
+        if h0 * 60 + m0 <= minutes < h1 * 60 + m1:
+            # Reconciled floor-lift (parallel-round adjudication 2026-08-06):
+            # 1.5x -> 2.1x, sub-floor 1.2x -> 1.68x, mid 2.0x -> 2.1x, wide
+            # 2.8x -> 2.8x (never over-widened -- the dollar-R cost is real).
+            return max(km, bm * min(km, _OPEN_BUFFER_STOP_FLOOR))
+        return km
+    except (TypeError, ValueError):
+        return k_stop
+
 
 @dataclass
 class StopState:

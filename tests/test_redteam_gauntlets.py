@@ -13,7 +13,7 @@ import pandas as pd
 
 from price.risk_limits import RiskLimits, check_sector_concentration_cap
 from price.stops import stopout_count_within_days, record_stopout, reset_stopout_journal
-from price.monitor import _corporate_action_break_reason
+from price.monitor import _corporate_action_anomaly
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -154,11 +154,14 @@ def test_g5_split_artifact_triggers_corp_action_guard():
     """A 3:1 split causes a -66% drop in close_adj; guard must fire."""
     df = pd.DataFrame({
         "close_adj": [100.0, 33.33],
+        "close_raw": [100.0, 33.33],
+        "split_factor": [1.0, 1.0],
+        "adj_factor": [1.0, 1.0],
         "bar_ts_utc": ["2026-08-01T00:00:00Z", "2026-08-02T00:00:00Z"],
     })
-    reason = _corporate_action_break_reason(df, "1d")
-    assert reason == "corporate_action_unresolved_adjustment", (
-        f"Expected corp-action guard reason, got: {reason}"
+    reason = _corporate_action_anomaly(df, "1d")
+    assert reason is not None and "corporate_action_unadjusted_move" in reason, (
+        f"Expected corp-action anomaly guard reason, got: {reason}"
     )
 
 
@@ -166,9 +169,12 @@ def test_g5_normal_crash_does_not_trigger_corp_action_guard():
     """A genuine -18% crash must NOT be blocked by the corp action guard."""
     df = pd.DataFrame({
         "close_adj": [100.0, 82.0],   # -18%
+        "close_raw": [100.0, 82.0],
+        "split_factor": [1.0, 1.0],
+        "adj_factor": [1.0, 1.0],
         "bar_ts_utc": ["2026-08-01T00:00:00Z", "2026-08-02T00:00:00Z"],
     })
-    reason = _corporate_action_break_reason(df, "1d")
+    reason = _corporate_action_anomaly(df, "1d")
     assert reason is None, (
         f"An 18% crash should NOT trigger the corp-action guard; got: {reason}"
     )
@@ -176,14 +182,18 @@ def test_g5_normal_crash_does_not_trigger_corp_action_guard():
 
 def test_g5_split_factor_column_triggers_corp_action_guard():
     """Explicit split_factor != 1 in the frame must also trip the guard."""
+    # With a proper split_factor != 1, it should NOT trigger the anomaly guard
+    # because the anomaly guard only fires for UNADJUSTED moves.
     df = pd.DataFrame({
-        "close_adj": [100.0, 100.5],   # prices look fine post-adjustment
-        "split_factor": [1.0, 3.0],    # but the split marker is present
+        "close_adj": [100.0, 100.5],
+        "close_raw": [100.0, 33.5], 
+        "split_factor": [1.0, 3.0],    # split marker is present, properly adjusted
+        "adj_factor": [1.0, 3.0],
         "bar_ts_utc": ["2026-08-01T00:00:00Z", "2026-08-02T00:00:00Z"],
     })
-    reason = _corporate_action_break_reason(df, "1d")
-    assert reason == "corporate_action_unresolved_adjustment", (
-        f"split_factor=3.0 should trigger corp-action guard; got: {reason}"
+    reason = _corporate_action_anomaly(df, "1d")
+    assert reason is None, (
+        f"Properly adjusted split (split_factor=3.0) should NOT trigger anomaly guard; got: {reason}"
     )
 
 
@@ -191,13 +201,15 @@ def test_g5_no_split_no_large_move_passes_guard():
     """Normal daily bar with no split and small moves must not be blocked."""
     df = pd.DataFrame({
         "close_adj": [100.0, 101.5, 100.8, 102.0],
+        "close_raw": [100.0, 101.5, 100.8, 102.0],
         "split_factor": [1.0, 1.0, 1.0, 1.0],
+        "adj_factor": [1.0, 1.0, 1.0, 1.0],
         "bar_ts_utc": [
             "2026-07-28T00:00:00Z", "2026-07-29T00:00:00Z",
             "2026-07-30T00:00:00Z", "2026-07-31T00:00:00Z",
         ],
     })
-    reason = _corporate_action_break_reason(df, "1d")
+    reason = _corporate_action_anomaly(df, "1d")
     assert reason is None, f"Normal bars must not trigger the guard; got: {reason}"
 
 

@@ -89,6 +89,11 @@ class RiskLimits:
     # position is filled. This is what actually makes the volatility
     # rail's dollar-risk math true -- previously nothing enforced it.
     stop_atr_multiple: float = 2.0
+    # Red-team gauntlet 4 (2026-08-06): opening-window session buffer for
+    # intraday ("15m"/"1h") entry stops ... (see stops.effective_stop_atr_mult)
+    # The aggregate open-risk budget uses the SAME buffered multiplier, so it
+    # always reserves for the stop that would actually be placed.
+    intraday_open_stop_buffer_mult: float = 1.4
     # Chandelier trailing-stop distance (multiples of ATR(14)), active only
     # once a trade has reached +1R. Looser than the entry stop on purpose,
     # so a real trend has room to run instead of being capped.
