@@ -1,9 +1,8 @@
 {
-  "previous_book_count": 164,
-  "new_book_count": 166,
+  "previous_book_count": 166,
+  "new_book_count": 167,
   "added_candidates": [
-    "ITA|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling",
-    "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend|long|rolling"
+    "RIVN|15m|state_volume=vol_quiet + state_ext=stretched_down|short|rolling"
   ],
   "removed_candidates": [],
   "retained_candidates": [
@@ -75,6 +74,7 @@
     "ISRG|1d|state_ext=neutral + state_slope=uptrend + state_vol=low_vol|long|rolling",
     "ITA|15m|state_session=afternoon + state_slope=downtrend|long|rolling",
     "ITA|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=neutral|long|rolling",
+    "ITA|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling",
     "JD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "JNJ|1d|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "JPM|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling",
@@ -87,6 +87,7 @@
     "LNG|1h|cross_USO_state_slope=flat + state_ext=stretched_down|long|rolling",
     "LRCX|1d|cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "LRCX|1d|cross_TLT_state_vol=low_vol + state_ext=neutral|long|rolling",
+    "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "LRCX|1d|state_volume=vol_normal + state_slope=downtrend|long|rolling",
     "MDT|1d|state_volume=vol_quiet + state_slope=flat|long|rolling",
     "META|1d|state_slope=downtrend + state_vol=low_vol|long|rolling",
@@ -175,8 +176,7 @@
   "changed_sides_or_slices": [],
   "removal_reasons": {},
   "promotion_reasons": {
-    "ITA|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling": "paper_proposal",
-    "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend|long|rolling": "paper_proposal"
+    "RIVN|15m|state_volume=vol_quiet + state_ext=stretched_down|short|rolling": "paper_proposal"
   },
   "discovery_run_id": null
 }
