@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 if str(SRC) not in sys.path:
@@ -225,10 +226,11 @@ def test_measure_slippage_long_adverse_fill():
 
 
 # ---------------------------------------------------------------------------
-# Per-lane cost model (crypto/futures previously priced with equity costs)
+# Cost basis: equity-only lane; inactive lanes fail loud, nets suppressed
 # ---------------------------------------------------------------------------
 
 from price.cost_model import (  # noqa: E402
+    UnsupportedLaneError,
     cost_model_for_lane,
     cost_model_for_symbol,
     default_cost_model,
@@ -242,18 +244,25 @@ def test_lane_for_symbol_classification():
     assert lane_for_symbol("FUT/ES") == "futures"
 
 
-def test_lane_cost_models_and_equity_default_unchanged():
+def test_equity_cost_basis_unchanged_and_inactive_lanes_fail_loud():
+    # Equity basis stays bit-identical to the long-standing system default.
     assert abs(cost_model_for_lane("equity").round_trip_drag() - 0.0013) < 1e-12
-    assert abs(cost_model_for_lane("crypto").round_trip_drag() - 0.0040) < 1e-12
-    assert abs(cost_model_for_lane("futures").round_trip_drag() - 0.0020) < 1e-12
-    # Equity lane must remain bit-identical to the long-standing system default
     eq = cost_model_for_symbol("XLF")
     default = default_cost_model()
     assert (eq.commission_bps, eq.spread_bps, eq.slippage_bps) == (
         default.commission_bps, default.spread_bps, default.slippage_bps)
+    # Inactive lanes carry no constants: refuse loudly instead of pricing from
+    # invented numbers — and never silently fall back to equity (typo armor).
+    for lane in ("crypto", "futures", "fx"):
+        with pytest.raises(UnsupportedLaneError):
+            cost_model_for_lane(lane)
+    with pytest.raises(UnsupportedLaneError):
+        cost_model_for_symbol("BTC/USD")
+    with pytest.raises(UnsupportedLaneError):
+        cost_model_for_symbol("FUT/ES")
 
 
-def test_attribute_pnl_prices_each_lane_with_its_own_drag(tmp_path):
+def test_attribute_pnl_suppresses_net_for_inactive_lanes(tmp_path):
     j = _journal([
         {"symbol": "XLF", "qty": 100, "side": "buy", "action": "entry",
          "submitted_at": "2026-07-01T10:00:00Z", "avg_entry_price": 100.0,
@@ -278,10 +287,15 @@ def test_attribute_pnl_prices_each_lane_with_its_own_drag(tmp_path):
                         paper_log_path=tmp_path / "missing_log.csv",
                         leaderboard_path=tmp_path / "missing_lb.csv")
     by_sym = {a["symbol"]: a for a in rep["by_slice"]}
-    # all three lanes book the same +0.5% gross; nets must differ by lane drag
+    # All three book the same +0.5% gross. Equity still nets against its
+    # (sole) cost basis; inactive lanes keep gross but their net is
+    # suppressed — null with an explicit note, never a fabricated number.
     assert abs(by_sym["XLF"]["net_of_cost_return"] - (0.005 - 0.0013)) < 1e-5
-    assert abs(by_sym["BTC/USD"]["net_of_cost_return"] - (0.005 - 0.0040)) < 1e-5
-    assert abs(by_sym["FUT/ES"]["net_of_cost_return"] - (0.005 - 0.0020)) < 1e-5
+    for sym in ("BTC/USD", "FUT/ES"):
+        assert by_sym[sym]["net_of_cost_return"] is None
+        assert abs(by_sym[sym]["mean_gross_return"] - 0.005) < 1e-5
+        assert "no cost basis" in (by_sym[sym]["net_of_cost_note"] or "")
+    assert any("no cost basis" in n for n in rep["notes"])
 
 
 def test_measure_slippage_empty_round_trips():

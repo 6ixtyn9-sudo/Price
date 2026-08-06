@@ -293,6 +293,13 @@ def test_71_5h_bar_inside_stale_window_still_quarantined(monkeypatch):
     assert mon.get_current_state("SMCI", "1d") is None
 
 
+def test_stale_warehouse_reason_absent_frame_fails_open():
+    # Missing/empty warehouse frames carry no staleness evidence: allow.
+    assert mon._stale_warehouse_reason(None, "15m") is None
+    assert mon._stale_warehouse_reason(pd.DataFrame(), "1d") is None
+    assert mon._stale_warehouse_reason(pd.DataFrame(columns=["bar_ts_utc"]), "1h") is None
+
+
 def test_earnings_gap_passes():
     c = [100.0] * 69 + [100.0, 88.0]
     df = _frame(c, extra={"close_adj": list(c), "split_factor": [1.0] * len(c),

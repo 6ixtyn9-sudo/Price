@@ -109,7 +109,12 @@ def _load_clean_survivor_monitored_slices() -> Optional[List[dict]]:
 # observed earnings repricing in the universe; SMCI's worst miss was ~-23%).
 PHANTOM_CORPORATE_ACTION_MIN_MOVE = 0.35
 
-def _stale_warehouse_reason(df_warehouse: pd.DataFrame, timeframe: str) -> Optional[str]:
+def _stale_warehouse_reason(df_warehouse: Optional[pd.DataFrame], timeframe: str) -> Optional[str]:
+    # Fail open on absent data: an empty or missing warehouse frame carries no
+    # staleness evidence. Callers guard upstream today; this guard makes the
+    # contract unconditional instead of convention-dependent.
+    if df_warehouse is None or df_warehouse.empty:
+        return None
     if "bar_ts_utc" in df_warehouse.columns:
         import datetime
         last_ts = pd.to_datetime(df_warehouse["bar_ts_utc"].iloc[-1], errors="coerce", utc=True)

@@ -21,24 +21,43 @@ class CostModel:
 def default_cost_model() -> CostModel: return CostModel()
 
 
-# ── Per-lane cost assumptions ─────────────────────────────────────────────────
-# Equity values are the long-standing system-wide defaults (13 bps round
-# trip) — unchanged, so the equity book's validation/live behavior is
-# bit-identical. Crypto and futures lanes previously inherited those equity
-# numbers in attribution, flattering their net_of_cost figures. The lane
-# values below are conservative FIRST-PASS placeholders pending calibration
-# from realized per-lane fill gaps at the next observation review; override
-# centrally here, never per call-site.
-LANE_COST_BPS = {
-    "equity":  {"commission_bps": 0.0, "spread_bps": 1.5, "slippage_bps": 5.0},
-    "crypto":  {"commission_bps": 0.0, "spread_bps": 8.0, "slippage_bps": 12.0},
-    "futures": {"commission_bps": 2.0, "spread_bps": 2.0, "slippage_bps": 6.0},
+# ── Cost basis: equity is the only active lane ────────────────────────────────
+# The equity values are the long-standing system-wide conservative assumptions
+# (13 bps round trip) — unchanged, so the live book's behavior is bit-identical.
+# They are ASSUMPTIONS WITH A MEASUREMENT LOOP, not guesses: attribution's
+# realized signal-to-fill gap accumulates against them and replaces them at the
+# maturity review once enough round-trips exist.
+# No constants exist for crypto or futures. Those lanes are inactive, and
+# shipping invented numbers would let backtests/attribution quote fabricated
+# net_of_cost figures for markets we do not trade — a worse failure than an
+# honest refusal. Requests for an inactive lane raise UnsupportedLaneError
+# here; attribution degrades those slices to a null net with an explicit note
+# instead. If a lane ever activates, its constants are calibrated from realized
+# fills BEFORE the first order — introduced in the same commit that activates
+# it, never carried as guesses in the meantime.
+EQUITY_COST_BPS = {
+    "commission_bps": DEFAULT_COMMISSION_BPS,
+    "spread_bps": DEFAULT_SPREAD_BPS,
+    "slippage_bps": DEFAULT_SLIPPAGE_BPS,
 }
 
 
+class UnsupportedLaneError(ValueError):
+    """No cost basis exists for the requested lane (inactive: crypto/futures)."""
+
+
 def cost_model_for_lane(lane: str) -> CostModel:
-    params = LANE_COST_BPS.get(str(lane).strip().lower(), LANE_COST_BPS["equity"])
-    return CostModel(**params)
+    key = str(lane).strip().lower()
+    if key == "equity":
+        return CostModel(**EQUITY_COST_BPS)
+    # Fail LOUD, never fall back silently: an unchecked .get(lane, equity)
+    # here previously meant a typo'd or inactive lane was priced with equity
+    # assumptions — a fabricated number wearing a badge.
+    raise UnsupportedLaneError(
+        f"no cost basis exists for lane {key!r}: equity is the only active "
+        "lane; inactive lanes must be calibrated from realized fills before "
+        "first order, not priced from guesswork"
+    )
 
 
 def lane_for_symbol(symbol: str) -> str:

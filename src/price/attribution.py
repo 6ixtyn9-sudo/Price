@@ -3,7 +3,7 @@
 This module closes the loop between the backtested edge (validation's
 fwd_ret_5) and realized trading P&L. It reconstructs round-trips from the
 trade journal, measures realized cost (fill price vs signal-bar close --
-the slippage calibration for lever 4's placeholder), and aggregates P&L
+the slippage calibration for lever 4's assumed slippage), and aggregates P&L
 per slice so we can see which deployed edges actually earn their capital.
 
 What it does
@@ -13,7 +13,7 @@ What it does
      close_adj (from the paper_trade_log or warehouse). This is the realized
      signal-to-fill gap that lever 4's slippage term stands in for. Over
      enough fills, the mean realized slippage replaces the conservative 3bp
-     default -- closing the loop on the one honest placeholder.
+     default -- closing the loop on the assumed slippage with measured reality.
   3. Attribute per slice: group round-trips by slice_combination, compute
      win rate, mean realized return, total P&L, and compare to the validation
      expectation (valid_mean_ret_costadj from the leaderboard).
@@ -40,7 +40,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from price.config import DATA_DIR
-from price.cost_model import cost_model_for_symbol, default_cost_model
+from price.cost_model import UnsupportedLaneError, cost_model_for_symbol, lane_for_symbol
 
 TRADE_JOURNAL_PATH = DATA_DIR / "trade_journal.csv"
 PAPER_TRADE_LOG_PATH = DATA_DIR / "paper_trade_log.csv"
@@ -166,6 +166,7 @@ class SliceAttribution:
     timeframe: str = ""
     bin_mode: str = "insample"
     signal_to_fill_bps: Optional[float] = None
+    net_of_cost_note: Optional[str] = None     # why net is suppressed (no cost basis)
 
     def to_dict(self) -> dict:
         return {
@@ -190,6 +191,7 @@ class SliceAttribution:
                                     if self.signal_to_fill_bps is not None else None),
             "net_of_cost_return": (round(self.net_of_cost_return, 6)
                                    if self.net_of_cost_return is not None else None),
+            "net_of_cost_note": self.net_of_cost_note,
             "preliminary": self.preliminary,
         }
 
@@ -539,9 +541,17 @@ def attribute_pnl(
         n = len(rts)
         mean_ret = sum(r.gross_return for r in rts) / n
         slip = slippage.get(key)
-        # Per-lane cost model for expected drag; do not double-count the signal gap slippage.
-        cm = cost_model_for_symbol(first.symbol)
-        net = mean_ret - cm.round_trip_drag()
+        # Expected drag from the calibrated-basis cost model; do not double-count
+        # the signal-gap slippage. Equity is the only lane WITH a cost basis:
+        # inactive-lane slices (crypto/futures) get a null net with an explicit
+        # note — gross figures stand on their own; a net is never fabricated.
+        try:
+            net = mean_ret - cost_model_for_symbol(first.symbol).round_trip_drag()
+            cost_note = None
+        except UnsupportedLaneError:
+            net = None
+            cost_note = (f"no cost basis for lane {lane_for_symbol(first.symbol)!r} "
+                         "(inactive); net suppressed rather than fabricated")
         slice_attrs.append(SliceAttribution(
             slice_combination=first.slice_combination,
             symbol=first.symbol,
@@ -553,6 +563,7 @@ def attribute_pnl(
             expected_return=expected.get(key),
             realized_slippage_bps=slip,
             net_of_cost_return=net,
+            net_of_cost_note=cost_note,
             preliminary=n < MIN_ROUND_TRIPS_FOR_STATS,
             timeframe=first.timeframe,
             bin_mode=first.bin_mode,
@@ -587,6 +598,15 @@ def attribute_pnl(
             "context. They appear in round_trips for P&L completeness but are NOT valid strategy "
             "slice results and must not be used for edge analysis."
         )
+    unpriced = [a for a in slice_attrs if a.net_of_cost_return is None]
+    if unpriced:
+        lanes = sorted({lane_for_symbol(a.symbol) for a in unpriced})
+        notes.append(
+            f"{len(unpriced)} slice(s) trade inactive lane(s) {lanes} with no cost basis; "
+            "net_of_cost_return is suppressed (null) rather than fabricated from guessed "
+            "constants. Gross figures are reported as-is."
+        )
+
     if not expected:
         notes.append("No symbol/timeframe-matched candidate leaderboard rows found; expected-vs-realized comparison is unavailable.")
 
