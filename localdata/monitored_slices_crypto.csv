@@ -1,2 +1,1 @@
-symbol,timeframe,slice_combination,side,bin_mode,overall_regime_status,source_note
-AAVE/USD,1d,cross_ETH/USD_state_slope=flat + state_slope=downtrend,long,rolling,bull_regime_candidate,bull_regime_candidate
+symbol,timeframe,slice_combination,side,bin_mode
