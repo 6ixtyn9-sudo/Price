@@ -1,3 +1,4 @@
+import importlib
 import sys
 import types
 from pathlib import Path
@@ -6,8 +7,38 @@ import pandas as pd
 
 sys.modules.setdefault("dotenv", types.SimpleNamespace(load_dotenv=lambda *a, **k: None))
 
-alpaca = types.ModuleType("alpaca")
+
+def _load_root_if_available(pkg_name: str) -> types.ModuleType:
+    """Prefer the REAL package root when alpaca-py is installed (it always is,
+    via requirements.lock). A bare ModuleType root is not a package: any
+    session where THIS file is collected before a module that imports
+    price.trading dies with "'alpaca' is not a package". The shared-suite
+    order masked that only alphabetically (test_broker_order_backfill
+    imports price.trading earlier). Leaf stubs below stay as-is so the
+    research modules keep their offline-safe import targets."""
+    try:
+        return importlib.import_module(pkg_name)
+    except Exception:  # pragma: no cover - offline fallback, legacy behaviour
+        return types.ModuleType(pkg_name)
+
+
+def _attach_submodule_path(stub: types.ModuleType, pkg_name: str) -> None:
+    """Give a package-level stub the real search path once its parent is the
+    real package, so unstubbed submodules resolve for real."""
+    if stub is None or hasattr(stub, "__path__"):
+        return
+    try:
+        spec = importlib.util.find_spec(pkg_name)
+    except Exception:
+        spec = None
+    if spec is not None and spec.submodule_search_locations:
+        stub.__path__ = list(spec.submodule_search_locations)
+
+
+alpaca = _load_root_if_available("alpaca")
 alpaca_data = types.ModuleType("alpaca.data")
+if hasattr(alpaca, "__path__"):
+    _attach_submodule_path(alpaca_data, "alpaca.data")
 alpaca_data_historical = types.ModuleType("alpaca.data.historical")
 alpaca_data_requests = types.ModuleType("alpaca.data.requests")
 alpaca_data_timeframe = types.ModuleType("alpaca.data.timeframe")
@@ -115,3 +146,45 @@ def test_default_profile_discovery_matrix_unchanged():
     combos = discover_slices._build_combinations("1h", cond_symbols=None, profile=None)
     assert ["state_session", "state_ext"] in combos
     assert ["state_utc_session", "state_ext"] not in combos
+
+
+# ---------------------------------------------------------------------------
+# Lane confinement (2026-08-07): the futures lane submitted real SPY/XLF
+# equity orders from stale cache candidates; the crypto lane's book was
+# built on a spot broker that cannot short. Lane separation is now a hard
+# rule at the broker choke point, not a naming convention on ops files.
+# (Broker-path regression pins live in tests/test_trading_stops.py, which
+# imports price.trading with a proper fake client.)
+# ---------------------------------------------------------------------------
+
+from price.lane_guard import lane_submission_block_reason, normalize_lane  # noqa: E402
+
+
+def test_lane_guard_equity_lane_shape():
+    assert lane_submission_block_reason("eq", "XLF") is None
+    assert lane_submission_block_reason("equity", "SPY") is None
+    assert "equity lane" in lane_submission_block_reason("eq", "AAVE/USD")
+    assert lane_submission_block_reason("eq", "FUT/NQ") is not None
+
+
+def test_lane_guard_crypto_usd_pairs_only():
+    assert lane_submission_block_reason("crypto", "AAVE/USD") is None
+    assert lane_submission_block_reason("crypto", "eth/usd") is None
+    assert lane_submission_block_reason("crypto", "XLF") is not None
+    assert lane_submission_block_reason("crypto", "FUT/NQ") is not None
+    # Only USD-quoted spot pairs; other quote currencies are a venue decision
+    assert lane_submission_block_reason("crypto", "BTC/USDT") is not None
+
+
+def test_lane_guard_futures_submits_nothing():
+    # Ghost-order regression: futures-dedicated runs placed SPY/XLF equity
+    # orders 2026-07-27..2026-08-05. Every symbol is refused on this lane.
+    assert "no broker execution path" in lane_submission_block_reason("fut", "SPY")
+    assert lane_submission_block_reason("futures", "XLF") is not None
+    assert lane_submission_block_reason("fut", "FUT/NQ") is not None
+
+
+def test_lane_guard_unknown_lane_fails_closed():
+    assert "unrecognized lane" in lane_submission_block_reason("options", "SPY")
+    assert normalize_lane("fut") == "futures"
+    assert normalize_lane("EQ") == "equity"

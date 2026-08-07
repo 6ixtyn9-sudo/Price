@@ -12,12 +12,42 @@ Two modes:
 This mirrors sync_monitored.py for equities but is substrate-isolated (crypto only).
 """
 import argparse
+import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
+
 import pandas as pd
 
-def build_from_candidates(candidates_path: Path, output_path: Path) -> bool:
+ROOT = Path(__file__).resolve().parent.parent
+for _p in (str(ROOT / "scripts"), str(ROOT / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+import research_freshness  # noqa: E402
+
+BOOK_COLUMNS = ["symbol", "timeframe", "slice_combination", "side", "bin_mode"]
+
+
+def _write_header_only(output_path: Path) -> None:
+    # Empty-but-present book: a ghost book must not persist quietly when the
+    # research behind it has expired. Downstream, book_size=0 is loud.
+    pd.DataFrame(columns=BOOK_COLUMNS).to_csv(output_path, index=False)
+
+
+def _stale_refusal(candidates_path: Path, output_path: Path, now: Optional[datetime], max_age_hours: float) -> Optional[str]:
+    reason = research_freshness.research_stale_reason(candidates_path, max_age_hours=max_age_hours, now=now)
+    if reason is not None:
+        print(f"::notice::crypto book sync refused: {reason}")
+        _write_header_only(output_path)
+    return reason
+
+
+def build_from_candidates(candidates_path: Path, output_path: Path, *, now: Optional[datetime] = None, max_age_hours: float = research_freshness.DEFAULT_MAX_AGE_HOURS) -> bool:
     if not candidates_path.exists():
         print(f"No candidates file at {candidates_path}")
+        return False
+    if _stale_refusal(candidates_path, output_path, now, max_age_hours) is not None:
         return False
     try:
         df = pd.read_csv(candidates_path)
@@ -52,9 +82,11 @@ def build_from_candidates(candidates_path: Path, output_path: Path) -> bool:
     print(f"Wrote {len(out)} rows to {output_path} from candidates {candidates_path}")
     return True
 
-def build_from_clean_mixed(leaderboard_path: Path, output_path: Path, top_n: int = 8) -> bool:
+def build_from_clean_mixed(leaderboard_path: Path, output_path: Path, top_n: int = 8, *, now: Optional[datetime] = None, max_age_hours: float = research_freshness.DEFAULT_MAX_AGE_HOURS) -> bool:
     if not leaderboard_path.exists():
         print(f"No leaderboard at {leaderboard_path}")
+        return False
+    if _stale_refusal(leaderboard_path, output_path, now, max_age_hours) is not None:
         return False
     try:
         lb = pd.read_csv(leaderboard_path)
@@ -92,16 +124,18 @@ def main():
     parser.add_argument("--output-path", type=Path, default=Path("localdata/monitored_slices_crypto.csv"))
     parser.add_argument("--fallback-clean-mixed", action="store_true", help="If candidates empty, fallback to top clean_survivor_wf_mixed")
     parser.add_argument("--top-n", type=int, default=8)
+    parser.add_argument("--max-research-age-hours", type=float, default=research_freshness.DEFAULT_MAX_AGE_HOURS,
+                        help="Refuse (and wipe the book to header-only) when the research summary stamping the candidates is older than this many hours. Default 72.")
     args = parser.parse_args()
 
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    ok = build_from_candidates(args.candidates_path, args.output_path)
+    ok = build_from_candidates(args.candidates_path, args.output_path, max_age_hours=args.max_research_age_hours)
     if not ok and args.fallback_clean_mixed:
         print("Candidates empty, trying fallback clean_mixed")
-        ok = build_from_clean_mixed(args.leaderboard_path, args.output_path, top_n=args.top_n)
+        ok = build_from_clean_mixed(args.leaderboard_path, args.output_path, top_n=args.top_n, max_age_hours=args.max_research_age_hours)
     if not ok:
-        print("Failed to build crypto monitored book – keeping existing if any")
+        print("Failed to build crypto monitored book from fresh research – header-only book written, no ghost candidates kept")
         return 1
     return 0
 

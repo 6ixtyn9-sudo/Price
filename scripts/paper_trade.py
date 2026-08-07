@@ -54,6 +54,50 @@ def _get_lane() -> str:
     return "eq"
 
 
+# Lane parking: a committed ops flag that suspends a lane's scan/broker
+# work without touching crons or workflows (data ingest in the workflows
+# keeps running, so an unpark never cold-starts the warehouse). One audit
+# row per parked run keeps the parking visible in the lane's own ledger.
+PARK_FLAG_NAMES = {"eq": "EQUITIES", "crypto": "CRYPTO", "fut": "FUTURES"}
+
+
+def _lane_park_flag_path(lane: str) -> Path:
+    return DATA_DIR / f"PARK_LANE_{PARK_FLAG_NAMES.get(lane, lane.upper())}.flag"
+
+
+def _monitored_book_size() -> int:
+    """Row count of the lane's monitored book at scan start; -1 when
+    unreadable/absent. Cheap and best-effort — never blocks the scan."""
+    try:
+        from price.monitor import MONITORED_SLICES_PATH
+        book_path = Path(MONITORED_SLICES_PATH)
+        if not book_path.exists():
+            return -1
+        return int(len(pd.read_csv(book_path)))
+    except Exception:  # noqa: BLE001 - telemetry must not break trading
+        return -1
+
+
+def _emit_scan_summary(action: str, started_monotonic: float, lane: str, **fields) -> None:
+    """Heartbeat: exactly one scan_summary audit row per run, no matter how
+    the run ended (complete / parked / failed). Motivation: the crypto lane
+    burned days completing 'green' workflow runs in ~1 second with zero
+    evaluation rows — green used to be indistinguishable from working.
+    Emission itself must never crash a scan."""
+    try:
+        payload = {
+            "kind": "scan_summary",
+            "action": action,
+            "lane": lane,
+            "runtime_s": round(time.monotonic() - started_monotonic, 3),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        }
+        payload.update({k: v for k, v in fields.items() if v is not None})
+        _append_audit(payload)
+    except Exception as exc:  # noqa: BLE001 - heartbeat must be side-effect-safe
+        print(f"scan_summary heartbeat emit failed (non-fatal): {exc}")
+
+
 def _append_audit(row: dict) -> None:
     """Append one row to the audit CSV, creating the file if needed."""
     row = dict(row)
@@ -544,6 +588,19 @@ def main() -> int:
         print(f"Halt flag removed: {removed}")
         return 0
 
+    lane = _get_lane()
+    park_flag = _lane_park_flag_path(lane)
+    if park_flag.exists():
+        run_started = time.monotonic()
+        reason_line = park_flag.read_text().strip().splitlines()[0] if park_flag.read_text().strip() else ""
+        _emit_scan_summary(
+            "lane_parked", run_started, lane,
+            book_size=_monitored_book_size(),
+            note=f"park flag {park_flag.name} present; scan, broker reconciliation and stop management skipped. {reason_line}",
+        )
+        print(f"Lane '{lane}' is parked ({park_flag}); nothing to do. Delete the flag to unpark.")
+        return 0
+
     sizing_equity = _resolve_sizing_equity(args.auto_sizing_equity, args.sizing_equity)
     if args.auto_sizing_equity and sizing_equity is not None:
         print(f"Auto-fetched account equity for sizing/risk-budget: ${sizing_equity:,.2f}")
@@ -675,6 +732,8 @@ def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adve
                     print(f"  [CANCEL FAILED] {symbol} order {order_id}: {e}")
 
     def _one_pass() -> Dict[str, int]:
+        pass_started = time.monotonic()
+        book_size = _monitored_book_size()
         # Reconcile submission-time journal rows with Alpaca before reading
         # exposure, exit context, or risk state. This is read-only and never
         # places/cancels/replaces orders, but it prevents accepted/pending/
@@ -703,16 +762,31 @@ def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adve
                 f"{reconciliation_health}"
             )
 
-        signals = scan_all_slices(
-            limits=limits, dry_run=args.dry_run, exit_policy=exit_policy,
-            cost_model=cost_model, regime_filter_enabled=args.regime_filter,
-            entry_sync_blocked=not reconciliation_health.get("ok", False),
-            reconciliation_health=reconciliation_health,
-        )
-        counts = _handle_signals(signals, dry_run=args.dry_run, max_adverse_fill_bps=args.max_adverse_fill_bps, entry_premium_bps=args.entry_premium_bps, adverse_atr_mult=args.adverse_atr_mult, entry_premium_atr_mult=args.entry_premium_atr_mult)
+        try:
+            signals = scan_all_slices(
+                limits=limits, dry_run=args.dry_run, exit_policy=exit_policy,
+                cost_model=cost_model, regime_filter_enabled=args.regime_filter,
+                entry_sync_blocked=not reconciliation_health.get("ok", False),
+                reconciliation_health=reconciliation_health,
+            )
+            counts = _handle_signals(signals, dry_run=args.dry_run, max_adverse_fill_bps=args.max_adverse_fill_bps, entry_premium_bps=args.entry_premium_bps, adverse_atr_mult=args.adverse_atr_mult, entry_premium_atr_mult=args.entry_premium_atr_mult)
+        except Exception as scan_exc:
+            # Loud failure is the design — but a crashed pass must still
+            # leave its heartbeat row so the ledger can tell crashed apart
+            # from quiet.
+            _emit_scan_summary(
+                "scan_failed", pass_started, lane, book_size=book_size,
+                note=f"{type(scan_exc).__name__}: {scan_exc}",
+            )
+            raise
         print("\n=== pass summary ===")
         for k, v in counts.items():
             print(f"  {k}: {v}")
+        _emit_scan_summary(
+            "scan_complete", pass_started, lane,
+            book_size=book_size, signals_total=len(signals),
+            **counts,
+        )
         return counts
 
     if args.loop > 0:

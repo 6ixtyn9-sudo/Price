@@ -29,6 +29,7 @@ from alpaca.trading.requests import (
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 
 from price.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, DATA_DIR
+from price.lane_guard import lane_submission_block_reason
 import os
 
 
@@ -388,7 +389,6 @@ def submit_entry(
     callers still work. bin_mode is persisted so exits can evaluate the same
     state-binning contract that authorized the entry.
     """
-    client = get_trading_client()
     order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
 
     # 1. Generate client_order_id
@@ -396,7 +396,34 @@ def submit_entry(
     hash_str = f"{symbol}|{timeframe}|{side}|{bin_mode}|{slice_label}|{entry_bar_ts}"
     hash8 = hashlib.sha256(hash_str.encode()).hexdigest()[:8]
     client_order_id = f"price-{lane}-{symbolsafe}-{timeframe}-{side}-{hash8}"
-    
+
+    # 2. Lane confinement: fail closed BEFORE any broker client is
+    # constructed. Lane separation is a hard rule here, not a naming
+    # convention on ops files — see lane_guard.py for the evidence.
+    guard_reason = lane_submission_block_reason(lane, symbol)
+    if guard_reason is not None:
+        result = {
+            "order_id": None,
+            "symbol": symbol.upper(),
+            "qty": qty,
+            "side": side,
+            "order_type": "blocked",
+            "limit_price": limit_price,
+            "status": "rejected",
+            "error": guard_reason,
+            "slice_label": slice_label,
+            "entry_bar_ts": entry_bar_ts,
+            "timeframe": timeframe,
+            "bin_mode": bin_mode,
+            "exit_horizon": exit_horizon if exit_horizon is not None else 5,
+            "stop_atr_mult": stop_atr_mult,
+            "client_order_id": client_order_id,
+        }
+        _append_journal(result, action="entry")
+        return result
+
+    client = get_trading_client()
+
     if limit_price is not None:
         # Alpaca requires limit_price to have at most 2 decimals when >= $1.00,
         # and at most 4 decimals when < $1.00.

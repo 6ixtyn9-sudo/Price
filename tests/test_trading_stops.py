@@ -281,3 +281,79 @@ def test_close_position_cancel_failure_does_not_block_close(monkeypatch):
 
     result = trading.close_position("XOP")
     assert result["order_id"] == "close-order-1"
+
+
+# ---------------------------------------------------------------------------
+# Lane confinement at the broker choke point (2026-08-07): submit_entry must
+# refuse cross-lane symbols BEFORE any broker client is constructed, and the
+# refusal must be journaled as evidence. Pure shape rules are pinned in
+# tests/test_substrate_isolation.py.
+# ---------------------------------------------------------------------------
+
+
+def test_submit_entry_lane_guard_rejects_futures_lane_equity_before_broker(tmp_path, monkeypatch):
+    """The exact ghost path that placed real XLF orders on 2026-07-30/
+    2026-08-04: lane=fut, symbol=XLF, otherwise valid order."""
+    def _no_client():  # pragma: no cover - must never run
+        raise AssertionError("broker client constructed despite lane guard")
+
+    monkeypatch.setattr(trading, "get_trading_client", _no_client)
+    monkeypatch.setattr(trading, "TRADE_JOURNAL_PATH", tmp_path / "trade_journal_futures.csv")
+
+    result = trading.submit_entry(
+        symbol="XLF",
+        qty=17,
+        slice_label="state_ext=stretched_up + state_slope=flat",
+        side="buy",
+        limit_price=57.0,
+        entry_bar_ts="2026-08-04 00:00:00+00:00",
+        timeframe="1d",
+        bin_mode="rolling",
+        exit_horizon=5,
+        stop_atr_mult=2.0,
+        lane="fut",
+    )
+    assert result["status"] == "rejected"
+    assert result["order_id"] is None
+    assert result["error"].startswith("lane_guard: futures lane submits nothing")
+
+    journal = pd.read_csv(tmp_path / "trade_journal_futures.csv")
+    assert len(journal) == 1
+    assert journal.iloc[0]["status"] == "rejected"
+    assert "lane_guard" in journal.iloc[0]["error"]
+    assert journal.iloc[0]["action"] == "entry"
+
+
+def test_submit_entry_lane_guard_blocks_crypto_lane_equity_before_broker(tmp_path, monkeypatch):
+    """Mirror guard: the crypto lane must never touch equities (its ops
+    files accumulated KLAC/AMAT rows in July via shared-account activity)."""
+    def _no_client():  # pragma: no cover - must never run
+        raise AssertionError("broker client constructed despite lane guard")
+
+    monkeypatch.setattr(trading, "get_trading_client", _no_client)
+    monkeypatch.setattr(trading, "TRADE_JOURNAL_PATH", tmp_path / "trade_journal_crypto.csv")
+
+    result = trading.submit_entry(
+        symbol="KLAC", qty=2, slice_label="s", side="buy", limit_price=900.0,
+        timeframe="1d", bin_mode="rolling", exit_horizon=5, stop_atr_mult=2.0, lane="crypto",
+    )
+    assert result["status"] == "rejected"
+    assert "crypto lane may only submit" in result["error"]
+
+
+def test_submit_entry_lane_guard_allows_equity_lane_equity_symbol(tmp_path, monkeypatch):
+    """Control: an ordinary equity order on the equity lane sails past the
+    guard and reaches the (fake) broker client."""
+    client = _FakeClient()
+    monkeypatch.setattr(trading, "get_trading_client", lambda: client)
+    monkeypatch.setattr(trading, "TRADE_JOURNAL_PATH", tmp_path / "trade_journal.csv")
+    monkeypatch.setattr(trading, "_write_open_position_context", lambda **k: None)
+
+    result = trading.submit_entry(
+        symbol="XLF", qty=1, slice_label="s", side="buy", limit_price=57.0,
+        timeframe="1d", bin_mode="rolling", exit_horizon=5, stop_atr_mult=2.0, lane="eq",
+    )
+    assert result["status"] == "accepted"
+    assert len(client.submitted) == 1
+    journal = pd.read_csv(tmp_path / "trade_journal.csv")
+    assert len(journal) == 1 and "lane_guard" not in str(journal.iloc[0].get("error", ""))

@@ -87,3 +87,74 @@ def test_same_pass_duplicate_symbol_blocked(tmp_path, monkeypatch):
     log = pd.read_csv(paper_trade.AUDIT_LOG_PATH)
     assert (log["reason"] == "symbol_already_submitted_this_pass").any()
 
+
+
+# ---------------------------------------------------------------------------
+# Scan heartbeat + lane parking (2026-08-07): a 1-second green workflow run
+# with zero evaluation rows used to be indistinguishable from a working
+# lane. One scan_summary row per run is now unconditional, and a committed
+# PARK_LANE_<LANE>.flag suspends a lane's scan/broker work entirely while
+# keeping ingest alive in the workflows.
+# ---------------------------------------------------------------------------
+
+import time as _time_hb
+
+import pytest as _pytest_hb
+
+
+def test_lane_park_flag_path_maps_lane_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(paper_trade, "DATA_DIR", tmp_path)
+    assert paper_trade._lane_park_flag_path("crypto") == tmp_path / "PARK_LANE_CRYPTO.flag"
+    assert paper_trade._lane_park_flag_path("fut") == tmp_path / "PARK_LANE_FUTURES.flag"
+    assert paper_trade._lane_park_flag_path("eq") == tmp_path / "PARK_LANE_EQUITIES.flag"
+
+
+def test_scan_summary_row_shape(tmp_path):
+    started = _time_hb.monotonic()
+    paper_trade._emit_scan_summary(
+        "scan_complete", started, "crypto",
+        book_size=1, signals_total=2, entry_submitted=0, entry_blocked=0,
+    )
+    log = pd.read_csv(paper_trade.AUDIT_LOG_PATH)
+    assert len(log) == 1
+    row = log.iloc[0]
+    assert row["kind"] == "scan_summary"
+    assert row["action"] == "scan_complete"
+    assert row["lane"] == "crypto"
+    assert row["book_size"] == 1
+    assert row["signals_total"] == 2
+    assert row["runtime_s"] >= 0
+    assert isinstance(row["logged_at_utc"], str) and row["logged_at_utc"]
+
+
+def test_scan_summary_emission_never_raises(tmp_path, monkeypatch):
+    # Point the audit path AT A DIRECTORY so the write must fail; the
+    # heartbeat is telemetry and may never crash a trading scan.
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_PATH", tmp_path)
+    paper_trade._emit_scan_summary("scan_failed", _time_hb.monotonic(), "fut", note="x")
+
+
+def test_parked_lane_short_circuits_before_any_scan_or_broker_work(tmp_path, monkeypatch):
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_PATH", tmp_path / "paper_trade_log_crypto.csv")
+    monkeypatch.setattr(paper_trade, "DATA_DIR", tmp_path)
+    (tmp_path / "PARK_LANE_CRYPTO.flag").write_text("parked for the test run\n")
+
+    def _scan_must_not_run(*a, **k):  # pragma: no cover - must never run
+        raise AssertionError("scan_all_slices ran on a parked lane")
+
+    def _equity_must_not_be_fetched(*a, **k):  # pragma: no cover - must never run
+        raise AssertionError("broker account queried on a parked lane")
+
+    monkeypatch.setattr(paper_trade, "scan_all_slices", _scan_must_not_run)
+    monkeypatch.setattr(paper_trade, "_resolve_sizing_equity", _equity_must_not_be_fetched)
+    monkeypatch.setattr("sys.argv", ["paper_trade.py"])
+
+    rc = paper_trade.main()
+    assert rc == 0
+    log = pd.read_csv(tmp_path / "paper_trade_log_crypto.csv")
+    assert len(log) == 1
+    row = log.iloc[0]
+    assert row["kind"] == "scan_summary"
+    assert row["action"] == "lane_parked"
+    assert row["lane"] == "crypto"
+    assert "PARK_LANE_CRYPTO.flag" in row["note"]
