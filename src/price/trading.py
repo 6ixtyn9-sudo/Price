@@ -321,11 +321,19 @@ def get_open_orders() -> pd.DataFrame:
     for o in orders:
         rows.append({
             "order_id": str(o.id),
+            # client_order_id / limit_price / stop_price added 2026-08-07 after
+            # the first live run of paper_trade._revalidate_pending_entries
+            # (Actions run 31193346631) died on KeyError('client_order_id') --
+            # that path had never executed before today. Additive only:
+            # existing consumers read these frames as record dicts.
+            "client_order_id": str(getattr(o, "client_order_id", "") or ""),
             "symbol": str(o.symbol).upper(),
             "qty": float(o.qty) if o.qty is not None else 0.0,
             "side": _enum_value(o.side),
             "type": _enum_value(o.type),
             "status": _enum_value(o.status),
+            "limit_price": float(o.limit_price) if getattr(o, "limit_price", None) is not None else None,
+            "stop_price": float(o.stop_price) if getattr(o, "stop_price", None) is not None else None,
             "submitted_at": str(o.submitted_at),
             "expires_at": str(getattr(o, "expires_at", "")),
         })

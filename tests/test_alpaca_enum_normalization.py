@@ -53,6 +53,7 @@ class FakeStrEnum(str, enum.Enum):
     FILLED = "filled"
     CANCELED = "canceled"
     STOP = "stop"
+    LIMIT = "limit"
 
 
 def test_fixture_actually_reproduces_the_real_sdk_quirk():
@@ -141,6 +142,37 @@ def test_get_open_orders_normalizes_enums(monkeypatch):
     assert df.iloc[0]["side"] == "buy"
     assert df.iloc[0]["type"] == "stop"
     assert df.iloc[0]["status"] == "accepted"
+
+
+def test_get_open_orders_exposes_client_and_price_fields(monkeypatch):
+    """paper_trade._revalidate_pending_entries classifies resting entries by
+    client_order_id (price-{lane}- prefix) and measures staleness off
+    limit_price; stop_price completes the picture. Actions run 31193346631
+    proved production frames lacked all three (KeyError killed the scan)."""
+    class FakeOrder(SimpleNamespace):
+        pass
+
+    fake_client = SimpleNamespace(get_orders=lambda: [
+        FakeOrder(id="o1", symbol="AAPL", qty="5", side=FakeStrEnum.BUY,
+                  type=FakeStrEnum.LIMIT, status=FakeStrEnum.ACCEPTED,
+                  submitted_at="2026-08-07", expires_at=None,
+                  client_order_id="price-eq-AAPL-1d-buy-1234abcd",
+                  limit_price="100.5", stop_price=None),
+        FakeOrder(id="o2", symbol="ASML", qty="1", side=FakeStrEnum.SELL,
+                  type=FakeStrEnum.STOP, status=FakeStrEnum.ACCEPTED,
+                  submitted_at="2026-08-03", expires_at=None,
+                  client_order_id="", limit_price=None, stop_price="1510.28"),
+    ])
+    _patch_client(monkeypatch, fake_client)
+
+    df = trading.get_open_orders()
+
+    assert df.loc[0, "client_order_id"] == "price-eq-AAPL-1d-buy-1234abcd"
+    assert df.loc[0, "limit_price"] == 100.5
+    assert pd.isna(df.loc[0, "stop_price"])
+    assert df.loc[1, "client_order_id"] == ""
+    assert pd.isna(df.loc[1, "limit_price"])
+    assert df.loc[1, "stop_price"] == 1510.28
 
 
 def test_get_orders_for_symbol_normalizes_enums(monkeypatch):

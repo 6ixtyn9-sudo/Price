@@ -746,8 +746,30 @@ def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adve
     open_orders_df = get_open_orders()
     if open_orders_df is None or open_orders_df.empty:
         return
-        
-    entry_orders = open_orders_df[open_orders_df["client_order_id"].astype(str).str.contains("ext_")]
+
+    entry_prefix = f"price-{_get_lane()}-"
+    required_cols = {"client_order_id", "order_id", "limit_price", "type"}
+    missing_cols = sorted(required_cols - set(open_orders_df.columns))
+    if missing_cols:
+        # Never let orders-frame schema drift kill the whole scan pass. The
+        # first live execution of this path (Actions run 31193346631,
+        # 2026-08-07) died here on KeyError('client_order_id'); skipping only
+        # THIS guard keeps stop management, exits and entries alive.
+        print(f"WARNING: open-orders frame missing columns {missing_cols}; "
+              "skipping stale-entry revalidation this pass")
+        return
+
+    # Resting ENTRY orders carry submit_entry's id scheme
+    # price-{lane}-{symbol}-{timeframe}-{side}-{hash8}; nothing else writes it.
+    # Protective stops are submitted with no client id (broker-assigned UUID),
+    # and the type guard excludes them even so -- this pass must never cancel
+    # a position's only protection, nor another lane's resting entries. (The
+    # original c83777f filter matched literal "ext_", a substring no code path
+    # ever produced: it would have matched zero rows forever.)
+    entry_orders = open_orders_df[
+        open_orders_df["client_order_id"].astype(str).str.startswith(entry_prefix)
+        & (open_orders_df["type"].astype(str) == "limit")
+    ]
     if entry_orders.empty:
         return
         
@@ -767,7 +789,7 @@ def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adve
         # the live quote at run start with the identical is_stale_entry math; stale 
         # ones are canceled."
         
-        order_id = str(row.get("id"))
+        order_id = str(row.get("order_id", ""))
         limit_price = pd.to_numeric(row.get("limit_price"), errors="coerce")
         side = str(row.get("side", "buy")).lower()
         if pd.isna(limit_price):
@@ -777,13 +799,20 @@ def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adve
         if _live is None:
             continue
             
-        # Re-resolve the threshold
+        # Re-resolve the threshold. NOTE: compute_atr_14 lives in price.sizing
+        # (imported by monitor.py and stop_manager.py); the original c83777f
+        # version of this block imported it from price.features, which has no
+        # such attribute -- a fifth latent defect this path carried unseen
+        # until its first live execution.
         from price.warehouse import load_from_warehouse
-        from price.features import compute_atr_14
+        from price.sizing import compute_atr_14
         df = load_from_warehouse(symbol, "1d")
         _atr = compute_atr_14(df)
         
-        from price.risk_limits import resolve_adverse_threshold_bps
+        # resolve_adverse_threshold_bps is already imported at module top from
+        # price.trading (same import list used by the scan path at line ~266).
+        # The original c83777f block imported it from price.risk_limits, which
+        # has no such attribute -- the sixth latent defect in this path.
         _adverse_bps = resolve_adverse_threshold_bps(_atr, limit_price, adverse_atr_mult, max_adverse_fill_bps)
         if not _adverse_bps or _adverse_bps <= 0:
             continue

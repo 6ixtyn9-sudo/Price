@@ -203,3 +203,66 @@ def test_main_completes_one_scan_pass_and_emits_heartbeat(tmp_path, monkeypatch)
     assert (log["kind"] == "scan_summary").any()
     assert (log["action"] == "scan_complete").any()
     assert (log["lane"] == "eq").any()
+
+
+def test_revalidate_pending_entries_survives_orders_frame_schema_drift(monkeypatch, capsys):
+    """Exact repro of the Actions run 31193346631 crash (2026-08-07): a
+    NON-empty open-orders frame whose columns lack client_order_id -- the
+    get_open_orders shape that production actually returned. The first live
+    execution of this path raised KeyError and killed the whole scan pass;
+    it must now skip only this guard, loudly, and let the pass continue."""
+    import price.trading as _trading
+
+    legacy_frame = pd.DataFrame([{
+        "order_id": "ord-stop-9", "symbol": "ASML", "qty": 1.0, "side": "sell",
+        "type": "stop", "status": "accepted",
+        "submitted_at": "2026-08-03T20:00:00Z", "expires_at": "",
+    }])
+    monkeypatch.setattr(_trading, "get_open_orders", lambda: legacy_frame)
+
+    paper_trade._revalidate_pending_entries(
+        dry_run=False, max_adverse_fill_bps=200.0, adverse_atr_mult=1.0
+    )
+
+    assert "skipping stale-entry revalidation" in capsys.readouterr().out
+
+
+def test_revalidate_pending_entries_cancels_only_stale_lane_entries(monkeypatch):
+    """Drives the REAL production frame shape through the live path: one of
+    this lane's resting entry limits (gapped adversely), one OTHER lane's
+    resting entry (lane confinement), and one protective stop. Only the
+    first may be cancelled. The pre-fix code died on KeyError before any of
+    this; its "ext_" filter and row.get("id") would then have made it a
+    permanent no-op -- nothing in the codebase ever wrote an "ext_" id."""
+    import price.trading as _trading
+
+    orders_df = pd.DataFrame([
+        {"order_id": "ord-entry-1", "client_order_id": "price-eq-AAPL-1d-buy-1234abcd",
+         "symbol": "AAPL", "qty": 5.0, "side": "buy", "type": "limit",
+         "status": "accepted", "limit_price": 100.0, "stop_price": None,
+         "submitted_at": "2026-08-07T13:45:00Z", "expires_at": ""},
+        {"order_id": "ord-entry-2", "client_order_id": "price-crypto-BTC-USD-1h-buy-deadbeef",
+         "symbol": "BTC/USD", "qty": 0.1, "side": "buy", "type": "limit",
+         "status": "accepted", "limit_price": 100.0, "stop_price": None,
+         "submitted_at": "2026-08-07T13:45:00Z", "expires_at": ""},
+        {"order_id": "ord-stop-9", "client_order_id": "96468502-9b6d-4386-9b9f-210a20fd35ad",
+         "symbol": "ASML", "qty": 1.0, "side": "sell", "type": "stop",
+         "status": "accepted", "limit_price": None, "stop_price": 1510.28,
+         "submitted_at": "2026-08-03T20:00:00Z", "expires_at": ""},
+    ])
+    monkeypatch.setattr(_trading, "get_open_orders", lambda: orders_df)
+    monkeypatch.setattr(_trading, "get_latest_price", lambda symbol: 90.0)
+    cancelled = []
+    monkeypatch.setattr(_trading, "cancel_order", lambda oid: cancelled.append(oid))
+    monkeypatch.setattr("price.warehouse.load_from_warehouse", lambda symbol, tf: None)
+    monkeypatch.setattr("price.sizing.compute_atr_14", lambda df: None)
+    monkeypatch.setattr(paper_trade, "resolve_adverse_threshold_bps", lambda atr, px, mult, cap: 50.0)
+
+    paper_trade._revalidate_pending_entries(
+        dry_run=False, max_adverse_fill_bps=200.0, adverse_atr_mult=1.0
+    )
+
+    assert cancelled == ["ord-entry-1"], (
+        "only this lane's stale resting entry limit may be cancelled; other "
+        "lanes' entries and all protective stops are off-limits"
+    )
