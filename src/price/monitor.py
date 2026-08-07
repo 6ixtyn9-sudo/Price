@@ -35,7 +35,7 @@ from price.data_sources import fetch_alpaca_bars  # noqa: F401
 from price.discovery import apply_state_bins, attach_cross_asset_states
 from price.features import compute_price_features
 from price.leverage import total_open_notional
-from price.position_manager import ExitPolicy, check_exits, get_today_realized_pnl
+from price.position_manager import ExitPolicy, check_exits, claiming_entry_rows, get_today_realized_pnl
 from price.regime import check_regime, per_slice_regime_verdict, regime_blocks_entry
 from price.risk_limits import RiskLimits, check_entry, risk_group_key
 from price.sizing import compute_atr_14, compute_position_size, load_edge_metrics
@@ -523,10 +523,10 @@ def _load_open_position_slice_labels() -> Dict[str, str]:
     if entries.empty:
         return {}
     if "filled_qty" in entries.columns:
-        qty = pd.to_numeric(entries["filled_qty"], errors="coerce").fillna(0)
+        entries["_qty"] = pd.to_numeric(entries["filled_qty"], errors="coerce").fillna(0)
     else:
-        qty = pd.to_numeric(entries.get("qty", 0), errors="coerce").fillna(0)
-    entries = entries[qty > 0].copy()
+        entries["_qty"] = pd.to_numeric(entries.get("qty", 0), errors="coerce").fillna(0)
+    entries = entries[entries["_qty"] > 0].copy()
     if entries.empty:
         return {}
 
@@ -534,7 +534,15 @@ def _load_open_position_slice_labels() -> Dict[str, str]:
     entries = entries.sort_values("ts").dropna(subset=["ts"])
     if entries.empty:
         return {}
-    last_per_symbol = entries.groupby("symbol").tail(1)
+    # Same slowest-live-thesis claiming rule as the exit context: the
+    # label (and therefore the stable filter evaluated for exits) must come
+    # from the binding constraint, never silently from a fresh faster
+    # sibling entry. Never raise — degrade to legacy recency.
+    try:
+        last_per_symbol = claiming_entry_rows(journal, entries)
+    except Exception:  # noqa: BLE001
+        last_per_symbol = entries.groupby("symbol").tail(1)
+
     labels = {
         str(r["symbol"]).upper(): str(r.get("slice_label", "") or "")
         for _, r in last_per_symbol.iterrows()

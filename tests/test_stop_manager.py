@@ -549,15 +549,32 @@ def test_daily_timeframe_attach_never_buffered(tmp_path, monkeypatch):
 
 # ======================================================================
 
-def test_live_near_floor_intraday_slices_pinned():
+def test_live_near_floor_intraday_slices_are_buffered():
+    """Live invariant (rotation-proof): every near-floor intraday slice in the
+    CURRENT monitored book is lifted by the opening-window buffer. The book is
+    a managed artifact — the nightly research-refresh rotates it (2026-08-07:
+    LNG repriced to 4.0, MU to 1.646, only UBER still at the floor), so symbol
+    MEMBERSHIP must not be pinned. What is pinned: wherever the floor bites in
+    the live book, the shipped protection must bite too. Skips loudly if the
+    book has no near-floor intraday slice today (buffer unexercised, not
+    broken)."""
+    from datetime import datetime, timezone
+
+    from price.stops import effective_stop_atr_mult
+
     path = _ROOT / "localdata" / "monitored_slices.csv"
     df = pd.read_csv(path)
-    exposed = set(df.loc[
-        df["timeframe"].isin(["1h", "15m"])
-        & (pd.to_numeric(df["stop_atr_mult"], errors="coerce") < 1.55),
-        "symbol",
-    ].str.upper())
-    assert {"LNG", "MU", "UBER"} <= exposed, f"book changed: {exposed}"
+    near = df[df["timeframe"].isin(["1h", "15m"])].copy()
+    near["stop_atr_mult"] = pd.to_numeric(near["stop_atr_mult"], errors="coerce")
+    near = near[near["stop_atr_mult"] < 1.55]
+    if near.empty:
+        pytest.skip("book rotated: no near-floor intraday slice today; buffer unexercised")
+    open_now = datetime(2026, 7, 15, 13, 31, tzinfo=timezone.utc)  # inside the cash-open window
+    for _, row in near.iterrows():
+        base = float(row["stop_atr_mult"])
+        eff = effective_stop_atr_mult(base, str(row["timeframe"]), now=open_now)
+        assert eff == pytest.approx(max(base, 1.4 * min(base, 1.5)))
+        assert eff > base  # strictly lifted, every near-floor row, whatever the symbol
 
 
 # ======================================================================

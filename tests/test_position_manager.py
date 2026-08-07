@@ -401,3 +401,108 @@ def test_pure_horizon_exits_still_exits_when_bars_held_unknown(monkeypatch):
     )
     assert intents[0]["action"] == "exit"
     assert "stable filter broken" in intents[0]["reason"]
+
+
+
+# ---------------------------------------------------------------------------
+# Cross-timeframe claiming: the slowest live thesis steers a shared position
+# ---------------------------------------------------------------------------
+
+
+def test_claiming_prefers_slowest_open_timeframe(monkeypatch):
+    """Shared KLAC-style pile (daily lot + fresher hourly lot): the DAILY
+    entry claims the context — horizon and entry bar included."""
+    import price.trading as trading
+
+    monkeypatch.setattr(
+        trading, "load_trade_journal",
+        lambda: pd.DataFrame([
+            {"action": "entry", "symbol": "KLAC", "broker_status": "filled",
+             "filled_qty": 5, "qty": 5,
+             "submitted_at": "2026-08-01T14:00:00+00:00",
+             "timestamp_utc": "2026-08-01T14:00:00+00:00",
+             "timeframe": "1d",
+             "slice_label": "state_slope=downtrend + state_vol=high_vol",
+             "exit_horizon": 5},
+            {"action": "entry", "symbol": "KLAC", "broker_status": "filled",
+             "filled_qty": 10, "qty": 10,
+             "submitted_at": "2026-08-05T15:00:00+00:00",
+             "timestamp_utc": "2026-08-05T15:00:00+00:00",
+             "timeframe": "1h",
+             "slice_label": "state_session=afternoon + state_vol=mid_vol",
+             "exit_horizon": 3},
+        ]),
+    )
+    ctx = _load_entry_context()
+    assert ctx["KLAC"]["timeframe"] == "1d"
+    assert ctx["KLAC"]["exit_horizon"] == 5
+
+
+def test_claiming_ignores_fully_offset_entries(monkeypatch):
+    """Daily lot closed (FIFO-consumed by a filled exit), hourly lot still
+    open: the hourly entry claims. Dead theses must not steer."""
+    import price.trading as trading
+
+    monkeypatch.setattr(
+        trading, "load_trade_journal",
+        lambda: pd.DataFrame([
+            {"action": "entry", "symbol": "KLAC", "broker_status": "filled",
+             "filled_qty": 5, "qty": 5,
+             "submitted_at": "2026-08-01T14:00:00+00:00",
+             "timestamp_utc": "2026-08-01T14:00:00+00:00",
+             "timeframe": "1d", "slice_label": "state_slope=downtrend",
+             "exit_horizon": 5},
+            {"action": "exit", "symbol": "KLAC", "broker_status": "filled",
+             "filled_qty": 5, "qty": 5,
+             "submitted_at": "2026-08-03T16:00:00+00:00",
+             "timestamp_utc": "2026-08-03T16:00:00+00:00",
+             "filled_at": "2026-08-03T16:01:00+00:00"},
+            {"action": "entry", "symbol": "KLAC", "broker_status": "filled",
+             "filled_qty": 10, "qty": 10,
+             "submitted_at": "2026-08-05T15:00:00+00:00",
+             "timestamp_utc": "2026-08-05T15:00:00+00:00",
+             "timeframe": "1h",
+             "slice_label": "state_session=afternoon + state_vol=mid_vol",
+             "exit_horizon": 3},
+        ]),
+    )
+    ctx = _load_entry_context()
+    assert ctx["KLAC"]["timeframe"] == "1h"
+    assert ctx["KLAC"]["exit_horizon"] == 3
+
+
+def test_claiming_all_offset_fallback_recency_and_ties():
+    """All-offset symbols keep the legacy most-recent context; equal
+    timeframe ties resolve to the most recent entry."""
+    from price.position_manager import claiming_entry_rows
+
+    journal = pd.DataFrame([
+        {"action": "entry", "symbol": "SBUX", "broker_status": "filled",
+         "filled_qty": 3, "submitted_at": "2026-08-01T14:00:00+00:00",
+         "timeframe": "1d", "slice_label": "s1"},
+        {"action": "exit", "symbol": "SBUX", "broker_status": "filled",
+         "filled_qty": 3, "filled_at": "2026-08-02T16:00:00+00:00"},
+        {"action": "entry", "symbol": "SBUX", "broker_status": "filled",
+         "filled_qty": 2, "submitted_at": "2026-08-04T15:00:00+00:00",
+         "timeframe": "15m", "slice_label": "s2"},
+        {"action": "exit", "symbol": "SBUX", "broker_status": "filled",
+         "filled_qty": 2, "filled_at": "2026-08-05T16:00:00+00:00"},
+        {"action": "entry", "symbol": "XLF", "broker_status": "filled",
+         "filled_qty": 4, "submitted_at": "2026-08-01T14:00:00+00:00",
+         "timeframe": "1d", "slice_label": "s3"},
+        {"action": "entry", "symbol": "XLF", "broker_status": "filled",
+         "filled_qty": 4, "submitted_at": "2026-08-03T14:00:00+00:00",
+         "timeframe": "1d", "slice_label": "s4"},
+    ])
+    entries = journal[journal["action"] == "entry"].copy()
+    entries["_qty"] = pd.to_numeric(entries["filled_qty"], errors="coerce").fillna(0)
+    entries["_sort_ts"] = pd.to_datetime(entries["submitted_at"], errors="coerce", utc=True)
+    entries = entries.sort_values("_sort_ts")
+
+    winners = claiming_entry_rows(journal, entries)
+    sbux = winners[winners["symbol"] == "SBUX"].iloc[0]
+    xlf = winners[winners["symbol"] == "XLF"].iloc[0]
+    # SBUX fully offset twice -> legacy recency (the newest, 15m, entry)
+    assert sbux["timeframe"] == "15m"
+    # XLF tie (two open 1d entries) -> most recent of the tied entries
+    assert xlf["slice_label"] == "s4"

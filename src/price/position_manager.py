@@ -239,8 +239,97 @@ def _clean_val(v, default=None):
     return default if s.lower() in ("nan", "none", "") else s
 
 
+# ── Cross-timeframe claiming: the slowest live thesis steers the pile ───────
+# A broker account holds ONE net position per symbol, so the exit manager can
+# follow only ONE rulebook per symbol; the claiming rule decides whose that
+# is. Rule: among entries with quantity still open (filled entries minus
+# FIFO-allocated filled exits), the SLOWEST timeframe claims the pile — the
+# longest live validated horizon is the binding constraint on shared
+# exposure. Before this rule the most RECENT entry claimed the pile, so a
+# fresh 1h/15m entry moved still-open daily swings onto the intraday clock:
+# validated multi-day edges were realized as hours-long trades, and the slow
+# slice's scorecard was written by the fast rulebook (KLAC 2026-07-30: 1d
+# journal lots exit-labeled "held 3 bars >= 3 (1h)"). Faster lots sharing the
+# symbol remain floored by the symbol-level broker stop and the eod profit
+# lock; attribution flags any exit whose context timeframe differs from the
+# entry's (exit_context_timeframe) so mixed-policy results stay visible
+# instead of being absorbed. monitor._load_open_position_slice_labels uses
+# the same rule so the evaluated stable filter belongs to the same claimant.
+_TIMEFRAME_CLAIM_RANK = {"1d": 3, "1h": 2, "15m": 1}
+
+
+def _claim_rank(timeframe, slice_label) -> int:
+    tf = str(timeframe or "").strip()
+    if tf in _TIMEFRAME_CLAIM_RANK:
+        return _TIMEFRAME_CLAIM_RANK[tf]
+    # Mirror check_exits' missing-timeframe fallback: state_session-tagged
+    # slices behave intraday (1h); everything else behaves as daily (1d).
+    return 2 if "state_session" in str(slice_label or "") else 3
+
+
+def _fifo_open_qty(entry_grp: pd.DataFrame, exit_grp: pd.DataFrame) -> pd.Series:
+    """Open quantity per entry row after allocating filled exits FIFO
+    (oldest entry consumes exits first), honoring the caller's time order."""
+    remaining = entry_grp["_qty"].astype(float).copy()
+    for _, x in exit_grp.iterrows():
+        q = float(x["_xqty"])
+        if q <= 0:
+            continue
+        for idx in remaining.index:
+            if q <= 1e-12:
+                break
+            take = min(remaining[idx], q)
+            remaining[idx] -= take
+            q -= take
+    return remaining
+
+
+def claiming_entry_rows(journal: pd.DataFrame, entries: pd.DataFrame) -> pd.DataFrame:
+    """One claiming entry row per symbol (rule documented above).
+
+    `entries`: filled, qty>0 entry rows in ascending time order with a
+    `_qty` column. Symbols whose entries are ALL fully offset keep the
+    legacy most-recent-entry context (no open quantity => the context is
+    only a fallback for broker/journal divergence, and recency is the
+    least surprising choice there)."""
+    winners = []
+    for sym, grp in entries.groupby("symbol", sort=False):
+        pool = grp
+        if "action" in journal.columns and "_qty" in grp.columns:
+            ex = journal[(journal["symbol"] == sym) & (journal["action"] == "exit")].copy()
+            if not ex.empty:
+                _st = (ex["broker_status"] if "broker_status" in ex.columns
+                       else ex.get("status", pd.Series("", index=ex.index)))
+                ex = ex[_st.astype(str).str.lower().isin(
+                    {"filled", "partially_filled", "closed"})].copy()
+            if not ex.empty:
+                ex["_xqty"] = pd.to_numeric(
+                    ex["filled_qty"] if "filled_qty" in ex.columns else ex.get("qty", 0),
+                    errors="coerce").fillna(0)
+                ex = ex[ex["_xqty"] > 0].copy()
+            if not ex.empty:
+                def _dt(col):
+                    return (pd.to_datetime(ex[col], errors="coerce", utc=True)
+                            if col in ex.columns else pd.Series(pd.NaT, index=ex.index))
+                ex["_xts"] = (_dt("filled_at").fillna(_dt("timestamp_utc"))
+                              .fillna(_dt("submitted_at")))
+                ex = ex.dropna(subset=["_xts"]).sort_values("_xts")
+            if not ex.empty:
+                open_grp = grp[_fifo_open_qty(grp, ex) > 1e-12]
+                if open_grp.empty:
+                    winners.append(grp.index[-1])  # all offset: legacy recency
+                    continue
+                pool = open_grp
+        ranks = [_claim_rank(r.get("timeframe"), r.get("slice_label"))
+                 for _, r in pool.iterrows()]
+        best = max(ranks)
+        winners.append([i for i, rk in zip(pool.index, ranks) if rk == best][-1])
+    return entries.loc[winners]
+
+
 def _load_entry_context() -> Dict[str, dict]:
-    """Per-symbol most-recent accepted entry context from the trade journal.
+    """Per-symbol CLAIMING entry context from the trade journal (slowest
+    live thesis among open entries; see claiming_entry_rows).
 
     Returns {symbol: {slice_combination, timeframe, entry_bar_ts, submitted_at,
     context_source}}.
@@ -273,10 +362,10 @@ def _load_entry_context() -> Dict[str, dict]:
     if entries.empty:
         return {}
     if "filled_qty" in entries.columns:
-        qty = pd.to_numeric(entries["filled_qty"], errors="coerce").fillna(0)
+        entries["_qty"] = pd.to_numeric(entries["filled_qty"], errors="coerce").fillna(0)
     else:
-        qty = pd.to_numeric(entries.get("qty", 0), errors="coerce").fillna(0)
-    entries = entries[qty > 0].copy()
+        entries["_qty"] = pd.to_numeric(entries.get("qty", 0), errors="coerce").fillna(0)
+    entries = entries[entries["_qty"] > 0].copy()
     if entries.empty:
         return {}
 
@@ -285,7 +374,13 @@ def _load_entry_context() -> Dict[str, dict]:
     entries = entries.dropna(subset=["_sort_ts"]).sort_values("_sort_ts")
     if entries.empty:
         return {}
-    last = entries.groupby("symbol").tail(1)
+    # Which open entry steers a shared broker position: the SLOWEST
+    # timeframe with quantity still open claims the pile (ties: latest).
+    # Never raise here — degrade to legacy recency on any degenerate input.
+    try:
+        last = claiming_entry_rows(journal, entries)
+    except Exception:  # noqa: BLE001
+        last = entries.groupby("symbol").tail(1)
 
     out: Dict[str, dict] = {}
     for _, r in last.iterrows():

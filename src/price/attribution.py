@@ -34,6 +34,7 @@ Doctrine: read-only analysis. Never the source of a promotion claim.
 
 from dataclasses import dataclass
 import json
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -49,6 +50,20 @@ CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
 
 # Below this many round-trips, per-slice stats are flagged as preliminary.
 MIN_ROUND_TRIPS_FOR_STATS = 5
+
+# Exit-reason timeframe tag: check_exits stamps the DECIDING context's
+# timeframe into horizon/hold reasons ("... (1h)"). When a symbol is shared
+# across timeframes, the slowest open thesis claims the exit context, so a
+# lot can be stamped with a sibling's clock. Surface that here: an exit
+# whose context timeframe differs from the entry's is a mixed-policy result
+# and must stay visible on the round trip, not absorbed silently into the
+# slice's scorecard.
+_EXIT_CTX_TF_RE = re.compile(r"\((1d|1h|15m)\)")
+
+
+def _exit_context_timeframe(exit_reason: str) -> str:
+    tfs = set(_EXIT_CTX_TF_RE.findall(exit_reason or ""))
+    return next(iter(tfs)) if len(tfs) == 1 else ""
 CONFIRMED_FILL_STATUSES = frozenset({"filled", "partially_filled", "closed"})
 
 
@@ -123,6 +138,7 @@ class RoundTrip:
     entry_order_id: str = ""
     exit_order_id: str = ""
     signal_bar_ts: str = ""
+    exit_context_timeframe: str = ""   # deciding ctx tf tag, if the exit reason carried one
 
     def to_dict(self) -> dict:
         return {
@@ -141,6 +157,7 @@ class RoundTrip:
             "entry_order_id": self.entry_order_id,
             "exit_order_id": self.exit_order_id,
             "signal_bar_ts": self.signal_bar_ts,
+            "exit_context_timeframe": self.exit_context_timeframe,
             "identity_key": _identity_key(
                 self.symbol, self.timeframe, self.slice_combination,
                 self.side, self.bin_mode,
@@ -527,6 +544,11 @@ def attribute_pnl(
     except Exception:  # noqa: BLE001
         pass
 
+    # Tag each round trip with the deciding exit context's timeframe (when
+    # the exit reason carried one) so mixed-policy exits stay visible.
+    for _rt in round_trips:
+        _rt.exit_context_timeframe = _exit_context_timeframe(_rt.exit_reason)
+
     expected = load_expected_returns(leaderboard_path)
     slippage, signed_gap = _measure_signal_gaps(round_trips, paper_log_path)
 
@@ -605,6 +627,18 @@ def attribute_pnl(
             f"{len(unpriced)} slice(s) trade inactive lane(s) {lanes} with no cost basis; "
             "net_of_cost_return is suppressed (null) rather than fabricated from guessed "
             "constants. Gross figures are reported as-is."
+        )
+    ctx_mismatch = [
+        rt for rt in round_trips
+        if rt.exit_context_timeframe and rt.timeframe
+        and rt.exit_context_timeframe != rt.timeframe
+    ]
+    if ctx_mismatch:
+        notes.append(
+            f"{len(ctx_mismatch)} round-trip(s) were exited under a different timeframe's "
+            "rulebook than their entry (cross-timeframe position sharing). Their slice "
+            "stats mix two policies; treat them as contaminated even after the "
+            "preliminary flag clears."
         )
 
     if not expected:

@@ -486,3 +486,45 @@ def test_exit_cannot_close_a_later_entry():
     # Only the one genuine round-trip survives; the two phantoms are dropped.
     assert len(rts) == 1
     assert round(sum(r.gross_pnl for r in rts), 2) == -33.12
+
+
+
+# ---------------------------------------------------------------------------
+# Cross-timeframe exit-context flag (shared positions, mixed policies)
+# ---------------------------------------------------------------------------
+
+
+def test_cross_timeframe_exit_context_is_flagged(tmp_path):
+    j = _journal([
+        {"symbol": "KLAC", "qty": 5, "side": "buy", "action": "entry",
+         "order_id": "E1",
+         "submitted_at": "2026-07-27T14:00:00Z", "avg_entry_price": 191.0,
+         "slice_label": "state_slope=downtrend", "timeframe": "1d"},
+        {"symbol": "KLAC", "qty": 5, "side": "sell", "action": "exit",
+         "order_id": "X1",
+         "submitted_at": "2026-07-30T16:00:00Z", "current_price": 183.2},
+        {"symbol": "SBUX", "qty": 10, "side": "buy", "action": "entry",
+         "order_id": "E2",
+         "submitted_at": "2026-07-27T14:00:00Z", "avg_entry_price": 104.0,
+         "slice_label": "state_ext=neutral", "timeframe": "1d"},
+        {"symbol": "SBUX", "qty": 10, "side": "sell", "action": "exit",
+         "order_id": "X2",
+         "submitted_at": "2026-07-30T16:00:00Z", "current_price": 104.3},
+    ])
+    log_path = tmp_path / "paper_log.csv"
+    pd.DataFrame([
+        {"order_id": "X1", "action": "exit", "bars_held": 3,
+         "reason": "horizon reached: held 3 bars >= 3 (1h)"},
+        {"order_id": "X2", "action": "exit", "bars_held": 3,
+         "reason": "horizon reached: held 3 bars >= 3 (1d)"},
+    ]).to_csv(log_path, index=False)
+    rep = attribute_pnl(journal=j, paper_log_path=log_path,
+                        leaderboard_path=tmp_path / "missing_lb.csv")
+    rts = {rt["symbol"]: rt for rt in rep["round_trips"]}
+    # KLAC: daily entry exited by an hourly rulebook -> flagged + noted
+    assert rts["KLAC"]["exit_context_timeframe"] == "1h"
+    assert rts["KLAC"]["timeframe"] == "1d"
+    # SBUX: matching clocks -> tagged but NOT counted in the mismatch note
+    assert rts["SBUX"]["exit_context_timeframe"] == "1d"
+    hits = [n for n in rep["notes"] if "different timeframe" in n]
+    assert len(hits) == 1 and hits[0].startswith("1 round-trip")
