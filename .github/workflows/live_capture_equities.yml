@@ -41,9 +41,16 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: localdata/warehouse
-          key: research-warehouse-v4-${{ runner.os }}-live-capture-${{ github.run_id }}
+          # Lane-scoped namespace (2026-08-07): the three live-capture lanes
+          # used to share one bare restore prefix, so equities could boot
+          # from the futures lane's warehouse (observed 2026-08-07:
+          # research-warehouse-v4-Linux-live-capture-futures-* restored on
+          # the equities run). Each lane now reads and writes only its own
+          # saves. First restore after this change is cold by design; the
+          # capture below rebuilds the lane's warehouse in-run.
+          key: research-warehouse-v4-${{ runner.os }}-live-capture-equities-${{ github.run_id }}
           restore-keys: |
-            research-warehouse-v4-${{ runner.os }}-
+            research-warehouse-v4-${{ runner.os }}-live-capture-equities-
 
       - name: Restore operational paper state cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -159,6 +166,15 @@ jobs:
             localdata/stopout_journal.json
             localdata/cooldown_journal.json
           key: live-ops-state-v1-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Save warehouse cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: localdata/warehouse
+          # Own-lane save, paired with the lane-scoped restore above; this
+          # lane previously never saved its warehouse at all, which is why
+          # it always consumed other lanes' caches.
+          key: research-warehouse-v4-${{ runner.os }}-live-capture-equities-${{ github.run_id }}
 
       - name: Commit workflow outputs
         run: |

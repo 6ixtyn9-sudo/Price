@@ -158,3 +158,48 @@ def test_parked_lane_short_circuits_before_any_scan_or_broker_work(tmp_path, mon
     assert row["action"] == "lane_parked"
     assert row["lane"] == "crypto"
     assert "PARK_LANE_CRYPTO.flag" in row["note"]
+
+
+def test_main_completes_one_scan_pass_and_emits_heartbeat(tmp_path, monkeypatch):
+    """End-to-end guard for the 2026-08-06 rupture class. A column-0 nested
+    def split main() in two: every hourly paper-trade run since exited 0
+    after printing its cost model, scanning nothing and writing no
+    heartbeat, while the suite stayed green because it called the helpers
+    directly. The adversarial net must prove the wire is connected end to
+    end, not only that the lamp works when held in hand: a single main()
+    invocation must execute exactly one scan pass, hand the signals to the
+    handler, return 0, and leave exactly one scan_summary heartbeat row.
+    """
+    scan_calls = []
+    handle_calls = []
+
+    def _fake_scan(**kwargs):
+        scan_calls.append(kwargs)
+        return [{"kind": "entry_signal", "symbol": "XOP"}]
+
+    def _fake_handle(signals, **kwargs):
+        handle_calls.append(signals)
+        return {"entries_submitted": 0}
+
+    def _no_broker(*a, **k):
+        raise AssertionError("no broker mutation allowed in this test")
+
+    monkeypatch.setattr(paper_trade, "scan_all_slices", _fake_scan)
+    monkeypatch.setattr(paper_trade, "_handle_signals", _fake_handle)
+    monkeypatch.setattr(paper_trade, "submit_entry", _no_broker)
+    monkeypatch.setattr(paper_trade, "close_position", _no_broker)
+
+    import price.trading as _trading
+    monkeypatch.setattr(_trading, "get_open_orders", lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(_trading, "reconcile_trade_journal", lambda *a, **k: None)
+    monkeypatch.setattr(sys, "argv", ["paper_trade.py", "--sizing-equity", "100000"])
+
+    rc = paper_trade.main()
+
+    assert rc == 0
+    assert len(scan_calls) == 1, "one monitored-book scan must run per invocation"
+    assert handle_calls == [[{"kind": "entry_signal", "symbol": "XOP"}]]
+    log = pd.read_csv(paper_trade.AUDIT_LOG_PATH)
+    assert (log["kind"] == "scan_summary").any()
+    assert (log["action"] == "scan_complete").any()
+    assert (log["lane"] == "eq").any()

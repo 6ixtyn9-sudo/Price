@@ -64,8 +64,10 @@ jobs:
         with:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
+          # Lane-scoped restore (2026-08-07): stop matching other lanes'
+          # warehouse saves; fall back to the release seed when cold.
           restore-keys: |
-            research-warehouse-v4-${{ runner.os }}-
+            research-warehouse-v4-${{ runner.os }}-live-capture-futures-
 
       - name: Seed warehouse from release if cache empty
         if: steps.warehouse.outputs.cache-hit != 'true'

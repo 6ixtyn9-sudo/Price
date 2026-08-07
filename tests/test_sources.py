@@ -167,3 +167,34 @@ def test_capture_bars_logs_universal_router_source(monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "Ingesting XOP (1d) from TIINGO" in out
+
+
+def test_zero_filled_stock_splits_normalised_to_no_event():
+    """Vendor change of ~2026-08-03: Yahoo began zero-filling the 'Stock
+    Splits' actions column server-side (verified 2026-08-07 across yfinance
+    clients 1.4.1 / 1.5.1 / 1.5.2, so no client pin can fix it — the
+    normalisation has to live at our ingest boundary). A 0.0 split factor
+    is a phantom ratio-zero split: it fired the incremental-pull split
+    detector on all 139 symbols, full re-pulls then violated the warehouse
+    adjustment-book gate on every bar, and daily frames froze at 2026-08-03.
+    Malformed values (0, negative, NaN, non-finite) must normalise to 1.0
+    ("no event"); genuine ratios must survive.
+    """
+    import price.data_sources as ds
+
+    raw = pd.DataFrame({
+        "Date": pd.date_range("2026-08-03", periods=4, freq="D", tz="UTC"),
+        "Open": [10.0, 10.05, 10.1, 20.3],
+        "High": [10.1, 10.15, 10.2, 20.4],
+        "Low": [9.95, 10.0, 10.05, 20.1],
+        "Close": [10.0, 10.1, 10.2, 20.3],
+        "Adj Close": [10.0, 10.1, 10.2, 20.3],
+        "Volume": [1_000_000] * 4,
+        "Dividends": [0.0, 0.0, -1.5, 0.0],   # negative dividend: malformed
+        "Stock Splits": [0.0, 0.0, 0.0, 2.0], # zeros: vendor junk; 2.0: real split
+    })
+
+    out = ds._build_yfinance_canonical(raw, "TEST", "1d")
+
+    assert out["split_factor"].tolist() == [1.0, 1.0, 1.0, 2.0]
+    assert (out["dividend_cash"] == 0.0).all()

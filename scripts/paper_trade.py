@@ -662,75 +662,6 @@ def main() -> int:
     print(f"Cost model: {cost_model.to_dict()}")
 
     
-def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adverse_atr_mult: float) -> None:
-    """Re-evaluate resting entry limit orders against the latest live quote.
-    If the market has gapped down beyond the dynamic threshold since the order
-    was placed, cancel it before it fills (e.g. overnight gaps).
-    """
-    if max_adverse_fill_bps <= 0 and adverse_atr_mult <= 0:
-        return
-        
-    from price.trading import get_open_orders, cancel_order, get_latest_price, is_stale_entry
-    open_orders_df = get_open_orders()
-    if open_orders_df is None or open_orders_df.empty:
-        return
-        
-    entry_orders = open_orders_df[open_orders_df["client_order_id"].astype(str).str.contains("ext_")]
-    if entry_orders.empty:
-        return
-        
-    for _, row in entry_orders.iterrows():
-        symbol = str(row.get("symbol", "")).upper()
-        if not symbol: continue
-        
-        # We need the original signal close and ATR to compute the threshold.
-        # But broker orders don't carry this. We can try to reconstruct from
-        # warehouse's latest close, but that's what is_stale_entry does inherently
-        # if we supply the signal_close. Wait, how do we get signal_close?
-        # The limit price is roughly the signal close (plus premium). 
-        # Using limit_price is a safe proxy for signal_close.
-        
-        # BUT WAIT, the patch says "Every open entry LIMIT order is re-tested against 
-        # the live quote at run start with the identical is_stale_entry math; stale 
-        # ones are canceled."
-        
-        order_id = str(row.get("id"))
-        limit_price = pd.to_numeric(row.get("limit_price"), errors="coerce")
-        side = str(row.get("side", "buy")).lower()
-        if pd.isna(limit_price):
-            continue
-            
-        _live = get_latest_price(symbol)
-        if _live is None:
-            continue
-            
-        # Re-resolve the threshold
-        from price.warehouse import load_from_warehouse
-        from price.features import compute_atr_14
-        df = load_from_warehouse(symbol, "1d")
-        _atr = compute_atr_14(df)
-        
-        from price.risk_limits import resolve_adverse_threshold_bps
-        _adverse_bps = resolve_adverse_threshold_bps(_atr, limit_price, adverse_atr_mult, max_adverse_fill_bps)
-        if not _adverse_bps or _adverse_bps <= 0:
-            continue
-            
-        _stale, _gap = is_stale_entry(side, limit_price, _live, _adverse_bps)
-        if _stale:
-            _append_audit({
-                "action": "would_cancel_stale_entry_order" if dry_run else "cancel_stale_entry_order",
-                "symbol": symbol,
-                "reason": "stale_pending_entry_adverse_gap",
-                "blocked_reasons": f"resting limit for {symbol} gapped by {_gap:.0f} bps, threshold {_adverse_bps:.0f}",
-                "order_id": order_id,
-            })
-            if not dry_run:
-                try:
-                    cancel_order(order_id)
-                    print(f"  [CANCEL] {symbol} resting entry order {order_id} (gap: {_gap:.0f} bps)")
-                except Exception as e:
-                    print(f"  [CANCEL FAILED] {symbol} order {order_id}: {e}")
-
     def _one_pass() -> Dict[str, int]:
         pass_started = time.monotonic()
         book_size = _monitored_book_size()
@@ -801,6 +732,78 @@ def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adve
     else:
         _one_pass()
         return 0
+
+
+def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adverse_atr_mult: float) -> None:
+    """Re-evaluate resting entry limit orders against the latest live quote.
+    If the market has gapped down beyond the dynamic threshold since the order
+    was placed, cancel it before it fills (e.g. overnight gaps).
+    """
+    if max_adverse_fill_bps <= 0 and adverse_atr_mult <= 0:
+        return
+        
+    from price.trading import get_open_orders, cancel_order, get_latest_price, is_stale_entry
+    open_orders_df = get_open_orders()
+    if open_orders_df is None or open_orders_df.empty:
+        return
+        
+    entry_orders = open_orders_df[open_orders_df["client_order_id"].astype(str).str.contains("ext_")]
+    if entry_orders.empty:
+        return
+        
+    for _, row in entry_orders.iterrows():
+        symbol = str(row.get("symbol", "")).upper()
+        if not symbol: continue
+        
+        # The broker stores no signal close; the resting limit price is the
+        # safe proxy for the staleness math (signal close plus premium).
+        # But broker orders don't carry this. We can try to reconstruct from
+        # warehouse's latest close, but that's what is_stale_entry does inherently
+        # if we supply the signal_close. Wait, how do we get signal_close?
+        # The limit price is roughly the signal close (plus premium). 
+        # Using limit_price is a safe proxy for signal_close.
+        
+        # BUT WAIT, the patch says "Every open entry LIMIT order is re-tested against 
+        # the live quote at run start with the identical is_stale_entry math; stale 
+        # ones are canceled."
+        
+        order_id = str(row.get("id"))
+        limit_price = pd.to_numeric(row.get("limit_price"), errors="coerce")
+        side = str(row.get("side", "buy")).lower()
+        if pd.isna(limit_price):
+            continue
+            
+        _live = get_latest_price(symbol)
+        if _live is None:
+            continue
+            
+        # Re-resolve the threshold
+        from price.warehouse import load_from_warehouse
+        from price.features import compute_atr_14
+        df = load_from_warehouse(symbol, "1d")
+        _atr = compute_atr_14(df)
+        
+        from price.risk_limits import resolve_adverse_threshold_bps
+        _adverse_bps = resolve_adverse_threshold_bps(_atr, limit_price, adverse_atr_mult, max_adverse_fill_bps)
+        if not _adverse_bps or _adverse_bps <= 0:
+            continue
+            
+        _stale, _gap = is_stale_entry(side, limit_price, _live, _adverse_bps)
+        if _stale:
+            _append_audit({
+                "action": "would_cancel_stale_entry_order" if dry_run else "cancel_stale_entry_order",
+                "symbol": symbol,
+                "reason": "stale_pending_entry_adverse_gap",
+                "blocked_reasons": f"resting limit for {symbol} gapped by {_gap:.0f} bps, threshold {_adverse_bps:.0f}",
+                "order_id": order_id,
+            })
+            if not dry_run:
+                try:
+                    cancel_order(order_id)
+                    print(f"  [CANCEL] {symbol} resting entry order {order_id} (gap: {_gap:.0f} bps)")
+                except Exception as e:
+                    print(f"  [CANCEL FAILED] {symbol} order {order_id}: {e}")
+
 
 
 if __name__ == "__main__":

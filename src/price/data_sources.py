@@ -453,6 +453,25 @@ def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str)
     if "split_factor" not in df.columns:
         df["split_factor"] = 1.0
 
+    # Vendor-junk guard (2026-08-07): split ratios are strictly positive by
+    # definition and cash dividends never negative. Around 2026-08-03 Yahoo
+    # began zero-filling the "Stock Splits" actions column server-side;
+    # verified across client versions 1.4.1 / 1.5.1 / 1.5.2 — every client
+    # now receives [0.0, ...], so this is a vendor change, not a client
+    # regression (the pin is not at fault and no pin revert can fix it).
+    # A 0.0 reads downstream as a phantom "split with ratio 0": it fires the
+    # incremental-pull split detector and then violates the warehouse
+    # adjustment-book gate on every bar, permanently freezing daily frame
+    # persistence (all 139 symbols red-stamped on the 2026-08-07 captures,
+    # daily bars frozen since 2026-08-03). Missing / NaN / non-finite /
+    # out-of-domain values are malformed vendor noise: normalise to the
+    # "no event" value, matching the fail-open doctrine both downstream
+    # gates already apply to malformed data.
+    sf = pd.to_numeric(df["split_factor"], errors="coerce")
+    df["split_factor"] = sf.where((sf > 0) & (sf < 1e9), 1.0)
+    dv = pd.to_numeric(df["dividend_cash"], errors="coerce")
+    df["dividend_cash"] = dv.where((dv >= 0) & (dv < 1e12), 0.0)
+
     # Drop columns yfinance may include but we don't use (e.g. Capital Gains)
     drop_cols = [c for c in df.columns if c not in {
         "bar_ts_utc", "open_raw", "high_raw", "low_raw", "close_raw",
