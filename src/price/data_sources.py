@@ -472,6 +472,50 @@ def _build_yfinance_canonical(df: pd.DataFrame, symbol: str, timeframe_str: str)
     dv = pd.to_numeric(df["dividend_cash"], errors="coerce")
     df["dividend_cash"] = dv.where((dv >= 0) & (dv < 1e12), 0.0)
 
+    # Vendor basis flip (2026-08-07, probed on this exact call path): Yahoo
+    # now serves OHLC and Volume SPLIT-ADJUSTED — continuous across ex-dates
+    # (AMZN 20:1: Close 122.35 -> 124.79 with the 20.0 event still booked;
+    # repeat fetches identical, no history()/download()/back_adjust knob
+    # serves as-traded raw anymore). Warehouse books hold AS-TRADED raw
+    # prices with adj_factor stepping by the split ratio across the ex-date,
+    # so an un-reconstructed frame reads as a booked split next to a flat
+    # factor and the adjustment-book gate refuses it (18 split-class
+    # refusals on the 2026-08-07 captures). Reconstruct the as-traded basis
+    # per booked split: pre-ex raw OHLC x ratio, pre-ex dividend cash x
+    # ratio (served split-adjusted: AVGO paid $5.25, served as 0.525 on
+    # pre-split dates), pre-ex volume / ratio (served forward-adjusted).
+    # Detection is per-event from the frame itself: the served adj/close
+    # factor steps ~1 across the ex-date when the basis is adjusted and ~the
+    # ratio when it is already as-traded, so honest as-traded frames pass
+    # through untouched; unauditable boundaries are left alone and the
+    # fail-closed gate downstream decides. close_adj is never touched: the
+    # served adjusted series is already continuous and scale-correct.
+    close_num = pd.to_numeric(df["close_raw"], errors="coerce")
+    adj_num = pd.to_numeric(df["close_adj"], errors="coerce")
+    served_factor = adj_num / close_num.where(close_num != 0.0)
+    factor_step = served_factor / served_factor.shift(1)
+    scale = pd.Series(1.0, index=df.index, dtype="float64")
+    for i in range(1, len(df)):
+        s = df["split_factor"].iat[i]
+        if pd.isna(s) or abs(s - 1.0) <= 0.005:
+            continue
+        step = factor_step.iat[i]
+        if pd.isna(step) or step <= 0:
+            continue
+        if abs(step - 1.0) < abs(step - s):
+            scale.iloc[:i] = scale.iloc[:i] * s
+    if (scale != 1.0).any():
+        for col in ("open_raw", "high_raw", "low_raw", "close_raw"):
+            df[col] = pd.to_numeric(df[col], errors="coerce") * scale
+        df["dividend_cash"] = df["dividend_cash"] * scale
+        if "volume_raw" in df.columns:
+            df["volume_raw"] = pd.to_numeric(df["volume_raw"], errors="coerce") / scale
+        print(
+            f"yfinance basis reconstruction: {symbol} {timeframe_str} served "
+            f"split-adjusted; rescaled {int((scale != 1.0).sum())} pre-ex "
+            "row(s) to as-traded"
+        )
+
     # Drop columns yfinance may include but we don't use (e.g. Capital Gains)
     drop_cols = [c for c in df.columns if c not in {
         "bar_ts_utc", "open_raw", "high_raw", "low_raw", "close_raw",

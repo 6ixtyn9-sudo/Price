@@ -198,3 +198,113 @@ def test_zero_filled_stock_splits_normalised_to_no_event():
 
     assert out["split_factor"].tolist() == [1.0, 1.0, 1.0, 2.0]
     assert (out["dividend_cash"] == 0.0).all()
+
+
+def _yf_raw_frame(dates, opens, highs, lows, closes, adj, vols, divs, splits):
+    return pd.DataFrame({
+        "Date": pd.to_datetime(dates).tz_localize("UTC"),
+        "Open": opens, "High": highs, "Low": lows, "Close": closes,
+        "Adj Close": adj, "Volume": vols, "Dividends": divs,
+        "Stock Splits": splits,
+    })
+
+
+def test_split_adjusted_vendor_basis_reconstructed_to_as_traded():
+    """Vendor basis flip (probed 2026-08-07 on the exact engine call):
+    Yahoo now serves OHLC and Volume SPLIT-ADJUSTED — continuous across
+    ex-dates — while split events remain booked. The rows below are
+    verbatim from the live probe (AMZN 20:1, 2022-06-06; no download() /
+    back_adjust knob serves as-traded raw anymore, repeat fetches
+    identical). Stored books hold AS-TRADED raw prices with adj_factor
+    stepping by the split ratio across the ex-date, so the canonical
+    builder must reconstruct the as-traded basis per booked split or the
+    adjustment-book gate refuses the frame (18 split-class refusals on
+    the 2026-08-07 captures)."""
+    import price.data_sources as ds
+    from price.warehouse import adjustment_integrity_violations
+
+    raw = _yf_raw_frame(
+        ["2022-06-02", "2022-06-03", "2022-06-06", "2022-06-07", "2022-06-08"],
+        [121.684, 124.2, 125.25, 122.01, 122.61],
+        [126.0, 125.0, 125.3, 124.6, 122.9],
+        [120.4, 121.333, 121.0, 121.6, 119.5],
+        [125.511, 122.349998, 124.79, 123.0, 121.18],
+        [125.511, 122.349998, 124.79, 123.0, 121.18],
+        [100560000, 97604000, 135269000, 85156700, 64926600],
+        [0.0] * 5,
+        [0.0, 0.0, 20.0, 0.0, 0.0],
+    )
+
+    out = ds._build_yfinance_canonical(raw, "AMZN", "1d")
+
+    cr = out["close_raw"].tolist()
+    assert abs(cr[1] - 2446.99996) < 0.01, "pre-ex raw close must be rescaled to as-traded (122.35 x 20)"
+    assert abs(cr[3] - 123.0) < 1e-9, "post-split bars must stay untouched"
+    af = out["adj_factor"].tolist()
+    assert abs(af[1] - 0.05) < 1e-4
+    assert abs(af[2] - 1.0) < 1e-9
+    vol = out["volume_raw"].tolist()
+    assert abs(vol[1] - 97604000 / 20) < 1.0, "volume is served forward-adjusted; restore as-traded shares"
+    assert abs(vol[3] - 85156700) < 1e-9
+    assert adjustment_integrity_violations(out) == [], (
+        "reconstructed frame must satisfy the adjustment-book gate (factor steps x20 at the ex-date)")
+
+
+def test_as_traded_split_frame_passes_through_untouched():
+    """Detection is per-event from the frame itself: when the served
+    adj/close factor already steps by the ratio across the ex-date, the
+    frame is as-traded and must NOT be re-scaled."""
+    import price.data_sources as ds
+    from price.warehouse import adjustment_integrity_violations
+
+    raw = _yf_raw_frame(
+        ["2026-07-01", "2026-07-02", "2026-07-03"],
+        [200.0, 100.2, 101.0],
+        [202.0, 101.0, 102.0],
+        [199.0, 99.5, 100.0],
+        [201.0, 100.7, 101.5],
+        [100.5, 100.7, 101.5],
+        [1000000, 2100000, 1900000],
+        [0.0] * 3,
+        [0.0, 2.0, 0.0],
+    )
+
+    out = ds._build_yfinance_canonical(raw, "RAWSTAY", "1d")
+
+    assert out["close_raw"].tolist() == [201.0, 100.7, 101.5]
+    assert out["volume_raw"].tolist() == [1000000, 2100000, 1900000]
+    af = out["adj_factor"].tolist()
+    assert abs(af[0] - 0.5) < 1e-6 and abs(af[1] - 1.0) < 1e-9
+    assert adjustment_integrity_violations(out) == []
+
+
+def test_split_adjusted_dividend_cash_rescaled_with_prices():
+    """Probe 2026-08-07 (AVGO): served Dividends are split-adjusted cash
+    (0.525 = $5.25 / 10 on pre-split dates). Reconstruction must restore
+    as-traded cash alongside as-traded prices so the gate's dividend
+    materiality math divides like-for-like."""
+    import price.data_sources as ds
+
+    raw = _yf_raw_frame(
+        ["2024-07-11", "2024-07-12", "2024-07-15", "2024-07-16"],
+        [176.466, 171.103, 170.0, 172.4],
+        [178.0, 172.0, 171.5, 173.0],
+        [175.0, 169.5, 168.9, 168.5],
+        [170.595, 170.067, 171.42, 169.38],
+        [167.4459, 166.9276, 168.2556, 166.2533],
+        [5000000, 5100000, 21000000, 19000000],
+        [0.525, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 10.0, 0.0],
+    )
+
+    out = ds._build_yfinance_canonical(raw, "AVGO", "1d")
+
+    dv = out["dividend_cash"].tolist()
+    assert abs(dv[0] - 5.25) < 1e-9, "pre-ex dividend cash must be rescaled to as-traded dollars"
+    assert abs(dv[3] - 0.0) < 1e-12
+    cr = out["close_raw"].tolist()
+    assert abs(cr[1] - 1700.67) < 0.01
+    assert abs(cr[2] - 171.42) < 1e-9
+    # factor: dividend-only 0.9815 pre-ex at 1/10 scale, stepping x10 at the split
+    af = out["adj_factor"].tolist()
+    assert abs(af[2] / af[1] - 10.0) < 0.01

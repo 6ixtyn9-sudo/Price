@@ -246,10 +246,32 @@ def test_booked_special_dividend_with_flat_adj_factor_flagged():
 
 
 def test_booked_dividend_with_matching_factor_passes():
+    # Standard adjusted-series convention (verified against live Yahoo and
+    # stored books 2026-08-07): pre-ex prices are adjusted DOWN, so as time
+    # moves forward adj_factor steps UP across the ex-date by 1/(1 - dv/pc).
     df = pd.DataFrame([
         _adj_bar(0, adj_f=1.0, close=100.0),
-        _adj_bar(1, adj_f=0.88, div=12.0, close=88.3),
-        _adj_bar(2, adj_f=0.88, close=88.8),
+        _adj_bar(1, adj_f=1.0 / 0.88, div=12.0, close=88.3),
+        _adj_bar(2, adj_f=1.0 / 0.88, close=88.8),
+    ])
+    assert adjustment_integrity_violations(df) == []
+
+
+def test_booked_dividend_standard_convention_step_up_passes():
+    # Verbatim values from the live refusal on the 2026-08-07 capture:
+    # ABBV, dividend_cash=1.3, prev_close=108.53, factor step 1.0121 =
+    # 1/(1 - 1.3/108.53) — the standard convention steps adj_factor UP
+    # across the ex-date (pre-ex prices are adjusted down). The gate's
+    # original inverted dividend term (shipped 40e53d3) computed expected
+    # 0.9880 and refused every material dividend book — 37
+    # reciprocal-signature refusals on the 2026-08-07 captures alone. It
+    # was latent because zero-filled splits froze daily frames before the
+    # gate ever saw a real dividend in production. (The dividend cash
+    # exceeds the 1%-of-close materiality line, as in production.)
+    df = pd.DataFrame([
+        _adj_bar(0, adj_f=0.988, close=108.53),
+        _adj_bar(1, adj_f=0.988 / (1 - 1.3 / 108.53), div=1.3, close=107.23),
+        _adj_bar(2, adj_f=0.988 / (1 - 1.3 / 108.53), close=107.9),
     ])
     assert adjustment_integrity_violations(df) == []
 
@@ -327,8 +349,8 @@ def test_save_to_warehouse_refuses_poisoned_daily_frame(temp_warehouse):
 def test_save_to_warehouse_persists_clean_daily_frame(temp_warehouse):
     clean = pd.DataFrame([
         _adj_bar(0, symbol="CLEAN", adj_f=1.0, close=100.0),
-        _adj_bar(1, symbol="CLEAN", adj_f=0.88, div=12.0, close=88.3),
-        _adj_bar(2, symbol="CLEAN", adj_f=0.88, close=88.8),
+        _adj_bar(1, symbol="CLEAN", adj_f=1.0 / 0.88, div=12.0, close=88.3),
+        _adj_bar(2, symbol="CLEAN", adj_f=1.0 / 0.88, close=88.8),
     ])
     price.warehouse.save_to_warehouse(clean)
     loaded = price.warehouse.load_from_warehouse("CLEAN", "1d")
@@ -358,7 +380,7 @@ def test_multi_symbol_save_quarantines_only_the_poisoned_symbol(temp_warehouse):
     ])
     clean = pd.DataFrame([
         _adj_bar(0, symbol="CLEAN", adj_f=1.0, close=100.0),
-        _adj_bar(1, symbol="CLEAN", adj_f=0.88, div=12.0, close=88.3),
+        _adj_bar(1, symbol="CLEAN", adj_f=1.0 / 0.88, div=12.0, close=88.3),
     ])
     price.warehouse.save_to_warehouse(pd.concat([poison, clean], ignore_index=True))
     assert price.warehouse.load_from_warehouse("POISON", "1d").empty
@@ -397,6 +419,58 @@ def test_dummy_frame_over_adjusted_history_quarantined(temp_warehouse):
     recs = _ledger_records(temp_warehouse)
     assert any("dummy_frame_over_adjusted_history" in v
                for r in recs if r["symbol"] == "MIDBAND" for v in r["violations"])
+
+
+def test_dummy_recent_window_over_factor1_overlap_allowed(temp_warehouse):
+    # Post-flip steady state (probed 2026-08-07): for a stock whose latest
+    # corporate action is older than the capture window, every served bar
+    # has factor exactly 1.0, adj == raw, no booked events — a frame-local
+    # "full dummy" signature that is HONEST data. 65 of 123 refusals on the
+    # 2026-08-07 captures were this false positive and froze healthy daily
+    # books. Persisting it can only rewrite stored rows on dates it covers,
+    # so when every overlapped stored row carries factor 1.0 and no booked
+    # event, nothing adjusted is lost and the frame must persist.
+    adjusted = _adj_frame([((0,), dict(adj_f=0.97, close=125.01)),
+                           ((1,), dict(adj_f=0.97, close=124.81)),
+                           ((2,), dict(adj_f=1.0, div=3.74, close=287.51)),
+                           ((3,), dict(adj_f=1.0, close=287.44)),
+                           ((4,), dict(adj_f=1.0, close=293.32))], "RECENT")
+    price.warehouse.save_to_warehouse(adjusted)
+    assert len(price.warehouse.load_from_warehouse("RECENT", "1d")) == 5
+    dummy = _adj_frame([((3,), dict(close=287.44)),
+                        ((4,), dict(close=293.32)),
+                        ((5,), dict(close=292.68))], "RECENT")
+    price.warehouse.save_to_warehouse(dummy)
+    loaded = price.warehouse.load_from_warehouse("RECENT", "1d")
+    assert len(loaded) == 6, (
+        "dummy-looking but honest recent window must extend the book; "
+        "only overlap carrying real adjustment bookkeeping may refuse")
+    # the adjusted lineage and the ex-date bookkeeping stay intact
+    f = pd.to_numeric(loaded["adj_factor"])
+    assert (f.iloc[:2] == 0.97).all()
+    assert pd.to_numeric(loaded["dividend_cash"]).iloc[2] == 3.74
+
+
+def test_dummy_frame_over_event_overlap_still_refused(temp_warehouse):
+    # Belt check on the overlap scope: a dummy window that covers a stored
+    # bar with a BOOKED event (split/dividend) must still be refused even if
+    # the stored factor there happens to be exactly 1.0 — the keep-last
+    # merge would erase the event bookkeeping itself.
+    stored = _adj_frame([((0,), dict(adj_f=0.05, close=2447.0)),
+                         ((1,), dict(adj_f=1.0, split=20.0, close=124.79)),
+                         ((2,), dict(adj_f=1.0, close=123.0))], "EVTOVERLAP")
+    price.warehouse.save_to_warehouse(stored)
+    assert len(price.warehouse.load_from_warehouse("EVTOVERLAP", "1d")) == 3
+    dummy = _adj_frame([((1,), dict(close=124.79)),
+                        ((2,), dict(close=123.0)),
+                        ((3,), dict(close=121.18))], "EVTOVERLAP")
+    price.warehouse.save_to_warehouse(dummy)
+    loaded = price.warehouse.load_from_warehouse("EVTOVERLAP", "1d")
+    assert len(loaded) == 3, "dummy over a booked-event date must not persist"
+    assert pd.to_numeric(loaded["split_factor"]).iloc[1] == 20.0
+    recs = _ledger_records(temp_warehouse)
+    assert any("dummy_frame_over_adjusted_history" in v
+               for r in recs if r["symbol"] == "EVTOVERLAP" for v in r["violations"])
 
 
 def test_full_dummy_frame_persists_with_unverified_provenance_log(temp_warehouse):
@@ -445,8 +519,8 @@ def test_adjusted_frames_disagreeing_discontinuously_quarantined(temp_warehouse)
     # booked dividend matches its own step (passes the booked auditor), yet
     # the adjusted ratio vs stored history STEPS at the shared boundary.
     v2 = _adj_frame([((1,), dict(adj_f=0.95, close=40.0)),
-                     ((2,), dict(adj_f=0.90, div=2.1, close=39.0)),
-                     ((3,), dict(adj_f=0.90, close=39.2))], "CONFLICT")
+                     ((2,), dict(adj_f=0.95 / (1 - 2.1 / 40), div=2.1, close=39.0)),
+                     ((3,), dict(adj_f=0.95 / (1 - 2.1 / 40), close=39.2))], "CONFLICT")
     price.warehouse.save_to_warehouse(v2)
     loaded = price.warehouse.load_from_warehouse("CONFLICT", "1d")
     assert (pd.to_numeric(loaded["adj_factor"]) == 0.95).all()

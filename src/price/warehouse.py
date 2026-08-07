@@ -116,7 +116,20 @@ def adjustment_integrity_violations(df: pd.DataFrame) -> list:
             stamp = f" @ {work['bar_ts_utc'].iat[i]}"
 
         if material_event:
-            expected = sf * ((1.0 - dv / pc) if (div_effect and pd.notna(pc)) else 1.0)
+            # Convention (verified 2026-08-07 against live Yahoo data and
+            # the reciprocal signature of 37 production refusals): in an
+            # adjusted series the PRE-EX prices are adjusted down, so moving
+            # forward in time adj_factor steps UP across an ex-date —
+            # by the split ratio for splits and by the RECIPROCAL dividend
+            # factor 1/(1 - dv/pc) for dividends. The original inverted
+            # dividend term (shipped 40e53d3) expected the down-step and
+            # refused every genuine dividend book; it stayed latent because
+            # the vendor's zero-filled splits froze daily frames before the
+            # gate ever audited a real dividend in production.
+            div_factor = (1.0 - dv / pc) if (div_effect and pd.notna(pc)) else 1.0
+            if div_factor <= 0:
+                continue  # junk event (cash >= close): unauditable boundary
+            expected = sf / div_factor
             track_tol = max(_ADJ_FACTOR_TRACK_TOL, _ADJ_FACTOR_TRACK_REL * abs(expected - 1.0))
             if abs(ratio - expected) > track_tol:
                 reasons.append(
@@ -205,12 +218,35 @@ def adjustment_provenance_violations(incoming: pd.DataFrame, existing: pd.DataFr
     incoming_dummy = _is_full_dummy_frame(incoming)
     if incoming_dummy:
         if existing is not None and not existing.empty and "adj_factor" in existing.columns:
-            f = pd.to_numeric(existing["adj_factor"], errors="coerce")
-            if ((f - 1.0).abs() > 1e-9).any():
+            # Overlap-scoped refusal (2026-08-07): since the vendor basis
+            # flip, factor == 1.0 with adj == raw and no booked events is the
+            # steady state for every bar after a stock's latest corporate
+            # action, so an honest short incremental capture window is
+            # frame-locally a "full dummy" — 65 of 123 refusals on the
+            # 2026-08-07 captures were this false positive and froze healthy
+            # daily books. Persisting a dummy frame can only rewrite stored
+            # rows on dates it actually covers (keep-last dedup), so the
+            # refusal narrows to OVERLAPPED stored rows that carry real
+            # adjustment bookkeeping; a dummy landing on factor-1.0,
+            # event-free dates rewrites nothing.
+            scope = existing
+            if "bar_ts_utc" in incoming.columns and "bar_ts_utc" in existing.columns:
+                inc_dates = set(pd.to_datetime(incoming["bar_ts_utc"], utc=True).dt.date)
+                scope = existing[
+                    pd.to_datetime(existing["bar_ts_utc"], utc=True).dt.date.isin(inc_dates)
+                ]
+            f = pd.to_numeric(scope["adj_factor"], errors="coerce")
+            booked = pd.Series(False, index=scope.index)
+            if "split_factor" in scope.columns:
+                booked |= pd.to_numeric(scope["split_factor"], errors="coerce").fillna(1.0).sub(1.0).abs() > 1e-9
+            if "dividend_cash" in scope.columns:
+                booked |= pd.to_numeric(scope["dividend_cash"], errors="coerce").fillna(0.0).abs() > 1e-9
+            if ((f - 1.0).abs() > 1e-9).any() or booked.any():
                 reasons.append(
                     "dummy_frame_over_adjusted_history: incoming frame is the full "
-                    "unadjusted dummy signature but stored history carries real "
-                    "adjustment factors; persisting would silently rewrite adjusted prices"
+                    "unadjusted dummy signature but stored history it would overwrite "
+                    "carries real adjustment factors; persisting would silently rewrite "
+                    "adjusted prices"
                 )
         return reasons
 
