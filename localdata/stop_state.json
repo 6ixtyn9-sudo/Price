@@ -1,18 +1,4 @@
 {
-  "ASML": {
-    "symbol": "ASML",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 1667.94,
-    "initial_stop_price": 1510.28,
-    "current_stop_price": 1510.28,
-    "r_per_share": 157.66000000000008,
-    "stage": "initial",
-    "extreme_price": 1667.94,
-    "stop_order_id": "96468502-9b6d-4386-9b9f-210a20fd35ad",
-    "opened_at": "",
-    "updated_at": ""
-  },
   "AEP": {
     "symbol": "AEP",
     "side": "long",
