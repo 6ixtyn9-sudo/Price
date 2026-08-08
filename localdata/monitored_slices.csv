@@ -11,25 +11,26 @@ ADI,1d,state_ext=stretched_down + state_slope=downtrend + state_vol=mid_vol,long
 ADI,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.279122265646853,"[""bull"", ""neutral"", ""bear""]"
 AMZN,1d,state_ext=neutral + state_slope=flat + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 ARKK,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.920590810938492,"[""bull"", ""neutral"", ""bear""]"
-ARKW,1d,state_volume=vol_normal + state_ext=neutral + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,20,4.912663803687331,"[""bull"", ""neutral""]"
+ARKW,1d,state_volume=vol_normal + state_ext=neutral + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,20,4.912641223821112,"[""bull"", ""neutral""]"
 ARKW,1d,state_volume=vol_normal + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull""]"
 ARKW,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.2268580781198053,"[""bull"", ""neutral"", ""bear""]"
 ASML,1d,cross_TLT_state_ext=stretched_up + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 ASML,1d,state_ext=stretched_up + state_ret_1=ret_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral""]"
-AVGO,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.849804773205067,"[""bull"", ""neutral"", ""bear""]"
-AVGO,1d,cross_USO_state_vol=high_vol + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.802610993556826,"[""bull"", ""neutral"", ""bear""]"
-AVGO,1d,state_ext=stretched_down + state_ret_5=ret_down,long,auto_promoted_strict_candidate,rolling,20,4.79203186636862,"[""bull"", ""neutral"", ""bear""]"
-AVGO,1d,state_volume=vol_surge + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.1578398062918325,"[""bull"", ""neutral"", ""bear""]"
+AVGO,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.849805800992214,"[""bull"", ""neutral"", ""bear""]"
+AVGO,1d,cross_USO_state_vol=high_vol + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.802609989062504,"[""bull"", ""neutral"", ""bear""]"
+AVGO,1d,state_ext=stretched_down + state_ret_5=ret_down,long,auto_promoted_strict_candidate,rolling,20,4.792034281741829,"[""bull"", ""neutral"", ""bear""]"
+AVGO,1d,cross_TLT_state_vol=low_vol + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.5976893664739658,"[""bull"", ""neutral"", ""bear""]"
+AVGO,1d,state_volume=vol_surge + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.4341046019463,"[""bull"", ""neutral"", ""bear""]"
 AVGO,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-AVGO,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,4.647612133051145,"[""bull"", ""neutral"", ""bear""]"
+AVGO,1d,state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,4.647608160230334,"[""bull"", ""neutral"", ""bear""]"
 BAC,1d,state_volume=vol_quiet + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,10,3.192197599543095,"[""bull"", ""neutral"", ""bear""]"
-BITO,1d,state_ext=stretched_down + state_slope=flat + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,20,2.093122660291068,[]
+BITO,1d,state_ext=stretched_down + state_slope=flat + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,20,2.093135272924232,[]
 BLK,1d,cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,4.33524768100352,"[""bull"", ""neutral"", ""bear""]"
 CAT,1d,state_ext=stretched_up + state_ret_1=ret_flat,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-CBOE,1d,state_ext=stretched_down + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,3.750278056707962,"[""bull"", ""neutral"", ""bear""]"
-CBOE,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,2.689804821433013,"[""bull"", ""neutral"", ""bear""]"
-CBOE,1d,cross_USO_state_slope=uptrend + state_slope=flat,long,auto_promoted_strict_candidate,rolling,20,3.1969220905984312,"[""bull"", ""neutral"", ""bear""]"
-CBOE,1d,state_volume=vol_normal + state_ext=stretched_down + state_slope=flat,long,auto_promoted_strict_candidate,rolling,10,2.7483668543784385,[]
+CBOE,1d,state_ext=stretched_down + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,3.750298837547414,"[""bull"", ""neutral"", ""bear""]"
+CBOE,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,2.689798701349725,"[""bull"", ""neutral"", ""bear""]"
+CBOE,1d,cross_USO_state_slope=uptrend + state_slope=flat,long,auto_promoted_strict_candidate,rolling,20,3.196919960785193,"[""bull"", ""neutral"", ""bear""]"
+CBOE,1d,state_volume=vol_normal + state_ext=stretched_down + state_slope=flat,long,auto_promoted_strict_candidate,rolling,10,2.748371876639013,[]
 CME,1d,state_volume=vol_surge + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,3.847665885672857,"[""bull"", ""neutral"", ""bear""]"
 CMG,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.217062472874013,"[""bull"", ""neutral"", ""bear""]"
 DASH,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,5,1.7667660582242155,"[""bull"", ""neutral"", ""bear""]"
@@ -47,7 +48,7 @@ ETN,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + stat
 GD,1d,state_ext=neutral + state_slope=uptrend + state_vol=high_vol,long,auto_promoted_strict_candidate,rolling,5,1.5,"[""bull"", ""neutral"", ""bear""]"
 GE,1d,cross_TLT_state_vol=high_vol + state_ext=stretched_up,long,auto_promoted_strict_candidate,rolling,20,4.582623067198081,"[""bull"", ""neutral"", ""bear""]"
 GILD,1d,cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,4.620117148341467,"[""bull"", ""neutral"", ""bear""]"
-GOLD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.0508434071662047,"[""bull"", ""neutral"", ""bear""]"
+GOLD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.0508445586348545,"[""bull"", ""neutral"", ""bear""]"
 GOOG,1d,state_slope=flat + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 GOOG,1d,state_ext=neutral + state_slope=flat + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,5.0,[]
 GOOGL,1d,state_slope=flat + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
@@ -59,7 +60,7 @@ HOOD,1d,cross_TLT_state_ext=stretched_up + state_ext=stretched_up,long,auto_prom
 ISRG,1d,state_ext=neutral + state_slope=uptrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,10,3.411062814268172,"[""bull"", ""neutral""]"
 ITA,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""bear""]"
 ITA,1d,cross_USO_state_slope=uptrend + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-JD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.9717758765511273,"[""bull"", ""neutral"", ""bear""]"
+JD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.97177907016023,"[""bull"", ""neutral"", ""bear""]"
 JNJ,1d,cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.799580434767413,"[""neutral"", ""bear""]"
 JPM,1d,cross_USO_state_slope=uptrend + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,4.232603663399539,"[""bull"", ""neutral"", ""bear""]"
 KLAC,1d,cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.375564875118092,"[""bull"", ""neutral"", ""bear""]"
@@ -72,7 +73,7 @@ LRCX,1d,state_volume=vol_normal + state_ext=stretched_down + state_slope=downtre
 LRCX,1d,cross_TLT_state_vol=low_vol + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,4.513076683184761,"[""bull"", ""neutral"", ""bear""]"
 LRCX,1d,cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.12686780801152,[]
 MDT,1d,state_volume=vol_quiet + state_slope=flat,long,auto_promoted_strict_candidate,rolling,20,4.207599885855545,"[""bull"", ""neutral"", ""bear""]"
-META,1d,state_slope=downtrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,4.68277578666021,[]
+META,1d,state_slope=downtrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,4.682775322471173,[]
 MSFT,1d,cross_TLT_state_ext=stretched_up + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.7099584564295744,"[""bull"", ""neutral"", ""bear""]"
 NEE,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,4.052989456430004,"[""bull"", ""neutral""]"
 NEE,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,3.992832015165472,"[""bull"", ""neutral""]"
@@ -84,12 +85,11 @@ NVDA,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,long,auto_
 NVDA,1d,state_ext=stretched_up + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,20,5.0,[]
 NVDA,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.861589936665845,[]
 O,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""neutral"", ""bear""]"
-PANW,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,4.405304670439004,"[""bull"", ""neutral"", ""bear""]"
 PANW,1d,cross_USO_state_ext=stretched_down + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 PDD,1d,cross_USO_state_slope=downtrend + state_ext=stretched_up,long,auto_promoted_strict_candidate,rolling,20,4.00781618110193,"[""bull"", ""neutral"", ""bear""]"
 PDD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up,long,auto_promoted_strict_candidate,rolling,20,3.7717937330236713,"[""bull"", ""neutral"", ""bear""]"
 PLD,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-PM,1d,state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,4.459794723062877,"[""bull"", ""neutral"", ""bear""]"
+PM,1d,state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,4.459805986623754,"[""bull"", ""neutral"", ""bear""]"
 REGN,1d,cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,4.027629967935529,"[""bull"", ""neutral"", ""bear""]"
 REGN,1d,cross_TLT_state_ext=stretched_up + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,4.012163703595422,"[""bull"", ""neutral"", ""bear""]"
 REGN,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,3.8770147584737584,"[""bull"", ""neutral"", ""bear""]"
@@ -112,7 +112,7 @@ TXN,1d,cross_USO_state_slope=uptrend + state_slope=uptrend,long,auto_promoted_st
 UNP,1d,cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.1230183838008774,"[""bull"", ""neutral"", ""bear""]"
 UPS,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""bear""]"
 VOO,1d,state_volume=vol_normal + state_ext=neutral + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,20,5.0,[]
-VOO,1d,state_slope=uptrend + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,20,4.132910480465383,[]
+VOO,1d,state_slope=uptrend + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,20,4.132943936771916,[]
 VRTX,1d,cross_USO_state_ext=stretched_down + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.1895225720986105,"[""bull"", ""neutral"", ""bear""]"
 VRTX,1d,state_ext=stretched_down + state_ret_5=ret_down,long,auto_promoted_strict_candidate,rolling,20,4.289396909596102,"[""bull"", ""neutral"", ""bear""]"
 VRTX,1d,state_ext=stretched_down + state_ret_1=ret_down,long,auto_promoted_strict_candidate,rolling,20,4.465442930620348,"[""bull"", ""neutral"", ""bear""]"
@@ -128,7 +128,7 @@ XLB,1d,state_ext=stretched_down + state_vol=mid_vol,long,auto_promoted_strict_ca
 XLB,1d,state_ext=stretched_down + state_slope=downtrend + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 XLB,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""neutral"", ""bear""]"
 XLB,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-XLC,1d,state_ext=stretched_down + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,10,2.794308626697388,"[""bull"", ""neutral""]"
+XLC,1d,state_ext=stretched_down + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,10,2.7942968469783005,"[""bull"", ""neutral""]"
 XLK,1d,cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 XLP,1d,state_volume=vol_surge + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""neutral""]"
 XLP,1d,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.1909958602823254,[]
