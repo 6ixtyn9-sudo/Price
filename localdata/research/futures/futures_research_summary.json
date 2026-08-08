@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-08T00:31:55.291889+00:00",
+  "generated_at_utc": "2026-08-08T06:24:14.021458+00:00",
   "bin_mode": "rolling",
   "symbols": [
     "FUT/ES",
@@ -256,8 +256,8 @@
       "side": "long",
       "overall_regime_status": "neutral_regime_candidate",
       "best_regime": "neutral",
-      "best_regime_mean_ret_costadj": 0.0029300277489009113,
-      "best_regime_p_value_nw": 0.0006607560116522748,
+      "best_regime_mean_ret_costadj": 0.0028094176251581286,
+      "best_regime_p_value_nw": 0.0008272642758726523,
       "walk_forward_pass_pattern": "1"
     }
   ],
@@ -276,8 +276,8 @@
       "side": "long",
       "overall_regime_status": "neutral_regime_candidate",
       "best_regime": "neutral",
-      "best_regime_mean_ret_costadj": 0.0029300277489009113,
-      "best_regime_p_value_nw": 0.0006607560116522748,
+      "best_regime_mean_ret_costadj": 0.0028094176251581286,
+      "best_regime_p_value_nw": 0.0008272642758726523,
       "triage_bucket": "parent_underperformed",
       "walk_forward_pass_pattern": "1"
     }
