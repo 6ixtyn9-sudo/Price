@@ -160,6 +160,10 @@ jobs:
           # No book or empty book → use safe default universe for ingest
           # (research_crypto.py must NOT be imported here — separate workflow concern)
           if [ -z "$SYMBOLS" ]; then SYMBOLS="BTC/USD ETH/USD SOL/USD AVAX/USD DOT/USD"; fi
+          # Cold-boot guard (2026-08-08): on a full cache miss localdata/warehouse does not
+          # exist; the bare find below then fails under pipefail+-e and kills the step
+          # silently before ingest can even start. Create the dir so cold = backfill.
+          mkdir -p localdata/warehouse
           PARQUET_COUNT=$(find localdata/warehouse -name "*.parquet" 2>/dev/null | wc -l | tr -d " ")
           if [ "$PARQUET_COUNT" -lt 20 ]; then
             CRYPTO_DAYS_1D=1825; CRYPTO_DAYS_15M=365
