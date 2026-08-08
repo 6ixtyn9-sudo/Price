@@ -542,3 +542,32 @@ def test_crypto_and_futures_dummy_frames_persist_without_provenance_log(temp_war
         "crypto/futures dummy frames are normal staging, not provenance gaps")
 
 
+
+
+def test_immaterial_booked_dividend_explaining_step_passes():
+    # Verbatim from production (run 31210786362, 2026-08-07): ABBV's wide
+    # frame was refused at 2023-10-12 — a booked $1.48 dividend on a $149.34
+    # close is a 0.991% yield, inside the ~10bps crack between the gate's 1%
+    # event-materiality line and its 1% unbooked-step flag, so the gate
+    # called its own booked event "no booked corporate action". Any booked
+    # event that explains its factor step is clean at ANY materiality;
+    # materiality only selects the violation kind.
+    expected_step = 1.0 / (1 - 1.48 / 149.34)
+    df = pd.DataFrame([
+        _adj_bar(0, adj_f=0.9901, close=149.34),
+        _adj_bar(1, adj_f=0.9901 * expected_step, div=1.48, close=149.97),
+        _adj_bar(2, adj_f=0.9901 * expected_step, close=150.2),
+    ])
+    assert adjustment_integrity_violations(df) == []
+
+
+def test_immaterial_booked_dividend_with_big_unexplained_step_still_flagged():
+    # The crack repair must not launder poison: an immaterial booked
+    # dividend that CANNOT explain a >=1% step is still an unexplained step.
+    df = pd.DataFrame([
+        _adj_bar(0, adj_f=1.0, close=100.0),
+        _adj_bar(1, adj_f=1.05, div=0.40, close=105.0),
+        _adj_bar(2, adj_f=1.05, close=105.2),
+    ])
+    reasons = adjustment_integrity_violations(df)
+    assert any("unbooked_adj_factor_step" in r for r in reasons)

@@ -110,12 +110,13 @@ def adjustment_integrity_violations(df: pd.DataFrame) -> list:
         pc = prev_close.iat[i]
         div_effect = (dv / pc) if (pd.notna(pc) and pc > 0 and dv > 0) else 0.0
         material_event = abs(sf - 1.0) > 0.005 or div_effect >= _ADJ_EVENT_MIN_MATERIALITY
+        booked_event = abs(sf - 1.0) > 0.005 or dv > 0.0
 
         stamp = ""
         if has_ts:
             stamp = f" @ {work['bar_ts_utc'].iat[i]}"
 
-        if material_event:
+        if booked_event:
             # Convention (verified 2026-08-07 against live Yahoo data and
             # the reciprocal signature of 37 production refusals): in an
             # adjusted series the PRE-EX prices are adjusted down, so moving
@@ -126,18 +127,31 @@ def adjustment_integrity_violations(df: pd.DataFrame) -> list:
             # refused every genuine dividend book; it stayed latent because
             # the vendor's zero-filled splits froze daily frames before the
             # gate ever audited a real dividend in production.
-            div_factor = (1.0 - dv / pc) if (div_effect and pd.notna(pc)) else 1.0
+            #
+            # A booked event that explains its factor step is clean at ANY
+            # materiality — materiality only selects the violation KIND.
+            # The previous shape routed sub-1%-yield booked dividends
+            # straight to the "unbooked" branch, where their own ~1.01x
+            # step tripped the 1% step flag: a ~10bps crack (yield in
+            # [0.9902%, 1%)) that refused 7 production books on 2026-08-07
+            # (ABBV/CVX/DUK/GILD/INTC/MRK/SO — observed steps all
+            # 1.0100-1.0101), flagged as "no booked corporate action" with
+            # the dividend sitting in the frame's own actions columns.
+            div_factor = (1.0 - dv / pc) if (pd.notna(pc) and pc > 0 and dv > 0) else 1.0
             if div_factor <= 0:
                 continue  # junk event (cash >= close): unauditable boundary
             expected = sf / div_factor
             track_tol = max(_ADJ_FACTOR_TRACK_TOL, _ADJ_FACTOR_TRACK_REL * abs(expected - 1.0))
-            if abs(ratio - expected) > track_tol:
+            if abs(ratio - expected) <= track_tol:
+                continue  # the booked event explains this step — clean
+            if material_event:
                 reasons.append(
                     f"booked_event_factor_mismatch{stamp}: split_factor={sf}, "
                     f"dividend_cash={dv} (prev_close={pc}); adj_factor step "
                     f"{ratio:.4f} vs expected {expected:.4f}"
                 )
-        elif abs(ratio - 1.0) >= _ADJ_UNBOOKED_STEP_TOL:
+                continue
+        if abs(ratio - 1.0) >= _ADJ_UNBOOKED_STEP_TOL:
             reasons.append(
                 f"unbooked_adj_factor_step{stamp}: adj_factor step {ratio:.4f} "
                 "with no booked corporate action"
