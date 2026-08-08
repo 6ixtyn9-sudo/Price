@@ -60,7 +60,7 @@ jobs:
       - name: Compute research warehouse cache key
         id: cache_key
         run: |
-          echo "key=research-warehouse-v4-${{ runner.os }}-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          echo "key=research-warehouse-v4-${{ runner.os }}-equities-refresh-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore latest research warehouse cache
         id: warehouse
@@ -69,7 +69,24 @@ jobs:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-equities-refresh-
+            research-warehouse-v4-${{ runner.os }}-crypto-discovery-merged-
+            research-warehouse-v4-${{ runner.os }}-futures-discovery-merged-
+            research-warehouse-v4-${{ runner.os }}-research-discovery-
+            research-warehouse-v4-${{ runner.os }}-crypto-refresh-
+            research-warehouse-v4-${{ runner.os }}-futures-refresh-
+            research-warehouse-v4-${{ runner.os }}-crypto-discovery-
+            research-warehouse-v4-${{ runner.os }}-futures-discovery-
             research-warehouse-v4-${{ runner.os }}-
+      - name: Refuse cross-lane warehouse cache
+        if: steps.warehouse.outputs.cache-matched-key != ''
+        run: |
+          case "${{ steps.warehouse.outputs.cache-matched-key }}" in
+            *live-capture*)
+              echo "::error::research restored live-lane warehouse cache '${{ steps.warehouse.outputs.cache-matched-key }}' — shallow lineage silently starves discovery (see HANDOVER 2026-08-08); refusing to run blind"
+              exit 1 ;;
+          esac
+          echo "warehouse cache lineage ok: ${{ steps.warehouse.outputs.cache-matched-key }}"
 
       - name: Seed warehouse from release if cache is empty
         if: steps.warehouse.outputs.cache-hit != 'true'
@@ -258,7 +275,13 @@ jobs:
         run: |
           sleep 5
           gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/research-caches.json
-          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
+          # Scope (2026-08-08): delete only OUR lineage — the family infix plus the
+          # legacy bare run-id keys this job used before today. This cleanup previously
+          # deleted EVERY cache in the namespace except its own current save; on
+          # 2026-08-07 it wiped the crypto lane cache (7-run outage) and left Saturday's
+          # 15m discovery to restore an empty futures-lane cache (71,649 -> 13,359 rows).
+          # Other families are governed by the live lane's keep-newest-2 pruner.
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-equities-refresh-") or (.key | test("^research-warehouse-v4-${{ runner.os }}-[0-9]+$"))) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
             if [ -n "$cache_id" ]; then
               gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
             fi

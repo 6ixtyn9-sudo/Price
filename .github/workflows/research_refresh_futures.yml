@@ -65,7 +65,24 @@ jobs:
           path: localdata/warehouse
           key: ${{ steps.cache_key.outputs.key }}
           restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-equities-refresh-
+            research-warehouse-v4-${{ runner.os }}-crypto-discovery-merged-
+            research-warehouse-v4-${{ runner.os }}-futures-discovery-merged-
+            research-warehouse-v4-${{ runner.os }}-research-discovery-
+            research-warehouse-v4-${{ runner.os }}-crypto-refresh-
+            research-warehouse-v4-${{ runner.os }}-futures-refresh-
+            research-warehouse-v4-${{ runner.os }}-crypto-discovery-
+            research-warehouse-v4-${{ runner.os }}-futures-discovery-
             research-warehouse-v4-${{ runner.os }}-
+      - name: Refuse cross-lane warehouse cache
+        if: steps.warehouse.outputs.cache-matched-key != ''
+        run: |
+          case "${{ steps.warehouse.outputs.cache-matched-key }}" in
+            *live-capture*)
+              echo "::error::research restored live-lane warehouse cache '${{ steps.warehouse.outputs.cache-matched-key }}' — shallow lineage silently starves discovery (see HANDOVER 2026-08-08); refusing to run blind"
+              exit 1 ;;
+          esac
+          echo "warehouse cache lineage ok: ${{ steps.warehouse.outputs.cache-matched-key }}"
 
       - name: Seed warehouse from release if cache empty
         if: steps.warehouse.outputs.cache-hit != 'true'
