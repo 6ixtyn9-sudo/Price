@@ -262,7 +262,7 @@ jobs:
         run: |
           sleep 5
           gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/caches.json || true
-          jq -r '.[] | select(.key | startswith("research-warehouse-v4-")) | select(.key | contains("futures")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/caches.json | while read -r id; do
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-futures-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/caches.json | while read -r id; do
             if [ -n "$id" ]; then gh cache delete "$id" --repo "$GITHUB_REPOSITORY" || true; fi
           done
 
