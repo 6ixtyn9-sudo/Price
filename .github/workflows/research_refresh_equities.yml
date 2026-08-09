@@ -274,14 +274,28 @@ jobs:
           CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
         run: |
           sleep 5
-          gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/research-caches.json
-          # Scope (2026-08-08): delete only OUR lineage — the family infix plus the
-          # legacy bare run-id keys this job used before today. This cleanup previously
-          # deleted EVERY cache in the namespace except its own current save; on
-          # 2026-08-07 it wiped the crypto lane cache (7-run outage) and left Saturday's
-          # 15m discovery to restore an empty futures-lane cache (71,649 -> 13,359 rows).
-          # Other families are governed by the live lane's keep-newest-2 pruner.
-          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-equities-refresh-") or (.key | test("^research-warehouse-v4-${{ runner.os }}-[0-9]+$"))) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/research-caches.json | while read -r cache_id; do
+          # Scope (2026-08-08): delete only OUR lineage. This cleanup previously deleted
+          # EVERY cache in the namespace except its own current save (the 2026-08-07 wipe).
+          # 2026-08-10: parenthesised the jq clauses (a precedence slip indexed .key into
+          # the key string -> exit 5 on the first non-family element; two red runs, zero
+          # deletions), added payload validation before any delete, and dropped the legacy
+          # bare-key clause — the last pre-wipe deep cache rides to natural TTL (~08-14)
+          # while the 15m depth verdict is open. Lanes stay governed by the live pruner.
+          LIST=/tmp/research-caches.json
+          ok=0
+          for attempt in 1 2; do
+            gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > "$LIST" || true
+            if jq -e 'type == "array" and all(.[]?; has("id") and has("key"))' "$LIST" > /dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::cache list payload invalid after retry (transient API error) — refusing to delete anything this run; cleanup retries next schedule"
+            exit 1
+          fi
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-equities-refresh-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' "$LIST" | while read -r cache_id; do
             if [ -n "$cache_id" ]; then
               gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
             fi

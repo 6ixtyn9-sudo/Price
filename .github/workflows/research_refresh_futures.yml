@@ -261,8 +261,24 @@ jobs:
           CURRENT_CACHE_KEY: ${{ needs.research-refresh-futures.outputs.cache_key }}
         run: |
           sleep 5
-          gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > /tmp/caches.json || true
-          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-futures-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' /tmp/caches.json | while read -r id; do
+          # 2026-08-10: validate the payload before any delete — refuse loudly and retry
+          # next schedule rather than silently skip or act on a bad list (the equities
+          # sibling proved an unvalidated filter fails nightly, not occasionally).
+          LIST=/tmp/caches.json
+          ok=0
+          for attempt in 1 2; do
+            gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > "$LIST" || true
+            if jq -e 'type == "array" and all(.[]?; has("id") and has("key"))' "$LIST" > /dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::cache list payload invalid after retry (transient API error) — refusing to delete anything this run; cleanup retries next schedule"
+            exit 1
+          fi
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-futures-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' "$LIST" | while read -r id; do
             if [ -n "$id" ]; then gh cache delete "$id" --repo "$GITHUB_REPOSITORY" || true; fi
           done
 
