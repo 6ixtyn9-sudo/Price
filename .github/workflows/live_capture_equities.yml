@@ -117,6 +117,7 @@ jobs:
             --max-notional 2500 --max-open 12 --max-daily-loss 500 \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
             --max-per-group 3 \
+            --max-per-sector 4 \
             --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.03 --whipsaw-limit 2 \
             --cost-spread-bps 1.5 --cost-slippage-bps 5.0 --allow-shorts \

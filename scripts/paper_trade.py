@@ -517,6 +517,10 @@ def main() -> int:
                         "blocks the book concentrating on one factor (e.g. XOP+XLB+KLAC all on "
                         "stretched_down+downtrend). 0 disables (every symbol = independent slot, "
                         "legacy behaviour).")
+    parser.add_argument("--max-per-sector", type=int, default=2,
+                        help="Max concurrent open positions in the same sector (correlated-cluster cap). "
+                        "Default 2. Raise for paper evidence accumulation when the book is concentrated "
+                        "in one family (e.g. semis) so more matching slices can fill. 0 disables.")
     parser.add_argument("--regime-filter", action="store_true",
                         help="Enable the side-aware regime deployment gate. When on, a LONG entry is blocked if its "
                              "macro regime (SMA-50/200 trend of the slice's own symbol, or a configured regime_symbol) "
@@ -615,6 +619,7 @@ def main() -> int:
         risk_fraction_per_trade=args.risk_fraction,
         account_equity_for_sizing=sizing_equity,
         max_positions_per_risk_group=args.max_per_group,
+        max_positions_per_sector=args.max_per_sector,
         stop_atr_multiple=args.stop_atr_mult,
         trail_atr_multiple=args.trail_atr_mult,
         breakeven_trigger_r=args.breakeven_trigger_r,

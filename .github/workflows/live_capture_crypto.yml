@@ -187,6 +187,7 @@ jobs:
             --max-daily-loss ${{ inputs.max_daily_loss || '200' }} \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
             --max-per-group 2 \
+            --max-per-sector 4 \
             --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 \
             --max-aggregate-risk-pct 0.02 --whipsaw-limit 2 \
             --cost-spread-bps 5.0 --cost-slippage-bps 10.0 --allow-shorts \
