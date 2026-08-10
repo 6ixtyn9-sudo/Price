@@ -22,7 +22,7 @@ on:
         type: boolean
 
 concurrency:
-  group: research-refresh-futures
+  group: live-capture-futures
   cancel-in-progress: true
 
 defaults:

@@ -6794,3 +6794,80 @@ driven (51 strict / 118 tradeable), per-slice exit/stop wiring is implemented an
 tested, ruff is not clean, research_refresh_equities timeout is 300, and the data
 sources are yfinance-first. No slice is promoted to real money; deployment is
 paper-only and unchanged.
+
+----------------------------------------------------------------------
+LESSON LEARNED — VERIFY CURRENT CODE BEFORE CLAIMING ANYTHING (2026-08-10)
+----------------------------------------------------------------------
+This section records a process lesson from the 2026-08-10 session so future agents
+do not repeat a costly mistake. It is about HOW to work on this repo, not about a
+specific feature.
+
+CONTEXT
+This system is a fast-moving, live paper-trading lab. It "fixes on the fly": a
+defect can be patched, committed, and pushed between two agent reads. The operator
+explicitly warned: "don't forget that we fix on the fly, check if most of your
+findings have been fixed already." The handover is a living drift-guide, not a
+frozen spec, and is NOT a reliable snapshot of current behavior.
+
+THE MISTAKE
+An agent read an OLD P&L report (dated ~2026-07-2x) showing hundreds of basis points
+of adverse signal-to-fill on entries, and pitched a "structural entry defect" fix
+(limit orders / adverse-fill threshold). The agent did not check current code first.
+The system had ALREADY shipped those fixes: paper_trade.py now submits limit orders
+only, refuses market-order fallback, and enforces --max-adverse-fill-bps. The
+regime-gate idea (gate semis on a sector symbol) was likewise already implemented via
+the per-slice `regime_symbol` column. Both "ideas" were stale; the agent had to be
+asked "aren't these already fixed?" before verifying.
+
+ROOT CAUSE
+The agent anchored on the evidence available in context (an old artifact) and reasoned
+forward from it, instead of treating current code as the source of truth. Reasoning
+from a stale report is indistinguishable from reasoning from the handover-lag the
+project already warns about -- it is the same failure mode, applied to an agent's own
+working memory instead of the handover file.
+
+RULE FOR FUTURE AGENTS
+1. Before claiming ANYTHING is broken, missing, or a good idea to add, verify against
+   CURRENT code on main (grep the actual module), not against an old report/log or the
+   handover text. "The data shows X" is not evidence X is still true; tag every piece
+   of evidence with the date it reflects.
+2. When handed a report/log/P&L dump, ask or note whether it is historical or live.
+   A timestamp or "pre-fix / post-fix" label on shared artifacts removes ambiguity.
+3. Pair the diagnosis with a verification step in the same breath: "is this an issue?"
+   should trigger "have I checked current code?" not "here's a fix."
+4. If you are about to recommend a fix, READ the current entry/exit/staleness path
+   first. If the fix is already present, say so plainly and do not re-propose it.
+5. The operator's heads-up is reliable. When they say "check if it's already fixed,"
+   treat that as the default assumption, not a suggestion.
+
+RED FLAGS (when the agent is likely drifting to stale evidence)
+- Saying "the data shows..." while citing an old artifact.
+- Saying "I'll verify before promising a fix" and then NOT verifying first.
+- Reasoning from a specific report/file date without anchoring its as-of time.
+
+PRACTICAL FIX APPLIED THIS SESSION
+The two stale suggestions were dropped; the real, current problems were then
+diagnosed and fixed by reading live logs + current code:
+- "No trades" on Monday was the WEEKEND-BLIND 1d STALENESS GATE (flat 72h rejected
+  Friday's ~86h-old daily bar). Fixed calendar-aware in monitor.py (2026-08-10):
+  a 1d bar is fresh if it is the most recent COMPLETED NYSE session.
+- Live-capture vs research-refresh git-push conflicts on paper_trade_log.csv were
+  fixed by sharing the concurrency group (equities, then crypto/futures).
+Both were found by reading the current run's log and the current code -- exactly the
+discipline this section mandates.
+
+----------------------------------------------------------------------
+2026-08-10 — Crypto/Futures Concurrency Alignment (extend the live-capture fix)
+----------------------------------------------------------------------
+The equity live-capture vs research-refresh push race was fixed earlier by sharing
+the `live-capture` concurrency group. The same structural risk existed per lane:
+each lane's research-refresh could run concurrently with its lane's live-capture,
+both pushing to main, and (for crypto) both committing paper_trade_log_crypto.csv
+(the same-file condition that produced the equity content conflict).
+
+Changes (idempotent, applied via scripts/apply_lane_concurrency.py):
+- research_refresh_crypto.yml  : group research-refresh-crypto -> live-capture-crypto
+- research_refresh_futures.yml : group research-refresh-futures -> live-capture-futures
+Each lane's live-capture (time-critical) preempts its daily refresh via
+cancel-in-progress:true. Serializing within a lane removes the cross-workflow
+push race on the same branch/files.
