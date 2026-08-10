@@ -26,6 +26,7 @@ import pandas as pd
 
 from price.discovery import apply_state_bins
 from price.features import compute_price_features
+from price.profit_protection import ProfitPolicy
 from price.trading import load_trade_journal
 from price.validation import parse_slice_combination
 from price.warehouse import load_from_warehouse

@@ -441,6 +441,27 @@ def build_registry(
     return result
 
 
+def _promotion_provenance_note(row) -> str:
+    """Return an honest provenance label for a registry row being promoted.
+
+    Historically every promoted row was stamped ``auto_promoted_strict_candidate``
+    even when it cleared only the looser tradeable gate, so the source_note column
+    overstated the evidence behind the slice. This resolves the label against the
+    actual gate the row clears:
+
+      - passes the strict (structural) gate -> ``auto_promoted_strict_candidate``
+      - else passes the tradeable (paper-volume) gate -> ``auto_promoted_tradeable``
+      - else -> ``promoted_unverified`` (should not happen for paper_proposal rows)
+
+    It changes ONLY the provenance label, never which rows are promoted.
+    """
+    if _strict_candidate(row):
+        return "auto_promoted_strict_candidate"
+    if _tradeable_candidate(row):
+        return "auto_promoted_tradeable"
+    return "promoted_unverified"
+
+
 def apply_registry_to_monitored(
     registry: pd.DataFrame,
     monitored_path: Path = MONITORED_PATH,
@@ -487,7 +508,7 @@ def apply_registry_to_monitored(
             "timeframe": row["timeframe"],
             "slice_combination": row["slice_combination"],
             "side": row.get("side", "long"),
-            "source_note": "auto_promoted_strict_candidate",
+            "source_note": _promotion_provenance_note(row),
             "bin_mode": row.get("bin_mode", "insample"),
             "exit_horizon": int(float(row.get("optimal_horizon", 5))) if not pd.isna(row.get("optimal_horizon", 5)) else 5,
             "stop_atr_mult": (
