@@ -573,10 +573,11 @@ def lookup_slice_parameters(symbol: str, slice_combination: str) -> dict:
                     sm = float(sm) if sm is not None and str(sm).strip() not in ("", "nan") else None
                 except (TypeError, ValueError):
                     sm = None
-                return {"exit_horizon": eh, "stop_atr_mult": sm}
+                tf = _clean_val(r.get("timeframe"))
+                return {"exit_horizon": eh, "stop_atr_mult": sm, "timeframe": tf}
     except Exception:  # noqa: BLE001
         pass
-    return {"exit_horizon": None, "stop_atr_mult": None}
+    return {"exit_horizon": None, "stop_atr_mult": None, "timeframe": None}
 
 
 import glob
@@ -819,10 +820,17 @@ def check_exits(
 
         stable, _ = split_filter(slice_filter)
 
-        # Resolve timeframe from the entry journal when available; fall back
-        # to the session-presence heuristic for older journal rows that lack
-        # an explicit timeframe column.
-        timeframe = ctx.get("timeframe") or (
+        # Resolve the exit rulebook's timeframe. A position must be exited on
+        # the timeframe of the SLICE that owns it, never on a faster sibling's
+        # rulebook (cross-timeframe contamination would cut a 1d edge after 3
+        # hourly bars). Priority:
+        #   1. the slice's own timeframe from the monitored book
+        #      (lookup_slice_parameters matches symbol+slice_combination)
+        #   2. the entry journal's recorded timeframe (ctx)
+        #   3. the session-presence heuristic for older rows without a timeframe.
+        slice_params = lookup_slice_parameters(symbol, slice_combo)
+        slice_tf = slice_params.get("timeframe")
+        timeframe = slice_tf or ctx.get("timeframe") or (
             "1h" if "state_session" in slice_filter else "1d"
         )
 
@@ -862,10 +870,19 @@ def check_exits(
         current = df_binned.iloc[-1:]
         current_state = current_state_to_dict(current)
 
+        # A stable field whose current value is BLANK/unavailable ("" because
+        # current_state_to_dict turned NaN -> ""), e.g. a missing/NaN close that
+        # prevented state classification, is NOT evidence the thesis broke. It is
+        # missing data. Exiting on it manufactures whipsaw at bars_held=0. So only
+        # a real, non-blank current value that differs from the expected stable
+        # value counts as a genuine state break; blank fields are held, not exited.
+        unavailable = [
+            f for f, expected in stable.items() if str(current_state.get(f, "")) == ""
+        ]
         mismatches = [
             f"{f}={current_state.get(f, '')} (expected {expected})"
             for f, expected in stable.items()
-            if str(current_state.get(f, "")) != expected
+            if str(current_state.get(f, "")) != "" and str(current_state.get(f, "")) != expected
         ]
 
         stable_str = " + ".join(f"{k}={v}" for k, v in stable.items())
@@ -878,8 +895,9 @@ def check_exits(
         # and `or default` would silently override the operator's intent.
         ps_horizon = ctx.get("exit_horizon")
         if ps_horizon is None and slice_combo:
-            # Phase 1 wiring: look up slice's configured horizon from monitored book
-            slice_params = lookup_slice_parameters(symbol, slice_combo)
+            # Phase 1 wiring: look up slice's configured horizon from monitored book.
+            # slice_params was already loaded above for the exit timeframe; reuse it
+            # instead of re-reading the monitored book.
             ps_horizon = slice_params.get("exit_horizon")
 
         if ps_horizon is None:
@@ -972,12 +990,20 @@ def check_exits(
                 "(small losses, large profits)"
             )
         elif bars_held is not None:
+            hold_note = (
+                f"; state unavailable on {', '.join(unavailable)} (holding, not exiting)"
+                if unavailable else ""
+            )
             reason = (
                 f"stable filter matches; held {bars_held}/"
-                f"{ps_horizon} bars ({timeframe})"
+                f"{ps_horizon} bars ({timeframe}){hold_note}"
             )
         else:
-            reason = "stable filter matches; bars held unknown (no entry bar)"
+            hold_note = (
+                f"; state unavailable on {', '.join(unavailable)} (holding, not exiting)"
+                if unavailable else ""
+            )
+            reason = f"stable filter matches; bars held unknown (no entry bar){hold_note}"
 
         intent = {
             "symbol": symbol,
@@ -985,6 +1011,7 @@ def check_exits(
             "action": action,
             "stable_filter": stable_str,
             "current_stable_state": current_stable,
+            "state_unavailable_fields": unavailable,
             "bars_held": bars_held,
             "horizon_bars": ps_horizon,
             "timeframe": timeframe,
