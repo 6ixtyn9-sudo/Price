@@ -96,5 +96,33 @@
     "stop_order_id": "e2855d83-6621-4c63-877a-a4974c1a3b78",
     "opened_at": "2026-08-05T19:20:46.543943+00:00",
     "updated_at": "2026-08-05T19:20:46.543943+00:00"
+  },
+  "XEL": {
+    "symbol": "XEL",
+    "side": "long",
+    "qty": 11.0,
+    "entry_price": 76.76,
+    "initial_stop_price": 68.43819825012797,
+    "current_stop_price": 68.43819825012797,
+    "r_per_share": 8.321801749872042,
+    "stage": "initial",
+    "extreme_price": 76.76,
+    "stop_order_id": "49c05c23-24bf-4975-a002-0692e7a14a4a",
+    "opened_at": "2026-08-10T18:21:31.005215+00:00",
+    "updated_at": "2026-08-10T18:21:31.005215+00:00"
+  },
+  "XYZ": {
+    "symbol": "XYZ",
+    "side": "long",
+    "qty": 23.0,
+    "entry_price": 78.86,
+    "initial_stop_price": 74.65325076511928,
+    "current_stop_price": 74.65325076511928,
+    "r_per_share": 4.20674923488072,
+    "stage": "initial",
+    "extreme_price": 78.86,
+    "stop_order_id": "1ce6e6f9-a255-44fe-953e-8df7bee798da",
+    "opened_at": "2026-08-10T18:21:31.735542+00:00",
+    "updated_at": "2026-08-10T18:21:31.735542+00:00"
   }
 }
