@@ -973,9 +973,16 @@ def scan_all_slices(
             # in the audit trail.
             blackout = False
             try:
-                blackout_ts = current_state["bar_ts_utc"].iloc[0]
+                # T5 blackout applies to the CURRENT trading day (the day we are
+                # deciding to enter), not the timestamp of the last completed bar.
+                # Before this change, a Monday entry was blocked because the latest
+                # completed daily bar was Friday's, and Friday was an NFP/event day
+                # -> is_blackout(Friday) blocked Monday even though the event had
+                # already passed. Evaluating against "today" still blocks the event
+                # day itself and intraday event windows, but no longer the day after
+                # an event has passed (the user requested this tightening).
                 from price.external_data import is_blackout
-                blackout = bool(is_blackout(blackout_ts))
+                blackout = bool(is_blackout(pd.Timestamp.now(tz="UTC")))
             except Exception:
                 blackout = False
 
