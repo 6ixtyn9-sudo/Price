@@ -126,8 +126,57 @@ def _stale_warehouse_reason(df_warehouse: Optional[pd.DataFrame], timeframe: str
             _MAX_STALE_HOURS = {"15m": 2.0, "1h": 8.0, "1d": 72.0}
             max_stale = _MAX_STALE_HOURS.get(timeframe, 72.0)
             if age_hours > max_stale:
+                # WEEKEND/HOLIDAY-AWARE DAILY GATE (2026-08-10): a flat hour count
+                # makes daily bars look stale after a market gap. Friday's daily bar
+                # (timestamped midnight UTC) is ~86h old by Monday's open, which
+                # exceeded the 72h gate and silently killed EVERY daily slice on
+                # Monday (and any post-holiday). For daily bars, a bar is fresh if it
+                # is the most recent COMPLETED NYSE trading session -- weekend and
+                # holiday gaps are expected, not staleness. Intraday (1h/15m) keeps
+                # the strict hour gate. Fail-open if the calendar can't be resolved.
+                if timeframe == "1d":
+                    if _is_latest_completed_trading_session(last_ts, now_utc):
+                        return None
                 return f"stale_warehouse_bar_too_old: latest bar {last_ts} is >{max_stale}h old"
     return None
+
+
+def _is_latest_completed_trading_session(last_bar_ts, now_utc) -> bool:
+    """Return True if `last_bar_ts` is the most recent completed NYSE session.
+
+    Daily bars are timestamped at the session OPEN date (midnight UTC). We
+    accept a daily bar as fresh if no later NYSE session has completed since it.
+    Uses pandas_market_calendars (already a dependency via profit_protection).
+    Fail-open (True) on any calendar resolution error: the caller will not mark
+    stale, which is safer than dropping a legitimately-fresh bar on a calendar bug.
+    """
+    try:
+        import pandas_market_calendars as mcal
+        nyse = mcal.get_calendar("NYSE")
+        last_ts = pd.to_datetime(last_bar_ts, utc=True)
+        last_bar_date = last_ts.normalize()
+        now_dt = pd.to_datetime(now_utc, utc=True)
+        # Sessions on/after the last bar's date through now. A daily bar for a
+        # session exists only AFTER that session closes, so the last bar is the
+        # latest completed session iff no later session has CLOSED since it.
+        schedule = nyse.schedule(
+            start_date=last_bar_date.date(),
+            end_date=now_dt.date(),
+        )
+        if schedule is None or schedule.empty:
+            return True  # no later session in range -> last bar is the latest
+        # Any session that has FULLY CLOSED after the last bar's session means a
+        # fresher daily bar exists. A session that has opened but not yet closed
+        # does NOT produce a new daily bar yet -- the last bar is still the latest
+        # completed one (this is the weekend/holiday gap handling).
+        for _, row in schedule.iterrows():
+            close_dt = pd.to_datetime(row["market_close"], utc=True)
+            open_dt = pd.to_datetime(row["market_open"], utc=True).normalize()
+            if open_dt > last_bar_date and close_dt <= now_dt:
+                return False  # a later session has fully closed; last bar is stale
+        return True
+    except Exception:  # noqa: BLE001 - fail open on calendar errors
+        return True
 
 def _corporate_action_anomaly(df: pd.DataFrame, timeframe: str) -> Optional[str]:
     """Detect an unadjusted split/corporate-action artifact in a warehouse frame.
