@@ -26,7 +26,7 @@ on:
         default: "USO TLT"
 
 concurrency:
-  group: research-refresh
+  group: live-capture
   cancel-in-progress: true
 
 defaults:
