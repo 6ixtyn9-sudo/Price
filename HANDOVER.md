@@ -6656,3 +6656,141 @@ Item 10 was committed locally but not pushed on the first pass: the command log 
 - **Cache-namespace unified repair (2026-08-08): weekly wipe scoped to its own lineage, research restores scoped to research families, cross-lane restores now fail closed.** Both weekend incidents trace to ONE job: `research_refresh_equities.yml`'s `cache-maintenance`, which deleted EVERY cache in the `research-warehouse-v4-` namespace except its own current save, every Friday night (~22:07Z, run 31222202649). Friday 2026-08-07 sequence, now fully reconciled against the Actions -> Caches listing: the wipe erased the crypto lane's warehouse cache (saved 21:36Z) -> crypto run 31224324136 cache-missed at 23:27Z, cold-booted into the bare-find landmine from the bullet above, 7-run outage; the wipe erased futures' real lane cache -> the futures lane has chained ~200-byte EMPTY caches hourly ever since (green runs on a hollow warehouse: the week's second "green != live" specimen, repopulation rides its normal research path); the wipe erased both equities-lane caches (Monday will cold-rebuild once; equities ingest carries no find-landmine); and Saturday's 15m discovery (run 31222703862, dispatched 22:07:59Z) restored the newest bare-prefix survivor — the EMPTY futures-lane cache saved at 22:47Z (shard restore steps ran 2-3s; a 150MB deep restore takes materially longer) — and starved: 71,649 -> 13,359 discovered rows, 178 of 219 symbols lost, merge committed 01:28Z. Corrections recorded per doctrine: the quota-eviction theory reported overnight is dead (repo total ~330MB, the deleter was our own cleanup job, and prunes elsewhere don't exist — only the crypto live lane ever prunes); the shard-cache fingerprint was the empty futures lane, not the equities lane as first called. Shipped in this port: (1) equities-refresh cache key gains the `-equities-refresh-` infix and its cleanup jq deletes ONLY its own lineage (infix + the legacy bare run-id keys it used before today) — cross-lane hygiene stays with the crypto lane's keep-newest-2-per-family pruner, the only mechanism that never harmed a neighbor; (2) all 13 research-warehouse restore sites across the 9 research workflows now carry one ordered research-family restore list (research families first, the legacy bare prefix last, live-lane prefixes never listed); (3) every research warehouse restore step is `id: warehouse` and is followed by a "Refuse cross-lane warehouse cache" step that fails the run with ::error:: if `cache-matched-key` is a live-lane cache — silent starvation of a weekly discovery is no longer a possible posture, in any lane, under any future cache accident. Proof (sandbox + replayed on canonical): the guard probe under the runner's exact shell flags exits 1 with ::error:: on a live-lane key and passes research-family keys; the patcher asserted all 13 sites (9 workflows) before writing; all 15 workflow yamls parse post-edit; census greps: live-capture prefixes in research yamls = 0, guard occurrences = 13/9, equities-refresh key + scoped cleanup present 1/1. Probes survive contact: after this port, the first manual verification runs (crypto refresh 31243740963, futures refresh 31243762196, both green on 53fde6c) exercised the "Refuse cross-lane warehouse cache" step for real — it passed research-family matches and stayed out of the way, and the restore lists picked each workflow's own family cache in ~2s. Parked for the 2026-08-13 review: (a) 15m depth recovery — the surviving 150MB legacy cache (research-warehouse-v4-Linux-31222202649) stays reachable via the bare list-tail until its unused-TTL (~08-14); recommended default is letting the scheduled Friday refresh rebuild depth deterministically (~52-min cold precedent) rather than hero-migrating cache content — decision owed; (b) the dead `warehouse-v1` release seed — rebuild the asset or delete the seed steps everywhere (proven dead weight during the crypto outage); (c) futures lane's 200-byte empties until repopulated — harmless (research-only lane) but must not be taken for health; (d) "green != live book" joins "green != booked" as the standing posture lesson. Suites untouched (workflow yaml + this doc only).
 - **Cache-namespace follow-up (2026-08-08, same morning): nightly substring deleters caged within the hour they fired.** The two nightly refresh workflows' `cache-maintenance` jobs filtered deletions by substring — `contains("crypto")` / `contains("futures")` — which silently includes the LIVE LANE caches (`live-capture-crypto-`, `live-capture-futures-`). Proven against the public caches API inside 60 minutes: the crypto lane cache re-warmed at 05:36Z (`live-capture-crypto-31242009116`, 830KB, id 6443...) was deleted by the 06:23Z crypto-refresh maintenance, and both pre-existing futures lane caches were deleted by the 06:24Z futures-refresh maintenance — while the port-6-caged equities lineage and the 150MB legacy deep cache (research-warehouse-v4-Linux-31222202649) stood untouched (equities-refresh has not re-run since the scoping). Unpatched effect: crypto and futures live lanes cold-boot EVERY night at ~01:0xZ — post-mkdir-guard that is churn rather than outage, but exactly the cross-family conflation this doctrine outlaws, and it kept the futures lane hollow overnight. Fix: both jq filters now scope to their precise research family (`startswith("research-warehouse-v4-<os>-crypto-")` / `-futures-`): own refresh/discovery/merged lineages governed as before, live lanes excluded by construction. Patch produced against a byte-exact reconstruction of canonical content (sandbox fetch was momentarily corrupt; validity proven by round-trip apply). Field verification needs no log access: the public caches API shows `live-capture-crypto-*` surviving the next nightly refresh — it provably did NOT survive this one.
 - **Cache-maintenance jq precedence defect (2026-08-10, from two consecutive red maintenance runs — operator pastes of run 31338269099's annotation and the run list showing #31 red as well).** Root: the equities cleanup filter from the namespace repair used `select(.key | startswith(A) or (.key | test(B)))`; jq binds `|` tighter than `or`, so the right clause received the extracted key STRING as input and indexed `.key` into it — `Cannot index string with string "key"`, exit 5, on the FIRST cache-list element outside the family (list order is last-accessed-first, so the victim was the pip cache or a lane cache, never family). Deterministic, not environmental — proven by exact reproduction in the sandbox: the shipped filter, run against a synthetic 8-entry inventory mirroring the live one, dies with tonight's identical message and exit code (RED); the parenthesised rewrite exits 0 selecting exactly the superseded own-lineage ids and nothing else (GREEN). Blast radius: zero both nights — the crash precedes the first emitted id, so no delete ever ran; every lane cache, both new `equities-refresh` saves (~140MB each — the deep rebuild HAS materialised post-collapse), and the 151.7MB legacy pre-wipe cache all survived. Fail-safe by short-circuit luck, not by design. Corrections recorded visibly per doctrine: (1) my same-night "transient API error body" theory is dead — the payload was healthy; the control shows an error body yields the identical message on the shared `.[]`/`.key` shape, which is exactly why payload validation ships regardless; (2) my claim that run #31 had retired the legacy cache "by design" is dead — #31's maintenance crashed identically (inventory still shows id 6442797325); (3) my reading of #31 as green is dead — the run list shows both nights red, with the refresh jobs green throughout (caches saved, discoveries dispatched). Process lesson ledgered: the namespace port executed its restore guard RED->GREEN but verified the maintenance FILTER only textually (census greps, yaml parse); from this port on, every shipped filter is executed against a realistic synthetic payload before it leaves the sandbox. Cadence correction: equities-refresh is NIGHTLY (gate-gated deep/discovery work), not weekly as earlier notes said. Shipped in this port: (1) parenthesised jq clauses in the equities deleter; (2) the legacy bare-key `test(...)` clause REMOVED from that deleter — the last pre-wipe deep cache now rides to natural unused-TTL (~08-14) while the 15m depth verdict is open, because deleting the only pre-collapse copy ahead of that verdict is an unforced one-way door; (3) all three nightly deleters (equities/crypto/futures) now validate the list payload (`type == "array"` with `id`+`key` on every element, one 10s retry) and refuse loudly with ::error:: + exit 1 on an invalid payload — cleanup retries next schedule, and crypto/futures trade their silent `|| true` skip for the uniform loud refusal; the crypto live lane's hourly keep-2 pruner is deliberately untouched (already fail-safe: continue-on-error + empty-on-failure; hourly red noise on transient hiccups buys nothing). Proof: sandbox RED/GREEN as above + validator controls (valid array passes; error body refused exit 1; empty input refused exit 4). Field expectation: the next equities-refresh maintenance is green and deletes exactly the two superseded own-family saves (ids 6460503853, 6477885510) — nothing else; the legacy cache remains until TTL. Note for quota bookkeeping: the shared research restore list means every research family now restores the deep equities rebuild first, so crypto/futures family caches have grown to ~140MB as well — redundancy by design (the rebuilt depth is now replicated across four caches), total repo cache ~2GB, comfortably under quota. Suites untouched (workflow yaml + this doc only).
+2026-08-10 — Code-Truth Reconciliation (adversarial audit vs code at HEAD 6e51b20)
+--------------------------------------------------------------------
+This section reconciles the HANDOVER with the actual code at HEAD. It supersedes the
+specific stale lines listed below. Per the project's own doctrine, the HANDOVER is a
+living drift-guide; where it lags the code, trust the code and keep this section as the
+current record. Nothing here promotes any slice or authorizes real-money deployment.
+A paper-only, tradeable-gate-driven deployment is the current intended posture.
+
+----------------------------------------------------------------------
+1) The monitored book and the promotion mechanism (supersedes
+   "research never modifies monitored_slices.csv", "auto-promotion
+   disabled", "no slice promoted")
+----------------------------------------------------------------------
+Current truth (verified 2026-08-10):
+
+  - localdata/monitored_slices.csv is populated through the research-refresh
+    pipeline: research_refresh_equities.yml -> scripts/sync_monitored.py ->
+    research_lifecycle.apply_registry_to_monitored(promote_proposals=True),
+    which WRITES monitored_slices.csv. It is not read-only; it can and does
+    change the executable paper book.
+  - The registry union (1d/1h/15m merged candidate_registry.csv) currently
+    holds 215,599 rows: 169 paper_proposal, 8 decaying_suspended, the rest
+    research_only. The monitored book is 169 rows.
+  - Promotion intent is deliberate: the equity paper gate was opened from the
+    strict structural gate to the looser tradeable gate to raise paper trade
+    volume. The earlier "auto-promotion is disabled / research never touches
+    the book" wording describes a prior posture and is superseded.
+
+PAPER-ONLY. No slice is promoted in the structural/real-money sense. The
+tradeable-gate deployment is an out-of-sample evidence-accumulation book, not a
+promotion to live capital. The 5-completed-round-trips-per-slice bar still gates
+any real-money step.
+
+----------------------------------------------------------------------
+2) Provenance label fix (the mislabel)  [code changed 2026-08-10]
+----------------------------------------------------------------------
+Problem: historically every promoted row was stamped
+"auto_promoted_strict_candidate" regardless of which gate it cleared. Because
+the strict gate is much tighter than the tradeable gate, the source_note column
+overstated the evidence behind ~70% of the deployed book.
+
+Audit result on the live book (verified 2026-08-10):
+  - 51 of the 169 promoted slices clear _strict_candidate (structural evidence)
+  - 118 of the 169 clear only _tradeable_candidate (paper-volume gate)
+  - All 169 had been labeled auto_promoted_strict_candidate.
+
+Fix (scripts/research_lifecycle.py): apply_registry_to_monitored now resolves the
+label against the actual gate via the new helper _promotion_provenance_note():
+  - passes _strict_candidate            -> "auto_promoted_strict_candidate"
+  - passes only _tradeable_candidate    -> "auto_promoted_tradeable"
+  - otherwise                            -> "promoted_unverified"
+This changes ONLY the provenance label, never which rows are promoted. The next
+sync_monitored run will rewrite monitored_slices.csv with the corrected labels
+(51 strict / 118 tradeable); the row set (169) is unchanged.
+
+Lesson recorded for future agents: when a gate is relaxed to change trade
+frequency, the provenance/audit labels tied to the old gate must be updated at
+the same time, or the audit trail silently overstates the evidence behind the
+book.
+
+----------------------------------------------------------------------
+3) Exit / stop wiring — "Phase 1 gap" is CLOSED (supersedes the
+   "check_exits() not yet reading per-slice exit_horizon" and
+   "per-slice stop_atr_mult non-functional" notes)
+----------------------------------------------------------------------
+Verified at HEAD:
+  - Per-slice exit_horizon is read in position_manager.check_exits (via
+    lookup_slice_parameters) and honored, with fallback to the global
+    ExitPolicy.horizon_bars. Tests confirm the per-slice value overrides the
+    global default.
+  - Per-slice stop_atr_mult is read by stop_manager when placing the protective
+    stop, falling back to the global limits default.
+  - The monitored_slices.csv columns exit_horizon and stop_atr_mult are
+    populated for all rows at HEAD (the earlier "column not populated /
+    non-functional" wording predates this wiring).
+
+----------------------------------------------------------------------
+4) ProfitPolicy dangling forward-reference FIXED  [code changed 2026-08-10]
+----------------------------------------------------------------------
+Bug: ExitPolicy.profit_policy was annotated Optional['ProfitPolicy'] with
+ProfitPolicy never imported into position_manager.py. It did not crash normal
+execution, but any get_type_hints(ExitPolicy) raised
+NameError: name 'ProfitPolicy' is not defined. Fix: added
+from price.profit_protection import ProfitPolicy to position_manager.py.
+Verified: get_type_hints(ExitPolicy) now resolves.
+
+----------------------------------------------------------------------
+5) Ruff baseline is NOT clean at HEAD (corrects "ruff check clean repo-wide")
+----------------------------------------------------------------------
+ruff check src scripts tests currently reports ~75 findings. They are cosmetic
+(F401 unused imports, F811 redefinitions, E402 import position, E701, F741, F841)
+plus the one now-fixed F821 above. No functional defects among them. Note: ruff is
+not currently installed in the local environment, so the repeated "ruff check clean"
+claims in this HANDOVER are not reproducible as written. Treat them as superseded by
+"known-cosmetic lint debt; functional suite green (650 passed / 1 skipped at HEAD)."
+
+----------------------------------------------------------------------
+6) Workflow / scheduling corrections (minor)
+----------------------------------------------------------------------
+  - research_refresh_equities.yml is timeout-minutes: 300, NOT 360. (360 applies
+    to research_discovery_equities.yml and other research workflows.)
+  - Committed live_capture_crypto.yml has NO native schedule: trigger (workflow_dispatch
+    only). The earlier P0-F9 note about a native "30 */2" cron was superseded by the
+    move to cron-job.org; the committed YAML reflects dispatch-only. Scheduling is
+    external via cron-job.org.
+
+----------------------------------------------------------------------
+7) Data-source doctrine — current truth (supersedes the V1 "Tiingo primary
+   for 1d / Alpaca primary for intraday" line)
+----------------------------------------------------------------------
+Verified in src/price/data_sources.py:
+  - Equity 1d: yfinance primary -> Tiingo -> Alpaca raw (last resort)
+  - Equity 1h: yfinance primary (RTH, up to ~725 days) -> Alpaca 15m resample
+  - Equity 15m: Alpaca
+  - Futures: yfinance first, Alpaca fallback
+  - Crypto: yfinance first, Alpaca fallback
+  - Canonical FUT/* futures namespace routes as futures regardless of allowlist.
+The V1 decision-record text describing Tiingo as primary for 1d and Alpaca for
+intraday is superseded by the above (the data-source doctrine evolved to yfinance-
+first).
+
+----------------------------------------------------------------------
+8) Slice-count lineage
+----------------------------------------------------------------------
+The monitored equity book is 169 rows at HEAD (51 strict / 118 tradeable). Earlier
+counts in this HANDOVER (26, 91, 142, etc.) are historical snapshots of different
+stages, not current. Future readers should take the count from
+localdata/monitored_slices.csv rather than a fixed number in this file.
+
+----------------------------------------------------------------------
+READ-CODE-OVER-HANDOVER POINTER
+----------------------------------------------------------------------
+For future agents, the points where this file historically lagged the code (and is
+now corrected) are: promotion is live (not disabled), the book is tradeable-gate
+driven (51 strict / 118 tradeable), per-slice exit/stop wiring is implemented and
+tested, ruff is not clean, research_refresh_equities timeout is 300, and the data
+sources are yfinance-first. No slice is promoted to real money; deployment is
+paper-only and unchanged.
