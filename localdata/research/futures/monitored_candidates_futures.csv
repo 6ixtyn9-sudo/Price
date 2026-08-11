@@ -1,1 +1,3 @@
 symbol,timeframe,slice_combination,side,bin_mode,overall_regime_status,best_regime,best_regime_mean_ret_costadj,best_regime_p_value_nw,triage_bucket,valid_n,valid_mean_ret_costadj,valid_p_value_nw,walk_forward_pass_pattern,search_wide_bh_pass,search_wide_bonferroni_pass,source_note
+FUT/NQ,1h,state_ext=stretched_up + state_slope=uptrend,long,rolling,neutral_regime_candidate,neutral,0.0028749548657066104,0.0006996067477000878,parent_underperformed,49,0.0027849261412292,0.0099730240301123,1,False,False,neutral_regime_candidate
+FUT/NQ,1h,state_ext=stretched_up + state_vol=high_vol,long,rolling,neutral_regime_candidate,neutral,0.002751374511836703,0.0015224884559295049,parent_underperformed,49,0.0027849261412292,0.0099730240301123,1,False,False,neutral_regime_candidate

@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-10T00:32:23.823231+00:00",
+  "generated_at_utc": "2026-08-11T00:32:21.717751+00:00",
   "bin_mode": "rolling",
   "symbols": [
     "FUT/ES",
@@ -238,16 +238,16 @@
     }
   ],
   "regime_status_counts": {
-    "regime_switching_research_only": 100,
+    "regime_switching_research_only": 99,
     "unsupported": 30,
-    "neutral_regime_candidate": 1
+    "neutral_regime_candidate": 2
   },
   "regime_leaderboard_rows": {
     "bull": 131,
     "bear": 131,
     "neutral": 131
   },
-  "regime_candidate_count": 1,
+  "regime_candidate_count": 2,
   "top_regime_candidates": [
     {
       "symbol": "FUT/NQ",
@@ -256,17 +256,28 @@
       "side": "long",
       "overall_regime_status": "neutral_regime_candidate",
       "best_regime": "neutral",
-      "best_regime_mean_ret_costadj": 0.0028094176251581286,
-      "best_regime_p_value_nw": 0.0008272642758726523,
+      "best_regime_mean_ret_costadj": 0.0028749548657066104,
+      "best_regime_p_value_nw": 0.0006996067477000878,
+      "walk_forward_pass_pattern": "1"
+    },
+    {
+      "symbol": "FUT/NQ",
+      "timeframe": "1h",
+      "slice_combination": "state_ext=stretched_up + state_vol=high_vol",
+      "side": "long",
+      "overall_regime_status": "neutral_regime_candidate",
+      "best_regime": "neutral",
+      "best_regime_mean_ret_costadj": 0.002751374511836703,
+      "best_regime_p_value_nw": 0.0015224884559295049,
       "walk_forward_pass_pattern": "1"
     }
   ],
-  "monitored_candidate_count": 1,
+  "monitored_candidate_count": 2,
   "monitored_candidate_symbols": [
     "FUT/NQ"
   ],
   "monitored_candidate_status_counts": {
-    "neutral_regime_candidate": 1
+    "neutral_regime_candidate": 2
   },
   "top_monitored_candidates": [
     {
@@ -276,8 +287,20 @@
       "side": "long",
       "overall_regime_status": "neutral_regime_candidate",
       "best_regime": "neutral",
-      "best_regime_mean_ret_costadj": 0.0028094176251581286,
-      "best_regime_p_value_nw": 0.0008272642758726523,
+      "best_regime_mean_ret_costadj": 0.0028749548657066104,
+      "best_regime_p_value_nw": 0.0006996067477000878,
+      "triage_bucket": "parent_underperformed",
+      "walk_forward_pass_pattern": "1"
+    },
+    {
+      "symbol": "FUT/NQ",
+      "timeframe": "1h",
+      "slice_combination": "state_ext=stretched_up + state_vol=high_vol",
+      "side": "long",
+      "overall_regime_status": "neutral_regime_candidate",
+      "best_regime": "neutral",
+      "best_regime_mean_ret_costadj": 0.002751374511836703,
+      "best_regime_p_value_nw": 0.0015224884559295049,
       "triage_bucket": "parent_underperformed",
       "walk_forward_pass_pattern": "1"
     }
