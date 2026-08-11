@@ -8,8 +8,6 @@ name: Live Capture Equities (15m Scan)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/15 * * * *"
 
 concurrency:
   # Shared with the hourly live-capture so the scan and the capture never run
