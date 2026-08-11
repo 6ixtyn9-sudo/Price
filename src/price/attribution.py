@@ -49,7 +49,21 @@ LIVE_FORWARD_RETURNS_PATH = DATA_DIR / "live_forward_returns.csv"
 CANDIDATE_LEADERBOARD_PATH = DATA_DIR / "candidate_leaderboard.csv"
 
 # Below this many round-trips, per-slice stats are flagged as preliminary.
+# Timeframe-aware (2026-08-10): intraday slices accumulate round-trips fast
+# (multiple per day), so a flat floor of 5 reaches trust too quickly and admits
+# noise. 1d fires a few times a month and stays at 5. 1h at 15, 15m at 20.
 MIN_ROUND_TRIPS_FOR_STATS = 5
+# Round-trip evidence floor per timeframe, overriding MIN_ROUND_TRIPS_FOR_STATS.
+# A slice's stats are non-preliminary only once it clears its timeframe's floor.
+ROUND_TRIPS_BY_TIMEFRAME = {"1h": 15, "15m": 20, "1d": 5}
+
+
+def _round_trips_floor(timeframe: str) -> int:
+    """Evidence floor for a timeframe: intraday needs far more round-trips than
+    daily before its stats are trusted (intraday is noisier and accumulates
+    faster). Unknown/empty timeframe falls back to the daily-ish default."""
+    tf = str(timeframe or "").strip()
+    return ROUND_TRIPS_BY_TIMEFRAME.get(tf, MIN_ROUND_TRIPS_FOR_STATS)
 
 # Exit-reason timeframe tag: check_exits stamps the DECIDING context's
 # timeframe into horizon/hold reasons ("... (1h)"). When a symbol is shared
@@ -586,7 +600,7 @@ def attribute_pnl(
             realized_slippage_bps=slip,
             net_of_cost_return=net,
             net_of_cost_note=cost_note,
-            preliminary=n < MIN_ROUND_TRIPS_FOR_STATS,
+            preliminary=n < _round_trips_floor(first.timeframe),
             timeframe=first.timeframe,
             bin_mode=first.bin_mode,
             signal_to_fill_bps=signed_gap.get(key),

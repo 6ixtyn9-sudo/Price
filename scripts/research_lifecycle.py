@@ -267,6 +267,17 @@ def _tradeable_candidate(row: pd.Series) -> bool:
     )
 
 
+def _round_trips_floor(timeframe) -> int:
+    """Evidence floor before a slice can be decayed/judged, by timeframe.
+
+    Intraday (1h/15m) accumulates round-trips fast and is noisier, so it needs
+    far more completed round-trips than daily before its live performance is
+    trusted enough to cull it. Mirrors attribution's timeframe-aware bar.
+    """
+    tf = str(timeframe or "").strip()
+    return {"1h": 15, "15m": 20, "1d": 5}.get(tf, 5)
+
+
 def _live_decay_keys(path: Path = LIVE_FORWARD_PATH, min_completed: int = 5) -> set[str]:
     if not path.exists():
         return set()
@@ -287,11 +298,16 @@ def _live_decay_keys(path: Path = LIVE_FORWARD_PATH, min_completed: int = 5) -> 
     if df.empty:
         return set()
     grouped = df.groupby(["symbol", "timeframe", "slice_combination", "bin_mode"])
-    return {
-        "|".join(map(str, key))
-        for key, group in grouped
-        if len(group) >= min_completed and group[return_col].mean() <= 0
-    }
+    out: set[str] = set()
+    for key, group in grouped:
+        # key = (symbol, timeframe, slice_combination, bin_mode). Effective floor
+        # is the timeframe-aware bar (1d=5, 1h=15, 15m=20); the passed
+        # min_completed acts as a floor for unknown/empty timeframes.
+        tf = str(key[1] or "").strip()
+        floor = {"1h": 15, "15m": 20, "1d": 5}.get(tf, min_completed)
+        if len(group) >= floor and group[return_col].mean() <= 0:
+            out.add("|".join(map(str, key)))
+    return out
 
 
 def _pnl_decay_keys(
@@ -334,7 +350,10 @@ def _pnl_decay_keys(
 
     decaying: set[str] = set()
     for key, trips in by_key.items():
-        if len(trips) < min_completed:
+        # key = symbol|timeframe|slice_combination|bin_mode
+        tf = key.split("|")[1] if len(key.split("|")) > 1 else ""
+        floor = {"1h": 15, "15m": 20, "1d": 5}.get(tf.strip(), min_completed)
+        if len(trips) < floor:
             continue
         # Direction-adjusted mean return: positive gross_return means the
         # trade made money relative to notional, correctly signed for shorts.
