@@ -12,8 +12,12 @@ on:
     - cron: "*/15 * * * *"
 
 concurrency:
-  group: live-scan-15m
-  cancel-in-progress: true
+  # Shared with the hourly live-capture so the scan and the capture never run
+  # simultaneously (both write + push the same localdata CSVs to main). With
+  # cancel-in-progress: false, a scan that dispatches while a capture is running
+  # QUEUES behind it and runs after -- no git-push conflict, no lost scan.
+  group: live-capture
+  cancel-in-progress: false
 
 defaults:
   run:
