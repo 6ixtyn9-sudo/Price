@@ -1,0 +1,184 @@
+name: Live Capture Equities (15m Scan)
+
+# Scan-only companion to the hourly full capture. Runs paper_trade.py +
+# live_forward_returns.py against the warehouse that the hourly live-capture
+# refreshed, at a 15-minute cadence so 15m slices are evaluated promptly
+# WITHOUT re-capturing data (avoids Alpaca/Tiingo rate-limit pressure). The
+# hourly live_capture_equities.yml owns capture; this workflow only scans.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+concurrency:
+  group: live-scan-15m
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Restore warehouse cache (scan-only, no re-capture)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: localdata/warehouse
+          key: research-warehouse-v4-${{ runner.os }}-live-capture-equities-${{ github.run_id }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-live-capture-equities-
+            research-warehouse-v4-${{ runner.os }}-live-capture-equities-*
+
+      - name: Restore operational paper state cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+          : "${TIINGO_API_KEY:?Missing repository secret TIINGO_API_KEY}"
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked by git. Remove it with: git rm --cached .env"
+            exit 1
+          fi
+
+      # Scan against the warehouse restored from the hourly capture's cache.
+      # No capture_bars here -- data freshness is owned by the hourly workflow.
+
+      - name: Run paper trade (scan-only)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          python scripts/paper_trade.py \
+            --max-notional 2500 --max-open 12 --max-daily-loss 500 \
+            --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
+            --max-per-group 3 \
+            --max-per-sector 4 \
+            --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 --trail-adaptive \
+            --max-aggregate-risk-pct 0.03 --whipsaw-limit 2 \
+            --cost-spread-bps 1.5 --cost-slippage-bps 5.0 --allow-shorts \
+            --take-profit-r 3.0 \
+            --eod-profit-lock-r 0.75 \
+            --eod-lock-minutes 45 \
+            --giveback-trigger-r 2.0 \
+            --max-giveback-r 1.0 \
+            --pure-horizon-exits \
+            --regime-filter
+
+      - name: Run live forward-return capture
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          python scripts/live_forward_returns.py --universe-source monitored
+
+      - name: Check operational paper state cache content
+        id: ops_state
+        run: |
+          shopt -s nullglob
+          files=(
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          )
+          echo "has_state=false" >> "$GITHUB_OUTPUT"
+          for f in "${files[@]}"; do
+            if [ -s "$f" ]; then
+              echo "has_state=true" >> "$GITHUB_OUTPUT"
+              break
+            fi
+          done
+
+      - name: Save operational paper state cache
+        if: ${{ steps.ops_state.outputs.has_state == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Commit scan outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          files=(
+            localdata/live_forward_returns.csv
+            localdata/monitored_edge_metrics.csv
+            localdata/monitored_slices.csv
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          )
+          existing=()
+          for f in "${files[@]}"; do
+            [ -e "$f" ] && existing+=("$f")
+          done
+          if ((${#existing[@]})); then
+            git add "${existing[@]}"
+          fi
+          if git diff --cached --quiet; then
+            echo "No scan output changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(live-scan-15m): update scan output [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
+            if [ "$attempt" = 3 ]; then
+              echo "::error::git push failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
