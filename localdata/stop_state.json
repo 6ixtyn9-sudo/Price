@@ -124,5 +124,33 @@
     "stop_order_id": "1ce6e6f9-a255-44fe-953e-8df7bee798da",
     "opened_at": "2026-08-10T18:21:31.735542+00:00",
     "updated_at": "2026-08-10T18:21:31.735542+00:00"
+  },
+  "PDD": {
+    "symbol": "PDD",
+    "side": "long",
+    "qty": 16.0,
+    "entry_price": 91.24,
+    "initial_stop_price": 82.89522729047397,
+    "current_stop_price": 82.89522729047397,
+    "r_per_share": 8.344772709526023,
+    "stage": "initial",
+    "extreme_price": 91.24,
+    "stop_order_id": "67e01a4e-e0d3-47e7-b27e-b6a2f58272e9",
+    "opened_at": "2026-08-11T13:32:45.050906+00:00",
+    "updated_at": "2026-08-11T13:32:45.050906+00:00"
+  },
+  "VOO": {
+    "symbol": "VOO",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 711.48,
+    "initial_stop_price": 677.7847158585607,
+    "current_stop_price": 677.7847158585607,
+    "r_per_share": 33.69528414143934,
+    "stage": "initial",
+    "extreme_price": 711.48,
+    "stop_order_id": "640017fe-d9e5-4fc1-a1ff-b694478de7dc",
+    "opened_at": "2026-08-11T13:32:45.765091+00:00",
+    "updated_at": "2026-08-11T13:32:45.765091+00:00"
   }
 }
