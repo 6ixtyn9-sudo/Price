@@ -226,11 +226,22 @@ def _strict_candidate(row: pd.Series) -> bool:
     Requires clean_survivor triage, 3/4 walk-forward, 4+ scenarios, BH-FDR.
     This gate produces candidates with multi-regime structural evidence.
     """
+    triage = _clean(row.get("triage_bucket"))
+    if triage.startswith("clean_survivor"):
+        pass
+    else:
+        return False
+    # Intraday (15m/1h) is allowed a slightly softer strict bar so more
+    # high-frequency candidates can enter the research pool; daily keeps the
+    # full structural bar.
+    tf = str(row.get("timeframe") or "").strip()
+    intraday = tf in ("15m", "1h")
+    wf_floor = 2 if intraday else 3
+    scen_floor = 2 if intraday else 4
     return (
-        _clean(row.get("triage_bucket")).startswith("clean_survivor")
-        and _num(row.get("valid_n"), 0) >= 15
-        and _num(row.get("walk_forward_pass_count"), 0) >= 3
-        and _num(row.get("scenario_survived_count"), 0) >= 4
+        _num(row.get("valid_n"), 0) >= 15
+        and _num(row.get("walk_forward_pass_count"), 0) >= wf_floor
+        and _num(row.get("scenario_survived_count"), 0) >= scen_floor
         and _num(row.get("valid_excess_vs_baseline"), -1) > 0
         and _num(row.get("valid_excess_vs_best_parent"), -1) > 0
         and _truthy(row.get("search_wide_bh_pass", False))
@@ -251,16 +262,30 @@ def _tradeable_candidate(row: pd.Series) -> bool:
     across ALL market regimes — surviving even 1 fold is a harder test
     than a cross-conditioned slice surviving 2. The gate reflects this:
     standalone WF≥1, cross-conditioned WF≥2.
+
+    INTRAday relaxation (2026-08-10): to admit more 15m/1h candidates for
+    paper volume, intraday timeframes get a softer floor — scenario≥1 and
+    walk-forward≥1 (for both standalone and cross). Daily keeps the stricter
+    floors (scenario≥3, standalone WF≥1 / cross WF≥2). The higher intraday
+    ROUND-TRIP evidence floor (1h=15, 15m=20) is the compensating safety net
+    before such a slice's live stats are trusted or it can be decayed.
     """
     triage = _clean(row.get("triage_bucket"))
     combo = _clean(row.get("slice_combination"))
     is_standalone = "cross_" not in combo
-    wf_floor = 1 if is_standalone else 2
+    tf = str(row.get("timeframe") or "").strip()
+    intraday = tf in ("15m", "1h")
+    if intraday:
+        wf_floor = 1
+        scen_floor = 1
+    else:
+        wf_floor = 1 if is_standalone else 2
+        scen_floor = 3
     return (
         (triage.startswith("clean_survivor") or triage.startswith("late_emerging"))
         and _num(row.get("valid_n"), 0) >= 15
         and _num(row.get("walk_forward_pass_count"), 0) >= wf_floor
-        and _num(row.get("scenario_survived_count"), 0) >= 3
+        and _num(row.get("scenario_survived_count"), 0) >= scen_floor
         and _num(row.get("valid_excess_vs_baseline"), -1) > 0
         and _num(row.get("valid_excess_vs_best_parent"), -1) > 0
         and _truthy(row.get("search_wide_bh_pass", False))
