@@ -1,7 +1,10 @@
 {
   "previous_book_count": 169,
-  "new_book_count": 169,
-  "added_candidates": [],
+  "new_book_count": 171,
+  "added_candidates": [
+    "HUM|15m|state_volume=vol_surge + state_ext=stretched_up|long|rolling",
+    "XLI|15m|state_session=afternoon + state_slope=downtrend + state_vol=mid_vol|long|rolling"
+  ],
   "removed_candidates": [],
   "retained_candidates": [
     "ABBV|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=low_vol|long|rolling",
@@ -176,6 +179,9 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {},
-  "promotion_reasons": {},
+  "promotion_reasons": {
+    "HUM|15m|state_volume=vol_surge + state_ext=stretched_up|long|rolling": "paper_proposal",
+    "XLI|15m|state_session=afternoon + state_slope=downtrend + state_vol=mid_vol|long|rolling": "paper_proposal"
+  },
   "discovery_run_id": null
 }
