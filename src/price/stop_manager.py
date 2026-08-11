@@ -488,9 +488,10 @@ def reconcile_stops(
         atr = _resolve_atr_for_symbol(symbol, timeframe)
         k_trail = getattr(limits, "trail_atr_multiple", 3.0)
         breakeven_r = getattr(limits, "breakeven_trigger_r", 1.0)
+        trail_adaptive = bool(getattr(limits, "trail_adaptive", False))
         updated = update_trailing_stop(
             existing, current_price, atr, k_trail=k_trail,
-            breakeven_trigger_r=breakeven_r,
+            breakeven_trigger_r=breakeven_r, adaptive=trail_adaptive,
         )
 
         qty_changed = abs(float(existing.qty) - qty) > 1e-9

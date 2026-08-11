@@ -98,6 +98,11 @@ class RiskLimits:
     # once a trade has reached +1R. Looser than the entry stop on purpose,
     # so a real trend has room to run instead of being capped.
     trail_atr_multiple: float = 3.0
+    # Adaptive trailing stop (2026-08-10): when True, scale the trailing-stop
+    # distance by volatility relative to price (ATR%). Low-vol names trail
+    # tighter (lock more of the run); high-vol names trail looser (give a
+    # volatile winner room). Default False = current static k_trail behaviour.
+    trail_adaptive: bool = False
     # Unrealized R-multiple that triggers the move-to-breakeven ratchet.
     breakeven_trigger_r: float = 1.0
     # Max aggregate open risk (sum of every open position's CURRENT stop

@@ -223,7 +223,8 @@ def new_stop_state(symbol: str, side: str, qty: float, entry_price: float,
 def update_trailing_stop(state: StopState, current_price: float,
                           atr: Optional[float],
                           k_trail: float = DEFAULT_TRAIL_ATR_MULT,
-                          breakeven_trigger_r: float = BREAKEVEN_TRIGGER_R) -> StopState:
+                          breakeven_trigger_r: float = BREAKEVEN_TRIGGER_R,
+                          adaptive: bool = False) -> StopState:
     """Recompute the desired stop for `state` given the latest price/ATR.
 
     Pure function; returns a NEW StopState and never mutates the input.
@@ -235,6 +236,17 @@ def update_trailing_stop(state: StopState, current_price: float,
     If `current_price` is worse than the current stop, the caller is
     expected to have already exited the trade via the broker-side stop;
     this function still returns a valid (unchanged) state defensively.
+
+    adaptive=True (2026-08-10): scale k_trail by volatility RELATIVE to
+    price (ATR%). A fixed k_trail is "static" in the sense the operator
+    flagged -- a 3*ATR trail means something very different on a calm
+    $500 name (tight) vs a wild $20 name (loose). Adaptive mode keeps the
+    chandelier structure but makes the trailing distance respond to the
+    name's own volatility regime: low ATR% -> tighter trail (lock profits
+    sooner, keep more of the run), high ATR% -> looser trail (give a
+    volatile winner room to breathe before the trail cuts it). The base
+    k_trail still anchors the mapping, so it is a smooth deformation of
+    the current behaviour, not a new regime.
 
     KNOWN SHARP EDGE (documented, not a bug -- found during adversarial
     review): the trail distance is recomputed from the CURRENT ATR every
@@ -270,13 +282,28 @@ def update_trailing_stop(state: StopState, current_price: float,
             stage = "breakeven"
 
         if atr is not None and atr == atr and atr > 0:
+            # Adaptive trail (2026-08-10): scale the trail distance by
+            # volatility RELATIVE to price. Low ATR% -> tighter trail
+            # (lock more of the run); high ATR% -> looser trail (give a
+            # volatile winner room). Clamp the multiplier to a sane band
+            # so a degenerate ATR% can never explode the distance.
+            eff_k = k_trail
+            if adaptive:
+                entry = float(state.entry_price)
+                if entry == entry and entry > 0:
+                    atr_pct = atr / entry
+                    # base anchor: ~3% daily vol -> multiplier 1.0.
+                    # ±~50% band, clamped to [0.5, 2.0].
+                    mult = 0.5 + (atr_pct / 0.03)
+                    mult = max(0.5, min(2.0, mult))
+                    eff_k = k_trail * mult
             if long:
-                chandelier = extreme - k_trail * atr
+                chandelier = extreme - eff_k * atr
                 if chandelier > candidate_stop:
                     candidate_stop = chandelier
                     stage = "trailing"
             else:
-                chandelier = extreme + k_trail * atr
+                chandelier = extreme + eff_k * atr
                 if chandelier < candidate_stop:
                     candidate_stop = chandelier
                     stage = "trailing"

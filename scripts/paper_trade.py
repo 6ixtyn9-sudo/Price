@@ -470,6 +470,12 @@ def main() -> int:
                         "a position is filled and enforced as a REAL resting broker-side stop order "
                         "(not just checked on the next scan). Default 2.0. This is also the per-share R "
                         "for the trade: R_dollars = stop_atr_mult * ATR * qty.")
+    parser.add_argument("--trail-adaptive", action="store_true",
+                        help="Use a volatility-adaptive trailing stop: scale the "
+                             "trailing-stop distance by ATR% so low-vol names trail "
+                             "tighter (lock more of the run) and high-vol names trail "
+                             "looser (give a volatile winner room). Default off "
+                             "(static k_trail).")
     parser.add_argument("--trail-atr-mult", type=float, default=3.0,
                         help="Chandelier trailing-stop distance, in multiples of ATR(14), active only "
                         "once a trade has reached --breakeven-trigger-r. Looser than the initial stop by "
@@ -622,6 +628,7 @@ def main() -> int:
         max_positions_per_sector=args.max_per_sector,
         stop_atr_multiple=args.stop_atr_mult,
         trail_atr_multiple=args.trail_atr_mult,
+        trail_adaptive=args.trail_adaptive,
         breakeven_trigger_r=args.breakeven_trigger_r,
         max_aggregate_open_risk_pct=(
             args.max_aggregate_risk_pct if args.max_aggregate_risk_pct > 0 else None
