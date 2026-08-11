@@ -195,20 +195,6 @@
     "opened_at": "2026-08-11T15:25:45.811249+00:00",
     "updated_at": "2026-08-11T15:25:45.811249+00:00"
   },
-  "MRK": {
-    "symbol": "MRK",
-    "side": "long",
-    "qty": 7.0,
-    "entry_price": 130.27,
-    "initial_stop_price": 127.30035714285718,
-    "current_stop_price": 127.30035714285718,
-    "r_per_share": 2.9696428571428255,
-    "stage": "initial",
-    "extreme_price": 130.27,
-    "stop_order_id": "535a50b5-5c38-4d8b-b924-5a3c90330ae5",
-    "opened_at": "2026-08-11T15:25:46.002007+00:00",
-    "updated_at": "2026-08-11T15:25:46.002007+00:00"
-  },
   "KO": {
     "symbol": "KO",
     "side": "long",
