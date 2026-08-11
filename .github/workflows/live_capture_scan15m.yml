@@ -149,38 +149,3 @@ jobs:
             localdata/stopout_journal.json
             localdata/cooldown_journal.json
           key: live-ops-state-v1-${{ runner.os }}-${{ github.run_id }}
-
-      - name: Commit scan outputs
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          files=(
-            localdata/live_forward_returns.csv
-            localdata/monitored_edge_metrics.csv
-            localdata/monitored_slices.csv
-            localdata/trade_journal.csv
-            localdata/paper_trade_log.csv
-            localdata/stop_state.json
-            localdata/stopout_journal.json
-            localdata/cooldown_journal.json
-          )
-          existing=()
-          for f in "${files[@]}"; do
-            [ -e "$f" ] && existing+=("$f")
-          done
-          if ((${#existing[@]})); then
-            git add "${existing[@]}"
-          fi
-          if git diff --cached --quiet; then
-            echo "No scan output changes to commit."
-            exit 0
-          fi
-          git commit -m "chore(live-scan-15m): update scan output [skip ci]"
-          for attempt in 1 2 3; do
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
-            if [ "$attempt" = 3 ]; then
-              echo "::error::git push failed after 3 attempts"
-              exit 1
-            fi
-            sleep $((attempt * 5))
-          done
