@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: live-capture
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 defaults:
   run:
