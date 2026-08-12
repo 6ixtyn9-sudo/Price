@@ -69,20 +69,6 @@
     "opened_at": "2026-08-11T15:25:45.811249+00:00",
     "updated_at": "2026-08-11T15:25:45.811249+00:00"
   },
-  "KO": {
-    "symbol": "KO",
-    "side": "long",
-    "qty": 10.0,
-    "entry_price": 86.77,
-    "initial_stop_price": 85.17176161531577,
-    "current_stop_price": 85.17176161531577,
-    "r_per_share": 1.5982383846842183,
-    "stage": "initial",
-    "extreme_price": 86.77,
-    "stop_order_id": "41276b3d-9e53-4b98-a8d5-20ee71f98f73",
-    "opened_at": "2026-08-11T17:16:54.932376+00:00",
-    "updated_at": "2026-08-11T17:16:54.932376+00:00"
-  },
   "XME": {
     "symbol": "XME",
     "side": "long",
