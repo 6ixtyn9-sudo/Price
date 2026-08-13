@@ -13,20 +13,6 @@
     "opened_at": "2026-08-10T18:21:31.005215+00:00",
     "updated_at": "2026-08-10T18:21:31.005215+00:00"
   },
-  "XYZ": {
-    "symbol": "XYZ",
-    "side": "long",
-    "qty": 23.0,
-    "entry_price": 78.86,
-    "initial_stop_price": 74.65325076511928,
-    "current_stop_price": 74.65325076511928,
-    "r_per_share": 4.20674923488072,
-    "stage": "initial",
-    "extreme_price": 78.86,
-    "stop_order_id": "1ce6e6f9-a255-44fe-953e-8df7bee798da",
-    "opened_at": "2026-08-10T18:21:31.735542+00:00",
-    "updated_at": "2026-08-10T18:21:31.735542+00:00"
-  },
   "PDD": {
     "symbol": "PDD",
     "side": "long",
