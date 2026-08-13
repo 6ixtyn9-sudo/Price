@@ -528,3 +528,46 @@ def test_cross_timeframe_exit_context_is_flagged(tmp_path):
     assert rts["SBUX"]["exit_context_timeframe"] == "1d"
     hits = [n for n in rep["notes"] if "different timeframe" in n]
     assert len(hits) == 1 and hits[0].startswith("1 round-trip")
+
+
+def test_round_trip_timing_buckets_exit_side():
+    """The timing profile buckets realized P&L by exit-side NYSE hour and
+    day-of-week (the metrics-mining step of the momentum doctrine)."""
+    j = _journal([
+        {"symbol": "XLF", "qty": 10, "side": "buy", "action": "entry",
+         "submitted_at": "2026-07-01T13:00:00Z", "avg_entry_price": 100.0,
+         "slice_label": "s"},
+        {"symbol": "XLF", "qty": 10, "side": "sell", "action": "exit",
+         "submitted_at": "2026-07-01T14:45:00Z", "current_price": 102.0,
+         "slice_label": "s"},  # 14:45 UTC = 10:45 ET -> "10_11"
+        {"symbol": "XOP", "qty": 5, "side": "buy", "action": "entry",
+         "submitted_at": "2026-07-02T13:30:00Z", "avg_entry_price": 50.0,
+         "slice_label": "s"},
+        {"symbol": "XOP", "qty": 5, "side": "sell", "action": "exit",
+         "submitted_at": "2026-07-02T19:00:00Z", "current_price": 48.0,
+         "slice_label": "s"},  # 19:00 UTC = 15:00 ET -> "15_close"
+    ])
+    report = attribute_pnl(journal=j)
+    timing = report["timing"]
+    h = timing["by_exit_hour_et"]
+    assert h["10_11"]["n_round_trips"] == 1
+    assert h["10_11"]["total_pnl"] == 20.0
+    assert h["15_close"]["n_round_trips"] == 1
+    assert h["15_close"]["total_pnl"] == -10.0
+    assert h["15_close"]["win_rate"] == 0.0
+    d = timing["by_exit_dow"]
+    assert sum(v["n_round_trips"] for v in d.values()) == 2
+    assert "TIMING PROFILE" in format_report(report)
+
+
+def test_round_trip_timing_graceful_with_empty_journal():
+    """Zero round-trips -> empty timing buckets, no crash, report renders."""
+    j = _journal([
+        {"symbol": "XOP", "qty": 16, "side": "buy", "action": "entry",
+         "submitted_at": "2026-07-05T10:00:00Z",
+         "slice_label": "state_ext=stretched_down + state_slope=downtrend"},
+    ])
+    report = attribute_pnl(journal=j)
+    assert report["timing"]["by_exit_hour_et"] == {}
+    assert report["timing"]["by_exit_dow"] == {}
+    assert "TIMING PROFILE" not in format_report(report)

@@ -148,6 +148,21 @@ def compute_price_features(df: pd.DataFrame) -> pd.DataFrame:
     df['feat_volume_rel'] = df['feat_volume_rel'].replace([np.inf, -np.inf], np.nan)
 
     df['feat_gap'] = (close / close.shift(1)) - 1.0
+    # True OPEN-to-prior-CLOSE gap. feat_gap compares close-to-close (a
+    # full-period return, not a gap); the momentum-selection doctrine
+    # (Warrior Trading 5-pillar guide, 2026-08) keys demand on the OPEN vs
+    # the PRIOR CLOSE: a stock gapping up >=2% from the prior close carries
+    # overnight demand that has not yet been traded. On intraday bars the
+    # session's first bar carries the overnight gap; later bars are near
+    # zero by construction (low-information state, harmless). Missing
+    # open_adj (e.g. legacy synthetic fixtures) degrades to NaN -> the
+    # state bins to its neutral fallback downstream, never a crash.
+    if 'open_adj' in df.columns:
+        _gap_open = (df['open_adj'] / close.shift(1)) - 1.0
+        # Guard degenerate denominators (zero/NaN prior close): an inf
+        # ratio must degrade to NaN (neutral state downstream), never to
+        # a spurious extreme gap bucket.
+        df['feat_gap_open'] = _gap_open.replace([np.inf, -np.inf], np.nan)
     df['feat_range_position'] = (close - low) / (high - low + 1e-8)
 
     # ── T5 macro-event blackout flag (pure risk control, no lookahead) ──

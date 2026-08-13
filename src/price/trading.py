@@ -13,6 +13,7 @@ It does NOT:
 """
 
 import hashlib
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -430,33 +431,109 @@ def submit_entry(
         _append_journal(result, action="entry")
         return result
 
+    # 2b. Duplicate client_order_id protection (2026-08-13). The id is
+    # deterministic per (symbol|timeframe|side|bin_mode|slice|entry bar),
+    # so while a signal bar persists every hourly scan derives the SAME
+    # id. Alpaca rejects reused ids (40010001 "client_order_id must be
+    # unique") even when the earlier order was rejected/canceled/expired —
+    # observed 2026-08-11 on WMT: 10 identical rejections over ~90 minutes
+    # while the daily signal bar was static. Two defenses, both fail-open
+    # on API trouble (the broker remains the authority):
+    #   1. If an order for this exact signal (base id or any prior retry
+    #      suffix) is ALREADY RESTING at the broker, do not re-submit —
+    #      return a blocked result without touching the broker.
+    #   2. If the base id was used before (any prior journal row sharing
+    #      it), append a monotonic retry suffix (-r2, -r3, ...) so a
+    #      genuinely re-issued attempt gets a fresh unique id instead of
+    #      a guaranteed broker-side 400. Uniqueness is all the suffix
+    #      needs; the `price-{lane}-` prefix (and the limit-type guard in
+    #      paper_trade._revalidate_pending_entries) still match, so stale
+    #      resting retries remain cancelable.
+    cid_base = client_order_id
+    try:
+        _prior_attempts = 0
+        # Read ONLY the client_order_id column: loading the whole journal
+        # per submission is wasteful as the ledger grows, and a malformed
+        # row in any other column must never block an entry.
+        _jpath = Path(TRADE_JOURNAL_PATH)
+        if _jpath.exists():
+            _jrows = pd.read_csv(_jpath, usecols=["client_order_id"])
+            if not _jrows.empty and "client_order_id" in _jrows.columns:
+                _prior_attempts = int(
+                    _jrows["client_order_id"].astype(str).str.startswith(cid_base).sum()
+                )
+    except Exception:  # noqa: BLE001 - journal read must never block an entry
+        _prior_attempts = 0
+    if _prior_attempts > 0:
+        client_order_id = f"{cid_base}-r{_prior_attempts + 1}"
+
+    try:
+        _open_orders = get_open_orders()
+        _resting_same_signal = (
+            not _open_orders.empty
+            and "client_order_id" in _open_orders.columns
+            and _open_orders["client_order_id"].astype(str).str.startswith(cid_base).any()
+        )
+        if _resting_same_signal:
+            result = {
+                "order_id": None,
+                "symbol": symbol.upper(),
+                "qty": qty,
+                "side": side,
+                "order_type": "blocked",
+                "limit_price": limit_price,
+                "status": "rejected",
+                "error": (
+                    "duplicate_pending_entry: an entry order for this signal "
+                    f"(client_order_id {cid_base}*) is already resting at the "
+                    "broker; skipping duplicate submission"
+                ),
+                "slice_label": slice_label,
+                "entry_bar_ts": entry_bar_ts,
+                "timeframe": timeframe,
+                "bin_mode": bin_mode,
+                "exit_horizon": exit_horizon if exit_horizon is not None else 5,
+                "stop_atr_mult": stop_atr_mult,
+                "client_order_id": cid_base,
+            }
+            _append_journal(result, action="entry")
+            return result
+    except Exception:  # noqa: BLE001 - fail open: the broker remains authoritative
+        pass
+
     client = get_trading_client()
 
-    if limit_price is not None:
-        # Alpaca requires limit_price to have at most 2 decimals when >= $1.00,
-        # and at most 4 decimals when < $1.00.
-        rounded_limit = round(float(limit_price), 2 if limit_price >= 1.0 else 4)
+    def _build_order(cid):
+        """Build the entry order request for a given client_order_id."""
         # Crypto pairs need GTC — Alpaca rejects DAY for crypto (422: invalid time_in_force)
         tif = TimeInForce.GTC if "/" in symbol else TimeInForce.DAY
-        order_data = LimitOrderRequest(
-            symbol=symbol.upper(),
-            qty=qty,
-            side=order_side,
-            time_in_force=tif,
-            limit_price=rounded_limit,
-            client_order_id=client_order_id,
+        if limit_price is not None:
+            # Alpaca requires limit_price to have at most 2 decimals when >= $1.00,
+            # and at most 4 decimals when < $1.00.
+            rounded_limit = round(float(limit_price), 2 if limit_price >= 1.0 else 4)
+            return (
+                LimitOrderRequest(
+                    symbol=symbol.upper(),
+                    qty=qty,
+                    side=order_side,
+                    time_in_force=tif,
+                    limit_price=rounded_limit,
+                    client_order_id=cid,
+                ),
+                "limit",
+            )
+        return (
+            MarketOrderRequest(
+                symbol=symbol.upper(),
+                qty=qty,
+                side=order_side,
+                time_in_force=tif,
+                client_order_id=cid,
+            ),
+            "market",
         )
-        order_type = "limit"
-    else:
-        tif = TimeInForce.GTC if "/" in symbol else TimeInForce.DAY
-        order_data = MarketOrderRequest(
-            symbol=symbol.upper(),
-            qty=qty,
-            side=order_side,
-            time_in_force=tif,
-            client_order_id=client_order_id,
-        )
-        order_type = "market"
+
+    order_data, order_type = _build_order(client_order_id)
 
     try:
         order = client.submit_order(order_data)
@@ -496,6 +573,59 @@ def submit_entry(
             "stop_atr_mult": stop_atr_mult,
             "client_order_id": client_order_id,
         }
+        # Duplicate-id recovery (2026-08-13): the journal-count
+        # guard above only sees attempts WE recorded; if the ops journal
+        # was lost (cache eviction / runner crash — both have happened in
+        # production) the base id can be burned at the broker with no
+        # journal row, and Alpaca still refuses reuse (40010001). Re-issue
+        # ONCE with a strictly larger suffix so a genuinely re-issued
+        # signal is not lost to a stale id. The first rejection is
+        # journaled too, so the audit trail shows both attempts.
+        _err = str(e)
+        if "client_order_id must be unique" in _err or "40010001" in _err:
+            _m = re.search(r"-r(\d+)$", client_order_id)
+            _next_suffix = (int(_m.group(1)) + 1) if _m else 1
+            client_order_id = f"{cid_base}-r{_next_suffix}"
+            _append_journal(result, action="entry")
+            order_data, order_type = _build_order(client_order_id)
+            try:
+                order = client.submit_order(order_data)
+                result = {
+                    "order_id": str(order.id),
+                    "symbol": symbol.upper(),
+                    "qty": qty,
+                    "side": side,
+                    "order_type": order_type,
+                    "limit_price": limit_price,
+                    "time_in_force": "gtc" if "/" in symbol else "day",
+                    "status": _enum_value(order.status),
+                    "submitted_at": str(order.submitted_at),
+                    "slice_label": slice_label,
+                    "entry_bar_ts": entry_bar_ts,
+                    "timeframe": timeframe,
+                    "bin_mode": bin_mode,
+                    "exit_horizon": exit_horizon if exit_horizon is not None else 5,
+                    "stop_atr_mult": stop_atr_mult,
+                    "client_order_id": client_order_id,
+                }
+            except Exception as e2:
+                result = {
+                    "order_id": None,
+                    "symbol": symbol.upper(),
+                    "qty": qty,
+                    "side": side,
+                    "order_type": order_type,
+                    "limit_price": limit_price,
+                    "status": "rejected",
+                    "error": str(e2),
+                    "slice_label": slice_label,
+                    "entry_bar_ts": entry_bar_ts,
+                    "timeframe": timeframe,
+                    "bin_mode": bin_mode,
+                    "exit_horizon": exit_horizon if exit_horizon is not None else 5,
+                    "stop_atr_mult": stop_atr_mult,
+                    "client_order_id": client_order_id,
+                }
 
     _append_journal(result, action="entry")
     if result["status"] not in ("rejected", "canceled"):

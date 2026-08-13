@@ -25,6 +25,7 @@ ML_FEATURE_TO_STATE: Dict[str, str] = {
     "feat_vol_regime": "state_vol_regime",
     "feat_trend_strength_20": "state_trend_strength",
     "feat_gap": "state_gap",
+    "feat_gap_open": "state_gap_open",
     "feat_range_position": "state_range_pos",
     "feat_ret_day_equiv": "state_ret_day",
     "feat_realized_vol_day_equiv": "state_vol_day",
@@ -62,6 +63,10 @@ STATE_LABELS: Dict[str, tuple] = {
     "state_vol_regime": ("vol_regime_low", "vol_regime_mid", "vol_regime_high"),
     "state_trend_strength": ("weak_trend", "mod_trend", "strong_trend"),
     "state_gap": ("gap_down", "gap_flat", "gap_up"),
+    "state_gap_open": ("gap_open_big_down", "gap_open_down", "gap_open_flat",
+                       "gap_open_up", "gap_open_big_up"),
+    "state_relvol": ("relvol_quiet", "relvol_normal", "relvol_elevated",
+                     "relvol_high", "relvol_extreme"),
     "state_range_pos": ("range_low", "range_mid", "range_high"),
     "state_ret_day": ("ret_day_down", "ret_day_flat", "ret_day_up"),
     "state_vol_day": ("vol_day_low", "vol_day_mid", "vol_day_high"),
@@ -77,6 +82,42 @@ STATE_LABELS: Dict[str, tuple] = {
     "state_breadth": ("breadth_weak", "breadth_mixed", "breadth_strong"),
     "state_dxy": ("dxy_weak", "dxy_flat", "dxy_strong"),
 }
+
+
+# Demand-side fixed-prior mappers (2026-08, momentum doctrine). Defined ONCE
+# at module level so bin_features and bin_features_rolling can never drift
+# apart (both are fixed-prior, so rolling mode has no look-ahead to remove).
+# Thresholds sourced from the Warrior Trading 5-pillar selection guide:
+# relative-volume demand bands (2x/5x/20x of the symbol's own baseline) and
+# the OPEN-to-prior-CLOSE gap (+/-2% normal, +/-5% big). Boundary convention
+# is symmetric: <= -5% / >= +5% are the "big" buckets, -5% < v < -2% (down)
+# and +2% < v < +5% (up) are the plain buckets, and |v| <= 2% is "flat".
+def _bin_relvol(val):
+    if pd.isna(val):
+        return np.nan
+    if val >= 20.0:
+        return "relvol_extreme"
+    if val >= 5.0:
+        return "relvol_high"
+    if val >= 2.0:
+        return "relvol_elevated"
+    if val < 0.7:
+        return "relvol_quiet"
+    return "relvol_normal"
+
+
+def _bin_gap_open(val):
+    if pd.isna(val):
+        return np.nan
+    if val <= -0.05:
+        return "gap_open_big_down"
+    if val < -0.02:
+        return "gap_open_down"
+    if val >= 0.05:
+        return "gap_open_big_up"
+    if val > 0.02:
+        return "gap_open_up"
+    return "gap_open_flat"
 
 
 def _qcut_state(series: pd.Series, labels: List[str], fallback: str):
@@ -205,6 +246,26 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
         df_binned['state_volume'] = df_binned['feat_volume_rel'].apply(bin_volume)
     else:
         df_binned['state_volume'] = "vol_normal"
+
+    # ── Demand-side states (2026-08, momentum-selection doctrine) ──────
+    # Fixed-prior thresholds sourced from the Warrior Trading 5-pillar
+    # selection guide (2026-08): the demand pillar is RELATIVE VOLUME well
+    # above a name's own baseline (5x = the canonical momentum-scan floor,
+    # >20x = mania-grade participation), and the OPEN-to-prior-CLOSE gap
+    # (>=2% = overnight demand, >=5% = big-news gap). Both are strictly
+    # additive: state_volume (0.7x/1.5x trading-normal split) is untouched,
+    # so existing slice semantics are preserved. Fixed thresholds (not
+    # qcut) per the no-look-ahead doctrine; the validation gate decides
+    # whether these states earn any slice.
+    if 'feat_volume_rel' in df_binned.columns and not df_binned['feat_volume_rel'].dropna().empty:
+        df_binned['state_relvol'] = df_binned['feat_volume_rel'].apply(_bin_relvol)
+    else:
+        df_binned['state_relvol'] = "relvol_normal"
+
+    if 'feat_gap_open' in df_binned.columns and not df_binned['feat_gap_open'].dropna().empty:
+        df_binned['state_gap_open'] = df_binned['feat_gap_open'].apply(_bin_gap_open)
+    else:
+        df_binned['state_gap_open'] = "gap_open_flat"
 
     session_map = {0: "morning", 1: "lunch", 2: "afternoon"}
     if 'feat_session_bucket' in df_binned.columns:
@@ -384,6 +445,8 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
         "state_vol_regime": "vol_regime_mid",
         "state_trend_strength": "mod_trend",
         "state_gap": "gap_flat",
+        "state_gap_open": "gap_open_flat",
+        "state_relvol": "relvol_normal",
         "state_range_pos": "range_mid",
         "state_ret_day": "ret_day_flat",
         "state_vol_day": "vol_day_mid",
@@ -483,6 +546,19 @@ def bin_features_rolling(
         df_binned["state_volume"] = df_binned["feat_volume_rel"].apply(bin_volume_rolling)
     else:
         df_binned["state_volume"] = "vol_normal"
+
+    # Demand-side states (2026-08, momentum doctrine): fixed-prior
+    # thresholds, identical in rolling mode (no look-ahead to remove).
+    # Same mappers as bin_features -- see there for the rationale.
+    if "feat_volume_rel" in df_binned.columns and not df_binned["feat_volume_rel"].dropna().empty:
+        df_binned["state_relvol"] = df_binned["feat_volume_rel"].apply(_bin_relvol)
+    else:
+        df_binned["state_relvol"] = "relvol_normal"
+
+    if "feat_gap_open" in df_binned.columns and not df_binned["feat_gap_open"].dropna().empty:
+        df_binned["state_gap_open"] = df_binned["feat_gap_open"].apply(_bin_gap_open)
+    else:
+        df_binned["state_gap_open"] = "gap_open_flat"
 
     session_map = {0: "morning", 1: "lunch", 2: "afternoon"}
     if "feat_session_bucket" in df_binned.columns:
@@ -649,6 +725,8 @@ def bin_features_rolling(
         "state_vol_regime": "vol_regime_mid",
         "state_trend_strength": "mod_trend",
         "state_gap": "gap_flat",
+        "state_gap_open": "gap_open_flat",
+        "state_relvol": "relvol_normal",
         "state_range_pos": "range_mid",
         "state_ret_day": "ret_day_flat",
         "state_vol_day": "vol_day_mid",

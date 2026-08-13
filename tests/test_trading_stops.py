@@ -357,3 +357,165 @@ def test_submit_entry_lane_guard_allows_equity_lane_equity_symbol(tmp_path, monk
     assert len(client.submitted) == 1
     journal = pd.read_csv(tmp_path / "trade_journal.csv")
     assert len(journal) == 1 and "lane_guard" not in str(journal.iloc[0].get("error", ""))
+
+
+# ---------------------------------------------------------------------------
+# Duplicate client_order_id protection (2026-08-13): the id is deterministic
+# per signal bar, so a static daily signal re-derives the same id every scan.
+# Observed 2026-08-11 on WMT: 10 broker rejections in ~90 minutes
+# (40010001 "client_order_id must be unique"). submit_entry must (a) give a
+# re-issued attempt a fresh suffixed id and (b) never re-submit while an
+# order for the same signal is already resting at the broker.
+# ---------------------------------------------------------------------------
+
+def _base_client_order_id(symbol="XLF", timeframe="1d", side="buy",
+                          bin_mode="rolling", slice_label="s",
+                          entry_bar_ts="2026-08-11 04:00:00+00:00", lane="eq"):
+    import hashlib
+    safe = symbol.upper().replace("/", "-").replace(".", "-").replace(":", "-").replace(" ", "-")
+    hash_str = f"{symbol}|{timeframe}|{side}|{bin_mode}|{slice_label}|{entry_bar_ts}"
+    hash8 = hashlib.sha256(hash_str.encode()).hexdigest()[:8]
+    return f"price-{lane}-{safe}-{timeframe}-{side}-{hash8}"
+
+
+def test_submit_entry_reissue_gets_fresh_suffixed_id(tmp_path, monkeypatch):
+    """A re-issued attempt for the same signal must NOT reuse the burned id:
+    the second submission carries a monotonic -r2 suffix and reaches the
+    broker instead of a guaranteed 400."""
+    client = _FakeClient()
+    monkeypatch.setattr(trading, "get_trading_client", lambda: client)
+    monkeypatch.setattr(trading, "TRADE_JOURNAL_PATH", tmp_path / "trade_journal.csv")
+    monkeypatch.setattr(trading, "_write_open_position_context", lambda **k: None)
+
+    kwargs = dict(
+        symbol="XLF", qty=1, slice_label="s", side="buy", limit_price=57.0,
+        entry_bar_ts="2026-08-11 04:00:00+00:00", timeframe="1d",
+        bin_mode="rolling", exit_horizon=5, stop_atr_mult=2.0, lane="eq",
+    )
+    base = _base_client_order_id(**{k: v for k, v in kwargs.items() if k in (
+        "symbol", "timeframe", "side", "bin_mode", "slice_label", "entry_bar_ts", "lane")})
+
+    first = trading.submit_entry(**kwargs)
+    assert first["status"] == "accepted"
+    assert first["client_order_id"] == base
+    assert client.submitted[0].client_order_id == base
+
+    second = trading.submit_entry(**kwargs)
+    assert second["status"] == "accepted"
+    assert second["client_order_id"] == f"{base}-r2"
+    assert client.submitted[1].client_order_id == f"{base}-r2"
+
+
+def test_submit_entry_blocks_when_same_signal_order_resting(tmp_path, monkeypatch):
+    """While an entry order for this exact signal is already resting at the
+    broker, submit_entry returns a blocked result and never calls the
+    broker (no duplicate orders, no 400 noise)."""
+    client = _FakeClient()
+    monkeypatch.setattr(trading, "get_trading_client", lambda: client)
+    monkeypatch.setattr(trading, "TRADE_JOURNAL_PATH", tmp_path / "trade_journal.csv")
+    monkeypatch.setattr(trading, "_write_open_position_context", lambda **k: None)
+
+    kwargs = dict(
+        symbol="WMT", qty=8, slice_label="cross_USO_state_ext=neutral + state_ext=neutral",
+        side="buy", limit_price=108.85,
+        entry_bar_ts="2026-08-11 04:00:00+00:00", timeframe="1d",
+        bin_mode="rolling", exit_horizon=20, stop_atr_mult=5.0, lane="eq",
+    )
+    base = _base_client_order_id(symbol="WMT", timeframe="1d", side="buy",
+                                 bin_mode="rolling",
+                                 slice_label="cross_USO_state_ext=neutral + state_ext=neutral",
+                                 entry_bar_ts="2026-08-11 04:00:00+00:00", lane="eq")
+    resting = pd.DataFrame([{
+        "order_id": "ord-resting-1", "client_order_id": base,
+        "symbol": "WMT", "qty": 8.0, "side": "buy", "type": "limit",
+        "status": "new", "limit_price": 108.85, "stop_price": None,
+        "submitted_at": "2026-08-11T12:00:00Z", "expires_at": "",
+    }])
+    monkeypatch.setattr(trading, "get_open_orders", lambda: resting)
+
+    result = trading.submit_entry(**kwargs)
+    assert result["status"] == "rejected"
+    assert result["order_id"] is None
+    assert result["error"].startswith("duplicate_pending_entry")
+    assert client.submitted == []  # broker never called
+
+
+def test_submit_entry_blocks_only_its_own_signal(tmp_path, monkeypatch):
+    """A resting order for a DIFFERENT signal (different slice/bar) must not
+    block this submission — the pending check is exact to the base id."""
+    client = _FakeClient()
+    monkeypatch.setattr(trading, "get_trading_client", lambda: client)
+    monkeypatch.setattr(trading, "TRADE_JOURNAL_PATH", tmp_path / "trade_journal.csv")
+    monkeypatch.setattr(trading, "_write_open_position_context", lambda **k: None)
+
+    other_base = _base_client_order_id(
+        symbol="WMT", slice_label="state_ext=stretched_up",
+        entry_bar_ts="2026-08-10 04:00:00+00:00")
+    resting = pd.DataFrame([{
+        "order_id": "ord-other-1", "client_order_id": other_base,
+        "symbol": "WMT", "qty": 8.0, "side": "buy", "type": "limit",
+        "status": "new", "limit_price": 109.0, "stop_price": None,
+        "submitted_at": "2026-08-10T12:00:00Z", "expires_at": "",
+    }])
+    monkeypatch.setattr(trading, "get_open_orders", lambda: resting)
+
+    result = trading.submit_entry(
+        symbol="WMT", qty=8, slice_label="cross_USO_state_ext=neutral + state_ext=neutral",
+        side="buy", limit_price=108.85,
+        entry_bar_ts="2026-08-11 04:00:00+00:00", timeframe="1d",
+        bin_mode="rolling", exit_horizon=20, stop_atr_mult=5.0, lane="eq",
+    )
+    assert result["status"] == "accepted"
+    assert len(client.submitted) == 1
+
+
+def test_submit_entry_recovers_from_duplicate_id_400(tmp_path, monkeypatch):
+    """If the broker refuses a journal-unknown burned id (ops-cache loss),
+    submit_entry re-issues ONCE with a fresh suffix instead of losing the
+    signal, and the audit trail keeps BOTH attempts."""
+    class _DupClient:
+        def __init__(self):
+            self.submitted = []
+            self.calls = 0
+
+        def submit_order(self, order_data):
+            self.calls += 1
+            self.submitted.append(order_data)
+            if self.calls == 1:
+                raise RuntimeError(
+                    '{"code":40010001,"message":"client_order_id must be unique"}'
+                )
+            return _FakeOrder(
+                id="order-retry", status="accepted",
+                submitted_at="2026-08-11T12:00:00Z",
+            )
+
+    client = _DupClient()
+    monkeypatch.setattr(trading, "get_trading_client", lambda: client)
+    monkeypatch.setattr(trading, "TRADE_JOURNAL_PATH", tmp_path / "trade_journal.csv")
+    monkeypatch.setattr(trading, "_write_open_position_context", lambda **k: None)
+
+    kwargs = dict(
+        symbol="WMT", qty=8,
+        slice_label="cross_USO_state_ext=neutral + state_ext=neutral",
+        side="buy", limit_price=108.85,
+        entry_bar_ts="2026-08-11 04:00:00+00:00", timeframe="1d",
+        bin_mode="rolling", exit_horizon=20, stop_atr_mult=5.0, lane="eq",
+    )
+    base = _base_client_order_id(
+        symbol="WMT", slice_label="cross_USO_state_ext=neutral + state_ext=neutral",
+        entry_bar_ts="2026-08-11 04:00:00+00:00")
+
+    result = trading.submit_entry(**kwargs)
+    assert result["status"] == "accepted"
+    assert result["client_order_id"] == f"{base}-r1"
+    assert client.calls == 2
+    assert client.submitted[0].client_order_id == base
+    assert client.submitted[1].client_order_id == f"{base}-r1"
+
+    journal = pd.read_csv(tmp_path / "trade_journal.csv")
+    assert len(journal) == 2
+    assert journal.iloc[0]["status"] == "rejected"
+    assert "client_order_id must be unique" in str(journal.iloc[0]["error"])
+    assert journal.iloc[1]["status"] == "accepted"
+    assert journal.iloc[1]["client_order_id"] == f"{base}-r1"

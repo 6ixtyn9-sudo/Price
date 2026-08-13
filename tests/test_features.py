@@ -94,3 +94,84 @@ def test_no_look_ahead_bias():
             feat_div.loc[:40, col],
             obj=f"Look-ahead bias detected in feature column: {col}"
         )
+
+
+def test_feat_gap_open_is_open_vs_prior_close():
+    """feat_gap_open must be the true OPEN-to-prior-CLOSE gap (the demand
+    signal), not the close-to-close return feat_gap measures."""
+    from price.features import compute_price_features
+    import numpy as np
+
+    n = 30
+    ts = pd.date_range("2025-03-01", periods=n, freq="1d", tz="UTC")
+    close = np.linspace(100.0, 110.0, n)
+    open_px = close.copy()
+    open_px[10] = 104.0   # +~0.55% vs prior close 103.45 -> small up gap
+    open_px[15] = 96.0    # -~7.4% vs prior close 103.68 -> big down gap
+    df = pd.DataFrame({
+        "bar_ts_utc": ts,
+        "open_raw": open_px,
+        "high_raw": np.maximum(open_px, close) + 0.1,
+        "low_raw": np.minimum(open_px, close) - 0.1,
+        "close_raw": close,
+        "volume_raw": [1000] * n,
+        "open_adj": open_px,
+        "high_adj": np.maximum(open_px, close) + 0.1,
+        "low_adj": np.minimum(open_px, close) - 0.1,
+        "close_adj": close,
+        "adj_factor": [1.0] * n,
+        "split_factor": [1.0] * n,
+        "dividend_cash": [0.0] * n,
+    })
+    feat = compute_price_features(df)
+    assert "feat_gap_open" in feat.columns
+    assert abs(feat["feat_gap_open"].iloc[10] - (104.0 / close[9] - 1.0)) < 1e-9
+    assert feat["feat_gap_open"].iloc[15] < -0.05
+
+
+def test_feat_gap_open_missing_open_adj_degrades_gracefully():
+    """Frames without open_adj (legacy synthetic fixtures) must not crash;
+    the column is simply absent and the state bins to its neutral fallback."""
+    from price.features import compute_price_features
+    import numpy as np
+
+    n = 30
+    ts = pd.date_range("2025-03-01", periods=n, freq="1d", tz="UTC")
+    close = np.linspace(100.0, 110.0, n)
+    df = pd.DataFrame({
+        "bar_ts_utc": ts,
+        "open_raw": close, "high_raw": close + 0.1,
+        "low_raw": close - 0.1, "close_raw": close,
+        "volume_raw": [1000] * n,
+        "high_adj": close + 0.1, "low_adj": close - 0.1, "close_adj": close,
+        "adj_factor": [1.0] * n, "split_factor": [1.0] * n,
+        "dividend_cash": [0.0] * n,
+    })
+    feat = compute_price_features(df)
+    assert "feat_gap_open" not in feat.columns
+
+
+def test_feat_gap_open_degenerate_denominator_is_nan():
+    """A zero/NaN prior close must yield NaN (neutral state downstream),
+    never inf -> a spurious extreme gap bucket."""
+    from price.features import compute_price_features
+    import numpy as np
+
+    n = 30
+    ts = pd.date_range("2025-03-01", periods=n, freq="1d", tz="UTC")
+    close = np.linspace(100.0, 110.0, n)
+    close[9] = 0.0  # poison: bar 10's prior close is zero
+    open_px = close.copy()
+    df = pd.DataFrame({
+        "bar_ts_utc": ts,
+        "open_raw": open_px, "high_raw": np.maximum(open_px, close) + 0.1,
+        "low_raw": np.minimum(open_px, close) - 0.1, "close_raw": close,
+        "volume_raw": [1000] * n,
+        "open_adj": open_px, "high_adj": np.maximum(open_px, close) + 0.1,
+        "low_adj": np.minimum(open_px, close) - 0.1, "close_adj": close,
+        "adj_factor": [1.0] * n, "split_factor": [1.0] * n,
+        "dividend_cash": [0.0] * n,
+    })
+    feat = compute_price_features(df)
+    assert "feat_gap_open" in feat.columns
+    assert pd.isna(feat["feat_gap_open"].iloc[10])

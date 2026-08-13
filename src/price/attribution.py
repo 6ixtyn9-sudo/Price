@@ -37,6 +37,26 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
+from zoneinfo import ZoneInfo
+
+_NY_TZ = ZoneInfo("America/New_York")
+
+# Exit-side NYSE time buckets for the timing profile (2026-08). The
+# buckets follow the US regular session on the New York wall clock;
+# zoneinfo resolves EST/EDT itself (same pattern as price.stops).
+_TIMING_BUCKETS = (
+    ("pre_market", -1, 9 * 60 + 30),
+    ("open_930_10", 9 * 60 + 30, 10 * 60),
+    ("10_11", 10 * 60, 11 * 60),
+    ("11_12", 11 * 60, 12 * 60),
+    ("12_13", 12 * 60, 13 * 60),
+    ("13_14", 13 * 60, 14 * 60),
+    ("14_15", 14 * 60, 15 * 60),
+    ("15_close", 15 * 60, 16 * 60),
+    ("post_market", 16 * 60, 24 * 60),
+)
+_BUCKET_ORDER = {name: i for i, (name, _lo, _hi) in enumerate(_TIMING_BUCKETS)}
+_DOW_NAMES = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
 
 import pandas as pd
 
@@ -512,6 +532,61 @@ def measure_realized_slippage(
     return adverse
 
 
+def _bucket_for_minutes(mins: int) -> str:
+    for name, lo, hi in _TIMING_BUCKETS:
+        if lo <= mins < hi:
+            return name
+    return "post_market"
+
+
+def round_trip_timing(round_trips: List[RoundTrip]) -> dict:
+    """Bucket realized P&L by exit-side NYSE time-of-day and day-of-week.
+
+    Mirrors the metrics-mining step of the momentum-trading doctrine
+    (Warrior Trading, 2026-08): a systematically bad window is visible
+    here instead of being buried in slice aggregates. Buckets are keyed
+    on the EXIT timestamp because that is when the P&L is realized.
+    Naive timestamps are treated as UTC; unparseable or missing ones are
+    skipped. A frame with no parseable times yields empty buckets, never
+    a crash.
+
+    Returns {"by_exit_hour_et": {bucket: agg}, "by_exit_dow": {dow: agg}}
+    where agg = {n_round_trips, total_pnl, mean_return, win_rate}.
+    """
+    by_hour: Dict[str, List[RoundTrip]] = {}
+    by_dow: Dict[int, List[RoundTrip]] = {}
+    for rt in round_trips:
+        ts = rt.exit_ts or rt.entry_ts
+        if not ts:
+            continue
+        try:
+            t = pd.Timestamp(ts)
+            if t.tzinfo is None:
+                t = t.tz_localize("UTC")
+            t = t.tz_convert(_NY_TZ)
+        except Exception:  # noqa: BLE001 - a bad timestamp must never crash the report
+            continue
+        mins = t.hour * 60 + t.minute
+        by_hour.setdefault(_bucket_for_minutes(mins), []).append(rt)
+        by_dow.setdefault(int(t.dayofweek), []).append(rt)
+
+    def _agg(rt_list: List[RoundTrip]) -> dict:
+        n = len(rt_list)
+        return {
+            "n_round_trips": n,
+            "total_pnl": round(sum(r.gross_pnl for r in rt_list), 2),
+            "mean_return": round(sum(r.gross_return for r in rt_list) / n, 6),
+            "win_rate": round(sum(1 for r in rt_list if r.gross_pnl > 0) / n, 4),
+        }
+
+    return {
+        "by_exit_hour_et": {
+            k: _agg(v) for k, v in sorted(by_hour.items(), key=lambda kv: _BUCKET_ORDER[kv[0]])
+        },
+        "by_exit_dow": {k: _agg(v) for k, v in sorted(by_dow.items())},
+    }
+
+
 def attribute_pnl(
     journal: Optional[pd.DataFrame] = None,
     leaderboard_path: Optional[Path] = None,
@@ -667,6 +742,7 @@ def attribute_pnl(
         },
         "by_slice": [a.to_dict() for a in slice_attrs],
         "round_trips": [rt.to_dict() for rt in round_trips],
+        "timing": round_trip_timing(round_trips),
         "realized_slippage": {k: round(v, 2) for k, v in slippage.items()},
         "signal_to_fill_bps": {k: round(v, 2) for k, v in signed_gap.items()},
         "expected_returns": {k: round(v, 6) for k, v in expected.items()},
@@ -721,6 +797,27 @@ def format_report(report: dict) -> str:
         for sc, bps in slip.items():
             lines.append(f"  {sc[:50]:50} {bps:>7.1f} bps (entry leg)")
         lines.append("  Favorable signal-to-fill movement is not treated as negative cost.")
+        lines.append("")
+
+    timing = report.get("timing")
+    if timing and (timing.get("by_exit_hour_et") or timing.get("by_exit_dow")):
+        lines.append("-" * 72)
+        lines.append("TIMING PROFILE (exit side, America/New_York)")
+        lines.append("-" * 72)
+        if timing["by_exit_hour_et"]:
+            lines.append("  by hour:")
+            for bucket, agg in timing["by_exit_hour_et"].items():
+                lines.append(
+                    f"    {bucket:14s} n={agg['n_round_trips']:3d} "
+                    f"pnl=${agg['total_pnl']:>9.2f} win={agg['win_rate']*100:>3.0f}%"
+                )
+        if timing["by_exit_dow"]:
+            lines.append("  by day-of-week:")
+            for dow, agg in timing["by_exit_dow"].items():
+                lines.append(
+                    f"    {_DOW_NAMES.get(dow, str(dow)):10s} n={agg['n_round_trips']:3d} "
+                    f"pnl=${agg['total_pnl']:>9.2f} win={agg['win_rate']*100:>3.0f}%"
+                )
         lines.append("")
 
     if report.get("signal_to_fill_bps"):

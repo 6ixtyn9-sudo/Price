@@ -75,6 +75,17 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
             ["state_volume", "state_slope"],
             ["state_ext", "state_slope", "state_vol"],
             ["state_volume", "state_ext", "state_slope"],
+            # ── Demand-side combos (2026-08, momentum doctrine) ──────
+            # state_gap_open (OPEN vs prior CLOSE, fixed ±2%/±5% bins) and
+            # state_relvol (relative-volume demand bands 2x/5x/20x) are
+            # sourced from the Warrior Trading 5-pillar selection guide.
+            # Fixed-prior, discovery-side only; the existing validation
+            # gate (train/valid + Newey-West + walk-forward + search-wide
+            # multiple-testing) decides whether they survive. If they
+            # produce zero passes after 1-2 cycles, prune per doctrine.
+            ["state_gap_open", "state_ext"],
+            ["state_relvol", "state_ext"],
+            ["state_gap_open", "state_relvol", "state_ext"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations.append(["state_session", "state_volume"])
