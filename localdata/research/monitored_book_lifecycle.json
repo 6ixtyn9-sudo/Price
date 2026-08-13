@@ -1,9 +1,18 @@
 {
-  "previous_book_count": 252,
-  "new_book_count": 254,
+  "previous_book_count": 254,
+  "new_book_count": 265,
   "added_candidates": [
-    "KLAC|1h|state_gap_open=gap_open_flat + state_ext=neutral|long|rolling",
-    "XLB|1h|state_relvol=relvol_elevated + state_ext=neutral|long|rolling"
+    "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
+    "ADI|1d|state_relvol=relvol_normal + state_ext=stretched_down|long|rolling",
+    "EEM|1d|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling",
+    "GILD|1d|cross_USO_state_slope=downtrend + state_slope=downtrend|long|rolling",
+    "HON|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_ext=stretched_up|long|rolling",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_up|long|rolling",
+    "SMCI|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
+    "VRTX|1d|state_gap_open=gap_open_flat + state_ext=stretched_down|long|rolling",
+    "WFC|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling",
+    "XLV|1d|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling"
   ],
   "removed_candidates": [],
   "retained_candidates": [
@@ -117,6 +126,7 @@
     "KLAC|1d|state_ext=stretched_down + state_ret_1=ret_flat|long|rolling",
     "KLAC|1h|cross_USO_state_vol=high_vol + state_ext=neutral|long|rolling",
     "KLAC|1h|state_ext=neutral + state_ret_1=ret_down|long|rolling",
+    "KLAC|1h|state_gap_open=gap_open_flat + state_ext=neutral|long|rolling",
     "KLAC|1h|state_session=lunch + state_ext=neutral|long|rolling",
     "KMB|1h|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral|short|rolling",
     "KO|1d|cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -234,6 +244,7 @@
     "XLB|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "XLB|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=mid_vol|long|rolling",
     "XLB|1d|state_ext=stretched_down + state_vol=mid_vol|long|rolling",
+    "XLB|1h|state_relvol=relvol_elevated + state_ext=neutral|long|rolling",
     "XLC|1d|state_ext=stretched_down + state_vol=mid_vol|long|rolling",
     "XLC|1h|cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "XLI|15m|state_session=afternoon + state_slope=downtrend|long|rolling",
@@ -263,8 +274,17 @@
   "changed_sides_or_slices": [],
   "removal_reasons": {},
   "promotion_reasons": {
-    "KLAC|1h|state_gap_open=gap_open_flat + state_ext=neutral|long|rolling": "paper_proposal",
-    "XLB|1h|state_relvol=relvol_elevated + state_ext=neutral|long|rolling": "paper_proposal"
+    "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling": "paper_proposal",
+    "ADI|1d|state_relvol=relvol_normal + state_ext=stretched_down|long|rolling": "paper_proposal",
+    "EEM|1d|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling": "paper_proposal",
+    "GILD|1d|cross_USO_state_slope=downtrend + state_slope=downtrend|long|rolling": "paper_proposal",
+    "HON|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling": "paper_proposal",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_ext=stretched_up|long|rolling": "paper_proposal",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_up|long|rolling": "paper_proposal",
+    "SMCI|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling": "paper_proposal",
+    "VRTX|1d|state_gap_open=gap_open_flat + state_ext=stretched_down|long|rolling": "paper_proposal",
+    "WFC|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling": "paper_proposal",
+    "XLV|1d|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling": "paper_proposal"
   },
   "discovery_run_id": null
 }
