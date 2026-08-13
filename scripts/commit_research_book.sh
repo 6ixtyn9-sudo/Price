@@ -55,6 +55,9 @@ for attempt in $(seq 1 "${ATTEMPTS}"); do
 
   scratch="$(mktemp -d)"
   [ -d "${MERGED_DIR}" ] && cp -a "${MERGED_DIR}" "${scratch}/tf"
+  if [ "${TIMEFRAME}" = "1d" ] && [ -f localdata/research/refresh_state.json ]; then
+    cp -a localdata/research/refresh_state.json "${scratch}/refresh_state.json"
+  fi
 
   git fetch --quiet origin "${BRANCH}"
   git reset --hard --quiet "origin/${BRANCH}"
@@ -63,6 +66,10 @@ for attempt in $(seq 1 "${ATTEMPTS}"); do
     rm -rf "${MERGED_DIR}"
     mkdir -p "$(dirname "${MERGED_DIR}")"
     cp -a "${scratch}/tf" "${MERGED_DIR}"
+  fi
+  if [ -f "${scratch}/refresh_state.json" ]; then
+    mkdir -p localdata/research
+    cp -a "${scratch}/refresh_state.json" localdata/research/refresh_state.json
   fi
   rm -rf "${scratch}"
 

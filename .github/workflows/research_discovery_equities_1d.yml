@@ -205,6 +205,9 @@ jobs:
             --diagnostic-scope leaderboard-top \
             --top-n 25 \
             --bin-mode rolling
+      - name: Consume fresh-data gate
+        if: ${{ needs.shards.result == 'success' }}
+        run: python scripts/research_refresh.py --consume-gate
       - name: Commit merged research outputs and monitored book
         env:
           SHARDS_RESULT: ${{ needs.shards.result }}

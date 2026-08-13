@@ -21,6 +21,7 @@ from research_refresh import (  # noqa: E402
     _eligible_discovery_symbols,
     _monitored_diagnostic_bin_mode,
     _new_daily_bars,
+    consume_fresh_data_gate,
 )
 from research_regime_coverage import _regime_series  # noqa: E402
 
@@ -175,3 +176,28 @@ def test_monitored_book_audit_records_changes_and_reasons():
     assert audit["promotion_reasons"]["NEW|1d|new|short|rolling"] == "paper_proposal"
     assert audit["changed_sides_or_slices"][0]["symbol"] == "SIDE"
     assert audit["discovery_run_id"] == "123"
+
+
+def test_consume_fresh_data_gate_pins_baseline_and_preserves_other_keys(tmp_path):
+    path = tmp_path / "refresh_state.json"
+    path.write_text(
+        '{\n'
+        '  "daily_coverage": {"AA:1d": {"count": 100, "last_bar": "2026-08-11"}},\n'
+        '  "discovery_baseline_coverage": {"AA:1d": {"count": 80}},\n'
+        '  "discovery_ran": false,\n'
+        '  "fresh_data_gate_open": true,\n'
+        '  "symbols": 221\n'
+        '}\n'
+    )
+    state = consume_fresh_data_gate(path)
+    assert state["discovery_ran"] is True
+    assert state["fresh_data_gate_open"] is False
+    assert state["discovery_baseline_coverage"] == {
+        "AA:1d": {"count": 100, "last_bar": "2026-08-11"}
+    }
+    assert state["symbols"] == 221
+    # empty / missing file is a no-crash consume
+    missing = tmp_path / "missing" / "refresh_state.json"
+    empty = consume_fresh_data_gate(missing)
+    assert empty["discovery_ran"] is True
+    assert empty["discovery_baseline_coverage"] == {}

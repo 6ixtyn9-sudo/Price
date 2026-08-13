@@ -84,6 +84,18 @@ STATE_LABELS: Dict[str, tuple] = {
 }
 
 
+# Labels that stay in the bin vocabulary (so the live monitor can still
+# name the state) but are not searched as slice candidates. The 2026-08-13
+# discovery cycle promoted 12 demand-side slices, all in flat / quiet /
+# normal / elevated buckets; gap_open_up / gap_open_big_up and
+# relvol_high / relvol_extreme produced zero book rows. Skipping them
+# shrinks the search family (BH/Bonferroni) without rebining live slices.
+DISCOVERY_SKIP_LABELS: Dict[str, frozenset] = {
+    "state_relvol": frozenset({"relvol_high", "relvol_extreme"}),
+    "state_gap_open": frozenset({"gap_open_up", "gap_open_big_up"}),
+}
+
+
 # Demand-side fixed-prior mappers (2026-08, momentum doctrine). Defined ONCE
 # at module level so bin_features and bin_features_rolling can never drift
 # apart (both are fixed-prior, so rolling mode has no look-ahead to remove).
@@ -823,7 +835,14 @@ def discover_market_slices(
         if n < min_samples:
             continue
 
-        slice_key = " + ".join([f"{f}={k}" for f, k in zip(slice_fields, keys if isinstance(keys, tuple) else [keys])])
+        keys_t = keys if isinstance(keys, tuple) else (keys,)
+        if any(
+            str(k) in DISCOVERY_SKIP_LABELS.get(f, ())
+            for f, k in zip(slice_fields, keys_t)
+        ):
+            continue
+
+        slice_key = " + ".join([f"{f}={k}" for f, k in zip(slice_fields, keys_t)])
 
         mean_ret = group['fwd_ret_5'].mean()
         std_ret = group['fwd_ret_5'].std()

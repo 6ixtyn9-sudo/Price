@@ -132,6 +132,41 @@ def test_demand_state_bins_identical_in_rolling_mode():
         assert ins[col].tolist() == rol[col].tolist(), col
 
 
+def test_discover_skips_denylisted_demand_labels():
+    """relvol_high / relvol_extreme and gap_open_up / gap_open_big_up are
+    kept in the bin vocabulary but not emitted as slice candidates."""
+    from price.discovery import DISCOVERY_SKIP_LABELS, discover_market_slices
+
+    n = 40
+    rows = []
+    for label, ret in (
+        ("relvol_elevated", 0.01),
+        ("relvol_high", 0.02),
+        ("relvol_extreme", 0.03),
+        ("relvol_quiet", -0.005),
+    ):
+        for _ in range(n):
+            rows.append({
+                "label_eligible": True,
+                "state_relvol": label,
+                "fwd_ret_5": ret,
+                "fwd_mfe_5": abs(ret),
+                "fwd_mae_5": abs(ret) / 2,
+            })
+    df = pd.DataFrame(rows)
+    slices = discover_market_slices(
+        "SPY", "1d", ["state_relvol"], min_samples=10, _precomputed_binned=df,
+    )
+    combos = set(slices["slice_combination"])
+    assert "state_relvol=relvol_elevated" in combos
+    assert "state_relvol=relvol_quiet" in combos
+    assert "state_relvol=relvol_high" not in combos
+    assert "state_relvol=relvol_extreme" not in combos
+    assert DISCOVERY_SKIP_LABELS["state_gap_open"] == frozenset(
+        {"gap_open_up", "gap_open_big_up"}
+    )
+
+
 def test_demand_state_bins_boundary_symmetry():
     """Exact thresholds are symmetric: <= -5% / >= +5% = big buckets,
     -5%<v<-2% (down) and +2%<v<+5% (up) = plain buckets, |v|<=2% = flat.

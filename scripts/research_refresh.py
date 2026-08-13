@@ -102,6 +102,40 @@ def _write_state(payload: dict) -> None:
     STATE_PATH.write_text(json.dumps(payload, indent=2) + "\n")
 
 
+def consume_fresh_data_gate(state_path: Path | None = None) -> dict:
+    """Pin the durable discovery baseline after a successful sharded merge.
+
+    Sharded discovery runs in a separate workflow and never sets
+    discovery_ran inside run_refresh, so the baseline would otherwise
+    never reset and the gate would stay open every night. The 1d merge
+    job calls this after a complete-shard success. Uses last-known
+    daily_coverage (no warehouse required on the merge runner).
+    """
+    path = Path(state_path) if state_path is not None else STATE_PATH
+    try:
+        state = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        state = {}
+    coverage = state.get("daily_coverage") or {}
+    state["discovery_baseline_coverage"] = coverage
+    state["discovery_ran"] = True
+    state["fresh_data_gate_open"] = False
+    state["discovery_block_reason"] = "gate consumed after sharded discovery merge"
+    state["updated_at_utc"] = datetime.now(timezone.utc).isoformat()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2) + "\n")
+    print(
+        json.dumps(
+            {
+                "consumed": True,
+                "baseline_keys": len(coverage),
+                "updated_at_utc": state["updated_at_utc"],
+            }
+        )
+    )
+    return state
+
+
 def _monitored_diagnostic_bin_mode(monitored_path: Path) -> str:
     """Resolve the state-binning mode used by the active monitored book.
 
@@ -373,7 +407,18 @@ def main() -> int:
         action="store_true",
         help="Force discovery on first run (bypass fresh-data gate).",
     )
+    parser.add_argument(
+        "--consume-gate",
+        action="store_true",
+        help=(
+            "Mark the fresh-data gate consumed after a successful sharded "
+            "discovery merge. Does not run refresh."
+        ),
+    )
     args = parser.parse_args()
+    if args.consume_gate:
+        consume_fresh_data_gate()
+        return 0
     run_refresh(
         symbols=args.symbols,
         timeframes=tuple(args.timeframes),
