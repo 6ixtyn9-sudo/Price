@@ -6904,3 +6904,14 @@ Echoes the reviewed methodology's own claim ("lose money after 10am") in our own
 **Next**
 - Re-read timing at n>=30 per bucket; check demand-state slices' realized RTs after they trade.
 - Confirm the WMT-class 400 noise is gone from the audit log.
+
+### 2026-08-14 correction — the 22:00 refresh did NOT re-chain discovery
+Verified against live state (refresh run 31748099257, state commit 5df077fb):
+fresh_data_gate_open=false, eligible=0, reason "fresh-data gate closed",
+no discovery workflow dispatched. The manual 08-13 discovery consumed the
+durable baseline (now last_bar 2026-08-11 vs current 2026-08-12 = 1 new
+bar/symbol), so the gate self-closed. The earlier note expecting a nightly
+re-run was wrong. Gate reopens after ~5 trading days (~08-20/21); if nightly
+re-discovery is wanted instead, reset discovery_baseline_coverage backwards.
+Monitored book is 265 rows incl. 12 promoted demand-state slices (manual
+discovery merged successfully).
