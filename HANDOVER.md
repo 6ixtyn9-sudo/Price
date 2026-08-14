@@ -6871,3 +6871,36 @@ Changes (idempotent, applied via scripts/apply_lane_concurrency.py):
 Each lane's live-capture (time-critical) preempts its daily refresh via
 cancel-in-progress:true. Serializing within a lane removes the cross-workflow
 push race on the same branch/files.
+
+### 2026-08-13 — demand-side states promoted, timing profile first read, entry-id hygiene landed
+
+**Patch 8265a9c (operator-applied).** Three surgical changes from the momentum-selection methodology review (Warrior Trading / Ross Cameron course):
+- `feat_gap_open` (true open-vs-prior-close gap) -> `state_gap_open`, fixed +/-2%/+/-5% bins
+- `state_relvol` fixed relative-volume demand bands (2x/5x/20x)
+- both in vocab + both bin modes, +3 discovery combos (default profile)
+- `submit_entry` duplicate client_order_id hygiene (resting-order check, retry suffix, recovery on the 400) — closes the WMT-class 400 noise observed 2026-08-11
+- attribution timing profile (exit-side NYSE hour + day-of-week)
+Suite: 693 passed / 1 skipped (2 blackout-date failures on 08-13 are calendar, not code).
+
+**Manual discovery ran the new combos.** Direct 1d/1h/15m triggers (the All-Timeframes dispatcher had a pre-existing bug: `gh` needs `--repo "$GITHUB_REPOSITORY"` + `actions:write`; fixed in the trigger package). Merged leaderboards now carry promoted demand-state slices, e.g.:
+- 1d: AAPL gap_open_flat+relvol_elevated+stretched_up; ADI relvol_normal+stretched_down; NVDA gap_open_flat+stretched_up; XLV relvol_elevated+stretched_down; WFC relvol_quiet+stretched_down
+- 1h: KLAC gap_open_flat+neutral; XLB relvol_elevated+neutral
+- 15m: RIVN relvol_quiet+stretched_down (short)
+
+Observation: the promoted slices cluster in the flat/quiet/elevated buckets — the extreme 5x+/2%+ buckets are rare on the liquid 221-universe, so the gate admits what has samples. The video's "extreme demand" claim is only partially expressible on Price's substrate; the extreme-end test belongs to Tempest (low-float microcaps), not Price.
+
+**Timing profile — first populated read (92 RTs, exit-side).**
+by hour: pre-market +$723 (21 RTs, 71%); 10-11 -$276 (6, 17%); 11-12 -$159 (17, 35%); 13-14 -$182 (13, 46%); 15-close +$301 (17, 76%).
+by day: Mon -$287 (36%); Fri +$320 (77%).
+Echoes the reviewed methodology's own claim ("lose money after 10am") in our own data. PRELIMINARY: n per bucket 5-21, exit-side only, cross-era mix, 7 contaminated RTs. Hypothesis for a future cycle, not an action.
+
+**What NOT to do**
+- Do not act on the timing read (n too small; re-test at n>=30 per bucket).
+- Do not add session gates / exit changes off 6-trade buckets.
+- Do not retune demand-state thresholds; they are fixed priors.
+- Gate consumption: operator deliberately chose NOT to consume the fresh-data gate (prefers nightly re-discovery). Expect the 00:00 refresh to chain discovery again — intended, not a fault.
+- Tempest (new repo) owns the microcap/extreme-demand side of the reviewed methodology; keep it out of Price.
+
+**Next**
+- Re-read timing at n>=30 per bucket; check demand-state slices' realized RTs after they trade.
+- Confirm the WMT-class 400 noise is gone from the audit log.
