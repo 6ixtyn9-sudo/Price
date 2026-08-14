@@ -6915,3 +6915,31 @@ re-run was wrong. Gate reopens after ~5 trading days (~08-20/21); if nightly
 re-discovery is wanted instead, reset discovery_baseline_coverage backwards.
 Monitored book is 265 rows incl. 12 promoted demand-state slices (manual
 discovery merged successfully).
+
+### 2026-08-14 — deferred: statistical harness port (sweep/OOS tooling)
+
+Not actioned now. Rationale: Price has not yet had a single uninterrupted
+week of clean evidence collection (scanner rupture 08-06, vendor freeze +
+cache incidents 08-03..08-07, gate self-closure, blackout-date gaps; 58-62
+slices at median 1 RT each). Adding bootstrap-CI sweep + pre-registered OOS
+harness tooling now would be analysis on top of an uncollected dataset and
+would not materially change the book.
+
+When to revisit: after Price accumulates a clean evidence baseline (gate
+reopens ~08-20/21, then several weeks of uninterrupted collection; watch
+timing profile at n>=30 and the 12 demand-state slices' first trades).
+
+What to port then (from Tempest's instrumented lab, which was validated
+this session): `sweep_params.py`-style bootstrap-CI sweep + nesting
+disclosure + n<10 guards, and the pre-registered OOS template with
+disjointness assertions. Scope MUST be read-only new-file tooling
+(never modify validate_slices.py / research_lifecycle.py / sync_monitored.py
+or any live-capture workflow; never change promotion). The concentration
+problem (58-62 slices, median 1 RT, top-3 = ~80-90% of P&L) is a SEPARATE,
+deliberate, operator-gated decision — do not bundle with tooling ports.
+
+Context: a trend-pullback mechanism (daily liquid large-caps) was validated
+out-of-sample in Tempest at n=1,307, +0.083 R, CI [+0.019, +0.153] — the
+session's one positive result, attenuated from +0.224 discovery. Its home
+is Price's vocabulary ("pullback-in-trend regime"), but it should NOT be
+added as slice #63 until the concentration issue is addressed.
