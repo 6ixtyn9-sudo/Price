@@ -194,5 +194,19 @@
     "stop_order_id": "347707e6-c7e4-4e04-9f9e-73e3275048a0",
     "opened_at": "2026-08-17T17:02:07.445530+00:00",
     "updated_at": "2026-08-17T17:02:07.445530+00:00"
+  },
+  "TGT": {
+    "symbol": "TGT",
+    "side": "long",
+    "qty": 6.0,
+    "entry_price": 152.14,
+    "initial_stop_price": 148.77789622466403,
+    "current_stop_price": 148.77789622466403,
+    "r_per_share": 3.36210377533596,
+    "stage": "initial",
+    "extreme_price": 152.14,
+    "stop_order_id": "ac58ab19-8d40-43fb-9737-4167f8ef4531",
+    "opened_at": "2026-08-17T18:47:15.033426+00:00",
+    "updated_at": "2026-08-17T18:47:15.033426+00:00"
   }
 }
