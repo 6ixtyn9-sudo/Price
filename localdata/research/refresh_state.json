@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-08-16T22:07:17.470321+00:00",
+  "updated_at_utc": "2026-08-17T22:08:09.035245+00:00",
   "symbols": 221,
   "timeframes": [
     "1d",
@@ -412,8 +412,8 @@
       "last_bar": "2026-08-14 04:00:00+00:00"
     },
     "JNK:1d": {
-      "count": 4701,
-      "last_bar": "2026-08-12 04:00:00+00:00"
+      "count": 4703,
+      "last_bar": "2026-08-14 04:00:00+00:00"
     },
     "JPM:1d": {
       "count": 5032,
@@ -1778,7 +1778,7 @@
       "last_bar": "2026-08-11 04:00:00+00:00"
     }
   },
-  "new_daily_bars_since_previous_refresh": 0,
+  "new_daily_bars_since_previous_refresh": 2,
   "eligible_discovery_symbols": [],
   "eligible_discovery_symbol_count": 0,
   "required_discovery_symbol_count": 110,
@@ -1796,5 +1796,5 @@
   "monitored_slices_modified": false,
   "automatic_promotion_enabled": false,
   "workflow": "research_refresh",
-  "generated_at_utc": "2026-08-16T22:07:17+00:00"
+  "generated_at_utc": "2026-08-17T22:08:09+00:00"
 }
