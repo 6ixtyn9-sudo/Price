@@ -180,5 +180,19 @@
     "stop_order_id": "37c57ee0-5e65-4367-a1b0-81fe0215fb0d",
     "opened_at": "2026-08-17T14:34:11.175162+00:00",
     "updated_at": "2026-08-17T14:34:11.175162+00:00"
+  },
+  "RIVN": {
+    "symbol": "RIVN",
+    "side": "short",
+    "qty": 61.0,
+    "entry_price": 14.82,
+    "initial_stop_price": 15.208612865497074,
+    "current_stop_price": 15.208612865497074,
+    "r_per_share": 0.38861286549707275,
+    "stage": "initial",
+    "extreme_price": 14.82,
+    "stop_order_id": "347707e6-c7e4-4e04-9f9e-73e3275048a0",
+    "opened_at": "2026-08-17T17:02:07.445530+00:00",
+    "updated_at": "2026-08-17T17:02:07.445530+00:00"
   }
 }
