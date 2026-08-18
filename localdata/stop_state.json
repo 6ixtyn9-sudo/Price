@@ -139,20 +139,6 @@
     "opened_at": "2026-08-17T14:34:10.794986+00:00",
     "updated_at": "2026-08-17T14:34:10.794986+00:00"
   },
-  "SLB": {
-    "symbol": "SLB",
-    "side": "long",
-    "qty": 17.0,
-    "entry_price": 53.459412,
-    "initial_stop_price": 51.90871085639009,
-    "current_stop_price": 51.90871085639009,
-    "r_per_share": 1.550701143609912,
-    "stage": "initial",
-    "extreme_price": 53.459412,
-    "stop_order_id": "1a8a04b9-fdd9-4196-a7b1-ff5cd8781269",
-    "opened_at": "2026-08-17T14:34:10.995401+00:00",
-    "updated_at": "2026-08-17T14:34:10.995401+00:00"
-  },
   "TGT": {
     "symbol": "TGT",
     "side": "long",
@@ -208,5 +194,47 @@
     "stop_order_id": "1187415b-e9b4-43e9-95d8-8d8d2e0f77eb",
     "opened_at": "2026-08-18T15:52:14.576328+00:00",
     "updated_at": "2026-08-18T15:52:14.576328+00:00"
+  },
+  "ABNB": {
+    "symbol": "ABNB",
+    "side": "long",
+    "qty": 4.0,
+    "entry_price": 184.69,
+    "initial_stop_price": 177.80607142857144,
+    "current_stop_price": 177.80607142857144,
+    "r_per_share": 6.883928571428564,
+    "stage": "initial",
+    "extreme_price": 184.69,
+    "stop_order_id": "1118990d-6d83-430a-b8ad-a800b4cbd59f",
+    "opened_at": "2026-08-18T17:17:54.540270+00:00",
+    "updated_at": "2026-08-18T17:17:54.540270+00:00"
+  },
+  "KO": {
+    "symbol": "KO",
+    "side": "long",
+    "qty": 10.0,
+    "entry_price": 88.64,
+    "initial_stop_price": 86.90549972816686,
+    "current_stop_price": 86.90549972816686,
+    "r_per_share": 1.7345002718331481,
+    "stage": "initial",
+    "extreme_price": 88.64,
+    "stop_order_id": "135233d9-28ab-4426-8ed8-c248b59e7087",
+    "opened_at": "2026-08-18T17:17:55.248804+00:00",
+    "updated_at": "2026-08-18T17:17:55.248804+00:00"
+  },
+  "SLB": {
+    "symbol": "SLB",
+    "side": "long",
+    "qty": 17.0,
+    "entry_price": 53.29,
+    "initial_stop_price": 52.01533347451685,
+    "current_stop_price": 52.01533347451685,
+    "r_per_share": 1.2746665254831493,
+    "stage": "initial",
+    "extreme_price": 53.29,
+    "stop_order_id": "e6c55121-a1a3-4789-a2b4-6cc4423ab312",
+    "opened_at": "2026-08-18T17:17:55.946292+00:00",
+    "updated_at": "2026-08-18T17:17:55.946292+00:00"
   }
 }
