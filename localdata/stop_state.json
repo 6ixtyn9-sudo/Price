@@ -167,20 +167,6 @@
     "opened_at": "2026-08-17T18:47:15.033426+00:00",
     "updated_at": "2026-08-17T18:47:15.033426+00:00"
   },
-  "BAC": {
-    "symbol": "BAC",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 64.03,
-    "initial_stop_price": 63.21571428571429,
-    "current_stop_price": 63.21571428571429,
-    "r_per_share": 0.8142857142857096,
-    "stage": "initial",
-    "extreme_price": 64.03,
-    "stop_order_id": "389fb8a4-6bae-441a-8d14-083d5c94d7e1",
-    "opened_at": "2026-08-17T19:37:16.101438+00:00",
-    "updated_at": "2026-08-17T19:37:16.101438+00:00"
-  },
   "PSX": {
     "symbol": "PSX",
     "side": "short",
@@ -208,5 +194,19 @@
     "stop_order_id": "a60e2c3c-55f9-448e-9ee5-ec80f33303e7",
     "opened_at": "2026-08-18T13:39:02.805022+00:00",
     "updated_at": "2026-08-18T13:39:02.805022+00:00"
+  },
+  "DE": {
+    "symbol": "DE",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 595.61,
+    "initial_stop_price": 536.2840204632682,
+    "current_stop_price": 536.2840204632682,
+    "r_per_share": 59.325979536731836,
+    "stage": "initial",
+    "extreme_price": 595.61,
+    "stop_order_id": "1187415b-e9b4-43e9-95d8-8d8d2e0f77eb",
+    "opened_at": "2026-08-18T15:52:14.576328+00:00",
+    "updated_at": "2026-08-18T15:52:14.576328+00:00"
   }
 }
