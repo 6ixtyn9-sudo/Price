@@ -187,13 +187,13 @@
     "qty": 10.0,
     "entry_price": 88.64,
     "initial_stop_price": 86.90549972816686,
-    "current_stop_price": 86.90549972816686,
+    "current_stop_price": 89.47233321092426,
     "r_per_share": 1.7345002718331481,
-    "stage": "initial",
-    "extreme_price": 88.64,
-    "stop_order_id": "135233d9-28ab-4426-8ed8-c248b59e7087",
+    "stage": "trailing",
+    "extreme_price": 90.545,
+    "stop_order_id": "5d6ddac1-f13f-492d-9bdf-4e4cca496057",
     "opened_at": "2026-08-18T17:17:55.248804+00:00",
-    "updated_at": "2026-08-18T17:17:55.248804+00:00"
+    "updated_at": "2026-08-19T18:17:27.347384+00:00"
   },
   "SLB": {
     "symbol": "SLB",
@@ -236,5 +236,19 @@
     "stop_order_id": "eaeaf2eb-0074-43e2-bfa2-b9cef6f46ecf",
     "opened_at": "2026-08-19T16:35:54.657483+00:00",
     "updated_at": "2026-08-19T16:35:54.657483+00:00"
+  },
+  "XLI": {
+    "symbol": "XLI",
+    "side": "short",
+    "qty": 4.0,
+    "entry_price": 182.24,
+    "initial_stop_price": 185.72035714285715,
+    "current_stop_price": 185.72035714285715,
+    "r_per_share": 3.4803571428571347,
+    "stage": "initial",
+    "extreme_price": 182.24,
+    "stop_order_id": "e4023169-5b3f-4d9a-ace1-64cb46b172d2",
+    "opened_at": "2026-08-19T18:17:27.785947+00:00",
+    "updated_at": "2026-08-19T18:17:27.785947+00:00"
   }
 }
