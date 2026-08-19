@@ -145,13 +145,13 @@
     "qty": 6.0,
     "entry_price": 152.14,
     "initial_stop_price": 148.77789622466403,
-    "current_stop_price": 148.77789622466403,
+    "current_stop_price": 157.30739640315176,
     "r_per_share": 3.36210377533596,
-    "stage": "initial",
-    "extreme_price": 152.14,
-    "stop_order_id": "ac58ab19-8d40-43fb-9737-4167f8ef4531",
+    "stage": "trailing",
+    "extreme_price": 160.945,
+    "stop_order_id": "ec044209-1de6-4da7-8545-e81397b204f9",
     "opened_at": "2026-08-17T18:47:15.033426+00:00",
-    "updated_at": "2026-08-17T18:47:15.033426+00:00"
+    "updated_at": "2026-08-19T14:02:22.078084+00:00"
   },
   "PSX": {
     "symbol": "PSX",
@@ -236,19 +236,5 @@
     "stop_order_id": "fd11c2de-ea59-43ed-9373-014feed7f7c2",
     "opened_at": "2026-08-18T18:34:10.053419+00:00",
     "updated_at": "2026-08-18T18:34:10.053419+00:00"
-  },
-  "IBIT": {
-    "symbol": "IBIT",
-    "side": "short",
-    "qty": 25.0,
-    "entry_price": 36.69,
-    "initial_stop_price": 36.972142857142856,
-    "current_stop_price": 36.972142857142856,
-    "r_per_share": 0.2821428571428619,
-    "stage": "initial",
-    "extreme_price": 36.69,
-    "stop_order_id": "98772eea-ff87-4917-9acb-7626a74343cd",
-    "opened_at": "2026-08-18T18:34:10.743210+00:00",
-    "updated_at": "2026-08-18T18:34:10.743210+00:00"
   }
 }
