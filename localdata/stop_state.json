@@ -117,13 +117,13 @@
     "qty": 5.0,
     "entry_price": 155.456,
     "initial_stop_price": 151.6920702766822,
-    "current_stop_price": 151.6920702766822,
+    "current_stop_price": 156.85833335280643,
     "r_per_share": 3.7639297233177964,
-    "stage": "initial",
-    "extreme_price": 155.456,
-    "stop_order_id": "43b79e5e-34cc-43ac-8b4e-2160f6e92b86",
+    "stage": "trailing",
+    "extreme_price": 159.38,
+    "stop_order_id": "be5f376a-6ec4-428e-a686-6ed6b0db71f4",
     "opened_at": "2026-08-17T14:34:10.605650+00:00",
-    "updated_at": "2026-08-17T14:34:10.605650+00:00"
+    "updated_at": "2026-08-19T15:02:34.005815+00:00"
   },
   "PLTR": {
     "symbol": "PLTR",
@@ -222,19 +222,5 @@
     "stop_order_id": "e6c55121-a1a3-4789-a2b4-6cc4423ab312",
     "opened_at": "2026-08-18T17:17:55.946292+00:00",
     "updated_at": "2026-08-18T17:17:55.946292+00:00"
-  },
-  "BAC": {
-    "symbol": "BAC",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 64.06,
-    "initial_stop_price": 63.45821428571428,
-    "current_stop_price": 63.45821428571428,
-    "r_per_share": 0.6017857142857252,
-    "stage": "initial",
-    "extreme_price": 64.06,
-    "stop_order_id": "fd11c2de-ea59-43ed-9373-014feed7f7c2",
-    "opened_at": "2026-08-18T18:34:10.053419+00:00",
-    "updated_at": "2026-08-18T18:34:10.053419+00:00"
   }
 }
