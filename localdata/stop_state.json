@@ -222,5 +222,19 @@
     "stop_order_id": "9fe6fd4f-546d-47d8-b88f-2bb897fbdda7",
     "opened_at": "2026-08-19T15:47:27.886441+00:00",
     "updated_at": "2026-08-19T15:47:27.886441+00:00"
+  },
+  "KMB": {
+    "symbol": "KMB",
+    "side": "short",
+    "qty": 8.0,
+    "entry_price": 109.01,
+    "initial_stop_price": 111.5173643589716,
+    "current_stop_price": 111.5173643589716,
+    "r_per_share": 2.5073643589716,
+    "stage": "initial",
+    "extreme_price": 109.01,
+    "stop_order_id": "eaeaf2eb-0074-43e2-bfa2-b9cef6f46ecf",
+    "opened_at": "2026-08-19T16:35:54.657483+00:00",
+    "updated_at": "2026-08-19T16:35:54.657483+00:00"
   }
 }
