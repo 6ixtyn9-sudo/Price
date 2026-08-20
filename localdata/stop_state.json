@@ -153,20 +153,6 @@
     "opened_at": "2026-08-18T17:17:55.946292+00:00",
     "updated_at": "2026-08-18T17:17:55.946292+00:00"
   },
-  "KMB": {
-    "symbol": "KMB",
-    "side": "short",
-    "qty": 8.0,
-    "entry_price": 109.01,
-    "initial_stop_price": 111.5173643589716,
-    "current_stop_price": 111.5173643589716,
-    "r_per_share": 2.5073643589716,
-    "stage": "initial",
-    "extreme_price": 109.01,
-    "stop_order_id": "eaeaf2eb-0074-43e2-bfa2-b9cef6f46ecf",
-    "opened_at": "2026-08-19T16:35:54.657483+00:00",
-    "updated_at": "2026-08-19T16:35:54.657483+00:00"
-  },
   "MS": {
     "symbol": "MS",
     "side": "long",
@@ -278,5 +264,19 @@
     "stop_order_id": "fb409eb1-b62c-4f1b-af84-433638f0db87",
     "opened_at": "2026-08-20T17:48:00.557203+00:00",
     "updated_at": "2026-08-20T17:48:00.557203+00:00"
+  },
+  "KMB": {
+    "symbol": "KMB",
+    "side": "short",
+    "qty": 8.0,
+    "entry_price": 108.91,
+    "initial_stop_price": 111.38289886950119,
+    "current_stop_price": 111.38289886950119,
+    "r_per_share": 2.4728988695011944,
+    "stage": "initial",
+    "extreme_price": 108.91,
+    "stop_order_id": "d8ecbd06-9d6d-4d2d-a808-163a726413b9",
+    "opened_at": "2026-08-20T18:47:47.945543+00:00",
+    "updated_at": "2026-08-20T18:47:47.945543+00:00"
   }
 }
