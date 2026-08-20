@@ -156,80 +156,77 @@ XYZ,1d,state_ext=stretched_down + state_slope=flat + state_vol=low_vol,long,auto
 XYZ,1d,cross_USO_state_slope=downtrend + state_slope=uptrend,long,auto_promoted_tradeable,rolling,20,4.034525048998946,"[""bull"", ""neutral"", ""bear""]"
 XYZ,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""neutral"", ""bear""]"
 XYZ,1d,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,3.814390751825402,"[""bull"", ""neutral"", ""bear""]"
-AAPL,1h,cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,4.015556676186613,[]
-AAPL,1h,cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,3.9117832836856974,[]
-ABNB,1h,state_session=lunch + state_ext=neutral + state_slope=downtrend,long,auto_promoted_tradeable,rolling,20,5.0,[]
-ABT,1h,state_ext=stretched_up + state_slope=uptrend + state_vol=mid_vol,short,auto_promoted_tradeable,rolling,20,5.0,[]
-ACWI,1h,cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.474110095786967,"[""neutral""]"
-AFRM,1h,state_session=morning + state_ext=neutral + state_slope=flat,short,auto_promoted_tradeable,rolling,10,4.279435820151388,"[""bull"", ""bear""]"
+AAPL,1h,cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,3.995580889275454,"[""bull"", ""neutral"", ""bear""]"
+AAPL,1h,cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,3.8793243094188834,"[""neutral""]"
+ABNB,1h,state_session=lunch + state_ext=neutral + state_slope=downtrend,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
+ABT,1h,state_ext=stretched_up + state_slope=uptrend + state_vol=mid_vol,short,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""bear""]"
+ACWI,1h,cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.474110137794969,"[""neutral""]"
+AFRM,1h,state_session=morning + state_ext=neutral + state_slope=flat,short,auto_promoted_tradeable,rolling,10,4.278115902703721,"[""bull"", ""bear""]"
 ARKG,1h,cross_USO_state_slope=flat + cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,3.888837547888784,"[""bull"", ""neutral"", ""bear""]"
-ARM,1h,state_slope=uptrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral""]"
-BIDU,1h,cross_TLT_state_slope=uptrend + state_slope=flat,short,auto_promoted_tradeable,rolling,5,3.094236346011658,[]
-CAT,1h,state_session=lunch + state_slope=downtrend + state_vol=mid_vol,long,auto_promoted_tradeable,rolling,20,4.858696332606313,[]
-CL,1h,cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,4.373049861530943,[]
-CL,1h,cross_USO_state_slope=downtrend + cross_TLT_state_ext=neutral + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,4.000942287605646,[]
-COF,1h,state_session=morning + state_slope=downtrend + state_vol=high_vol,long,auto_promoted_tradeable,rolling,20,4.498245234088609,[]
-CRWD,1h,state_session=morning + state_ext=stretched_up + state_slope=flat,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-CRWD,1h,cross_USO_state_vol=high_vol + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,5.0,[]
+ARM,1h,state_slope=uptrend + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral""]"
+CL,1h,cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,4.373049861530943,"[""bull"", ""neutral"", ""bear""]"
+CL,1h,cross_USO_state_slope=downtrend + cross_TLT_state_ext=neutral + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,4.000942287605646,"[""bull"", ""neutral""]"
+CME,1h,state_slope=flat + state_vol=high_vol,long,auto_promoted_strict_candidate,rolling,20,4.194913095452627,"[""bull"", ""neutral"", ""bear""]"
+COF,1h,state_session=morning + state_slope=downtrend + state_vol=high_vol,long,auto_promoted_tradeable,rolling,20,4.498245234088609,"[""bull"", ""neutral"", ""bear""]"
+CRWD,1h,cross_USO_state_vol=high_vol + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 CSX,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,10,1.9385768026102983,"[""bull"", ""neutral""]"
-CSX,1h,cross_TLT_state_vol=mid_vol + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,10,2.066876940893968,[]
-EQIX,1h,cross_USO_state_ext=stretched_up + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,5,1.5,[]
-EQIX,1h,cross_USO_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,10,2.1864116958187134,[]
+CSX,1h,cross_TLT_state_vol=mid_vol + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,10,2.066876940893968,"[""bull"", ""neutral""]"
+CVS,1h,cross_TLT_state_vol=low_vol + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,4.346531337737323,"[""bull"", ""neutral"", ""bear""]"
+EQIX,1h,cross_USO_state_ext=stretched_up + state_ext=stretched_up,short,auto_promoted_strict_candidate,rolling,5,1.5,"[""bull"", ""neutral"", ""bear""]"
+FCX,1h,cross_USO_state_slope=downtrend + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.558558467174439,"[""bull"", ""neutral"", ""bear""]"
+FDX,1h,cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.169243058963012,"[""bull"", ""neutral""]"
+FDX,1h,cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.9556391425544364,"[""bull"", ""neutral"", ""bear""]"
 GILD,1h,cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.9555110652535803,"[""bull"", ""neutral""]"
-ICE,1h,cross_USO_state_slope=downtrend + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,3.8484524717802655,[]
-ICE,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,4.2055080707461405,[]
-JNJ,1h,state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol,long,auto_promoted_tradeable,rolling,20,4.271000197259943,[]
-JNJ,1h,state_session=morning + state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_tradeable,rolling,20,4.404426660873107,[]
-JPM,1h,state_session=afternoon + state_slope=downtrend + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,4.372418461126686,"[""bull"", ""neutral"", ""bear""]"
+HUM,1h,cross_USO_state_ext=neutral + state_ext=stretched_up,long,auto_promoted_strict_candidate,rolling,10,3.701736877826395,"[""bull"", ""neutral""]"
+ICE,1h,cross_USO_state_slope=downtrend + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,3.847630913100138,"[""bull"", ""neutral"", ""bear""]"
+ICE,1h,cross_USO_state_vol=mid_vol + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,20,4.183795362314521,"[""bull"", ""neutral"", ""bear""]"
+JNJ,1h,state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol,long,auto_promoted_tradeable,rolling,20,4.271000197259943,"[""bull"", ""neutral"", ""bear""]"
+JNJ,1h,state_session=morning + state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_tradeable,rolling,20,4.404426660873107,"[""bull"", ""neutral"", ""bear""]"
+JPM,1h,state_session=afternoon + state_slope=downtrend + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,4.325558895267648,"[""bull"", ""neutral"", ""bear""]"
 KLAC,1h,cross_USO_state_vol=high_vol + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-KLAC,1h,state_ext=neutral + state_ret_1=ret_down,long,auto_promoted_tradeable,rolling,20,5.0,[]
-KLAC,1h,state_session=lunch + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,5.0,[]
-KLAC,1h,state_gap_open=gap_open_flat + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,5.0,[]
+KLAC,1h,state_ext=neutral + state_ret_1=ret_down,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
+KLAC,1h,state_session=lunch + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
+KLAC,1h,state_gap_open=gap_open_flat + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 KMB,1h,cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral,short,auto_promoted_strict_candidate,rolling,10,3.015730328659992,"[""bull"", ""neutral"", ""bear""]"
-KO,1h,state_session=lunch + state_slope=flat + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,10,3.97430504184352,"[""bull"", ""neutral"", ""bear""]"
+KO,1h,state_session=lunch + state_slope=flat + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,10,3.96037608370931,"[""bull"", ""neutral"", ""bear""]"
 LNG,1h,cross_USO_state_slope=flat + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,4.015066604139841,"[""bull"", ""neutral""]"
-MRK,1h,cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,10,1.901810716826073,[]
-MS,1h,state_session=afternoon + state_slope=downtrend + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,4.701801317511292,"[""bull"", ""neutral""]"
+LOW,1h,cross_TLT_state_slope=uptrend + state_ext=neutral,short,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
+LRCX,1h,state_ext=stretched_up + state_slope=flat + state_vol=mid_vol,short,auto_promoted_tradeable,rolling,5,2.3010574352286337,"[""bull"", ""neutral""]"
+MRK,1h,cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,10,1.901810716826073,"[""bull"", ""neutral"", ""bear""]"
+MS,1h,state_session=afternoon + state_slope=downtrend + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,4.669492980527561,"[""bull"", ""neutral""]"
 MS,1h,state_ext=stretched_up + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,3.8680857639963824,"[""bull""]"
-MS,1h,state_volume=vol_surge + state_slope=flat,long,auto_promoted_tradeable,rolling,20,5.0,[]
 NEE,1h,cross_USO_state_slope=downtrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,10,3.5116412184176826,"[""neutral"", ""bear""]"
 NEM,1h,state_slope=downtrend + state_vol=low_vol,long,auto_promoted_strict_candidate,rolling,20,4.493555930529858,"[""bull"", ""neutral"", ""bear""]"
-OIH,1h,state_ext=neutral + state_slope=uptrend + state_vol=high_vol,long,auto_promoted_strict_candidate,rolling,10,2.7980853800342382,"[""bull"", ""neutral"", ""bear""]"
-OXY,1h,state_session=morning + state_slope=downtrend + state_vol=mid_vol,short,auto_promoted_tradeable,rolling,5,3.623728204870526,"[""bull"", ""bear""]"
-PDD,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,4.366564123699201,[]
+OIH,1h,state_ext=neutral + state_slope=uptrend + state_vol=high_vol,long,auto_promoted_strict_candidate,rolling,20,3.8945869844146985,"[""bull"", ""neutral"", ""bear""]"
+OIH,1h,state_session=lunch + state_slope=uptrend + state_vol=high_vol,long,auto_promoted_tradeable,rolling,20,3.5710081214664884,"[""bull"", ""neutral"", ""bear""]"
+OXY,1h,state_session=morning + state_slope=downtrend + state_vol=mid_vol,short,auto_promoted_tradeable,rolling,5,3.6093577746245895,"[""bull"", ""bear""]"
+PDD,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,4.366564123699201,"[""bull"", ""neutral"", ""bear""]"
 PG,1h,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_strict_candidate,rolling,20,3.011738734253395,"[""bull"", ""neutral""]"
 PG,1h,cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_strict_candidate,rolling,20,2.936484820368511,"[""bull"", ""neutral""]"
 PG,1h,cross_USO_state_slope=downtrend + cross_TLT_state_ext=neutral + state_ext=stretched_up,short,auto_promoted_strict_candidate,rolling,20,4.386057703799317,"[""bull"", ""neutral""]"
-PG,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,2.3873103989245203,[]
-PLTR,1h,cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-PM,1h,state_volume=vol_normal + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,10,3.658735724922359,[]
-PM,1h,state_volume=vol_normal + state_ext=stretched_up + state_slope=uptrend,long,auto_promoted_tradeable,rolling,10,3.672237629287672,[]
-PM,1h,cross_TLT_state_vol=low_vol + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,10,3.679264562428581,[]
-PM,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,3.5559117736040617,[]
-PSX,1h,state_ext=stretched_up + state_slope=uptrend + state_vol=low_vol,short,auto_promoted_tradeable,rolling,10,2.3311304707369005,"[""bull"", ""neutral""]"
-PSX,1h,state_ext=stretched_up + state_vol=low_vol,short,auto_promoted_tradeable,rolling,10,2.53058996219698,[]
+PG,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,2.3873103989245203,"[""bull"", ""neutral""]"
+PLTR,1h,cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
+PM,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,3.555911758946728,"[""bull"", ""neutral""]"
+PM,1h,state_volume=vol_normal + state_ext=stretched_up + state_slope=uptrend,long,auto_promoted_tradeable,rolling,10,3.672237629287672,"[""bull"", ""neutral"", ""bear""]"
 QCOM,1h,state_volume=vol_surge + state_ext=neutral + state_slope=flat,short,auto_promoted_tradeable,rolling,20,3.5567515743727034,"[""bull"", ""neutral"", ""bear""]"
 RTX,1h,cross_USO_state_slope=downtrend + cross_TLT_state_slope=flat + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.825941466557291,"[""bull"", ""neutral""]"
-SLB,1h,state_ext=neutral + state_ret_5=ret_down,long,auto_promoted_tradeable,rolling,10,3.4350974700219568,"[""bull"", ""neutral"", ""bear""]"
+SLB,1h,state_ext=neutral + state_ret_5=ret_down,long,auto_promoted_tradeable,rolling,10,3.42238668819655,"[""bull"", ""neutral"", ""bear""]"
 SLV,1h,cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral""]"
-SMH,1h,state_slope=flat + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-SMH,1h,state_ext=neutral + state_slope=flat + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,5.0,[]
-SOFI,1h,state_ext=stretched_down + state_vol=high_vol,long,auto_promoted_tradeable,rolling,20,4.772976256326032,"[""bull"", ""neutral"", ""bear""]"
 SOFI,1h,state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol,long,auto_promoted_tradeable,rolling,20,4.317029098474499,"[""bull"", ""neutral"", ""bear""]"
 T,1h,cross_USO_state_slope=uptrend + state_slope=uptrend,long,auto_promoted_tradeable,rolling,20,5.0,"[""neutral"", ""bear""]"
 TGT,1h,state_volume=vol_surge + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,3.3777863548405835,"[""bull"", ""neutral"", ""bear""]"
-VLO,1h,cross_TLT_state_slope=flat + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,3.815391330985484,"[""bull"", ""neutral"", ""bear""]"
+VLO,1h,cross_TLT_state_slope=flat + state_slope=downtrend,long,auto_promoted_strict_candidate,rolling,20,3.813736706061595,"[""bull"", ""neutral"", ""bear""]"
 VLO,1h,cross_TLT_state_vol=low_vol + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral""]"
-VRTX,1h,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_up,short,auto_promoted_tradeable,rolling,20,4.334005181560711,"[""bull"", ""neutral""]"
-VT,1h,cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.351419618599691,"[""neutral""]"
-XLB,1h,state_relvol=relvol_elevated + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,4.935745119874034,"[""bull"", ""neutral"", ""bear""]"
-XLC,1h,cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.701123083565814,"[""bull"", ""neutral"", ""bear""]"
-XLI,1h,state_ext=neutral + state_ret_5=ret_down,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-XLP,1h,cross_TLT_state_vol=low_vol + state_ext=stretched_down,short,auto_promoted_tradeable,rolling,10,1.5,"[""bull"", ""neutral"", ""bear""]"
-XLP,1h,state_volume=vol_quiet + state_ext=neutral + state_slope=uptrend,short,auto_promoted_tradeable,rolling,10,3.0194998387839123,"[""bull"", ""neutral""]"
-XLP,1h,state_volume=vol_quiet + state_slope=uptrend,short,auto_promoted_tradeable,rolling,10,3.0194998387839123,"[""bull"", ""neutral""]"
-XLY,1h,state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend,long,auto_promoted_tradeable,rolling,20,4.125233932900237,"[""bull"", ""neutral"", ""bear""]"
-XME,1h,state_session=lunch + state_slope=uptrend + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,20,4.266181510684268,"[""bull"", ""neutral"", ""bear""]"
+VT,1h,cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.351419598885999,"[""neutral""]"
+XLB,1h,state_relvol=relvol_elevated + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,4.895805707422329,"[""bull"", ""neutral"", ""bear""]"
+XLC,1h,cross_TLT_state_slope=downtrend + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,2.7011240839034243,"[""bull"", ""neutral"", ""bear""]"
+XLE,1h,state_volume=vol_normal + state_ext=neutral + state_slope=uptrend,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
+XLP,1h,state_volume=vol_quiet + state_slope=uptrend,short,auto_promoted_tradeable,rolling,10,3.010535386250348,"[""bull"", ""neutral""]"
+XLP,1h,state_volume=vol_quiet + state_ext=neutral + state_slope=uptrend,short,auto_promoted_tradeable,rolling,10,3.010535386250348,"[""bull"", ""neutral""]"
+XLY,1h,state_ext=stretched_down + state_ret_1=ret_down,long,auto_promoted_tradeable,rolling,20,4.1726581671710345,"[""bull"", ""neutral"", ""bear""]"
+XME,1h,state_session=lunch + state_slope=uptrend + state_vol=mid_vol,long,auto_promoted_strict_candidate,rolling,20,4.239017707052263,"[""bull"", ""neutral"", ""bear""]"
+XOM,1h,state_session=afternoon + state_vol=mid_vol,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""bear""]"
+XRT,1h,state_volume=vol_surge + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
 ADBE,15m,cross_USO_state_ext=stretched_up + state_ext=stretched_up,long,auto_promoted_tradeable,rolling,10,2.3245556552880875,"[""neutral"", ""bear""]"
 AMAT,15m,state_session=afternoon + state_ret_5=ret_down,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral""]"
 ARKG,15m,cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,4.337651112868605,"[""bull"", ""neutral""]"
