@@ -208,5 +208,19 @@
     "stop_order_id": "507a862a-3369-4460-8ce8-864c550cfef8",
     "opened_at": "2026-08-19T19:38:31.821318+00:00",
     "updated_at": "2026-08-19T19:38:31.821318+00:00"
+  },
+  "GD": {
+    "symbol": "GD",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 392.6,
+    "initial_stop_price": 361.33930489676345,
+    "current_stop_price": 361.33930489676345,
+    "r_per_share": 31.2606951032366,
+    "stage": "initial",
+    "extreme_price": 392.6,
+    "stop_order_id": "7270f5ec-98ee-4dce-bf10-09f4d90496f0",
+    "opened_at": "2026-08-20T13:38:28.575624+00:00",
+    "updated_at": "2026-08-20T13:38:28.575624+00:00"
   }
 }
