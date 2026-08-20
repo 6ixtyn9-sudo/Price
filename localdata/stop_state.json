@@ -153,20 +153,6 @@
     "opened_at": "2026-08-18T17:17:55.946292+00:00",
     "updated_at": "2026-08-18T17:17:55.946292+00:00"
   },
-  "PSX": {
-    "symbol": "PSX",
-    "side": "short",
-    "qty": 3.0,
-    "entry_price": 243.02,
-    "initial_stop_price": 246.94233565371687,
-    "current_stop_price": 246.94233565371687,
-    "r_per_share": 3.922335653716845,
-    "stage": "initial",
-    "extreme_price": 243.02,
-    "stop_order_id": "9fe6fd4f-546d-47d8-b88f-2bb897fbdda7",
-    "opened_at": "2026-08-19T15:47:27.886441+00:00",
-    "updated_at": "2026-08-19T15:47:27.886441+00:00"
-  },
   "KMB": {
     "symbol": "KMB",
     "side": "short",
@@ -278,5 +264,19 @@
     "stop_order_id": "a9846ad6-f97b-44b7-b480-96b883a5ad06",
     "opened_at": "2026-08-20T16:17:16.218069+00:00",
     "updated_at": "2026-08-20T16:17:16.218069+00:00"
+  },
+  "PM": {
+    "symbol": "PM",
+    "side": "long",
+    "qty": 4.0,
+    "entry_price": 193.61,
+    "initial_stop_price": 188.1252507979711,
+    "current_stop_price": 188.1252507979711,
+    "r_per_share": 5.484749202028937,
+    "stage": "initial",
+    "extreme_price": 193.61,
+    "stop_order_id": "fb409eb1-b62c-4f1b-af84-433638f0db87",
+    "opened_at": "2026-08-20T17:48:00.557203+00:00",
+    "updated_at": "2026-08-20T17:48:00.557203+00:00"
   }
 }
