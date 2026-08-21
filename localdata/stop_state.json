@@ -195,20 +195,6 @@
     "opened_at": "2026-08-20T15:17:23.381102+00:00",
     "updated_at": "2026-08-20T15:17:23.381102+00:00"
   },
-  "XLP": {
-    "symbol": "XLP",
-    "side": "short",
-    "qty": 10.0,
-    "entry_price": 85.584,
-    "initial_stop_price": 87.21614025583143,
-    "current_stop_price": 87.21614025583143,
-    "r_per_share": 1.6321402558314364,
-    "stage": "initial",
-    "extreme_price": 85.584,
-    "stop_order_id": "72a31af6-2112-4785-a1bc-5289d67616b5",
-    "opened_at": "2026-08-20T15:28:34.131942+00:00",
-    "updated_at": "2026-08-20T15:28:34.131942+00:00"
-  },
   "CME": {
     "symbol": "CME",
     "side": "long",
