@@ -139,20 +139,6 @@
     "opened_at": "2026-08-18T17:17:54.540270+00:00",
     "updated_at": "2026-08-18T17:17:54.540270+00:00"
   },
-  "SLB": {
-    "symbol": "SLB",
-    "side": "long",
-    "qty": 17.0,
-    "entry_price": 53.29,
-    "initial_stop_price": 52.01533347451685,
-    "current_stop_price": 52.01533347451685,
-    "r_per_share": 1.2746665254831493,
-    "stage": "initial",
-    "extreme_price": 53.29,
-    "stop_order_id": "e6c55121-a1a3-4789-a2b4-6cc4423ab312",
-    "opened_at": "2026-08-18T17:17:55.946292+00:00",
-    "updated_at": "2026-08-18T17:17:55.946292+00:00"
-  },
   "MS": {
     "symbol": "MS",
     "side": "long",
