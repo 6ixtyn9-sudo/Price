@@ -1,11 +1,8 @@
 {
-  "previous_book_count": 257,
+  "previous_book_count": 255,
   "new_book_count": 255,
   "added_candidates": [],
-  "removed_candidates": [
-    "BITO|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling",
-    "BITO|1d|state_volume=vol_quiet + state_ext=stretched_down|long|rolling"
-  ],
+  "removed_candidates": [],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
     "AAPL|1h|cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -264,10 +261,7 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {
-    "BITO|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling": "registry_status:research_only",
-    "BITO|1d|state_volume=vol_quiet + state_ext=stretched_down|long|rolling": "registry_status:research_only"
-  },
+  "removal_reasons": {},
   "promotion_reasons": {},
   "discovery_run_id": null
 }

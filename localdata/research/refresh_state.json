@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-08-22T22:06:23.598186+00:00",
+  "updated_at_utc": "2026-08-23T22:07:17.619782+00:00",
   "symbols": 221,
   "timeframes": [
     "1d",
@@ -1778,7 +1778,7 @@
       "last_bar": "2026-08-11 04:00:00+00:00"
     }
   },
-  "new_daily_bars_since_previous_refresh": 219,
+  "new_daily_bars_since_previous_refresh": 0,
   "eligible_discovery_symbols": [
     "AA:1d",
     "AAPL:1d",
@@ -2016,5 +2016,5 @@
   "monitored_slices_modified": false,
   "automatic_promotion_enabled": false,
   "workflow": "research_refresh",
-  "generated_at_utc": "2026-08-22T22:06:23+00:00"
+  "generated_at_utc": "2026-08-23T22:07:17+00:00"
 }
