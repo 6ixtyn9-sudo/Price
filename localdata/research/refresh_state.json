@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-08-23T22:07:17.619782+00:00",
+  "updated_at_utc": "2026-08-24T22:07:18.935715+00:00",
   "symbols": 221,
   "timeframes": [
     "1d",
@@ -2016,5 +2016,5 @@
   "monitored_slices_modified": false,
   "automatic_promotion_enabled": false,
   "workflow": "research_refresh",
-  "generated_at_utc": "2026-08-23T22:07:17+00:00"
+  "generated_at_utc": "2026-08-24T22:07:19+00:00"
 }
