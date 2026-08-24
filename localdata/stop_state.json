@@ -125,34 +125,6 @@
     "opened_at": "2026-08-20T13:38:28.575624+00:00",
     "updated_at": "2026-08-20T13:38:28.575624+00:00"
   },
-  "COF": {
-    "symbol": "COF",
-    "side": "long",
-    "qty": 4.0,
-    "entry_price": 213.39,
-    "initial_stop_price": 205.3590257409968,
-    "current_stop_price": 205.3590257409968,
-    "r_per_share": 8.0309742590032,
-    "stage": "initial",
-    "extreme_price": 213.39,
-    "stop_order_id": "cb3b0e2a-5ee5-4cbc-8b57-49ee9953271e",
-    "opened_at": "2026-08-20T14:39:45.479244+00:00",
-    "updated_at": "2026-08-20T14:39:45.479244+00:00"
-  },
-  "LOW": {
-    "symbol": "LOW",
-    "side": "short",
-    "qty": 4.0,
-    "entry_price": 218.515,
-    "initial_stop_price": 232.9007142857143,
-    "current_stop_price": 232.9007142857143,
-    "r_per_share": 14.385714285714286,
-    "stage": "initial",
-    "extreme_price": 218.515,
-    "stop_order_id": "4532f82c-a465-4433-97a3-1e7c0faf7134",
-    "opened_at": "2026-08-20T15:02:17.367677+00:00",
-    "updated_at": "2026-08-20T15:02:17.367677+00:00"
-  },
   "XRT": {
     "symbol": "XRT",
     "side": "long",
@@ -250,5 +222,33 @@
     "stop_order_id": "f8837fe0-a923-4539-91d2-ad05003cf44f",
     "opened_at": "2026-08-24T17:02:55.194373+00:00",
     "updated_at": "2026-08-24T17:02:55.194373+00:00"
+  },
+  "BAC": {
+    "symbol": "BAC",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 62.41,
+    "initial_stop_price": 61.754642857142855,
+    "current_stop_price": 61.754642857142855,
+    "r_per_share": 0.6553571428571405,
+    "stage": "initial",
+    "extreme_price": 62.41,
+    "stop_order_id": "8f3d7998-fcf9-48d4-9bb6-0b7159c05495",
+    "opened_at": "2026-08-24T19:47:43.861469+00:00",
+    "updated_at": "2026-08-24T19:47:43.861469+00:00"
+  },
+  "XLP": {
+    "symbol": "XLP",
+    "side": "short",
+    "qty": 10.0,
+    "entry_price": 87.24,
+    "initial_stop_price": 88.18294269062197,
+    "current_stop_price": 88.18294269062197,
+    "r_per_share": 0.9429426906219821,
+    "stage": "initial",
+    "extreme_price": 87.24,
+    "stop_order_id": "afdfda65-2277-496b-ae6e-b7773e6609d2",
+    "opened_at": "2026-08-24T19:47:44.331683+00:00",
+    "updated_at": "2026-08-24T19:47:44.331683+00:00"
   }
 }
