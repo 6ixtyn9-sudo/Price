@@ -153,20 +153,6 @@
     "opened_at": "2026-08-24T14:47:37.840572+00:00",
     "updated_at": "2026-08-24T14:47:37.840572+00:00"
   },
-  "HUM": {
-    "symbol": "HUM",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 384.97,
-    "initial_stop_price": 371.77330803054895,
-    "current_stop_price": 371.77330803054895,
-    "r_per_share": 13.196691969451075,
-    "stage": "initial",
-    "extreme_price": 384.97,
-    "stop_order_id": "a5be9cc4-4fa2-4776-af7e-5bd56fbf27e9",
-    "opened_at": "2026-08-24T15:29:20.468644+00:00",
-    "updated_at": "2026-08-24T15:29:20.468644+00:00"
-  },
   "AFRM": {
     "symbol": "AFRM",
     "side": "short",
@@ -264,5 +250,19 @@
     "stop_order_id": "18344674-834b-45f7-80f4-791a1461f62b",
     "opened_at": "2026-08-25T16:47:31.656461+00:00",
     "updated_at": "2026-08-25T16:47:31.656461+00:00"
+  },
+  "GDXJ": {
+    "symbol": "GDXJ",
+    "side": "long",
+    "qty": 6.0,
+    "entry_price": 135.45,
+    "initial_stop_price": 129.37097651690743,
+    "current_stop_price": 129.37097651690743,
+    "r_per_share": 6.0790234830925485,
+    "stage": "initial",
+    "extreme_price": 135.45,
+    "stop_order_id": "c6741dba-cacc-4cf1-96f5-241a7f824396",
+    "opened_at": "2026-08-25T18:17:22.498939+00:00",
+    "updated_at": "2026-08-25T18:17:22.498939+00:00"
   }
 }
