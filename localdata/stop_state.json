@@ -153,20 +153,6 @@
     "opened_at": "2026-08-24T14:47:37.840572+00:00",
     "updated_at": "2026-08-24T14:47:37.840572+00:00"
   },
-  "XLP": {
-    "symbol": "XLP",
-    "side": "short",
-    "qty": 10.0,
-    "entry_price": 87.24,
-    "initial_stop_price": 88.18294269062197,
-    "current_stop_price": 88.18294269062197,
-    "r_per_share": 0.9429426906219821,
-    "stage": "initial",
-    "extreme_price": 87.24,
-    "stop_order_id": "afdfda65-2277-496b-ae6e-b7773e6609d2",
-    "opened_at": "2026-08-24T19:47:44.331683+00:00",
-    "updated_at": "2026-08-24T19:47:44.331683+00:00"
-  },
   "MO": {
     "symbol": "MO",
     "side": "long",
@@ -264,5 +250,19 @@
     "stop_order_id": "8ef2d477-7e47-461d-b5d3-133835d57e66",
     "opened_at": "2026-08-25T18:47:21.482327+00:00",
     "updated_at": "2026-08-25T18:47:21.482327+00:00"
+  },
+  "XLP": {
+    "symbol": "XLP",
+    "side": "short",
+    "qty": 10.0,
+    "entry_price": 86.502,
+    "initial_stop_price": 87.61052213686574,
+    "current_stop_price": 87.61052213686574,
+    "r_per_share": 1.1085221368657503,
+    "stage": "initial",
+    "extreme_price": 86.502,
+    "stop_order_id": "7978a2dd-8036-415d-a604-2aba9297b7cf",
+    "opened_at": "2026-08-25T20:02:27.648369+00:00",
+    "updated_at": "2026-08-25T20:02:27.648369+00:00"
   }
 }
