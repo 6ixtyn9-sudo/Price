@@ -250,5 +250,19 @@
     "stop_order_id": "afdfda65-2277-496b-ae6e-b7773e6609d2",
     "opened_at": "2026-08-24T19:47:44.331683+00:00",
     "updated_at": "2026-08-24T19:47:44.331683+00:00"
+  },
+  "MO": {
+    "symbol": "MO",
+    "side": "long",
+    "qty": 10.0,
+    "entry_price": 68.23,
+    "initial_stop_price": 66.96467599238562,
+    "current_stop_price": 66.96467599238562,
+    "r_per_share": 1.2653240076143768,
+    "stage": "initial",
+    "extreme_price": 68.23,
+    "stop_order_id": "96072d29-fd2f-46ee-89e4-82ce8921f64e",
+    "opened_at": "2026-08-25T13:34:02.740606+00:00",
+    "updated_at": "2026-08-25T13:34:02.740606+00:00"
   }
 }
