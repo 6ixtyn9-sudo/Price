@@ -264,5 +264,19 @@
     "stop_order_id": "7978a2dd-8036-415d-a604-2aba9297b7cf",
     "opened_at": "2026-08-25T20:02:27.648369+00:00",
     "updated_at": "2026-08-25T20:02:27.648369+00:00"
+  },
+  "F": {
+    "symbol": "F",
+    "side": "long",
+    "qty": 65.0,
+    "entry_price": 13.95,
+    "initial_stop_price": 13.67877758816632,
+    "current_stop_price": 13.67877758816632,
+    "r_per_share": 0.27122241183367984,
+    "stage": "initial",
+    "extreme_price": 13.95,
+    "stop_order_id": "25fb01dd-0aa4-4d2d-b3d1-5c28f00bdd13",
+    "opened_at": "2026-08-26T13:31:22.465452+00:00",
+    "updated_at": "2026-08-26T13:31:22.465452+00:00"
   }
 }
