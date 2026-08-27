@@ -181,34 +181,6 @@
     "opened_at": "2026-08-25T16:47:31.656461+00:00",
     "updated_at": "2026-08-27T14:31:25.469832+00:00"
   },
-  "GDXJ": {
-    "symbol": "GDXJ",
-    "side": "long",
-    "qty": 6.0,
-    "entry_price": 135.45,
-    "initial_stop_price": 129.37097651690743,
-    "current_stop_price": 129.37097651690743,
-    "r_per_share": 6.0790234830925485,
-    "stage": "initial",
-    "extreme_price": 135.45,
-    "stop_order_id": "c6741dba-cacc-4cf1-96f5-241a7f824396",
-    "opened_at": "2026-08-25T18:17:22.498939+00:00",
-    "updated_at": "2026-08-25T18:17:22.498939+00:00"
-  },
-  "XLP": {
-    "symbol": "XLP",
-    "side": "short",
-    "qty": 10.0,
-    "entry_price": 86.502,
-    "initial_stop_price": 87.61052213686574,
-    "current_stop_price": 85.79032626590207,
-    "r_per_share": 1.1085221368657503,
-    "stage": "trailing",
-    "extreme_price": 85.255,
-    "stop_order_id": "bb9756dd-071b-41d4-9200-f08e52b01db9",
-    "opened_at": "2026-08-25T20:02:27.648369+00:00",
-    "updated_at": "2026-08-27T14:18:05.875052+00:00"
-  },
   "AFRM": {
     "symbol": "AFRM",
     "side": "short",
@@ -222,48 +194,6 @@
     "stop_order_id": "992a8dc1-e788-4d21-8245-b047642c1af9",
     "opened_at": "2026-08-26T16:48:08.861237+00:00",
     "updated_at": "2026-08-26T16:48:08.861237+00:00"
-  },
-  "F": {
-    "symbol": "F",
-    "side": "long",
-    "qty": 66.0,
-    "entry_price": 13.88,
-    "initial_stop_price": 13.689169859937381,
-    "current_stop_price": 13.689169859937381,
-    "r_per_share": 0.19083014006261895,
-    "stage": "initial",
-    "extreme_price": 13.88,
-    "stop_order_id": "e09d37ef-617b-4c50-97f9-78cacfc26b23",
-    "opened_at": "2026-08-26T17:48:30.656670+00:00",
-    "updated_at": "2026-08-26T17:48:30.656670+00:00"
-  },
-  "MRK": {
-    "symbol": "MRK",
-    "side": "long",
-    "qty": 6.0,
-    "entry_price": 152.88,
-    "initial_stop_price": 150.9889285714286,
-    "current_stop_price": 150.9889285714286,
-    "r_per_share": 1.8910714285714039,
-    "stage": "initial",
-    "extreme_price": 152.88,
-    "stop_order_id": "e007aa86-adfd-4c33-bdd4-5f1dd8b42e9d",
-    "opened_at": "2026-08-26T19:48:06.277013+00:00",
-    "updated_at": "2026-08-26T19:48:06.277013+00:00"
-  },
-  "BAC": {
-    "symbol": "BAC",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 62.4,
-    "initial_stop_price": 62.03571428571429,
-    "current_stop_price": 62.03571428571429,
-    "r_per_share": 0.3642857142857103,
-    "stage": "initial",
-    "extreme_price": 62.4,
-    "stop_order_id": "15077052-f163-439e-b513-dd1a0d5827b8",
-    "opened_at": "2026-08-26T20:03:49.541585+00:00",
-    "updated_at": "2026-08-26T20:03:49.541585+00:00"
   },
   "ITA": {
     "symbol": "ITA",
