@@ -208,5 +208,33 @@
     "stop_order_id": "ad8274e0-7c9f-4381-a4e9-f00fa53a7854",
     "opened_at": "2026-08-27T13:40:12.783658+00:00",
     "updated_at": "2026-08-27T13:40:12.783658+00:00"
+  },
+  "SPOT": {
+    "symbol": "SPOT",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 524.8,
+    "initial_stop_price": 506.6435512648037,
+    "current_stop_price": 506.6435512648037,
+    "r_per_share": 18.15644873519623,
+    "stage": "initial",
+    "extreme_price": 524.8,
+    "stop_order_id": "1bd2ad56-30ea-4a4f-8115-07a7ca4301e6",
+    "opened_at": "2026-08-27T16:47:27.215406+00:00",
+    "updated_at": "2026-08-27T16:47:27.215406+00:00"
+  },
+  "ABNB": {
+    "symbol": "ABNB",
+    "side": "long",
+    "qty": 4.0,
+    "entry_price": 186.33,
+    "initial_stop_price": 181.01928571428573,
+    "current_stop_price": 181.01928571428573,
+    "r_per_share": 5.310714285714288,
+    "stage": "initial",
+    "extreme_price": 186.33,
+    "stop_order_id": "66a1bb9e-7b06-485d-8186-5b14073af076",
+    "opened_at": "2026-08-27T17:17:50.206858+00:00",
+    "updated_at": "2026-08-27T17:17:50.206858+00:00"
   }
 }
