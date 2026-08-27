@@ -173,13 +173,13 @@
     "qty": 4.0,
     "entry_price": 215.77,
     "initial_stop_price": 223.66821428571433,
-    "current_stop_price": 209.1284557445428,
+    "current_stop_price": 208.9664346109283,
     "r_per_share": 7.8982142857143085,
     "stage": "trailing",
     "extreme_price": 206.3273,
-    "stop_order_id": "45b35585-8b6e-4f2a-9448-df793a35f425",
+    "stop_order_id": "862538c7-3f97-4b2f-bffc-0d2feca5f964",
     "opened_at": "2026-08-25T16:47:31.656461+00:00",
-    "updated_at": "2026-08-27T14:31:25.469832+00:00"
+    "updated_at": "2026-08-27T17:37:42.926788+00:00"
   },
   "AFRM": {
     "symbol": "AFRM",
