@@ -264,5 +264,19 @@
     "stop_order_id": "a9eb94da-90e7-484d-bfcd-89868d000ef5",
     "opened_at": "2026-08-28T15:48:08.344633+00:00",
     "updated_at": "2026-08-28T15:48:08.344633+00:00"
+  },
+  "MDT": {
+    "symbol": "MDT",
+    "side": "short",
+    "qty": 1.0,
+    "entry_price": 91.1,
+    "initial_stop_price": 92.50892857142857,
+    "current_stop_price": 92.50892857142857,
+    "r_per_share": 1.408928571428574,
+    "stage": "initial",
+    "extreme_price": 91.1,
+    "stop_order_id": "e02506b7-553c-45e3-8ef5-93d2d46f5d2d",
+    "opened_at": "2026-08-28T16:36:50.525974+00:00",
+    "updated_at": "2026-08-28T16:36:50.525974+00:00"
   }
 }
