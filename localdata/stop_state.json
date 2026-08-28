@@ -181,20 +181,6 @@
     "opened_at": "2026-08-27T13:40:12.783658+00:00",
     "updated_at": "2026-08-27T13:40:12.783658+00:00"
   },
-  "SPOT": {
-    "symbol": "SPOT",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 524.8,
-    "initial_stop_price": 506.6435512648037,
-    "current_stop_price": 543.5142627512132,
-    "r_per_share": 18.15644873519623,
-    "stage": "trailing",
-    "extreme_price": 550.875,
-    "stop_order_id": "9382d495-c817-43b1-903f-607390d6accb",
-    "opened_at": "2026-08-27T16:47:27.215406+00:00",
-    "updated_at": "2026-08-28T15:29:37.907014+00:00"
-  },
   "ABNB": {
     "symbol": "ABNB",
     "side": "long",
@@ -229,13 +215,13 @@
     "qty": 20.0,
     "entry_price": 45.32,
     "initial_stop_price": 46.26464285714286,
-    "current_stop_price": 46.26464285714286,
+    "current_stop_price": 44.52170567573896,
     "r_per_share": 0.9446428571428582,
-    "stage": "initial",
-    "extreme_price": 45.32,
-    "stop_order_id": "54129fd3-c467-480e-ae71-a15acdf78978",
+    "stage": "trailing",
+    "extreme_price": 43.952,
+    "stop_order_id": "9fb50d7b-1a60-45de-8691-9bf9cd4a0c84",
     "opened_at": "2026-08-27T18:47:40.045367+00:00",
-    "updated_at": "2026-08-27T18:47:40.045367+00:00"
+    "updated_at": "2026-08-28T16:18:28.885909+00:00"
   },
   "HUM": {
     "symbol": "HUM",
@@ -264,5 +250,19 @@
     "stop_order_id": "64c3dd6a-fa77-44e7-9b1a-ee2362580353",
     "opened_at": "2026-08-28T14:39:44.267314+00:00",
     "updated_at": "2026-08-28T14:39:44.267314+00:00"
+  },
+  "XLB": {
+    "symbol": "XLB",
+    "side": "long",
+    "qty": 17.0,
+    "entry_price": 53.075882,
+    "initial_stop_price": 51.909315025253996,
+    "current_stop_price": 51.909315025253996,
+    "r_per_share": 1.1665669747460015,
+    "stage": "initial",
+    "extreme_price": 53.075882,
+    "stop_order_id": "a9eb94da-90e7-484d-bfcd-89868d000ef5",
+    "opened_at": "2026-08-28T15:48:08.344633+00:00",
+    "updated_at": "2026-08-28T15:48:08.344633+00:00"
   }
 }
