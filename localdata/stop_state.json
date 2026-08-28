@@ -187,13 +187,13 @@
     "qty": 1.0,
     "entry_price": 524.8,
     "initial_stop_price": 506.6435512648037,
-    "current_stop_price": 506.6435512648037,
+    "current_stop_price": 543.5142627512132,
     "r_per_share": 18.15644873519623,
-    "stage": "initial",
-    "extreme_price": 524.8,
-    "stop_order_id": "1bd2ad56-30ea-4a4f-8115-07a7ca4301e6",
+    "stage": "trailing",
+    "extreme_price": 550.875,
+    "stop_order_id": "9382d495-c817-43b1-903f-607390d6accb",
     "opened_at": "2026-08-27T16:47:27.215406+00:00",
-    "updated_at": "2026-08-27T16:47:27.215406+00:00"
+    "updated_at": "2026-08-28T15:29:37.907014+00:00"
   },
   "ABNB": {
     "symbol": "ABNB",
@@ -250,5 +250,19 @@
     "stop_order_id": "c69d8feb-55d7-4e6a-897d-6750491d175e",
     "opened_at": "2026-08-27T19:18:10.332236+00:00",
     "updated_at": "2026-08-27T19:18:10.332236+00:00"
+  },
+  "NEM": {
+    "symbol": "NEM",
+    "side": "long",
+    "qty": 12.0,
+    "entry_price": 130.5,
+    "initial_stop_price": 125.58597562168482,
+    "current_stop_price": 125.58597562168482,
+    "r_per_share": 4.914024378315172,
+    "stage": "initial",
+    "extreme_price": 130.5,
+    "stop_order_id": "64c3dd6a-fa77-44e7-9b1a-ee2362580353",
+    "opened_at": "2026-08-28T14:39:44.267314+00:00",
+    "updated_at": "2026-08-28T14:39:44.267314+00:00"
   }
 }
