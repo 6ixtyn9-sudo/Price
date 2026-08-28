@@ -1,13 +1,8 @@
 {
-  "previous_book_count": 261,
+  "previous_book_count": 257,
   "new_book_count": 257,
   "added_candidates": [],
-  "removed_candidates": [
-    "AVGO|1d|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling",
-    "NOC|1d|cross_USO_state_slope=flat + cross_TLT_state_slope=flat + state_ext=stretched_up|long|rolling",
-    "NVDA|1d|state_gap_open=gap_open_flat + state_ext=stretched_up|long|rolling",
-    "VRTX|1d|cross_USO_state_slope=downtrend + state_ext=stretched_down|long|rolling"
-  ],
+  "removed_candidates": [],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
     "AAPL|1h|cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -268,12 +263,7 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {
-    "AVGO|1d|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling": "registry_status:research_only",
-    "NOC|1d|cross_USO_state_slope=flat + cross_TLT_state_slope=flat + state_ext=stretched_up|long|rolling": "registry_status:research_only",
-    "NVDA|1d|state_gap_open=gap_open_flat + state_ext=stretched_up|long|rolling": "decaying_suspended",
-    "VRTX|1d|cross_USO_state_slope=downtrend + state_ext=stretched_down|long|rolling": "registry_status:research_only"
-  },
+  "removal_reasons": {},
   "promotion_reasons": {},
   "discovery_run_id": null
 }
