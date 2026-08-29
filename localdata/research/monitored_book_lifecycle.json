@@ -36,7 +36,6 @@
     "ARM|1h|state_slope=uptrend + state_vol=low_vol|long|rolling",
     "AVGO|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
     "AVGO|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
-    "AVGO|1d|state_ext=stretched_down + state_ret_5=ret_down|long|rolling",
     "AVGO|1d|state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "AVGO|1d|state_volume=vol_surge + state_ext=stretched_down|long|rolling",
     "BAC|1d|state_volume=vol_quiet + state_slope=downtrend|long|rolling",
@@ -112,6 +111,7 @@
     "JNJ|1h|state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol|long|rolling",
     "JNJ|1h|state_session=morning + state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "JPM|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling",
+    "JPM|1d|state_volume=vol_normal + state_ext=stretched_up + state_slope=flat|long|rolling",
     "KBE|1d|state_volume=vol_surge + state_slope=uptrend|long|rolling",
     "KLAC|1d|cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
     "KLAC|1d|state_ext=stretched_down + state_ret_1=ret_flat|long|rolling",
@@ -265,5 +265,5 @@
   "changed_sides_or_slices": [],
   "removal_reasons": {},
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "33215509965"
 }
