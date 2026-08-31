@@ -195,20 +195,6 @@
     "opened_at": "2026-08-27T17:17:50.206858+00:00",
     "updated_at": "2026-08-27T17:17:50.206858+00:00"
   },
-  "HUM": {
-    "symbol": "HUM",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 395.96,
-    "initial_stop_price": 381.25243274866324,
-    "current_stop_price": 381.25243274866324,
-    "r_per_share": 14.707567251336728,
-    "stage": "initial",
-    "extreme_price": 395.96,
-    "stop_order_id": "c69d8feb-55d7-4e6a-897d-6750491d175e",
-    "opened_at": "2026-08-27T19:18:10.332236+00:00",
-    "updated_at": "2026-08-27T19:18:10.332236+00:00"
-  },
   "XLB": {
     "symbol": "XLB",
     "side": "long",
@@ -223,18 +209,18 @@
     "opened_at": "2026-08-28T15:48:08.344633+00:00",
     "updated_at": "2026-08-28T15:48:08.344633+00:00"
   },
-  "MDT": {
-    "symbol": "MDT",
-    "side": "short",
-    "qty": 1.0,
-    "entry_price": 91.1,
-    "initial_stop_price": 92.50892857142857,
-    "current_stop_price": 92.50892857142857,
-    "r_per_share": 1.408928571428574,
+  "UBER": {
+    "symbol": "UBER",
+    "side": "long",
+    "qty": 12.0,
+    "entry_price": 75.87,
+    "initial_stop_price": 75.11892272075625,
+    "current_stop_price": 75.11892272075625,
+    "r_per_share": 0.7510772792437634,
     "stage": "initial",
-    "extreme_price": 91.1,
-    "stop_order_id": "e02506b7-553c-45e3-8ef5-93d2d46f5d2d",
-    "opened_at": "2026-08-28T16:36:50.525974+00:00",
-    "updated_at": "2026-08-28T16:36:50.525974+00:00"
+    "extreme_price": 75.87,
+    "stop_order_id": "16472d5d-30e4-4148-b189-bb2d456d6b2f",
+    "opened_at": "2026-08-31T15:36:34.758882+00:00",
+    "updated_at": "2026-08-31T15:36:34.758882+00:00"
   }
 }
