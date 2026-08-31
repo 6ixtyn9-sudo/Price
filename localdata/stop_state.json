@@ -209,20 +209,6 @@
     "opened_at": "2026-08-28T15:48:08.344633+00:00",
     "updated_at": "2026-08-28T15:48:08.344633+00:00"
   },
-  "UBER": {
-    "symbol": "UBER",
-    "side": "long",
-    "qty": 12.0,
-    "entry_price": 75.87,
-    "initial_stop_price": 75.11892272075625,
-    "current_stop_price": 75.11892272075625,
-    "r_per_share": 0.7510772792437634,
-    "stage": "initial",
-    "extreme_price": 75.87,
-    "stop_order_id": "16472d5d-30e4-4148-b189-bb2d456d6b2f",
-    "opened_at": "2026-08-31T15:36:34.758882+00:00",
-    "updated_at": "2026-08-31T15:36:34.758882+00:00"
-  },
   "OIH": {
     "symbol": "OIH",
     "side": "long",
@@ -250,5 +236,19 @@
     "stop_order_id": "f82bced5-2619-4e7e-9ef3-41cc59b41998",
     "opened_at": "2026-08-31T17:18:17.464804+00:00",
     "updated_at": "2026-08-31T17:18:17.464804+00:00"
+  },
+  "KO": {
+    "symbol": "KO",
+    "side": "long",
+    "qty": 10.0,
+    "entry_price": 89.08,
+    "initial_stop_price": 87.6287554063089,
+    "current_stop_price": 87.6287554063089,
+    "r_per_share": 1.451244593691101,
+    "stage": "initial",
+    "extreme_price": 89.08,
+    "stop_order_id": "6e137f6b-e830-4968-8cca-551a0ead98f4",
+    "opened_at": "2026-08-31T18:18:01.584573+00:00",
+    "updated_at": "2026-08-31T18:18:01.584573+00:00"
   }
 }
