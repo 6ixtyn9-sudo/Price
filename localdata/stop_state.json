@@ -209,20 +209,6 @@
     "opened_at": "2026-08-27T19:18:10.332236+00:00",
     "updated_at": "2026-08-27T19:18:10.332236+00:00"
   },
-  "NEM": {
-    "symbol": "NEM",
-    "side": "long",
-    "qty": 12.0,
-    "entry_price": 130.5,
-    "initial_stop_price": 125.58597562168482,
-    "current_stop_price": 125.58597562168482,
-    "r_per_share": 4.914024378315172,
-    "stage": "initial",
-    "extreme_price": 130.5,
-    "stop_order_id": "64c3dd6a-fa77-44e7-9b1a-ee2362580353",
-    "opened_at": "2026-08-28T14:39:44.267314+00:00",
-    "updated_at": "2026-08-28T14:39:44.267314+00:00"
-  },
   "XLB": {
     "symbol": "XLB",
     "side": "long",
