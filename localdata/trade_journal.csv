@@ -884,3 +884,7 @@ e91396d5-6417-47d7-bd93-189f7d239e54,GE,2.0,sell,stop,332.44,gtc,new,2026-08-31 
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-08-31T20:06:31.929400+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-08-31T20:19:41.658960+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-08-31T20:35:10.330609+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-08-31T20:48:59.541578+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-08-31T21:03:44.614615+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-08-31T21:18:20.790171+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-08-31T21:34:03.115412+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
