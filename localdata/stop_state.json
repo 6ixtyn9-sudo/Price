@@ -222,5 +222,33 @@
     "stop_order_id": "16472d5d-30e4-4148-b189-bb2d456d6b2f",
     "opened_at": "2026-08-31T15:36:34.758882+00:00",
     "updated_at": "2026-08-31T15:36:34.758882+00:00"
+  },
+  "OIH": {
+    "symbol": "OIH",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 423.75,
+    "initial_stop_price": 408.92335400736243,
+    "current_stop_price": 408.92335400736243,
+    "r_per_share": 14.826645992637559,
+    "stage": "initial",
+    "extreme_price": 423.75,
+    "stop_order_id": "be00a664-7f11-4dd7-a0bf-9a55373ae3c5",
+    "opened_at": "2026-08-31T17:18:17.255012+00:00",
+    "updated_at": "2026-08-31T17:18:17.255012+00:00"
+  },
+  "XLE": {
+    "symbol": "XLE",
+    "side": "long",
+    "qty": 14.0,
+    "entry_price": 63.34,
+    "initial_stop_price": 61.23464285714285,
+    "current_stop_price": 61.23464285714285,
+    "r_per_share": 2.1053571428571516,
+    "stage": "initial",
+    "extreme_price": 63.34,
+    "stop_order_id": "f82bced5-2619-4e7e-9ef3-41cc59b41998",
+    "opened_at": "2026-08-31T17:18:17.464804+00:00",
+    "updated_at": "2026-08-31T17:18:17.464804+00:00"
   }
 }
