@@ -1,8 +1,10 @@
 {
-  "previous_book_count": 249,
-  "new_book_count": 250,
+  "previous_book_count": 250,
+  "new_book_count": 253,
   "added_candidates": [
-    "AVGO|1d|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling"
+    "LNG|15m|cross_TLT_state_vol=high_vol + state_ext=stretched_down|long|rolling",
+    "MRK|15m|cross_USO_state_slope=flat + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
+    "QQQ|15m|cross_USO_state_slope=downtrend + state_slope=uptrend|long|rolling"
   ],
   "removed_candidates": [],
   "retained_candidates": [
@@ -36,6 +38,7 @@
     "ARKW|1d|state_volume=vol_normal + state_slope=uptrend|long|rolling",
     "AVGO|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
     "AVGO|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
+    "AVGO|1d|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling",
     "AVGO|1d|state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "AVGO|1d|state_volume=vol_surge + state_ext=stretched_down|long|rolling",
     "BAC|1d|state_volume=vol_quiet + state_slope=downtrend|long|rolling",
@@ -259,7 +262,9 @@
   "changed_sides_or_slices": [],
   "removal_reasons": {},
   "promotion_reasons": {
-    "AVGO|1d|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling": "paper_proposal"
+    "LNG|15m|cross_TLT_state_vol=high_vol + state_ext=stretched_down|long|rolling": "paper_proposal",
+    "MRK|15m|cross_USO_state_slope=flat + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling": "paper_proposal",
+    "QQQ|15m|cross_USO_state_slope=downtrend + state_slope=uptrend|long|rolling": "paper_proposal"
   },
   "discovery_run_id": null
 }
