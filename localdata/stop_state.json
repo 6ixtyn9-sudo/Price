@@ -264,5 +264,33 @@
     "stop_order_id": "45f005ec-23dc-4b14-9138-f7a547bc4ef5",
     "opened_at": "2026-09-02T14:56:27.535968+00:00",
     "updated_at": "2026-09-02T14:56:27.535968+00:00"
+  },
+  "ABT": {
+    "symbol": "ABT",
+    "side": "short",
+    "qty": 8.0,
+    "entry_price": 111.82,
+    "initial_stop_price": 112.93182077608382,
+    "current_stop_price": 112.93182077608382,
+    "r_per_share": 1.1118207760838361,
+    "stage": "initial",
+    "extreme_price": 111.82,
+    "stop_order_id": "270347ed-5dfb-4e8c-8eec-7d8f26ebe433",
+    "opened_at": "2026-09-02T15:42:26.292910+00:00",
+    "updated_at": "2026-09-02T15:42:26.292910+00:00"
+  },
+  "CME": {
+    "symbol": "CME",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 280.98,
+    "initial_stop_price": 270.7782870930272,
+    "current_stop_price": 270.7782870930272,
+    "r_per_share": 10.201712906972812,
+    "stage": "initial",
+    "extreme_price": 280.98,
+    "stop_order_id": "3f4a9317-b4a5-4a27-af3c-a3a3829058a1",
+    "opened_at": "2026-09-02T15:42:26.494664+00:00",
+    "updated_at": "2026-09-02T15:42:26.494664+00:00"
   }
 }
