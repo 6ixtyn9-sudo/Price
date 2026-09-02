@@ -145,13 +145,13 @@
     "qty": 22.0,
     "entry_price": 84.16,
     "initial_stop_price": 78.96750618904255,
-    "current_stop_price": 78.96750618904255,
+    "current_stop_price": 84.16,
     "r_per_share": 5.192493810957442,
-    "stage": "initial",
-    "extreme_price": 84.16,
-    "stop_order_id": "2c3debca-c203-4de0-a8bf-810101c98eff",
+    "stage": "breakeven",
+    "extreme_price": 89.4,
+    "stop_order_id": "933c0a53-eb46-4237-b9d5-eb8a691a3dcd",
     "opened_at": "2026-08-25T15:47:33.001472+00:00",
-    "updated_at": "2026-08-25T15:47:33.001472+00:00"
+    "updated_at": "2026-09-02T14:31:06.593455+00:00"
   },
   "ITA": {
     "symbol": "ITA",
