@@ -250,5 +250,33 @@
     "stop_order_id": "2a7dff87-af27-453e-9707-ba14dd940195",
     "opened_at": "2026-09-03T17:25:34.177124+00:00",
     "updated_at": "2026-09-03T17:25:34.177124+00:00"
+  },
+  "BAC": {
+    "symbol": "BAC",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 63.02,
+    "initial_stop_price": 62.47714285714286,
+    "current_stop_price": 62.47714285714286,
+    "r_per_share": 0.5428571428571465,
+    "stage": "initial",
+    "extreme_price": 63.02,
+    "stop_order_id": "f80e0ac6-99ba-43a0-9e98-4e40d0c29e89",
+    "opened_at": "2026-09-03T18:44:18.087501+00:00",
+    "updated_at": "2026-09-03T18:44:18.087501+00:00"
+  },
+  "GDX": {
+    "symbol": "GDX",
+    "side": "long",
+    "qty": 9.0,
+    "entry_price": 100.92,
+    "initial_stop_price": 94.52000000000001,
+    "current_stop_price": 94.52000000000001,
+    "r_per_share": 6.399999999999996,
+    "stage": "initial",
+    "extreme_price": 100.92,
+    "stop_order_id": "221e0c02-1637-437d-87c7-e4866995696b",
+    "opened_at": "2026-09-03T19:18:03.100941+00:00",
+    "updated_at": "2026-09-03T19:18:03.100941+00:00"
   }
 }
