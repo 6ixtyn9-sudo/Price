@@ -97,20 +97,6 @@
     "opened_at": "2026-08-17T13:46:59.336166+00:00",
     "updated_at": "2026-08-17T13:46:59.336166+00:00"
   },
-  "GD": {
-    "symbol": "GD",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 392.6,
-    "initial_stop_price": 361.33930489676345,
-    "current_stop_price": 361.33930489676345,
-    "r_per_share": 31.2606951032366,
-    "stage": "initial",
-    "extreme_price": 392.6,
-    "stop_order_id": "7270f5ec-98ee-4dce-bf10-09f4d90496f0",
-    "opened_at": "2026-08-20T13:38:28.575624+00:00",
-    "updated_at": "2026-08-20T13:38:28.575624+00:00"
-  },
   "ADI": {
     "symbol": "ADI",
     "side": "long",
@@ -208,20 +194,6 @@
     "stop_order_id": "3f4a9317-b4a5-4a27-af3c-a3a3829058a1",
     "opened_at": "2026-09-02T15:42:26.494664+00:00",
     "updated_at": "2026-09-02T15:42:26.494664+00:00"
-  },
-  "MRK": {
-    "symbol": "MRK",
-    "side": "long",
-    "qty": 6.0,
-    "entry_price": 151.52,
-    "initial_stop_price": 150.1682142857143,
-    "current_stop_price": 150.1682142857143,
-    "r_per_share": 1.351785714285723,
-    "stage": "initial",
-    "extreme_price": 151.52,
-    "stop_order_id": "abfb7e8d-2533-4736-8d6e-f9f849a2045c",
-    "opened_at": "2026-09-02T19:53:23.534983+00:00",
-    "updated_at": "2026-09-02T19:53:23.534983+00:00"
   },
   "XLE": {
     "symbol": "XLE",
