@@ -208,5 +208,19 @@
     "stop_order_id": "89f0e315-a029-4149-b50d-32805cc82cc9",
     "opened_at": "2026-09-02T19:53:23.700812+00:00",
     "updated_at": "2026-09-02T19:53:23.700812+00:00"
+  },
+  "MSFT": {
+    "symbol": "MSFT",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 509.14,
+    "initial_stop_price": 501.8107192191658,
+    "current_stop_price": 501.8107192191658,
+    "r_per_share": 7.32928078083422,
+    "stage": "initial",
+    "extreme_price": 509.14,
+    "stop_order_id": "9e428e22-80b2-4709-b188-59e050b381f1",
+    "opened_at": "2026-09-03T14:50:10.228136+00:00",
+    "updated_at": "2026-09-03T14:50:10.228136+00:00"
   }
 }
