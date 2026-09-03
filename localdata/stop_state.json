@@ -222,5 +222,33 @@
     "stop_order_id": "9e428e22-80b2-4709-b188-59e050b381f1",
     "opened_at": "2026-09-03T14:50:10.228136+00:00",
     "updated_at": "2026-09-03T14:50:10.228136+00:00"
+  },
+  "PLTR": {
+    "symbol": "PLTR",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 182.74,
+    "initial_stop_price": 176.0157589843859,
+    "current_stop_price": 176.0157589843859,
+    "r_per_share": 6.724241015614104,
+    "stage": "initial",
+    "extreme_price": 182.74,
+    "stop_order_id": "125194aa-d9f9-4bbf-ab63-8a9ab0c36eb5",
+    "opened_at": "2026-09-03T16:40:03.774807+00:00",
+    "updated_at": "2026-09-03T16:40:03.774807+00:00"
+  },
+  "HUM": {
+    "symbol": "HUM",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 411.65,
+    "initial_stop_price": 396.9886704971405,
+    "current_stop_price": 396.9886704971405,
+    "r_per_share": 14.6613295028595,
+    "stage": "initial",
+    "extreme_price": 411.65,
+    "stop_order_id": "2a7dff87-af27-453e-9707-ba14dd940195",
+    "opened_at": "2026-09-03T17:25:34.177124+00:00",
+    "updated_at": "2026-09-03T17:25:34.177124+00:00"
   }
 }
