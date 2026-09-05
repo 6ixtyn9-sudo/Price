@@ -1,8 +1,10 @@
 {
-  "previous_book_count": 248,
-  "new_book_count": 248,
+  "previous_book_count": 251,
+  "new_book_count": 250,
   "added_candidates": [],
-  "removed_candidates": [],
+  "removed_candidates": [
+    "UBER|15m|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling"
+  ],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
     "AAPL|1h|cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -31,13 +33,13 @@
     "ARKW|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "ARKW|1d|state_volume=vol_normal + state_ext=neutral + state_slope=uptrend|long|rolling",
     "ARKW|1d|state_volume=vol_normal + state_slope=uptrend|long|rolling",
+    "ARM|15m|cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "AVGO|15m|cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "AVGO|15m|state_volume=vol_surge + state_slope=downtrend|long|rolling",
     "AVGO|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
     "AVGO|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "AVGO|1d|state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "AVGO|1d|state_volume=vol_surge + state_ext=stretched_down|long|rolling",
-    "BAC|15m|state_session=afternoon + state_vol=low_vol|long|rolling",
     "BAC|1d|state_volume=vol_quiet + state_slope=downtrend|long|rolling",
     "BITO|15m|state_session=afternoon + state_slope=uptrend + state_vol=mid_vol|short|rolling",
     "BLK|1d|cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
@@ -78,6 +80,7 @@
     "GD|1d|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling",
     "GD|1d|state_volume=vol_normal + state_ext=neutral|long|rolling",
     "GE|15m|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral|short|rolling",
+    "GE|15m|state_session=afternoon + state_ret_5=ret_down|long|rolling",
     "GE|1d|cross_TLT_state_vol=high_vol + state_ext=stretched_up|long|rolling",
     "GILD|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "GILD|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
@@ -165,6 +168,7 @@
     "PLTR|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "PSX|15m|state_ext=stretched_down + state_ret_1=ret_down|long|rolling",
     "PSX|15m|state_ext=stretched_down + state_ret_5=ret_down|long|rolling",
+    "PSX|15m|state_ext=stretched_down + state_vol=high_vol|long|rolling",
     "PSX|15m|state_session=morning + state_ext=stretched_down|long|rolling",
     "QCOM|1h|state_volume=vol_surge + state_ext=neutral + state_slope=flat|short|rolling",
     "QQQ|15m|cross_USO_state_slope=downtrend + state_slope=uptrend|long|rolling",
@@ -195,8 +199,8 @@
     "TMUS|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "TSLA|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "TSM|1d|state_ext=neutral + state_ret_1=ret_down|long|rolling",
+    "TXN|15m|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
     "T|1h|cross_USO_state_slope=uptrend + state_slope=uptrend|long|rolling",
-    "UBER|15m|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling",
     "UNH|15m|state_ext=stretched_up + state_vol=mid_vol|long|rolling",
     "UNP|1d|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "UPS|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
@@ -254,7 +258,9 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {},
+  "removal_reasons": {
+    "UBER|15m|cross_USO_state_vol=high_vol + state_ext=stretched_down|long|rolling": "registry_status:research_only"
+  },
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "33924208130"
 }
