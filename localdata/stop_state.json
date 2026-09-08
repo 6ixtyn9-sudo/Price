@@ -208,5 +208,47 @@
     "stop_order_id": "9ea95670-3492-42bc-9229-7c4511ca978b",
     "opened_at": "2026-09-08T13:48:16.671106+00:00",
     "updated_at": "2026-09-08T13:48:16.671106+00:00"
+  },
+  "LNG": {
+    "symbol": "LNG",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 280.13,
+    "initial_stop_price": 265.69009974868277,
+    "current_stop_price": 265.69009974868277,
+    "r_per_share": 14.439900251317221,
+    "stage": "initial",
+    "extreme_price": 280.13,
+    "stop_order_id": "533d8dee-9ad7-4e34-9a94-faeb23d46903",
+    "opened_at": "2026-09-08T14:50:11.968473+00:00",
+    "updated_at": "2026-09-08T14:50:11.968473+00:00"
+  },
+  "LOW": {
+    "symbol": "LOW",
+    "side": "short",
+    "qty": 4.0,
+    "entry_price": 202.39,
+    "initial_stop_price": 208.3310714285714,
+    "current_stop_price": 208.3310714285714,
+    "r_per_share": 5.941071428571415,
+    "stage": "initial",
+    "extreme_price": 202.39,
+    "stop_order_id": "b934e54e-356f-46fd-be6d-8c7dd0c2a534",
+    "opened_at": "2026-09-08T14:50:12.284108+00:00",
+    "updated_at": "2026-09-08T14:50:12.284108+00:00"
+  },
+  "AAPL": {
+    "symbol": "AAPL",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 315.873333,
+    "initial_stop_price": 306.06560891000356,
+    "current_stop_price": 306.06560891000356,
+    "r_per_share": 9.80772408999647,
+    "stage": "initial",
+    "extreme_price": 315.873333,
+    "stop_order_id": "b86a4f96-7a38-40df-8e20-901e40c931c4",
+    "opened_at": "2026-09-08T15:27:15.000194+00:00",
+    "updated_at": "2026-09-08T15:27:15.000194+00:00"
   }
 }
