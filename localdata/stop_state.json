@@ -250,5 +250,19 @@
     "stop_order_id": "282b524b-dcd8-4a8d-878c-ed3a67fc8085",
     "opened_at": "2026-09-08T18:19:54.696773+00:00",
     "updated_at": "2026-09-08T18:19:54.696773+00:00"
+  },
+  "GE": {
+    "symbol": "GE",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 336.06,
+    "initial_stop_price": 332.41178571428577,
+    "current_stop_price": 332.41178571428577,
+    "r_per_share": 3.6482142857142366,
+    "stage": "initial",
+    "extreme_price": 336.06,
+    "stop_order_id": "242b0f44-96cf-489d-b758-f14b5022a8d8",
+    "opened_at": "2026-09-08T19:53:40.198752+00:00",
+    "updated_at": "2026-09-08T19:53:40.198752+00:00"
   }
 }
