@@ -1280,3 +1280,7 @@ ed938d3b-9cd5-4188-8d51-c0cb8378445e,XLV,5.0,buy,limit,,day,filled,2026-09-09 13
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-09T14:38:47.066896+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-09T15:02:19.722781+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-09T15:25:00.243007+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-09T15:43:11.581641+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-09T16:01:24.928763+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-09T16:15:45.146566+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-09T16:34:05.584350+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
