@@ -264,5 +264,19 @@
     "stop_order_id": "5b44a62c-0413-4cdf-b1ae-30d594e63320",
     "opened_at": "2026-09-09T13:51:35.506765+00:00",
     "updated_at": "2026-09-09T13:51:35.506765+00:00"
+  },
+  "GILD": {
+    "symbol": "GILD",
+    "side": "long",
+    "qty": 6.0,
+    "entry_price": 145.96,
+    "initial_stop_price": 142.16899483149052,
+    "current_stop_price": 142.16899483149052,
+    "r_per_share": 3.7910051685094754,
+    "stage": "initial",
+    "extreme_price": 145.96,
+    "stop_order_id": "abb558c1-256e-45ba-913c-930f0bd68d12",
+    "opened_at": "2026-09-09T17:23:11.369528+00:00",
+    "updated_at": "2026-09-09T17:23:11.369528+00:00"
   }
 }
