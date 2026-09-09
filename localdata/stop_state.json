@@ -237,32 +237,32 @@
     "opened_at": "2026-09-08T15:27:15.000194+00:00",
     "updated_at": "2026-09-08T15:27:15.000194+00:00"
   },
-  "UNH": {
-    "symbol": "UNH",
+  "VRTX": {
+    "symbol": "VRTX",
     "side": "long",
     "qty": 2.0,
-    "entry_price": 402.58,
-    "initial_stop_price": 398.02449033899694,
-    "current_stop_price": 398.02449033899694,
-    "r_per_share": 4.555509661003043,
+    "entry_price": 521.73,
+    "initial_stop_price": 464.18548662800055,
+    "current_stop_price": 464.18548662800055,
+    "r_per_share": 57.544513371999464,
     "stage": "initial",
-    "extreme_price": 402.58,
-    "stop_order_id": "282b524b-dcd8-4a8d-878c-ed3a67fc8085",
-    "opened_at": "2026-09-08T18:19:54.696773+00:00",
-    "updated_at": "2026-09-08T18:19:54.696773+00:00"
+    "extreme_price": 521.73,
+    "stop_order_id": "730a94a7-6c58-410f-abe2-9fd1ecf2f3ae",
+    "opened_at": "2026-09-09T13:51:34.914614+00:00",
+    "updated_at": "2026-09-09T13:51:34.914614+00:00"
   },
-  "GE": {
-    "symbol": "GE",
+  "XLV": {
+    "symbol": "XLV",
     "side": "long",
-    "qty": 2.0,
-    "entry_price": 336.06,
-    "initial_stop_price": 332.41178571428577,
-    "current_stop_price": 332.41178571428577,
-    "r_per_share": 3.6482142857142366,
+    "qty": 5.0,
+    "entry_price": 166.728,
+    "initial_stop_price": 152.61013239397323,
+    "current_stop_price": 152.61013239397323,
+    "r_per_share": 14.117867606026786,
     "stage": "initial",
-    "extreme_price": 336.06,
-    "stop_order_id": "242b0f44-96cf-489d-b758-f14b5022a8d8",
-    "opened_at": "2026-09-08T19:53:40.198752+00:00",
-    "updated_at": "2026-09-08T19:53:40.198752+00:00"
+    "extreme_price": 166.728,
+    "stop_order_id": "5b44a62c-0413-4cdf-b1ae-30d594e63320",
+    "opened_at": "2026-09-09T13:51:35.506765+00:00",
+    "updated_at": "2026-09-09T13:51:35.506765+00:00"
   }
 }
