@@ -215,13 +215,13 @@
     "qty": 4.0,
     "entry_price": 202.39,
     "initial_stop_price": 208.3310714285714,
-    "current_stop_price": 208.3310714285714,
+    "current_stop_price": 198.4289400730152,
     "r_per_share": 5.941071428571415,
-    "stage": "initial",
-    "extreme_price": 202.39,
-    "stop_order_id": "b934e54e-356f-46fd-be6d-8c7dd0c2a534",
+    "stage": "trailing",
+    "extreme_price": 195.625,
+    "stop_order_id": "b322cfa2-b131-4db5-b6ce-40ce54efb461",
     "opened_at": "2026-09-08T14:50:12.284108+00:00",
-    "updated_at": "2026-09-08T14:50:12.284108+00:00"
+    "updated_at": "2026-09-10T13:49:35.782009+00:00"
   },
   "AAPL": {
     "symbol": "AAPL",
@@ -279,18 +279,18 @@
     "opened_at": "2026-09-09T17:23:11.369528+00:00",
     "updated_at": "2026-09-09T17:23:11.369528+00:00"
   },
-  "OIH": {
-    "symbol": "OIH",
+  "XRT": {
+    "symbol": "XRT",
     "side": "long",
-    "qty": 2.0,
-    "entry_price": 429.95,
-    "initial_stop_price": 417.1529963604761,
-    "current_stop_price": 417.1529963604761,
-    "r_per_share": 12.79700363952387,
+    "qty": 10.0,
+    "entry_price": 83.33,
+    "initial_stop_price": 81.11203569820563,
+    "current_stop_price": 81.11203569820563,
+    "r_per_share": 2.2179643017943653,
     "stage": "initial",
-    "extreme_price": 429.95,
-    "stop_order_id": "79821bf8-c316-4956-a3cc-7f31c00524e9",
-    "opened_at": "2026-09-09T19:48:59.569016+00:00",
-    "updated_at": "2026-09-09T19:48:59.569016+00:00"
+    "extreme_price": 83.33,
+    "stop_order_id": "69b67cd5-7d49-4117-9c9d-2a7e1e008c26",
+    "opened_at": "2026-09-10T13:49:36.196531+00:00",
+    "updated_at": "2026-09-10T13:49:36.196531+00:00"
   }
 }
