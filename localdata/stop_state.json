@@ -215,13 +215,13 @@
     "qty": 4.0,
     "entry_price": 202.39,
     "initial_stop_price": 208.3310714285714,
-    "current_stop_price": 198.4289400730152,
+    "current_stop_price": 198.30923641312842,
     "r_per_share": 5.941071428571415,
     "stage": "trailing",
     "extreme_price": 195.625,
-    "stop_order_id": "b322cfa2-b131-4db5-b6ce-40ce54efb461",
+    "stop_order_id": "b3f91439-79db-42cf-9176-425d6c11fee9",
     "opened_at": "2026-09-08T14:50:12.284108+00:00",
-    "updated_at": "2026-09-10T13:49:35.782009+00:00"
+    "updated_at": "2026-09-10T19:28:41.903250+00:00"
   },
   "AAPL": {
     "symbol": "AAPL",
