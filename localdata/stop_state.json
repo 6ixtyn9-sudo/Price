@@ -236,5 +236,47 @@
     "stop_order_id": "19849c19-c26a-41df-b48d-853e4f5f3154",
     "opened_at": "2026-09-11T13:54:30.978902+00:00",
     "updated_at": "2026-09-11T13:54:30.978902+00:00"
+  },
+  "NEM": {
+    "symbol": "NEM",
+    "side": "long",
+    "qty": 12.0,
+    "entry_price": 123.075833,
+    "initial_stop_price": 117.10534306566754,
+    "current_stop_price": 117.10534306566754,
+    "r_per_share": 5.970489934332456,
+    "stage": "initial",
+    "extreme_price": 123.075833,
+    "stop_order_id": "f6dccd50-9daf-40d9-bee9-464d2e5b8bf0",
+    "opened_at": "2026-09-14T13:55:12.529331+00:00",
+    "updated_at": "2026-09-14T13:55:12.529331+00:00"
+  },
+  "PLTR": {
+    "symbol": "PLTR",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 167.533846,
+    "initial_stop_price": 159.09577256538958,
+    "current_stop_price": 159.09577256538958,
+    "r_per_share": 8.438073434610443,
+    "stage": "initial",
+    "extreme_price": 167.533846,
+    "stop_order_id": "551811c2-96f2-4f9f-9e43-2c2dfb577a58",
+    "opened_at": "2026-09-14T13:55:13.268378+00:00",
+    "updated_at": "2026-09-14T13:55:13.268378+00:00"
+  },
+  "SPG": {
+    "symbol": "SPG",
+    "side": "long",
+    "qty": 4.0,
+    "entry_price": 205.02,
+    "initial_stop_price": 198.11869188313037,
+    "current_stop_price": 198.11869188313037,
+    "r_per_share": 6.901308116869643,
+    "stage": "initial",
+    "extreme_price": 205.02,
+    "stop_order_id": "e17c6917-0d6d-4025-ab5e-ee236494ea34",
+    "opened_at": "2026-09-14T14:22:59.596346+00:00",
+    "updated_at": "2026-09-14T14:22:59.596346+00:00"
   }
 }
