@@ -139,34 +139,6 @@
     "opened_at": "2026-09-01T16:32:56.254235+00:00",
     "updated_at": "2026-09-01T16:32:56.254235+00:00"
   },
-  "GDX": {
-    "symbol": "GDX",
-    "side": "long",
-    "qty": 9.0,
-    "entry_price": 100.92,
-    "initial_stop_price": 94.52000000000001,
-    "current_stop_price": 94.52000000000001,
-    "r_per_share": 6.399999999999996,
-    "stage": "initial",
-    "extreme_price": 100.92,
-    "stop_order_id": "221e0c02-1637-437d-87c7-e4866995696b",
-    "opened_at": "2026-09-03T19:18:03.100941+00:00",
-    "updated_at": "2026-09-03T19:18:03.100941+00:00"
-  },
-  "GDXJ": {
-    "symbol": "GDXJ",
-    "side": "long",
-    "qty": 6.0,
-    "entry_price": 129.46,
-    "initial_stop_price": 121.17428571428574,
-    "current_stop_price": 121.17428571428574,
-    "r_per_share": 8.285714285714267,
-    "stage": "initial",
-    "extreme_price": 129.46,
-    "stop_order_id": "30a9df2f-69b1-4934-a860-0c6cdc05447b",
-    "opened_at": "2026-09-04T13:43:12.484207+00:00",
-    "updated_at": "2026-09-04T13:43:12.484207+00:00"
-  },
   "GOOG": {
     "symbol": "GOOG",
     "side": "long",
