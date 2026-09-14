@@ -1,32 +1,4 @@
 {
-  "ARKW": {
-    "symbol": "ARKW",
-    "side": "long",
-    "qty": 8.0,
-    "entry_price": 153.0,
-    "initial_stop_price": 134.39820643833704,
-    "current_stop_price": 134.39820643833704,
-    "r_per_share": 18.601793561662948,
-    "stage": "initial",
-    "extreme_price": 153.0,
-    "stop_order_id": "1c34c011-392c-422e-8087-2130bfeb6255",
-    "opened_at": "2026-08-17T13:33:16.259396+00:00",
-    "updated_at": "2026-08-17T13:33:16.259396+00:00"
-  },
-  "AVGO": {
-    "symbol": "AVGO",
-    "side": "long",
-    "qty": 4.0,
-    "entry_price": 395.7,
-    "initial_stop_price": 321.0266491642962,
-    "current_stop_price": 321.0266491642962,
-    "r_per_share": 74.67335083570377,
-    "stage": "initial",
-    "extreme_price": 395.7,
-    "stop_order_id": "edb51391-ab7d-4b78-af0b-fc4d149c30d1",
-    "opened_at": "2026-08-17T13:46:58.769551+00:00",
-    "updated_at": "2026-08-17T13:46:58.769551+00:00"
-  },
   "NVDA": {
     "symbol": "NVDA",
     "side": "long",
@@ -40,20 +12,6 @@
     "stop_order_id": "9975d2cf-49bc-4797-8915-98118ff14ec6",
     "opened_at": "2026-08-17T13:46:58.957675+00:00",
     "updated_at": "2026-08-17T13:46:58.957675+00:00"
-  },
-  "SHW": {
-    "symbol": "SHW",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 356.673333,
-    "initial_stop_price": 312.0602001385418,
-    "current_stop_price": 312.0602001385418,
-    "r_per_share": 44.613132861458205,
-    "stage": "initial",
-    "extreme_price": 356.673333,
-    "stop_order_id": "e0f19b5a-a658-44be-b9d6-6e090d960c8f",
-    "opened_at": "2026-08-17T13:46:59.143036+00:00",
-    "updated_at": "2026-08-17T13:46:59.143036+00:00"
   },
   "XLY": {
     "symbol": "XLY",
@@ -96,20 +54,6 @@
     "stop_order_id": "565e0b95-c97e-448e-b0d0-5c4fead96fd4",
     "opened_at": "2026-08-25T14:47:33.556129+00:00",
     "updated_at": "2026-08-25T14:47:33.556129+00:00"
-  },
-  "ITA": {
-    "symbol": "ITA",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 235.35,
-    "initial_stop_price": 215.64285430908203,
-    "current_stop_price": 215.64285430908203,
-    "r_per_share": 19.70714569091797,
-    "stage": "initial",
-    "extreme_price": 235.35,
-    "stop_order_id": "ad8274e0-7c9f-4381-a4e9-f00fa53a7854",
-    "opened_at": "2026-08-27T13:40:12.783658+00:00",
-    "updated_at": "2026-08-27T13:40:12.783658+00:00"
   },
   "JPM": {
     "symbol": "JPM",
@@ -215,13 +159,13 @@
     "qty": 10.0,
     "entry_price": 83.33,
     "initial_stop_price": 81.11203569820563,
-    "current_stop_price": 81.11203569820563,
+    "current_stop_price": 85.15181810945907,
     "r_per_share": 2.2179643017943653,
-    "stage": "initial",
-    "extreme_price": 83.33,
-    "stop_order_id": "69b67cd5-7d49-4117-9c9d-2a7e1e008c26",
+    "stage": "trailing",
+    "extreme_price": 85.965,
+    "stop_order_id": "63ef4c30-0ada-402a-adc4-e468a5dfde72",
     "opened_at": "2026-09-10T13:49:36.196531+00:00",
-    "updated_at": "2026-09-10T13:49:36.196531+00:00"
+    "updated_at": "2026-09-14T16:58:17.413830+00:00"
   },
   "MDT": {
     "symbol": "MDT",
@@ -264,19 +208,5 @@
     "stop_order_id": "551811c2-96f2-4f9f-9e43-2c2dfb577a58",
     "opened_at": "2026-09-14T13:55:13.268378+00:00",
     "updated_at": "2026-09-14T13:55:13.268378+00:00"
-  },
-  "SPG": {
-    "symbol": "SPG",
-    "side": "long",
-    "qty": 4.0,
-    "entry_price": 205.02,
-    "initial_stop_price": 198.11869188313037,
-    "current_stop_price": 198.11869188313037,
-    "r_per_share": 6.901308116869643,
-    "stage": "initial",
-    "extreme_price": 205.02,
-    "stop_order_id": "e17c6917-0d6d-4025-ab5e-ee236494ea34",
-    "opened_at": "2026-09-14T14:22:59.596346+00:00",
-    "updated_at": "2026-09-14T14:22:59.596346+00:00"
   }
 }
