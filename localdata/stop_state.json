@@ -138,5 +138,19 @@
     "stop_order_id": "f6dccd50-9daf-40d9-bee9-464d2e5b8bf0",
     "opened_at": "2026-09-14T13:55:12.529331+00:00",
     "updated_at": "2026-09-14T13:55:12.529331+00:00"
+  },
+  "GM": {
+    "symbol": "GM",
+    "side": "long",
+    "qty": 10.0,
+    "entry_price": 85.01,
+    "initial_stop_price": 82.83857142857144,
+    "current_stop_price": 82.83857142857144,
+    "r_per_share": 2.171428571428571,
+    "stage": "initial",
+    "extreme_price": 85.01,
+    "stop_order_id": "39bbd2d1-b69b-4014-bdd5-4bf1c3e9f75f",
+    "opened_at": "2026-09-15T16:48:52.026807+00:00",
+    "updated_at": "2026-09-15T16:48:52.026807+00:00"
   }
 }
