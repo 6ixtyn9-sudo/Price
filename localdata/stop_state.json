@@ -1,18 +1,4 @@
 {
-  "NVDA": {
-    "symbol": "NVDA",
-    "side": "long",
-    "qty": 4.0,
-    "entry_price": 226.1975,
-    "initial_stop_price": 191.99035757882254,
-    "current_stop_price": 191.99035757882254,
-    "r_per_share": 34.20714242117746,
-    "stage": "initial",
-    "extreme_price": 226.1975,
-    "stop_order_id": "9975d2cf-49bc-4797-8915-98118ff14ec6",
-    "opened_at": "2026-08-17T13:46:58.957675+00:00",
-    "updated_at": "2026-08-17T13:46:58.957675+00:00"
-  },
   "XLY": {
     "symbol": "XLY",
     "side": "long",
@@ -40,20 +26,6 @@
     "stop_order_id": "81edab14-e6a4-4250-88ee-5f2aa883d556",
     "opened_at": "2026-08-25T13:50:43.070084+00:00",
     "updated_at": "2026-08-25T13:50:43.070084+00:00"
-  },
-  "CBOE": {
-    "symbol": "CBOE",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 306.61,
-    "initial_stop_price": 276.82210901071886,
-    "current_stop_price": 276.82210901071886,
-    "r_per_share": 29.787890989281138,
-    "stage": "initial",
-    "extreme_price": 306.61,
-    "stop_order_id": "565e0b95-c97e-448e-b0d0-5c4fead96fd4",
-    "opened_at": "2026-08-25T14:47:33.556129+00:00",
-    "updated_at": "2026-08-25T14:47:33.556129+00:00"
   },
   "JPM": {
     "symbol": "JPM",
