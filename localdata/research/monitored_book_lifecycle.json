@@ -1,12 +1,11 @@
 {
-  "previous_book_count": 245,
-  "new_book_count": 241,
+  "previous_book_count": 241,
+  "new_book_count": 238,
   "added_candidates": [],
   "removed_candidates": [
-    "KLAC|1h|state_ext=neutral + state_slope=downtrend + state_vol=high_vol|long|rolling",
-    "KLAC|1h|state_session=lunch + state_ext=neutral|long|rolling",
-    "MS|1h|state_ext=stretched_up + state_slope=uptrend + state_vol=low_vol|long|rolling",
-    "XLK|1h|state_ext=stretched_up + state_vol=low_vol|long|rolling"
+    "ARKK|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
+    "GD|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_up|long|rolling"
   ],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
@@ -35,7 +34,6 @@
     "ADI|1d|state_volume=vol_normal + state_ext=stretched_down|long|rolling",
     "ADI|1d|state_volume=vol_normal + state_slope=downtrend|long|rolling",
     "AFRM|1h|cross_TLT_state_vol=high_vol + state_ext=neutral|long|rolling",
-    "ARKK|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "ARKW|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "ARKW|1d|state_volume=vol_normal + state_ext=neutral + state_slope=uptrend|long|rolling",
     "ARKW|1d|state_volume=vol_normal + state_slope=uptrend|long|rolling",
@@ -80,7 +78,6 @@
     "ETN|15m|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "ETN|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "FBTC|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
-    "GD|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
     "GD|1d|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling",
     "GD|1d|state_volume=vol_normal + state_ext=neutral|long|rolling",
     "GE|15m|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral|short|rolling",
@@ -142,7 +139,6 @@
     "NOW|1d|cross_TLT_state_vol=high_vol + state_ext=stretched_down|long|rolling",
     "NVDA|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "NVDA|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
-    "NVDA|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_up|long|rolling",
     "OIH|1h|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling",
     "OIH|1h|state_session=lunch + state_slope=uptrend + state_vol=high_vol|long|rolling",
     "OXY|15m|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling",
@@ -253,11 +249,10 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {
-    "KLAC|1h|state_ext=neutral + state_slope=downtrend + state_vol=high_vol|long|rolling": "registry_status:research_only",
-    "KLAC|1h|state_session=lunch + state_ext=neutral|long|rolling": "registry_status:research_only",
-    "MS|1h|state_ext=stretched_up + state_slope=uptrend + state_vol=low_vol|long|rolling": "registry_status:research_only",
-    "XLK|1h|state_ext=stretched_up + state_vol=low_vol|long|rolling": "registry_status:research_only"
+    "ARKK|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling": "registry_status:research_only",
+    "GD|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling": "registry_status:research_only",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_up|long|rolling": "registry_status:research_only"
   },
   "promotion_reasons": {},
-  "discovery_run_id": "35029382994"
+  "discovery_run_id": null
 }
