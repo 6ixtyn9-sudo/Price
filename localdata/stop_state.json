@@ -138,5 +138,19 @@
     "stop_order_id": "f6dccd50-9daf-40d9-bee9-464d2e5b8bf0",
     "opened_at": "2026-09-14T13:55:12.529331+00:00",
     "updated_at": "2026-09-14T13:55:12.529331+00:00"
+  },
+  "URA": {
+    "symbol": "URA",
+    "side": "long",
+    "qty": 21.0,
+    "entry_price": 42.45,
+    "initial_stop_price": 41.661429857777975,
+    "current_stop_price": 41.661429857777975,
+    "r_per_share": 0.7885701422220305,
+    "stage": "initial",
+    "extreme_price": 42.45,
+    "stop_order_id": "7eecab3f-bbc9-4511-a50a-9497df479a24",
+    "opened_at": "2026-09-17T14:42:17.467467+00:00",
+    "updated_at": "2026-09-17T14:42:17.467467+00:00"
   }
 }
