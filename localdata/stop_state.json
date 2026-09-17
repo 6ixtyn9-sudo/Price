@@ -139,20 +139,6 @@
     "opened_at": "2026-09-14T13:55:12.529331+00:00",
     "updated_at": "2026-09-14T13:55:12.529331+00:00"
   },
-  "URA": {
-    "symbol": "URA",
-    "side": "long",
-    "qty": 21.0,
-    "entry_price": 42.45,
-    "initial_stop_price": 41.661429857777975,
-    "current_stop_price": 41.661429857777975,
-    "r_per_share": 0.7885701422220305,
-    "stage": "initial",
-    "extreme_price": 42.45,
-    "stop_order_id": "7eecab3f-bbc9-4511-a50a-9497df479a24",
-    "opened_at": "2026-09-17T14:42:17.467467+00:00",
-    "updated_at": "2026-09-17T14:42:17.467467+00:00"
-  },
   "ABNB": {
     "symbol": "ABNB",
     "side": "long",
@@ -166,5 +152,19 @@
     "stop_order_id": "bb53bb2b-56c7-4475-97e4-969453318e8e",
     "opened_at": "2026-09-17T17:26:24.838129+00:00",
     "updated_at": "2026-09-17T17:26:24.838129+00:00"
+  },
+  "SOXX": {
+    "symbol": "SOXX",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 519.78,
+    "initial_stop_price": 497.6228571428571,
+    "current_stop_price": 497.6228571428571,
+    "r_per_share": 22.157142857142922,
+    "stage": "initial",
+    "extreme_price": 519.78,
+    "stop_order_id": "45822bda-e8e1-492b-8174-6741a210756d",
+    "opened_at": "2026-09-17T17:46:18.282567+00:00",
+    "updated_at": "2026-09-17T17:46:18.282567+00:00"
   }
 }
