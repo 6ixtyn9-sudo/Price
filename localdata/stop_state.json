@@ -152,5 +152,19 @@
     "stop_order_id": "7eecab3f-bbc9-4511-a50a-9497df479a24",
     "opened_at": "2026-09-17T14:42:17.467467+00:00",
     "updated_at": "2026-09-17T14:42:17.467467+00:00"
+  },
+  "ABNB": {
+    "symbol": "ABNB",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 166.13,
+    "initial_stop_price": 160.69964285714286,
+    "current_stop_price": 160.69964285714286,
+    "r_per_share": 5.4303571428571376,
+    "stage": "initial",
+    "extreme_price": 166.13,
+    "stop_order_id": "bb53bb2b-56c7-4475-97e4-969453318e8e",
+    "opened_at": "2026-09-17T17:26:24.838129+00:00",
+    "updated_at": "2026-09-17T17:26:24.838129+00:00"
   }
 }
