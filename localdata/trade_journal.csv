@@ -1536,3 +1536,6 @@ a6af9d69-848c-44a1-ab8a-34e1305a7ac8,BSX,21.0,buy,stop,44.33,gtc,new,2026-09-17 
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-17T20:06:36.494650+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 6558471d-739f-473e-b5e4-367800ac0ff7,LOW,4.0,sell,limit,,day,accepted,2026-09-17 20:18:25.296571+00:00,entry,2026-09-17T20:18:25.324928+00:00,accepted,0.0,,,2026-09-17T20:22:33.831352+00:00,193.8017,cross_TLT_state_slope=uptrend + state_ext=neutral,2026-09-17 19:00:00+00:00,1h,rolling,,,price-eq-LOW-1h-sell-b25416d5,,,20.0,5.0,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-17T20:25:11.228117+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-17T20:45:25.167377+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-17T21:04:45.126909+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-17T21:26:58.949717+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
