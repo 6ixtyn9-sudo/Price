@@ -173,12 +173,26 @@
     "qty": 8.0,
     "entry_price": 102.86,
     "initial_stop_price": 103.37813541899935,
-    "current_stop_price": 103.37813541899935,
+    "current_stop_price": 102.67002258865826,
     "r_per_share": 0.5181354189993532,
-    "stage": "initial",
-    "extreme_price": 102.86,
-    "stop_order_id": "f2af97a2-6607-4367-b7ba-6fa8f48d049c",
+    "stage": "trailing",
+    "extreme_price": 102.23,
+    "stop_order_id": "8afff3d0-2da2-4875-8073-a75bb2a7aa10",
     "opened_at": "2026-09-17T19:04:47.130287+00:00",
-    "updated_at": "2026-09-17T19:04:47.130287+00:00"
+    "updated_at": "2026-09-17T20:06:36.052243+00:00"
+  },
+  "BSX": {
+    "symbol": "BSX",
+    "side": "short",
+    "qty": 21.0,
+    "entry_price": 43.42,
+    "initial_stop_price": 44.32714285714285,
+    "current_stop_price": 44.32714285714285,
+    "r_per_share": 0.9071428571428543,
+    "stage": "initial",
+    "extreme_price": 43.42,
+    "stop_order_id": "a6af9d69-848c-44a1-ab8a-34e1305a7ac8",
+    "opened_at": "2026-09-17T19:47:03.599860+00:00",
+    "updated_at": "2026-09-17T19:47:03.599860+00:00"
   }
 }
