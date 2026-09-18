@@ -167,20 +167,6 @@
     "opened_at": "2026-09-17T17:46:18.282567+00:00",
     "updated_at": "2026-09-17T17:46:18.282567+00:00"
   },
-  "BSX": {
-    "symbol": "BSX",
-    "side": "short",
-    "qty": 21.0,
-    "entry_price": 43.42,
-    "initial_stop_price": 44.32714285714285,
-    "current_stop_price": 44.32714285714285,
-    "r_per_share": 0.9071428571428543,
-    "stage": "initial",
-    "extreme_price": 43.42,
-    "stop_order_id": "a6af9d69-848c-44a1-ab8a-34e1305a7ac8",
-    "opened_at": "2026-09-17T19:47:03.599860+00:00",
-    "updated_at": "2026-09-17T19:47:03.599860+00:00"
-  },
   "LOW": {
     "symbol": "LOW",
     "side": "short",
