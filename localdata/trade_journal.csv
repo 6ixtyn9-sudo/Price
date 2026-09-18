@@ -1563,3 +1563,6 @@ a6af9d69-848c-44a1-ab8a-34e1305a7ac8,,,,,,,canceled,,order_cancel,2026-09-18T17:
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-18T18:51:49.045778+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-18T19:11:54.573357+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-18T19:32:46.723653+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-18T19:53:22.116647+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-18T20:13:57.995184+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-18T20:35:43.863662+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
