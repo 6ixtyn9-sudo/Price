@@ -1,8 +1,11 @@
 {
-  "previous_book_count": 236,
-  "new_book_count": 236,
+  "previous_book_count": 235,
+  "new_book_count": 233,
   "added_candidates": [],
-  "removed_candidates": [],
+  "removed_candidates": [
+    "CBOE|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=flat|long|rolling",
+    "GILD|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling"
+  ],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
     "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -49,9 +52,7 @@
     "BSX|15m|state_session=afternoon + state_slope=uptrend + state_vol=high_vol|short|rolling",
     "CAT|15m|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "CAT|1d|state_ext=stretched_up + state_ret_1=ret_flat|long|rolling",
-    "CBOE|1d|cross_USO_state_slope=uptrend + state_slope=flat|long|rolling",
     "CBOE|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling",
-    "CBOE|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=flat|long|rolling",
     "CL|15m|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=stretched_up|long|rolling",
     "CL|1h|cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
     "CL|1h|cross_USO_state_slope=downtrend + cross_TLT_state_ext=neutral + state_ext=stretched_up|short|rolling",
@@ -83,7 +84,6 @@
     "GD|1d|state_volume=vol_normal + state_ext=neutral|long|rolling",
     "GE|15m|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral|short|rolling",
     "GE|1d|cross_TLT_state_vol=high_vol + state_ext=stretched_up|long|rolling",
-    "GILD|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "GILD|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "GILD|1d|cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "GILD|1d|cross_TLT_state_slope=uptrend + state_slope=downtrend|long|rolling",
@@ -242,7 +242,10 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {},
+  "removal_reasons": {
+    "CBOE|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=flat|long|rolling": "registry_status:research_only",
+    "GILD|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling": "registry_status:research_only"
+  },
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "35280525124"
 }
