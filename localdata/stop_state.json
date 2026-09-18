@@ -167,20 +167,6 @@
     "opened_at": "2026-09-17T17:46:18.282567+00:00",
     "updated_at": "2026-09-17T17:46:18.282567+00:00"
   },
-  "ABT": {
-    "symbol": "ABT",
-    "side": "short",
-    "qty": 8.0,
-    "entry_price": 102.86,
-    "initial_stop_price": 103.37813541899935,
-    "current_stop_price": 102.30987397175475,
-    "r_per_share": 0.5181354189993532,
-    "stage": "trailing",
-    "extreme_price": 101.81,
-    "stop_order_id": "fccabc3d-350f-4f38-9c50-e7c2b55e6a36",
-    "opened_at": "2026-09-17T19:04:47.130287+00:00",
-    "updated_at": "2026-09-18T13:03:38.964776+00:00"
-  },
   "BSX": {
     "symbol": "BSX",
     "side": "short",
