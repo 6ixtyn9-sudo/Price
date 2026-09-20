@@ -1,6 +1,6 @@
 {
-  "previous_book_count": 243,
-  "new_book_count": 243,
+  "previous_book_count": 247,
+  "new_book_count": 247,
   "added_candidates": [],
   "removed_candidates": [],
   "retained_candidates": [
@@ -130,7 +130,11 @@
     "MDT|1d|state_volume=vol_quiet + state_slope=flat|long|rolling",
     "META|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "META|1d|state_slope=downtrend + state_vol=low_vol|long|rolling",
+    "MPC|15m|state_session=morning + state_ext=stretched_down|long|rolling",
+    "MPC|15m|state_session=morning + state_slope=downtrend|long|rolling",
+    "MPC|15m|state_volume=vol_surge + state_slope=downtrend|long|rolling",
     "MS|1h|state_ext=stretched_up + state_vol=low_vol|long|rolling",
+    "MU|15m|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up|long|rolling",
     "NEE|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "NEM|1h|state_slope=downtrend + state_vol=low_vol|long|rolling",
     "NKE|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
@@ -251,5 +255,5 @@
   "changed_sides_or_slices": [],
   "removal_reasons": {},
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "35472397762"
 }
