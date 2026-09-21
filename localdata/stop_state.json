@@ -139,20 +139,6 @@
     "opened_at": "2026-09-17T17:26:24.838129+00:00",
     "updated_at": "2026-09-17T17:26:24.838129+00:00"
   },
-  "SOXX": {
-    "symbol": "SOXX",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 519.78,
-    "initial_stop_price": 497.6228571428571,
-    "current_stop_price": 550.8927292826401,
-    "r_per_share": 22.157142857142922,
-    "stage": "trailing",
-    "extreme_price": 560.44,
-    "stop_order_id": "dfbfe676-574d-4047-8a96-d5ec727acca6",
-    "opened_at": "2026-09-17T17:46:18.282567+00:00",
-    "updated_at": "2026-09-21T19:34:45.201841+00:00"
-  },
   "LOW": {
     "symbol": "LOW",
     "side": "short",
@@ -208,5 +194,33 @@
     "stop_order_id": "3b2e1231-60a5-4bc5-8fdf-174150eb7ede",
     "opened_at": "2026-09-21T18:16:41.372640+00:00",
     "updated_at": "2026-09-21T18:16:41.372640+00:00"
+  },
+  "NEM": {
+    "symbol": "NEM",
+    "side": "long",
+    "qty": 12.0,
+    "entry_price": 123.26,
+    "initial_stop_price": 119.44050302665455,
+    "current_stop_price": 119.44050302665455,
+    "r_per_share": 3.8194969733454545,
+    "stage": "initial",
+    "extreme_price": 123.26,
+    "stop_order_id": "1964426a-97ab-4e76-921f-177a00493305",
+    "opened_at": "2026-09-21T19:55:50.170107+00:00",
+    "updated_at": "2026-09-21T19:55:50.170107+00:00"
+  },
+  "VLO": {
+    "symbol": "VLO",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 394.16,
+    "initial_stop_price": 376.4678136233123,
+    "current_stop_price": 376.4678136233123,
+    "r_per_share": 17.69218637668773,
+    "stage": "initial",
+    "extreme_price": 394.16,
+    "stop_order_id": "dd40741f-1226-48f1-9241-59bc2bf0ede1",
+    "opened_at": "2026-09-21T19:55:50.354093+00:00",
+    "updated_at": "2026-09-21T19:55:50.354093+00:00"
   }
 }
