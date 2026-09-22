@@ -209,18 +209,18 @@
     "opened_at": "2026-09-21T19:55:50.170107+00:00",
     "updated_at": "2026-09-21T19:55:50.170107+00:00"
   },
-  "VLO": {
-    "symbol": "VLO",
+  "F": {
+    "symbol": "F",
     "side": "long",
-    "qty": 2.0,
-    "entry_price": 394.16,
-    "initial_stop_price": 376.4678136233123,
-    "current_stop_price": 376.4678136233123,
-    "r_per_share": 17.69218637668773,
+    "qty": 69.0,
+    "entry_price": 13.21,
+    "initial_stop_price": 12.930492741132715,
+    "current_stop_price": 12.930492741132715,
+    "r_per_share": 0.279507258867285,
     "stage": "initial",
-    "extreme_price": 394.16,
-    "stop_order_id": "dd40741f-1226-48f1-9241-59bc2bf0ede1",
-    "opened_at": "2026-09-21T19:55:50.354093+00:00",
-    "updated_at": "2026-09-21T19:55:50.354093+00:00"
+    "extreme_price": 13.21,
+    "stop_order_id": "69eaa900-a53b-4c5d-b453-e5d3017deb0f",
+    "opened_at": "2026-09-22T14:05:53.937023+00:00",
+    "updated_at": "2026-09-22T14:05:53.937023+00:00"
   }
 }
