@@ -208,5 +208,47 @@
     "stop_order_id": "73276ad5-392a-4fbb-812b-435e998f0d00",
     "opened_at": "2026-09-22T19:14:36.470636+00:00",
     "updated_at": "2026-09-22T19:14:36.470636+00:00"
+  },
+  "OXY": {
+    "symbol": "OXY",
+    "side": "short",
+    "qty": 2.0,
+    "entry_price": 57.34,
+    "initial_stop_price": 59.044896495236294,
+    "current_stop_price": 59.044896495236294,
+    "r_per_share": 1.7048964952362877,
+    "stage": "initial",
+    "extreme_price": 57.34,
+    "stop_order_id": "7d48ed62-2d54-4f25-a0de-767fd46c78ab",
+    "opened_at": "2026-09-23T14:58:54.373345+00:00",
+    "updated_at": "2026-09-23T14:58:54.373345+00:00"
+  },
+  "ICE": {
+    "symbol": "ICE",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 156.53,
+    "initial_stop_price": 152.78130816752244,
+    "current_stop_price": 152.78130816752244,
+    "r_per_share": 3.748691832477567,
+    "stage": "initial",
+    "extreme_price": 156.53,
+    "stop_order_id": "45eabc64-78ec-4e84-91ce-6618437f04e5",
+    "opened_at": "2026-09-23T15:37:08.315207+00:00",
+    "updated_at": "2026-09-23T15:37:08.315207+00:00"
+  },
+  "UNG": {
+    "symbol": "UNG",
+    "side": "short",
+    "qty": 85.0,
+    "entry_price": 10.87,
+    "initial_stop_price": 11.3575,
+    "current_stop_price": 11.3575,
+    "r_per_share": 0.4875000000000007,
+    "stage": "initial",
+    "extreme_price": 10.87,
+    "stop_order_id": "2953d8d0-752d-4e4c-972a-755b82e22ea8",
+    "opened_at": "2026-09-23T15:37:08.506434+00:00",
+    "updated_at": "2026-09-23T15:37:08.506434+00:00"
   }
 }
