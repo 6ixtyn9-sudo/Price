@@ -13,20 +13,6 @@
     "opened_at": "2026-08-17T13:46:59.336166+00:00",
     "updated_at": "2026-08-17T13:46:59.336166+00:00"
   },
-  "ADI": {
-    "symbol": "ADI",
-    "side": "long",
-    "qty": 4.0,
-    "entry_price": 372.77,
-    "initial_stop_price": 319.8626496436735,
-    "current_stop_price": 319.8626496436735,
-    "r_per_share": 52.90735035632649,
-    "stage": "initial",
-    "extreme_price": 372.77,
-    "stop_order_id": "81edab14-e6a4-4250-88ee-5f2aa883d556",
-    "opened_at": "2026-08-25T13:50:43.070084+00:00",
-    "updated_at": "2026-08-25T13:50:43.070084+00:00"
-  },
   "JPM": {
     "symbol": "JPM",
     "side": "long",
