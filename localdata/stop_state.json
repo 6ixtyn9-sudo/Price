@@ -125,20 +125,6 @@
     "opened_at": "2026-09-21T16:53:41.592649+00:00",
     "updated_at": "2026-09-21T16:53:41.592649+00:00"
   },
-  "CRWD": {
-    "symbol": "CRWD",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 246.55,
-    "initial_stop_price": 228.36607142857144,
-    "current_stop_price": 228.36607142857144,
-    "r_per_share": 18.183928571428577,
-    "stage": "initial",
-    "extreme_price": 246.55,
-    "stop_order_id": "1d3684fe-1cee-466d-a564-92443d711d91",
-    "opened_at": "2026-09-21T16:53:41.873892+00:00",
-    "updated_at": "2026-09-21T16:53:41.873892+00:00"
-  },
   "AAPL": {
     "symbol": "AAPL",
     "side": "long",
