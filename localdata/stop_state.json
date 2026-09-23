@@ -125,20 +125,6 @@
     "opened_at": "2026-09-11T13:54:30.978902+00:00",
     "updated_at": "2026-09-11T13:54:30.978902+00:00"
   },
-  "LOW": {
-    "symbol": "LOW",
-    "side": "short",
-    "qty": 4.0,
-    "entry_price": 193.91,
-    "initial_stop_price": 200.73142857142858,
-    "current_stop_price": 200.73142857142858,
-    "r_per_share": 6.821428571428579,
-    "stage": "initial",
-    "extreme_price": 193.91,
-    "stop_order_id": "13d883ac-b4ad-4899-9633-17fef3b384fc",
-    "opened_at": "2026-09-18T13:33:58.473785+00:00",
-    "updated_at": "2026-09-18T13:33:58.473785+00:00"
-  },
   "CME": {
     "symbol": "CME",
     "side": "long",
@@ -181,20 +167,6 @@
     "opened_at": "2026-09-21T18:16:41.372640+00:00",
     "updated_at": "2026-09-21T18:16:41.372640+00:00"
   },
-  "NEM": {
-    "symbol": "NEM",
-    "side": "long",
-    "qty": 12.0,
-    "entry_price": 123.26,
-    "initial_stop_price": 119.44050302665455,
-    "current_stop_price": 119.44050302665455,
-    "r_per_share": 3.8194969733454545,
-    "stage": "initial",
-    "extreme_price": 123.26,
-    "stop_order_id": "1964426a-97ab-4e76-921f-177a00493305",
-    "opened_at": "2026-09-21T19:55:50.170107+00:00",
-    "updated_at": "2026-09-21T19:55:50.170107+00:00"
-  },
   "F": {
     "symbol": "F",
     "side": "long",
@@ -236,5 +208,19 @@
     "stop_order_id": "698347c7-0ca3-417f-8afe-6884581bde97",
     "opened_at": "2026-09-22T17:43:57.303286+00:00",
     "updated_at": "2026-09-22T17:43:57.303286+00:00"
+  },
+  "LOW": {
+    "symbol": "LOW",
+    "side": "short",
+    "qty": 4.0,
+    "entry_price": 195.39,
+    "initial_stop_price": 203.80785714285713,
+    "current_stop_price": 203.80785714285713,
+    "r_per_share": 8.417857142857141,
+    "stage": "initial",
+    "extreme_price": 195.39,
+    "stop_order_id": "73276ad5-392a-4fbb-812b-435e998f0d00",
+    "opened_at": "2026-09-22T19:14:36.470636+00:00",
+    "updated_at": "2026-09-22T19:14:36.470636+00:00"
   }
 }
