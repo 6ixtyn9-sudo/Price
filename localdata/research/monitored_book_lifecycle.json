@@ -1,8 +1,12 @@
 {
-  "previous_book_count": 256,
-  "new_book_count": 256,
+  "previous_book_count": 263,
+  "new_book_count": 260,
   "added_candidates": [],
-  "removed_candidates": [],
+  "removed_candidates": [
+    "CSX|1h|cross_TLT_state_vol=mid_vol + state_ext=stretched_up|short|rolling",
+    "LRCX|1h|state_volume=vol_surge + state_ext=neutral|long|rolling",
+    "OIH|1h|state_session=lunch + state_slope=uptrend + state_vol=high_vol|long|rolling"
+  ],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
     "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -57,7 +61,6 @@
     "CRM|15m|cross_USO_state_ext=stretched_down + state_ext=neutral|short|rolling",
     "CRWD|1h|cross_USO_state_vol=high_vol + state_ext=stretched_up|long|rolling",
     "CRWD|1h|state_session=morning + state_ext=stretched_up + state_slope=flat|long|rolling",
-    "CSX|1h|cross_TLT_state_vol=mid_vol + state_ext=stretched_up|short|rolling",
     "CVS|1h|cross_TLT_state_vol=low_vol + state_ext=stretched_up|long|rolling",
     "DASH|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
     "DE|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
@@ -80,6 +83,7 @@
     "FBTC|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "FBTC|1h|state_relvol=relvol_quiet + state_ext=stretched_up|short|rolling",
     "FBTC|1h|state_volume=vol_quiet + state_ext=stretched_up|short|rolling",
+    "FDX|1h|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
     "GD|1d|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling",
     "GD|1d|state_volume=vol_normal + state_ext=neutral|long|rolling",
     "GE|15m|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=neutral|short|rolling",
@@ -124,7 +128,6 @@
     "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "LRCX|1d|state_volume=vol_normal + state_ext=stretched_down|long|rolling",
     "LRCX|1d|state_volume=vol_normal + state_slope=downtrend|long|rolling",
-    "LRCX|1h|state_volume=vol_surge + state_ext=neutral|long|rolling",
     "MDLZ|1h|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "MDLZ|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "MDT|15m|cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
@@ -137,6 +140,7 @@
     "MPC|15m|state_session=morning + state_ext=stretched_down|long|rolling",
     "MPC|15m|state_session=morning + state_slope=downtrend|long|rolling",
     "MRK|1d|state_volume=vol_surge + state_ext=stretched_down + state_slope=flat|long|rolling",
+    "MRK|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
     "MS|1h|state_ext=stretched_up + state_vol=low_vol|long|rolling",
     "MS|1h|state_volume=vol_surge + state_slope=flat|long|rolling",
     "MU|15m|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up|long|rolling",
@@ -150,7 +154,6 @@
     "NVDA|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "NVDA|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
     "OIH|1h|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling",
-    "OIH|1h|state_session=lunch + state_slope=uptrend + state_vol=high_vol|long|rolling",
     "OXY|1h|state_session=morning + state_slope=downtrend + state_vol=mid_vol|short|rolling",
     "O|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "PANW|1d|cross_USO_state_ext=stretched_down + state_ext=neutral|long|rolling",
@@ -163,6 +166,7 @@
     "PLD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=neutral|long|rolling",
     "PLTR|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "PM|1h|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
+    "PM|1h|state_ext=stretched_up + state_ret_1=ret_flat|long|rolling",
     "PSX|15m|state_ext=stretched_down + state_ret_1=ret_down|long|rolling",
     "PSX|15m|state_ext=stretched_down + state_ret_5=ret_down|long|rolling",
     "PSX|15m|state_ext=stretched_down + state_vol=high_vol|long|rolling",
@@ -192,6 +196,8 @@
     "SO|1d|state_ext=neutral + state_slope=uptrend + state_vol=low_vol|long|rolling",
     "SPG|1h|state_session=afternoon + state_vol=mid_vol|long|rolling",
     "TGT|1h|state_volume=vol_surge + state_ext=stretched_down|long|rolling",
+    "TMO|1h|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling",
+    "TMO|1h|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling",
     "TSLA|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "TSM|1d|state_ext=neutral + state_ret_1=ret_down|long|rolling",
     "TSM|1h|state_volume=vol_surge + state_ext=stretched_down + state_slope=downtrend|long|rolling",
@@ -249,8 +255,10 @@
     "XLV|1d|state_volume=vol_surge + state_ext=stretched_down|long|rolling",
     "XLY|1d|state_ext=stretched_up + state_ret_5=ret_down|long|rolling",
     "XLY|1d|state_slope=flat + state_vol=low_vol|long|rolling",
+    "XLY|1h|cross_TLT_state_ext=neutral + state_ext=stretched_down|long|rolling",
     "XLY|1h|state_ext=stretched_down + state_ret_1=ret_down|long|rolling",
     "XLY|1h|state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol|long|rolling",
+    "XLY|1h|state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "XME|1d|cross_USO_state_slope=uptrend + state_slope=downtrend|long|rolling",
     "XRT|1h|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling",
     "XRT|1h|state_volume=vol_surge + state_ext=stretched_down|long|rolling",
@@ -262,7 +270,11 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {},
+  "removal_reasons": {
+    "CSX|1h|cross_TLT_state_vol=mid_vol + state_ext=stretched_up|short|rolling": "registry_status:research_only",
+    "LRCX|1h|state_volume=vol_surge + state_ext=neutral|long|rolling": "registry_status:research_only",
+    "OIH|1h|state_session=lunch + state_slope=uptrend + state_vol=high_vol|long|rolling": "registry_status:research_only"
+  },
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "36065717592"
 }
