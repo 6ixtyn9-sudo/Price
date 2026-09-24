@@ -208,5 +208,33 @@
     "stop_order_id": "416b6c64-4dfc-481b-9cae-ea31688b3b73",
     "opened_at": "2026-09-24T13:38:34.987370+00:00",
     "updated_at": "2026-09-24T13:38:34.987370+00:00"
+  },
+  "CRWD": {
+    "symbol": "CRWD",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 262.37,
+    "initial_stop_price": 244.8914285714286,
+    "current_stop_price": 244.8914285714286,
+    "r_per_share": 17.478571428571396,
+    "stage": "initial",
+    "extreme_price": 262.37,
+    "stop_order_id": "15184c6e-d753-41ff-a8ad-1298e8ea1523",
+    "opened_at": "2026-09-24T18:48:50.934686+00:00",
+    "updated_at": "2026-09-24T18:48:50.934686+00:00"
+  },
+  "GM": {
+    "symbol": "GM",
+    "side": "long",
+    "qty": 11.0,
+    "entry_price": 81.18,
+    "initial_stop_price": 78.58072971416019,
+    "current_stop_price": 78.58072971416019,
+    "r_per_share": 2.5992702858398222,
+    "stage": "initial",
+    "extreme_price": 81.18,
+    "stop_order_id": "dc37a82e-63e8-4e05-a2cb-40b6a1ec10bf",
+    "opened_at": "2026-09-24T18:48:51.909760+00:00",
+    "updated_at": "2026-09-24T18:48:51.909760+00:00"
   }
 }
