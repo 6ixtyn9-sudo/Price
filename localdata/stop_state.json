@@ -167,20 +167,6 @@
     "opened_at": "2026-09-22T17:43:57.303286+00:00",
     "updated_at": "2026-09-22T17:43:57.303286+00:00"
   },
-  "LOW": {
-    "symbol": "LOW",
-    "side": "short",
-    "qty": 4.0,
-    "entry_price": 195.39,
-    "initial_stop_price": 203.80785714285713,
-    "current_stop_price": 203.80785714285713,
-    "r_per_share": 8.417857142857141,
-    "stage": "initial",
-    "extreme_price": 195.39,
-    "stop_order_id": "73276ad5-392a-4fbb-812b-435e998f0d00",
-    "opened_at": "2026-09-22T19:14:36.470636+00:00",
-    "updated_at": "2026-09-22T19:14:36.470636+00:00"
-  },
   "ICE": {
     "symbol": "ICE",
     "side": "long",
