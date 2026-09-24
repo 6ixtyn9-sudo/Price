@@ -1787,3 +1787,7 @@ dc37a82e-63e8-4e05-a2cb-40b6a1ec10bf,GM,11.0,sell,stop,78.58,gtc,new,2026-09-24 
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-24T20:17:33.982974+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-09-24T20:33:54.401611+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
 ,,,,,113.64,,rejected,,protective_stop_replace,2026-09-24T20:33:54.525227+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-09-24T20:57:48.159799+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-24T20:57:48.433239+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-09-24T21:23:16.945854+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,113.64,,rejected,,protective_stop_replace,2026-09-24T21:23:17.076406+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",29156805-63f3-4afe-b898-a6208e5b5a09,,,
