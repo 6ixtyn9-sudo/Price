@@ -153,20 +153,6 @@
     "opened_at": "2026-09-22T14:05:53.937023+00:00",
     "updated_at": "2026-09-22T14:05:53.937023+00:00"
   },
-  "ICE": {
-    "symbol": "ICE",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 156.53,
-    "initial_stop_price": 152.78130816752244,
-    "current_stop_price": 152.78130816752244,
-    "r_per_share": 3.748691832477567,
-    "stage": "initial",
-    "extreme_price": 156.53,
-    "stop_order_id": "45eabc64-78ec-4e84-91ce-6618437f04e5",
-    "opened_at": "2026-09-23T15:37:08.315207+00:00",
-    "updated_at": "2026-09-23T15:37:08.315207+00:00"
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "long",
@@ -222,5 +208,19 @@
     "stop_order_id": "38ed042e-c4c4-433e-81bc-6bb754ea1705",
     "opened_at": "2026-09-28T13:45:57.363923+00:00",
     "updated_at": "2026-09-28T13:45:57.363923+00:00"
+  },
+  "OXY": {
+    "symbol": "OXY",
+    "side": "short",
+    "qty": 2.0,
+    "entry_price": 57.03,
+    "initial_stop_price": 58.74804605624521,
+    "current_stop_price": 58.74804605624521,
+    "r_per_share": 1.718046056245205,
+    "stage": "initial",
+    "extreme_price": 57.03,
+    "stop_order_id": "a26977a7-f3cb-4331-9f29-28b9545897c0",
+    "opened_at": "2026-09-28T15:15:59.970226+00:00",
+    "updated_at": "2026-09-28T15:15:59.970226+00:00"
   }
 }
