@@ -209,20 +209,6 @@
     "opened_at": "2026-09-28T13:45:57.363923+00:00",
     "updated_at": "2026-09-28T13:45:57.363923+00:00"
   },
-  "OXY": {
-    "symbol": "OXY",
-    "side": "short",
-    "qty": 2.0,
-    "entry_price": 57.03,
-    "initial_stop_price": 58.74804605624521,
-    "current_stop_price": 58.74804605624521,
-    "r_per_share": 1.718046056245205,
-    "stage": "initial",
-    "extreme_price": 57.03,
-    "stop_order_id": "a26977a7-f3cb-4331-9f29-28b9545897c0",
-    "opened_at": "2026-09-28T15:15:59.970226+00:00",
-    "updated_at": "2026-09-28T15:15:59.970226+00:00"
-  },
   "SOXX": {
     "symbol": "SOXX",
     "side": "long",
