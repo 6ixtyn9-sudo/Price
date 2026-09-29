@@ -1,8 +1,14 @@
 {
   "previous_book_count": 270,
-  "new_book_count": 270,
-  "added_candidates": [],
-  "removed_candidates": [],
+  "new_book_count": 272,
+  "added_candidates": [
+    "IYR|15m|state_session=morning + state_slope=flat + state_vol=low_vol|short|rolling",
+    "LCID|15m|cross_TLT_state_vol=low_vol + state_ext=stretched_down|short|rolling",
+    "VLO|15m|cross_USO_state_ext=neutral + state_ext=stretched_down|long|rolling"
+  ],
+  "removed_candidates": [
+    "CRM|15m|cross_USO_state_ext=stretched_down + state_ext=neutral|short|rolling"
+  ],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
     "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -61,7 +67,6 @@
     "COST|1d|state_ext=stretched_up + state_ret_1=ret_flat|long|rolling",
     "COST|1h|state_volume=vol_quiet + state_ext=neutral + state_slope=uptrend|short|rolling",
     "COST|1h|state_volume=vol_quiet + state_slope=uptrend|short|rolling",
-    "CRM|15m|cross_USO_state_ext=stretched_down + state_ext=neutral|short|rolling",
     "CRWD|1h|cross_USO_state_vol=high_vol + state_ext=stretched_up|long|rolling",
     "CRWD|1h|state_session=morning + state_ext=stretched_up + state_slope=flat|long|rolling",
     "CVS|1h|cross_TLT_state_vol=low_vol + state_ext=stretched_up|long|rolling",
@@ -276,7 +281,13 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {},
-  "promotion_reasons": {},
+  "removal_reasons": {
+    "CRM|15m|cross_USO_state_ext=stretched_down + state_ext=neutral|short|rolling": "registry_status:research_only"
+  },
+  "promotion_reasons": {
+    "IYR|15m|state_session=morning + state_slope=flat + state_vol=low_vol|short|rolling": "paper_proposal",
+    "LCID|15m|cross_TLT_state_vol=low_vol + state_ext=stretched_down|short|rolling": "paper_proposal",
+    "VLO|15m|cross_USO_state_ext=neutral + state_ext=stretched_down|long|rolling": "paper_proposal"
+  },
   "discovery_run_id": null
 }
