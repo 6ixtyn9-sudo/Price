@@ -1969,3 +1969,8 @@ e0a47d72-cc84-4bed-b5c9-7ac8f815ed91,SMH,1.0,buy,limit,,day,accepted,2026-09-29 
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-09-29T20:19:46.953017+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
 ,LCID,424.0,sell,limit,,,rejected,,entry,2026-09-29T20:26:07.728521+00:00,,,,,,4.02795,cross_USO_state_vol=mid_vol + state_ext=neutral,2026-09-29 19:00:00+00:00,1h,rolling,,,price-eq-LCID-1h-sell-fa999350-r2,"{""code"":42210000,""message"":""asset \""LCID\"" cannot be sold short""}",,20.0,3.729033349148863,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-09-29T20:33:31.806277+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-09-29T20:43:54.645465+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-09-29T20:52:04.912142+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-09-29T21:05:03.445893+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-09-29T21:19:31.588790+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-09-29T21:32:18.991570+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
