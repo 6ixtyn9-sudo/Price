@@ -222,5 +222,33 @@
     "stop_order_id": "c0a90cec-3920-439e-b372-95f42c7fbe8f",
     "opened_at": "2026-09-29T16:53:43.349456+00:00",
     "updated_at": "2026-09-29T16:53:43.349456+00:00"
+  },
+  "SLV": {
+    "symbol": "SLV",
+    "side": "long",
+    "qty": 16.0,
+    "entry_price": 55.4,
+    "initial_stop_price": 52.605357142857144,
+    "current_stop_price": 52.605357142857144,
+    "r_per_share": 2.7946428571428554,
+    "stage": "initial",
+    "extreme_price": 55.4,
+    "stop_order_id": "75494408-ff72-4882-b542-e4a0d214f672",
+    "opened_at": "2026-09-29T19:41:10.822606+00:00",
+    "updated_at": "2026-09-29T19:41:10.822606+00:00"
+  },
+  "AFRM": {
+    "symbol": "AFRM",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 69.15,
+    "initial_stop_price": 66.84228787654725,
+    "current_stop_price": 66.84228787654725,
+    "r_per_share": 2.3077121234527613,
+    "stage": "initial",
+    "extreme_price": 69.15,
+    "stop_order_id": "aa22d691-f33d-4003-9540-4cdb52a28680",
+    "opened_at": "2026-09-29T19:52:34.006115+00:00",
+    "updated_at": "2026-09-29T19:52:34.006115+00:00"
   }
 }
