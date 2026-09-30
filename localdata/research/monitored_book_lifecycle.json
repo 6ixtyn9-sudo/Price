@@ -1,13 +1,15 @@
 {
-  "previous_book_count": 284,
-  "new_book_count": 279,
-  "added_candidates": [],
+  "previous_book_count": 279,
+  "new_book_count": 281,
+  "added_candidates": [
+    "AMAT|1d|state_ext=stretched_down + state_ret_1=ret_down|long|rolling",
+    "GD|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
+    "META|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_up|long|rolling"
+  ],
   "removed_candidates": [
-    "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
-    "COST|1h|state_volume=vol_quiet + state_slope=uptrend|short|rolling",
-    "FDX|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
-    "LIN|1h|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling",
-    "NEM|1h|state_slope=downtrend + state_vol=low_vol|long|rolling"
+    "GOOGL|1d|state_slope=flat + state_vol=low_vol|long|rolling",
+    "SOXX|1d|cross_USO_state_ext=stretched_down + state_ext=neutral|long|rolling"
   ],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
@@ -105,7 +107,6 @@
     "GM|1h|state_volume=vol_surge + state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "GOLD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "GOOGL|1d|state_ext=neutral + state_slope=flat + state_vol=low_vol|long|rolling",
-    "GOOGL|1d|state_slope=flat + state_vol=low_vol|long|rolling",
     "GOOG|1d|state_ext=neutral + state_slope=flat + state_vol=low_vol|long|rolling",
     "HON|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling",
     "HON|1d|state_volume=vol_quiet + state_ext=stretched_down|long|rolling",
@@ -206,7 +207,6 @@
     "SOFI|1h|state_volume=vol_surge + state_slope=flat|short|rolling",
     "SOXX|15m|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
     "SOXX|15m|cross_USO_state_ext=stretched_down + state_ext=stretched_up|long|rolling",
-    "SOXX|1d|cross_USO_state_ext=stretched_down + state_ext=neutral|long|rolling",
     "SOXX|1h|state_session=lunch + state_slope=uptrend + state_vol=low_vol|long|rolling",
     "SOXX|1h|state_session=lunch + state_volume=vol_surge|long|rolling",
     "SO|1d|state_ext=neutral + state_slope=uptrend + state_vol=low_vol|long|rolling",
@@ -292,12 +292,14 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {
-    "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling": "registry_status:research_only",
-    "COST|1h|state_volume=vol_quiet + state_slope=uptrend|short|rolling": "registry_status:research_only",
-    "FDX|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling": "registry_status:research_only",
-    "LIN|1h|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling": "registry_status:research_only",
-    "NEM|1h|state_slope=downtrend + state_vol=low_vol|long|rolling": "registry_status:research_only"
+    "GOOGL|1d|state_slope=flat + state_vol=low_vol|long|rolling": "decaying_suspended",
+    "SOXX|1d|cross_USO_state_ext=stretched_down + state_ext=neutral|long|rolling": "registry_status:research_only"
   },
-  "promotion_reasons": {},
-  "discovery_run_id": "36637810423"
+  "promotion_reasons": {
+    "AMAT|1d|state_ext=stretched_down + state_ret_1=ret_down|long|rolling": "paper_proposal",
+    "GD|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling": "paper_proposal",
+    "META|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling": "paper_proposal",
+    "NVDA|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_up|long|rolling": "paper_proposal"
+  },
+  "discovery_run_id": null
 }
