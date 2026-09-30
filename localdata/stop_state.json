@@ -250,5 +250,19 @@
     "stop_order_id": "aa22d691-f33d-4003-9540-4cdb52a28680",
     "opened_at": "2026-09-29T19:52:34.006115+00:00",
     "updated_at": "2026-09-29T19:52:34.006115+00:00"
+  },
+  "DASH": {
+    "symbol": "DASH",
+    "side": "long",
+    "qty": 7.0,
+    "entry_price": 187.16,
+    "initial_stop_price": 173.84199065473615,
+    "current_stop_price": 173.84199065473615,
+    "r_per_share": 13.318009345263846,
+    "stage": "initial",
+    "extreme_price": 187.16,
+    "stop_order_id": "3749981a-36bf-4127-bf91-83a573759cbc",
+    "opened_at": "2026-09-30T13:57:08.430050+00:00",
+    "updated_at": "2026-09-30T13:57:08.430050+00:00"
   }
 }
