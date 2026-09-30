@@ -1,10 +1,16 @@
 {
-  "previous_book_count": 281,
-  "new_book_count": 281,
+  "previous_book_count": 284,
+  "new_book_count": 280,
   "added_candidates": [],
-  "removed_candidates": [],
+  "removed_candidates": [
+    "CRWD|1h|cross_USO_state_vol=high_vol + state_ext=stretched_up|long|rolling",
+    "GME|1h|state_session=afternoon + state_slope=downtrend + state_vol=high_vol|long|rolling",
+    "MDLZ|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
+    "PM|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling"
+  ],
   "retained_candidates": [
     "AAPL|1d|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|long|rolling",
+    "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
     "ABBV|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=low_vol|long|rolling",
     "ABBV|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling",
     "ABNB|1h|state_session=lunch + state_ext=neutral + state_slope=downtrend|long|rolling",
@@ -33,7 +39,6 @@
     "ADI|1d|state_volume=vol_normal + state_ext=stretched_down|long|rolling",
     "ADI|1d|state_volume=vol_normal + state_slope=downtrend|long|rolling",
     "ADI|1h|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
-    "AFRM|1h|cross_TLT_state_vol=high_vol + state_ext=neutral|long|rolling",
     "AFRM|1h|state_slope=downtrend + state_vol=mid_vol|long|rolling",
     "AMAT|1d|state_ext=stretched_down + state_ret_1=ret_down|long|rolling",
     "AMC|15m|cross_USO_state_slope=downtrend + state_ext=neutral|long|rolling",
@@ -60,10 +65,11 @@
     "CBOE|1d|state_ext=stretched_down + state_vol=low_vol|long|rolling",
     "CL|15m|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=stretched_up|long|rolling",
     "CL|1h|cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
+    "CMCSA|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
+    "CMG|1h|state_relvol=relvol_elevated + state_ext=stretched_up|short|rolling",
     "COST|1d|state_ext=stretched_up + state_ret_1=ret_flat|long|rolling",
     "COST|1h|state_volume=vol_quiet + state_ext=neutral + state_slope=uptrend|short|rolling",
     "CRM|15m|cross_USO_state_ext=stretched_down + state_ext=neutral|short|rolling",
-    "CRWD|1h|cross_USO_state_vol=high_vol + state_ext=stretched_up|long|rolling",
     "CRWD|1h|state_session=morning + state_ext=stretched_up + state_slope=flat|long|rolling",
     "CVS|1h|cross_TLT_state_vol=low_vol + state_ext=stretched_up|long|rolling",
     "DASH|1d|cross_USO_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
@@ -98,11 +104,11 @@
     "GILD|1d|cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "GILD|1d|cross_TLT_state_slope=uptrend + state_slope=downtrend|long|rolling",
     "GILD|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
-    "GME|1h|state_session=afternoon + state_slope=downtrend + state_vol=high_vol|long|rolling",
     "GM|1h|state_volume=vol_surge + state_ext=stretched_down + state_slope=downtrend|long|rolling",
     "GOLD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "GOOGL|1d|state_ext=neutral + state_slope=flat + state_vol=low_vol|long|rolling",
     "GOOG|1d|state_ext=neutral + state_slope=flat + state_vol=low_vol|long|rolling",
+    "HD|1h|cross_TLT_state_slope=uptrend + state_ext=neutral|short|rolling",
     "HON|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling",
     "HON|1d|state_volume=vol_quiet + state_ext=stretched_down|long|rolling",
     "HOOD|1d|cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
@@ -140,7 +146,6 @@
     "LRCX|1h|state_ext=neutral + state_ret_1=ret_down|long|rolling",
     "MCD|15m|state_relvol=relvol_normal + state_ext=stretched_up|short|rolling",
     "MDLZ|1h|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
-    "MDLZ|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "MDT|15m|cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
     "MDT|15m|state_gap_open=gap_open_flat + state_relvol=relvol_elevated + state_ext=stretched_up|short|rolling",
     "MDT|15m|state_relvol=relvol_elevated + state_ext=stretched_up|short|rolling",
@@ -177,7 +182,6 @@
     "PG|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
     "PG|1h|cross_USO_state_slope=downtrend + state_ext=stretched_up|short|rolling",
     "PLD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=neutral|long|rolling",
-    "PM|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "PM|1h|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling",
     "PM|1h|state_ext=stretched_up + state_ret_1=ret_flat|long|rolling",
     "PSX|15m|state_ext=stretched_down + state_ret_1=ret_down|long|rolling",
@@ -287,7 +291,12 @@
     "XYZ|1d|state_volume=vol_quiet + state_slope=uptrend|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {},
+  "removal_reasons": {
+    "CRWD|1h|cross_USO_state_vol=high_vol + state_ext=stretched_up|long|rolling": "registry_status:research_only",
+    "GME|1h|state_session=afternoon + state_slope=downtrend + state_vol=high_vol|long|rolling": "registry_status:research_only",
+    "MDLZ|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling": "registry_status:research_only",
+    "PM|1h|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral|long|rolling": "registry_status:research_only"
+  },
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "36783878137"
 }
