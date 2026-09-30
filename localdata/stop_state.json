@@ -264,5 +264,19 @@
     "stop_order_id": "49a89dfb-411e-4e02-bae8-3db25df57413",
     "opened_at": "2026-09-30T19:19:04.794522+00:00",
     "updated_at": "2026-09-30T19:19:04.794522+00:00"
+  },
+  "AVGO": {
+    "symbol": "AVGO",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 351.973333,
+    "initial_stop_price": 306.18172638281766,
+    "current_stop_price": 306.18172638281766,
+    "r_per_share": 45.79160661718236,
+    "stage": "initial",
+    "extreme_price": 351.973333,
+    "stop_order_id": "844c4007-28f4-4ea0-afe9-42671bf54c80",
+    "opened_at": "2026-09-30T19:55:10.472697+00:00",
+    "updated_at": "2026-09-30T19:55:10.472697+00:00"
   }
 }
