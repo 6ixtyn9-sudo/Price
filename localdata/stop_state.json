@@ -292,19 +292,5 @@
     "stop_order_id": "2f618502-1a1f-4116-b6b2-0511281b97a6",
     "opened_at": "2026-10-01T16:46:07.457073+00:00",
     "updated_at": "2026-10-01T16:46:07.457073+00:00"
-  },
-  "TMO": {
-    "symbol": "TMO",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 663.25,
-    "initial_stop_price": 653.530720306063,
-    "current_stop_price": 653.530720306063,
-    "r_per_share": 9.719279693936974,
-    "stage": "initial",
-    "extreme_price": 663.25,
-    "stop_order_id": "3a637e4f-3c1e-45b4-ab79-8d61b0025165",
-    "opened_at": "2026-10-01T16:46:08.084218+00:00",
-    "updated_at": "2026-10-01T16:46:08.084218+00:00"
   }
 }
