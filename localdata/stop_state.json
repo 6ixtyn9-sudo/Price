@@ -139,20 +139,6 @@
     "opened_at": "2026-09-28T13:45:57.363923+00:00",
     "updated_at": "2026-09-28T13:45:57.363923+00:00"
   },
-  "SOXX": {
-    "symbol": "SOXX",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 560.72,
-    "initial_stop_price": 533.1396428571429,
-    "current_stop_price": 533.1396428571429,
-    "r_per_share": 27.58035714285711,
-    "stage": "initial",
-    "extreme_price": 560.72,
-    "stop_order_id": "34ebfd70-3847-4e1b-a5fc-407290a87ac5",
-    "opened_at": "2026-09-28T17:54:55.190202+00:00",
-    "updated_at": "2026-09-28T17:54:55.190202+00:00"
-  },
   "WMT": {
     "symbol": "WMT",
     "side": "long",
@@ -264,5 +250,19 @@
     "stop_order_id": "3dca8b98-3f71-46c2-807c-6b588ef28ddf",
     "opened_at": "2026-10-01T13:55:10.059732+00:00",
     "updated_at": "2026-10-01T13:55:10.059732+00:00"
+  },
+  "NVDA": {
+    "symbol": "NVDA",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 229.2,
+    "initial_stop_price": 202.71428985595702,
+    "current_stop_price": 202.71428985595702,
+    "r_per_share": 26.48571014404297,
+    "stage": "initial",
+    "extreme_price": 229.2,
+    "stop_order_id": "290ad000-3480-43a6-9f46-3748c4594bc7",
+    "opened_at": "2026-10-01T15:49:57.148517+00:00",
+    "updated_at": "2026-10-01T15:49:57.148517+00:00"
   }
 }
