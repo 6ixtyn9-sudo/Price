@@ -278,19 +278,5 @@
     "stop_order_id": "3fbb192b-1698-49e1-8212-56f53be393ca",
     "opened_at": "2026-10-01T16:46:06.640749+00:00",
     "updated_at": "2026-10-01T16:46:06.640749+00:00"
-  },
-  "ITA": {
-    "symbol": "ITA",
-    "side": "short",
-    "qty": 4.0,
-    "entry_price": 207.61,
-    "initial_stop_price": 210.05464285714285,
-    "current_stop_price": 210.05464285714285,
-    "r_per_share": 2.4446428571428465,
-    "stage": "initial",
-    "extreme_price": 207.61,
-    "stop_order_id": "2f618502-1a1f-4116-b6b2-0511281b97a6",
-    "opened_at": "2026-10-01T16:46:07.457073+00:00",
-    "updated_at": "2026-10-01T16:46:07.457073+00:00"
   }
 }
