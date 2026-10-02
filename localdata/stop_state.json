@@ -167,20 +167,6 @@
     "opened_at": "2026-09-29T15:31:02.153139+00:00",
     "updated_at": "2026-09-29T15:31:02.153139+00:00"
   },
-  "SLV": {
-    "symbol": "SLV",
-    "side": "long",
-    "qty": 16.0,
-    "entry_price": 55.4,
-    "initial_stop_price": 52.605357142857144,
-    "current_stop_price": 52.605357142857144,
-    "r_per_share": 2.7946428571428554,
-    "stage": "initial",
-    "extreme_price": 55.4,
-    "stop_order_id": "75494408-ff72-4882-b542-e4a0d214f672",
-    "opened_at": "2026-09-29T19:41:10.822606+00:00",
-    "updated_at": "2026-09-29T19:41:10.822606+00:00"
-  },
   "DASH": {
     "symbol": "DASH",
     "side": "long",
