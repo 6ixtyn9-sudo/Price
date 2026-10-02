@@ -209,20 +209,6 @@
     "opened_at": "2026-09-30T14:39:01.247652+00:00",
     "updated_at": "2026-09-30T14:39:01.247652+00:00"
   },
-  "NEE": {
-    "symbol": "NEE",
-    "side": "short",
-    "qty": 12.0,
-    "entry_price": 76.03,
-    "initial_stop_price": 77.64699570237042,
-    "current_stop_price": 77.64699570237042,
-    "r_per_share": 1.6169957023704147,
-    "stage": "initial",
-    "extreme_price": 76.03,
-    "stop_order_id": "49a89dfb-411e-4e02-bae8-3db25df57413",
-    "opened_at": "2026-09-30T19:19:04.794522+00:00",
-    "updated_at": "2026-09-30T19:19:04.794522+00:00"
-  },
   "AVGO": {
     "symbol": "AVGO",
     "side": "long",
