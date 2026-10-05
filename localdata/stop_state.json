@@ -237,20 +237,6 @@
     "opened_at": "2026-10-01T16:46:06.640749+00:00",
     "updated_at": "2026-10-01T16:46:06.640749+00:00"
   },
-  "ABT": {
-    "symbol": "ABT",
-    "side": "short",
-    "qty": 9.0,
-    "entry_price": 100.01,
-    "initial_stop_price": 100.74937652297028,
-    "current_stop_price": 100.74937652297028,
-    "r_per_share": 0.7393765229702682,
-    "stage": "initial",
-    "extreme_price": 100.01,
-    "stop_order_id": "dfe19126-8cf8-40e0-a25d-9bc6e6620283",
-    "opened_at": "2026-10-05T14:47:25.977266+00:00",
-    "updated_at": "2026-10-05T14:47:25.977266+00:00"
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "long",
