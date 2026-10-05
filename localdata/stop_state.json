@@ -264,5 +264,19 @@
     "stop_order_id": "f95613a9-ad61-4a7d-914a-e6cad06e0432",
     "opened_at": "2026-10-05T14:47:27.135950+00:00",
     "updated_at": "2026-10-05T14:47:27.135950+00:00"
+  },
+  "UNG": {
+    "symbol": "UNG",
+    "side": "short",
+    "qty": 87.0,
+    "entry_price": 10.53,
+    "initial_stop_price": 10.953214285714287,
+    "current_stop_price": 10.953214285714287,
+    "r_per_share": 0.4232142857142872,
+    "stage": "initial",
+    "extreme_price": 10.53,
+    "stop_order_id": "fedc0b34-2d10-4a7e-ae5e-2eac7fbe6fc3",
+    "opened_at": "2026-10-05T15:35:45.642589+00:00",
+    "updated_at": "2026-10-05T15:35:45.642589+00:00"
   }
 }
