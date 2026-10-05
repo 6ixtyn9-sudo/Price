@@ -264,5 +264,19 @@
     "stop_order_id": "54e76fa2-fe3e-46ce-a352-a6a0934c7282",
     "opened_at": "2026-10-05T17:14:00.160368+00:00",
     "updated_at": "2026-10-05T17:14:00.160368+00:00"
+  },
+  "PM": {
+    "symbol": "PM",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 189.29,
+    "initial_stop_price": 184.12452886366142,
+    "current_stop_price": 184.12452886366142,
+    "r_per_share": 5.165471136338558,
+    "stage": "initial",
+    "extreme_price": 189.29,
+    "stop_order_id": "eca13c37-f6cf-4db2-ab14-6f7ba9fb24ad",
+    "opened_at": "2026-10-05T20:35:54.266798+00:00",
+    "updated_at": "2026-10-05T20:35:54.266798+00:00"
   }
 }
