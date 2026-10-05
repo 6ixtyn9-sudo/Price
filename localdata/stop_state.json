@@ -278,5 +278,19 @@
     "stop_order_id": "fedc0b34-2d10-4a7e-ae5e-2eac7fbe6fc3",
     "opened_at": "2026-10-05T15:35:45.642589+00:00",
     "updated_at": "2026-10-05T15:35:45.642589+00:00"
+  },
+  "NEE": {
+    "symbol": "NEE",
+    "side": "short",
+    "qty": 11.0,
+    "entry_price": 76.79,
+    "initial_stop_price": 78.75160134385919,
+    "current_stop_price": 78.75160134385919,
+    "r_per_share": 1.9616013438591837,
+    "stage": "initial",
+    "extreme_price": 76.79,
+    "stop_order_id": "54e76fa2-fe3e-46ce-a352-a6a0934c7282",
+    "opened_at": "2026-10-05T17:14:00.160368+00:00",
+    "updated_at": "2026-10-05T17:14:00.160368+00:00"
   }
 }
