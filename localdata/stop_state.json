@@ -223,20 +223,6 @@
     "opened_at": "2026-10-01T15:49:57.148517+00:00",
     "updated_at": "2026-10-01T15:49:57.148517+00:00"
   },
-  "DIS": {
-    "symbol": "DIS",
-    "side": "long",
-    "qty": 9.0,
-    "entry_price": 101.88,
-    "initial_stop_price": 99.9308590028786,
-    "current_stop_price": 99.9308590028786,
-    "r_per_share": 1.9491409971213893,
-    "stage": "initial",
-    "extreme_price": 101.88,
-    "stop_order_id": "3fbb192b-1698-49e1-8212-56f53be393ca",
-    "opened_at": "2026-10-01T16:46:06.640749+00:00",
-    "updated_at": "2026-10-01T16:46:06.640749+00:00"
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "long",
