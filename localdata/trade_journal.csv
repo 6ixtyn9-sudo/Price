@@ -2265,3 +2265,8 @@ a2139c78-88e1-4e9d-98b8-28b4b9918643,XLP,11.0,buy,stop,82.24,gtc,new,2026-10-06 
 2f984971-3bcf-4cfa-9ae3-7cb3071edd04,OIH,2.0,sell,stop,380.08,gtc,new,2026-10-06 19:55:16.208943+00:00,protective_stop_submit,2026-10-06T19:55:16.246200+00:00,new,0.0,,,2026-10-06T20:05:47.536754+00:00,,,,,,,,,,,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-06T20:09:32.549570+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-06T20:25:11.648698+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-06T20:36:45.834362+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-06T20:49:41.326792+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-06T21:05:05.319116+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-06T21:19:52.213884+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-06T21:35:11.973505+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
