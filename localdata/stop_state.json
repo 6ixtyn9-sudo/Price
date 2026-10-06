@@ -1,32 +1,4 @@
 {
-  "GOOG": {
-    "symbol": "GOOG",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 332.16,
-    "initial_stop_price": 300.5043040671227,
-    "current_stop_price": 300.5043040671227,
-    "r_per_share": 31.655695932877343,
-    "stage": "initial",
-    "extreme_price": 332.16,
-    "stop_order_id": "d90d2925-5bc9-4ace-949d-9a7c7e1f1a26",
-    "opened_at": "2026-09-08T13:48:16.102235+00:00",
-    "updated_at": "2026-09-08T13:48:16.102235+00:00"
-  },
-  "GOOGL": {
-    "symbol": "GOOGL",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 335.92,
-    "initial_stop_price": 302.9197889834006,
-    "current_stop_price": 302.9197889834006,
-    "r_per_share": 33.00021101659939,
-    "stage": "initial",
-    "extreme_price": 335.92,
-    "stop_order_id": "9ea95670-3492-42bc-9229-7c4511ca978b",
-    "opened_at": "2026-09-08T13:48:16.671106+00:00",
-    "updated_at": "2026-09-08T13:48:16.671106+00:00"
-  },
   "VRTX": {
     "symbol": "VRTX",
     "side": "long",
@@ -229,13 +201,13 @@
     "qty": 3.0,
     "entry_price": 270.62,
     "initial_stop_price": 257.38249999999994,
-    "current_stop_price": 257.38249999999994,
+    "current_stop_price": 280.0374094890191,
     "r_per_share": 13.23750000000006,
-    "stage": "initial",
-    "extreme_price": 270.62,
-    "stop_order_id": "f95613a9-ad61-4a7d-914a-e6cad06e0432",
+    "stage": "trailing",
+    "extreme_price": 285.753,
+    "stop_order_id": "252a88d8-07b6-4dfd-ba0e-9524064dff59",
     "opened_at": "2026-10-05T14:47:27.135950+00:00",
-    "updated_at": "2026-10-05T14:47:27.135950+00:00"
+    "updated_at": "2026-10-06T13:51:15.999794+00:00"
   },
   "UNG": {
     "symbol": "UNG",
@@ -264,5 +236,75 @@
     "stop_order_id": "54e76fa2-fe3e-46ce-a352-a6a0934c7282",
     "opened_at": "2026-10-05T17:14:00.160368+00:00",
     "updated_at": "2026-10-05T17:14:00.160368+00:00"
+  },
+  "TGT": {
+    "symbol": "TGT",
+    "side": "long",
+    "qty": 6.0,
+    "entry_price": 153.325,
+    "initial_stop_price": 147.00146944452155,
+    "current_stop_price": 147.00146944452155,
+    "r_per_share": 6.323530555478433,
+    "stage": "initial",
+    "extreme_price": 153.325,
+    "stop_order_id": "9652711e-2c3b-4c06-b548-637d5ce55ded",
+    "opened_at": "2026-10-06T13:51:16.802031+00:00",
+    "updated_at": "2026-10-06T13:51:16.802031+00:00"
+  },
+  "XEL": {
+    "symbol": "XEL",
+    "side": "long",
+    "qty": 12.0,
+    "entry_price": 71.79,
+    "initial_stop_price": 65.94840032786993,
+    "current_stop_price": 65.94840032786993,
+    "r_per_share": 5.841599672130072,
+    "stage": "initial",
+    "extreme_price": 71.79,
+    "stop_order_id": "11e397b2-31d3-4e6d-8992-659b855fed0c",
+    "opened_at": "2026-10-06T13:51:17.199188+00:00",
+    "updated_at": "2026-10-06T13:51:17.199188+00:00"
+  },
+  "GOOG": {
+    "symbol": "GOOG",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 342.89,
+    "initial_stop_price": 297.95999424525667,
+    "current_stop_price": 297.95999424525667,
+    "r_per_share": 44.930005754743306,
+    "stage": "initial",
+    "extreme_price": 342.89,
+    "stop_order_id": "3b0f1fd5-b25b-4778-b387-7a8bb85512ce",
+    "opened_at": "2026-10-06T14:19:26.655421+00:00",
+    "updated_at": "2026-10-06T14:19:26.655421+00:00"
+  },
+  "PG": {
+    "symbol": "PG",
+    "side": "short",
+    "qty": 6.0,
+    "entry_price": 147.66,
+    "initial_stop_price": 150.7109147332681,
+    "current_stop_price": 150.7109147332681,
+    "r_per_share": 3.0509147332681046,
+    "stage": "initial",
+    "extreme_price": 147.66,
+    "stop_order_id": "cb924212-d120-428d-8696-92360e4821a4",
+    "opened_at": "2026-10-06T14:19:27.260518+00:00",
+    "updated_at": "2026-10-06T14:19:27.260518+00:00"
+  },
+  "XLP": {
+    "symbol": "XLP",
+    "side": "short",
+    "qty": 11.0,
+    "entry_price": 81.48,
+    "initial_stop_price": 82.24242341647633,
+    "current_stop_price": 82.24242341647633,
+    "r_per_share": 0.7624234164763201,
+    "stage": "initial",
+    "extreme_price": 81.48,
+    "stop_order_id": "a2139c78-88e1-4e9d-98b8-28b4b9918643",
+    "opened_at": "2026-10-06T14:33:45.041272+00:00",
+    "updated_at": "2026-10-06T14:33:45.041272+00:00"
   }
 }
