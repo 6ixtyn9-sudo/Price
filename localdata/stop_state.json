@@ -1,32 +1,4 @@
 {
-  "VRTX": {
-    "symbol": "VRTX",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 521.73,
-    "initial_stop_price": 464.18548662800055,
-    "current_stop_price": 464.18548662800055,
-    "r_per_share": 57.544513371999464,
-    "stage": "initial",
-    "extreme_price": 521.73,
-    "stop_order_id": "730a94a7-6c58-410f-abe2-9fd1ecf2f3ae",
-    "opened_at": "2026-09-09T13:51:34.914614+00:00",
-    "updated_at": "2026-09-09T13:51:34.914614+00:00"
-  },
-  "XLV": {
-    "symbol": "XLV",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 166.728,
-    "initial_stop_price": 152.61013239397323,
-    "current_stop_price": 152.61013239397323,
-    "r_per_share": 14.117867606026786,
-    "stage": "initial",
-    "extreme_price": 166.728,
-    "stop_order_id": "5b44a62c-0413-4cdf-b1ae-30d594e63320",
-    "opened_at": "2026-09-09T13:51:35.506765+00:00",
-    "updated_at": "2026-09-09T13:51:35.506765+00:00"
-  },
   "MDT": {
     "symbol": "MDT",
     "side": "long",
@@ -139,20 +111,6 @@
     "opened_at": "2026-09-29T15:31:02.153139+00:00",
     "updated_at": "2026-09-29T15:31:02.153139+00:00"
   },
-  "DASH": {
-    "symbol": "DASH",
-    "side": "long",
-    "qty": 7.0,
-    "entry_price": 187.16,
-    "initial_stop_price": 173.84199065473615,
-    "current_stop_price": 173.84199065473615,
-    "r_per_share": 13.318009345263846,
-    "stage": "initial",
-    "extreme_price": 187.16,
-    "stop_order_id": "3749981a-36bf-4127-bf91-83a573759cbc",
-    "opened_at": "2026-09-30T13:57:08.430050+00:00",
-    "updated_at": "2026-09-30T13:57:08.430050+00:00"
-  },
   "AVGO": {
     "symbol": "AVGO",
     "side": "long",
@@ -194,20 +152,6 @@
     "stop_order_id": "290ad000-3480-43a6-9f46-3748c4594bc7",
     "opened_at": "2026-10-01T15:49:57.148517+00:00",
     "updated_at": "2026-10-01T15:49:57.148517+00:00"
-  },
-  "UNG": {
-    "symbol": "UNG",
-    "side": "short",
-    "qty": 87.0,
-    "entry_price": 10.53,
-    "initial_stop_price": 10.953214285714287,
-    "current_stop_price": 10.953214285714287,
-    "r_per_share": 0.4232142857142872,
-    "stage": "initial",
-    "extreme_price": 10.53,
-    "stop_order_id": "fedc0b34-2d10-4a7e-ae5e-2eac7fbe6fc3",
-    "opened_at": "2026-10-05T15:35:45.642589+00:00",
-    "updated_at": "2026-10-05T15:35:45.642589+00:00"
   },
   "TGT": {
     "symbol": "TGT",
@@ -265,20 +209,6 @@
     "opened_at": "2026-10-06T14:19:27.260518+00:00",
     "updated_at": "2026-10-06T14:19:27.260518+00:00"
   },
-  "XLP": {
-    "symbol": "XLP",
-    "side": "short",
-    "qty": 11.0,
-    "entry_price": 81.48,
-    "initial_stop_price": 82.24242341647633,
-    "current_stop_price": 82.24242341647633,
-    "r_per_share": 0.7624234164763201,
-    "stage": "initial",
-    "extreme_price": 81.48,
-    "stop_order_id": "a2139c78-88e1-4e9d-98b8-28b4b9918643",
-    "opened_at": "2026-10-06T14:33:45.041272+00:00",
-    "updated_at": "2026-10-06T14:33:45.041272+00:00"
-  },
   "OIH": {
     "symbol": "OIH",
     "side": "long",
@@ -292,5 +222,33 @@
     "stop_order_id": "2f984971-3bcf-4cfa-9ae3-7cb3071edd04",
     "opened_at": "2026-10-06T19:55:16.012140+00:00",
     "updated_at": "2026-10-06T19:55:16.012140+00:00"
+  },
+  "LNG": {
+    "symbol": "LNG",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 275.72,
+    "initial_stop_price": 243.18340338718258,
+    "current_stop_price": 243.18340338718258,
+    "r_per_share": 32.53659661281744,
+    "stage": "initial",
+    "extreme_price": 275.72,
+    "stop_order_id": "fd03ba9c-2ba4-4e9c-85be-ebde833b793d",
+    "opened_at": "2026-10-07T13:49:12.774666+00:00",
+    "updated_at": "2026-10-07T13:49:12.774666+00:00"
+  },
+  "HUM": {
+    "symbol": "HUM",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 405.1,
+    "initial_stop_price": 384.6633460512569,
+    "current_stop_price": 384.6633460512569,
+    "r_per_share": 20.436653948743153,
+    "stage": "initial",
+    "extreme_price": 405.1,
+    "stop_order_id": "37daa101-f3a4-4a8b-9a94-1b2747660e4a",
+    "opened_at": "2026-10-07T14:16:37.563398+00:00",
+    "updated_at": "2026-10-07T14:16:37.563398+00:00"
   }
 }
