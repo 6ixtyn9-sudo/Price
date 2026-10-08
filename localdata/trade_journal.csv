@@ -2384,3 +2384,8 @@ cb924212-d120-428d-8696-92360e4821a4,PG,6.0,close,,,,filled,2026-10-08 19:27:20.
 3235beb7-d96a-4287-8eaf-7d1e5e00e345,SPOT,1.0,sell,limit,,day,accepted,2026-10-08 20:03:02.383719+00:00,entry,2026-10-08T20:03:02.402420+00:00,accepted,0.0,,,2026-10-08T20:05:40.408791+00:00,522.551775,cross_USO_state_slope=uptrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up,2026-10-08 19:00:00+00:00,1h,rolling,,,price-eq-SPOT-1h-sell-9c84dfcf,,,10.0,2.3777734066794687,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-08T20:09:15.098642+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-08T20:23:58.890000+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-08T20:37:28.050078+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-08T20:50:50.666829+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-08T21:04:47.303793+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-08T21:19:07.992619+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-08T21:30:19.711296+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
