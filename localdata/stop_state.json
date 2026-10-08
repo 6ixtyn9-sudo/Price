@@ -55,20 +55,6 @@
     "opened_at": "2026-09-22T14:05:53.937023+00:00",
     "updated_at": "2026-09-22T14:05:53.937023+00:00"
   },
-  "PLTR": {
-    "symbol": "PLTR",
-    "side": "long",
-    "qty": 9.0,
-    "entry_price": 191.78,
-    "initial_stop_price": 181.65074177918595,
-    "current_stop_price": 198.90405400746175,
-    "r_per_share": 10.129258220814055,
-    "stage": "trailing",
-    "extreme_price": 203.12,
-    "stop_order_id": "b1a75e61-3981-409c-8a00-abef0b9359b6",
-    "opened_at": "2026-09-25T17:41:29.223914+00:00",
-    "updated_at": "2026-10-08T13:35:16.035443+00:00"
-  },
   "NEM": {
     "symbol": "NEM",
     "side": "long",
@@ -208,20 +194,6 @@
     "stop_order_id": "fd03ba9c-2ba4-4e9c-85be-ebde833b793d",
     "opened_at": "2026-10-07T13:49:12.774666+00:00",
     "updated_at": "2026-10-07T13:49:12.774666+00:00"
-  },
-  "HUM": {
-    "symbol": "HUM",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 405.1,
-    "initial_stop_price": 384.6633460512569,
-    "current_stop_price": 384.6633460512569,
-    "r_per_share": 20.436653948743153,
-    "stage": "initial",
-    "extreme_price": 405.1,
-    "stop_order_id": "37daa101-f3a4-4a8b-9a94-1b2747660e4a",
-    "opened_at": "2026-10-07T14:16:37.563398+00:00",
-    "updated_at": "2026-10-07T14:16:37.563398+00:00"
   },
   "ABNB": {
     "symbol": "ABNB",
