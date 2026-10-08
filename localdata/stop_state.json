@@ -61,13 +61,13 @@
     "qty": 9.0,
     "entry_price": 191.78,
     "initial_stop_price": 181.65074177918595,
-    "current_stop_price": 181.65074177918595,
+    "current_stop_price": 198.90405400746175,
     "r_per_share": 10.129258220814055,
-    "stage": "initial",
-    "extreme_price": 191.78,
-    "stop_order_id": "84ca21da-c95f-461b-a87d-26a9791056c1",
+    "stage": "trailing",
+    "extreme_price": 203.12,
+    "stop_order_id": "b1a75e61-3981-409c-8a00-abef0b9359b6",
     "opened_at": "2026-09-25T17:41:29.223914+00:00",
-    "updated_at": "2026-09-25T17:41:29.223914+00:00"
+    "updated_at": "2026-10-08T13:35:16.035443+00:00"
   },
   "NEM": {
     "symbol": "NEM",
