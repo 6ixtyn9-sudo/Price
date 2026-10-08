@@ -222,5 +222,61 @@
     "stop_order_id": "b1aea7b8-72f8-44fa-8e12-ddeb6ac9754c",
     "opened_at": "2026-10-07T19:35:27.449635+00:00",
     "updated_at": "2026-10-07T19:35:27.449635+00:00"
+  },
+  "GE": {
+    "symbol": "GE",
+    "side": "short",
+    "qty": 3.0,
+    "entry_price": 300.406667,
+    "initial_stop_price": 302.47398842857143,
+    "current_stop_price": 302.47398842857143,
+    "r_per_share": 2.0673214285714243,
+    "stage": "initial",
+    "extreme_price": 300.406667,
+    "stop_order_id": "176176ff-ff8d-4119-85f6-4e90fd11fd5f",
+    "opened_at": "2026-10-08T14:36:19.689528+00:00",
+    "updated_at": "2026-10-08T14:36:19.689528+00:00"
+  },
+  "PYPL": {
+    "symbol": "PYPL",
+    "side": "long",
+    "qty": 16.0,
+    "entry_price": 54.49,
+    "initial_stop_price": 53.777872292229496,
+    "current_stop_price": 53.777872292229496,
+    "r_per_share": 0.7121277077705063,
+    "stage": "initial",
+    "extreme_price": 54.49,
+    "stop_order_id": "a0df4946-e04e-4795-9ed5-b613c697fe15",
+    "opened_at": "2026-10-08T14:36:20.126983+00:00",
+    "updated_at": "2026-10-08T14:36:20.126983+00:00"
+  },
+  "TMO": {
+    "symbol": "TMO",
+    "side": "long",
+    "qty": 1.0,
+    "entry_price": 636.94,
+    "initial_stop_price": 620.5623027105553,
+    "current_stop_price": 620.5623027105553,
+    "r_per_share": 16.377697289444782,
+    "stage": "initial",
+    "extreme_price": 636.94,
+    "stop_order_id": "a4c97ea9-1ae2-40de-b6f7-f17defa23e00",
+    "opened_at": "2026-10-08T14:36:20.762935+00:00",
+    "updated_at": "2026-10-08T14:36:20.762935+00:00"
+  },
+  "ITA": {
+    "symbol": "ITA",
+    "side": "short",
+    "qty": 4.0,
+    "entry_price": 203.615,
+    "initial_stop_price": 204.3842857142857,
+    "current_stop_price": 203.59846207603684,
+    "r_per_share": 0.7692857142857088,
+    "stage": "trailing",
+    "extreme_price": 202.7,
+    "stop_order_id": "82a589be-cf55-4ae5-a798-8cb4b0ff1c6f",
+    "opened_at": "2026-10-08T14:49:15.580375+00:00",
+    "updated_at": "2026-10-08T15:19:42.385267+00:00"
   }
 }
