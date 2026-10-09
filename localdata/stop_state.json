@@ -167,20 +167,6 @@
     "opened_at": "2026-10-07T13:49:12.774666+00:00",
     "updated_at": "2026-10-07T13:49:12.774666+00:00"
   },
-  "ABNB": {
-    "symbol": "ABNB",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 160.56,
-    "initial_stop_price": 154.57964285714286,
-    "current_stop_price": 154.57964285714286,
-    "r_per_share": 5.980357142857135,
-    "stage": "initial",
-    "extreme_price": 160.56,
-    "stop_order_id": "c1f45548-b81c-4e12-889d-30f176952136",
-    "opened_at": "2026-10-07T18:45:02.946358+00:00",
-    "updated_at": "2026-10-07T18:45:02.946358+00:00"
-  },
   "VRTX": {
     "symbol": "VRTX",
     "side": "long",
