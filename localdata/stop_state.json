@@ -236,5 +236,19 @@
     "stop_order_id": "f1594d45-99ba-400f-8bfa-470e55ad22f3",
     "opened_at": "2026-10-08T19:19:42.990696+00:00",
     "updated_at": "2026-10-08T19:19:42.990696+00:00"
+  },
+  "SPOT": {
+    "symbol": "SPOT",
+    "side": "short",
+    "qty": 1.0,
+    "entry_price": 529.24,
+    "initial_stop_price": 543.9652110256508,
+    "current_stop_price": 543.9652110256508,
+    "r_per_share": 14.725211025650738,
+    "stage": "initial",
+    "extreme_price": 529.24,
+    "stop_order_id": "869b11b2-f713-4529-8ccf-8d35eeeaca4c",
+    "opened_at": "2026-10-09T13:35:56.772807+00:00",
+    "updated_at": "2026-10-09T13:35:56.772807+00:00"
   }
 }
