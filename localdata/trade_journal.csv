@@ -2409,3 +2409,7 @@ a3a0f122-3fb9-4a19-a379-6d6b3557a966,HD,3.0,sell,limit,,day,filled,2026-10-09 14
 d7c41b29-d45d-415c-b648-4e458b18a397,ICE,5.0,buy,limit,,day,new,2026-10-09 15:11:27.754990+00:00,entry,2026-10-09T15:11:27.769063+00:00,new,0.0,,,2026-10-09T15:16:02.723696+00:00,156.18865,state_ext=stretched_up + state_ret_1=ret_down,2026-10-09 14:00:00+00:00,1h,rolling,,,price-eq-ICE-1h-buy-acab506a,,,10.0,2.974001367967151,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-09T15:19:38.147524+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-09T15:32:44.982337+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-09T15:44:19.732207+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-09T15:57:33.130560+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-09T16:10:33.377524+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-09T16:24:01.981572+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
