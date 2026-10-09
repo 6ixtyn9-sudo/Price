@@ -250,5 +250,19 @@
     "stop_order_id": "684dc17f-175e-4797-8372-e6a14eecf6d1",
     "opened_at": "2026-10-09T14:43:17.962308+00:00",
     "updated_at": "2026-10-09T14:43:17.962308+00:00"
+  },
+  "ICE": {
+    "symbol": "ICE",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 156.18,
+    "initial_stop_price": 153.76999674860093,
+    "current_stop_price": 153.76999674860093,
+    "r_per_share": 2.410003251399082,
+    "stage": "initial",
+    "extreme_price": 156.18,
+    "stop_order_id": "3129663b-f0aa-40ce-8796-2b22535301be",
+    "opened_at": "2026-10-09T20:00:57.930159+00:00",
+    "updated_at": "2026-10-09T20:00:57.930159+00:00"
   }
 }
