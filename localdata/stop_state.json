@@ -250,5 +250,19 @@
     "stop_order_id": "8d220741-2ba1-48b6-8fd0-a4fc96ce4fc1",
     "opened_at": "2026-10-09T14:30:24.980514+00:00",
     "updated_at": "2026-10-09T14:30:24.980514+00:00"
+  },
+  "HD": {
+    "symbol": "HD",
+    "side": "short",
+    "qty": 3.0,
+    "entry_price": 290.42,
+    "initial_stop_price": 301.59499999999997,
+    "current_stop_price": 301.59499999999997,
+    "r_per_share": 11.174999999999965,
+    "stage": "initial",
+    "extreme_price": 290.42,
+    "stop_order_id": "684dc17f-175e-4797-8372-e6a14eecf6d1",
+    "opened_at": "2026-10-09T14:43:17.962308+00:00",
+    "updated_at": "2026-10-09T14:43:17.962308+00:00"
   }
 }
