@@ -1,10 +1,10 @@
 {
   "status": "success",
-  "merged_at_utc": "2026-10-09T01:50:49.537846+00:00",
+  "merged_at_utc": "2026-10-10T01:41:52.077503+00:00",
   "expected_shard_count": 12,
   "merged_shard_count": 12,
-  "discovered_rows": 86154,
-  "leaderboard_rows": 86154,
+  "discovered_rows": 86167,
+  "leaderboard_rows": 86167,
   "automatic_promotion_applied": true,
   "monitored_slices_modified": true
 }
