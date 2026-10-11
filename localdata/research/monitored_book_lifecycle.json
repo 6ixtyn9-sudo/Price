@@ -1,9 +1,7 @@
 {
-  "previous_book_count": 271,
+  "previous_book_count": 272,
   "new_book_count": 272,
-  "added_candidates": [
-    "IYR|15m|state_session=morning + state_slope=flat + state_vol=low_vol|short|rolling"
-  ],
+  "added_candidates": [],
   "removed_candidates": [],
   "retained_candidates": [
     "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -115,6 +113,7 @@
     "ICE|1h|cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
     "ISRG|1d|state_ext=neutral + state_slope=uptrend + state_vol=low_vol|long|rolling",
     "ITA|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=neutral|long|rolling",
+    "IYR|15m|state_session=morning + state_slope=flat + state_vol=low_vol|short|rolling",
     "JD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "JPM|1d|state_volume=vol_normal + state_ext=stretched_up + state_slope=flat|long|rolling",
     "KBE|1h|state_session=morning + state_ext=stretched_down + state_slope=downtrend|long|rolling",
@@ -280,8 +279,6 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {},
-  "promotion_reasons": {
-    "IYR|15m|state_session=morning + state_slope=flat + state_vol=low_vol|short|rolling": "paper_proposal"
-  },
+  "promotion_reasons": {},
   "discovery_run_id": null
 }
