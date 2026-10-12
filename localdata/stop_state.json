@@ -55,20 +55,6 @@
     "opened_at": "2026-09-28T13:45:57.363923+00:00",
     "updated_at": "2026-09-28T13:45:57.363923+00:00"
   },
-  "WMT": {
-    "symbol": "WMT",
-    "side": "long",
-    "qty": 8.0,
-    "entry_price": 105.87,
-    "initial_stop_price": 96.53785267421178,
-    "current_stop_price": 96.53785267421178,
-    "r_per_share": 9.332147325788226,
-    "stage": "initial",
-    "extreme_price": 105.87,
-    "stop_order_id": "66274425-ea06-445f-94a0-7447ce0328e4",
-    "opened_at": "2026-09-29T14:37:23.094787+00:00",
-    "updated_at": "2026-09-29T14:37:23.094787+00:00"
-  },
   "ARKW": {
     "symbol": "ARKW",
     "side": "long",
