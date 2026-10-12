@@ -2447,3 +2447,7 @@ c3b61b60-53a7-40c0-8ef5-1a5c3921c19d,GOOGL,2.0,buy,limit,,day,new,2026-10-09 20:
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-12T13:55:01.910281+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
 3f5bc5ff-276d-4863-9da0-c03643c435a0,GILD,6.0,buy,stop,154.22,gtc,new,2026-10-12 13:55:02.404304+00:00,protective_stop_submit,2026-10-12T13:55:02.425960+00:00,new,0.0,,,2026-10-12T14:31:17.776310+00:00,,,,,,,,,,,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-12T14:34:54.322911+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-12T14:46:49.517385+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-12T14:59:48.292134+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-12T15:14:21.055758+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-12T15:31:04.275686+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
