@@ -167,20 +167,6 @@
     "opened_at": "2026-10-07T19:35:27.449635+00:00",
     "updated_at": "2026-10-07T19:35:27.449635+00:00"
   },
-  "HOOD": {
-    "symbol": "HOOD",
-    "side": "long",
-    "qty": 8.0,
-    "entry_price": 107.28,
-    "initial_stop_price": 99.76819599062473,
-    "current_stop_price": 99.76819599062473,
-    "r_per_share": 7.511804009375266,
-    "stage": "initial",
-    "extreme_price": 107.28,
-    "stop_order_id": "f1594d45-99ba-400f-8bfa-470e55ad22f3",
-    "opened_at": "2026-10-08T19:19:42.990696+00:00",
-    "updated_at": "2026-10-08T19:19:42.990696+00:00"
-  },
   "SPOT": {
     "symbol": "SPOT",
     "side": "short",
