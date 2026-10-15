@@ -153,18 +153,46 @@
     "opened_at": "2026-10-07T19:35:27.449635+00:00",
     "updated_at": "2026-10-07T19:35:27.449635+00:00"
   },
-  "SPOT": {
-    "symbol": "SPOT",
-    "side": "short",
-    "qty": 1.0,
-    "entry_price": 529.24,
-    "initial_stop_price": 543.9652110256508,
-    "current_stop_price": 527.752435251782,
-    "r_per_share": 14.725211025650738,
-    "stage": "trailing",
-    "extreme_price": 514.13,
-    "stop_order_id": "5bc9eb31-386d-4917-963c-95b5a14c6270",
-    "opened_at": "2026-10-09T13:35:56.772807+00:00",
-    "updated_at": "2026-10-14T15:11:44.235106+00:00"
+  "GOOGL": {
+    "symbol": "GOOGL",
+    "side": "long",
+    "qty": 2.0,
+    "entry_price": 344.51,
+    "initial_stop_price": 304.2921480887277,
+    "current_stop_price": 304.2921480887277,
+    "r_per_share": 40.21785191127232,
+    "stage": "initial",
+    "extreme_price": 344.51,
+    "stop_order_id": "1e8614e8-8ff5-451f-894a-5af9cc19165d",
+    "opened_at": "2026-10-15T13:58:52.562394+00:00",
+    "updated_at": "2026-10-15T13:58:52.562394+00:00"
+  },
+  "MPC": {
+    "symbol": "MPC",
+    "side": "long",
+    "qty": 3.0,
+    "entry_price": 478.266667,
+    "initial_stop_price": 416.5865080422219,
+    "current_stop_price": 416.5865080422219,
+    "r_per_share": 61.68015895777806,
+    "stage": "initial",
+    "extreme_price": 478.266667,
+    "stop_order_id": "b40f97b2-556f-4e20-a952-fb013ddaa05e",
+    "opened_at": "2026-10-15T13:58:52.707280+00:00",
+    "updated_at": "2026-10-15T13:58:52.707280+00:00"
+  },
+  "PDD": {
+    "symbol": "PDD",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 81.496923,
+    "initial_stop_price": 73.75135047500288,
+    "current_stop_price": 73.75135047500288,
+    "r_per_share": 7.745572524997119,
+    "stage": "initial",
+    "extreme_price": 81.496923,
+    "stop_order_id": "7f799a92-b6d0-49b9-b339-1c3933fc2683",
+    "opened_at": "2026-10-15T13:58:52.853996+00:00",
+    "updated_at": "2026-10-15T13:58:52.853996+00:00"
   }
 }
