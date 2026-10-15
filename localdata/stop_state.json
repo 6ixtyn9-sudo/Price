@@ -229,13 +229,13 @@
     "qty": 10.0,
     "entry_price": 95.7,
     "initial_stop_price": 96.31232142857144,
-    "current_stop_price": 96.31232142857144,
+    "current_stop_price": 95.7,
     "r_per_share": 0.6123214285714305,
-    "stage": "initial",
-    "extreme_price": 95.7,
-    "stop_order_id": "9452c8e1-3e34-4b7c-aa7c-0af0e15534ab",
+    "stage": "breakeven",
+    "extreme_price": 95.08,
+    "stop_order_id": "55321c01-e67c-433a-a261-65cecf537c31",
     "opened_at": "2026-10-15T14:38:46.066185+00:00",
-    "updated_at": "2026-10-15T14:38:46.066185+00:00"
+    "updated_at": "2026-10-15T16:01:08.793231+00:00"
   },
   "PG": {
     "symbol": "PG",
