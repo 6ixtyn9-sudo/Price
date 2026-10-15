@@ -194,5 +194,61 @@
     "stop_order_id": "7f799a92-b6d0-49b9-b339-1c3933fc2683",
     "opened_at": "2026-10-15T13:58:52.853996+00:00",
     "updated_at": "2026-10-15T13:58:52.853996+00:00"
+  },
+  "ABT": {
+    "symbol": "ABT",
+    "side": "short",
+    "qty": 8.0,
+    "entry_price": 104.9,
+    "initial_stop_price": 105.76057794618431,
+    "current_stop_price": 105.76057794618431,
+    "r_per_share": 0.8605779461843133,
+    "stage": "initial",
+    "extreme_price": 104.9,
+    "stop_order_id": "9a8fbec4-ee6e-4006-abf3-ad6c6b3b0866",
+    "opened_at": "2026-10-15T14:38:44.122554+00:00",
+    "updated_at": "2026-10-15T14:38:44.122554+00:00"
+  },
+  "FDX": {
+    "symbol": "FDX",
+    "side": "short",
+    "qty": 3.0,
+    "entry_price": 290.86,
+    "initial_stop_price": 300.1135714285714,
+    "current_stop_price": 300.1135714285714,
+    "r_per_share": 9.253571428571377,
+    "stage": "initial",
+    "extreme_price": 290.86,
+    "stop_order_id": "9858881f-8de3-414b-9cb4-8e842a2b028b",
+    "opened_at": "2026-10-15T14:38:45.401369+00:00",
+    "updated_at": "2026-10-15T14:38:45.401369+00:00"
+  },
+  "MDT": {
+    "symbol": "MDT",
+    "side": "short",
+    "qty": 10.0,
+    "entry_price": 95.7,
+    "initial_stop_price": 96.31232142857144,
+    "current_stop_price": 96.31232142857144,
+    "r_per_share": 0.6123214285714305,
+    "stage": "initial",
+    "extreme_price": 95.7,
+    "stop_order_id": "9452c8e1-3e34-4b7c-aa7c-0af0e15534ab",
+    "opened_at": "2026-10-15T14:38:46.066185+00:00",
+    "updated_at": "2026-10-15T14:38:46.066185+00:00"
+  },
+  "PG": {
+    "symbol": "PG",
+    "side": "short",
+    "qty": 5.0,
+    "entry_price": 159.08,
+    "initial_stop_price": 161.85497815524826,
+    "current_stop_price": 161.85497815524826,
+    "r_per_share": 2.7749781552482524,
+    "stage": "initial",
+    "extreme_price": 159.08,
+    "stop_order_id": "a40fa940-92df-42be-b5cd-1b9fe5b9fae7",
+    "opened_at": "2026-10-15T14:38:46.701499+00:00",
+    "updated_at": "2026-10-15T14:38:46.701499+00:00"
   }
 }
