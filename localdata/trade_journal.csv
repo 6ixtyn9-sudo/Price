@@ -2632,3 +2632,7 @@ a40fa940-92df-42be-b5cd-1b9fe5b9fae7,,,,,,,canceled,,order_cancel,2026-10-15T19:
 426e7d5b-ec17-4de8-b03f-65e6a03f45fa,BSX,20.0,close,,,,filled,2026-10-16 13:55:56.228324+00:00,exit,2026-10-16T14:04:37.420933+00:00,filled,20.0,44.8,2026-10-16 13:55:56.228324+00:00,2026-10-16T14:31:43.428391+00:00,,,,,,43.91,44.8,,,,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-16T14:04:37.644445+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
 ,,,,,12.93,,rejected,,protective_stop_replace,2026-10-16T14:35:41.484406+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-16T14:49:18.873031+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-16T15:02:24.551217+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-16T15:12:50.907103+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
+,,,,,12.93,,rejected,,protective_stop_replace,2026-10-16T15:27:15.324976+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""order not found""}",69eaa900-a53b-4c5d-b453-e5d3017deb0f,,,
