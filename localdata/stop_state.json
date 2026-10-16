@@ -1,18 +1,4 @@
 {
-  "CME": {
-    "symbol": "CME",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 274.98,
-    "initial_stop_price": 253.47409537229728,
-    "current_stop_price": 253.47409537229728,
-    "r_per_share": 21.50590462770273,
-    "stage": "initial",
-    "extreme_price": 274.98,
-    "stop_order_id": "f5bc8678-cf7b-4eeb-afa2-b8412655c31c",
-    "opened_at": "2026-09-21T16:53:41.592649+00:00",
-    "updated_at": "2026-09-21T16:53:41.592649+00:00"
-  },
   "AAPL": {
     "symbol": "AAPL",
     "side": "long",
