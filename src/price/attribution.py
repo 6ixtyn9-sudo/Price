@@ -173,6 +173,8 @@ class RoundTrip:
     exit_order_id: str = ""
     signal_bar_ts: str = ""
     exit_context_timeframe: str = ""   # deciding ctx tf tag, if the exit reason carried one
+    exit_kind: str = "explicit"        # "explicit" (close_position) | "protective_stop" (broker stop fill)
+    slice_match_exact: bool = True     # exit carried this entry's slice (vs pool-FIFO fallback)
 
     def to_dict(self) -> dict:
         return {
@@ -192,6 +194,8 @@ class RoundTrip:
             "exit_order_id": self.exit_order_id,
             "signal_bar_ts": self.signal_bar_ts,
             "exit_context_timeframe": self.exit_context_timeframe,
+            "exit_kind": self.exit_kind,
+            "slice_match_exact": self.slice_match_exact,
             "identity_key": _identity_key(
                 self.symbol, self.timeframe, self.slice_combination,
                 self.side, self.bin_mode,
@@ -258,147 +262,295 @@ def load_trade_journal(path: Optional[Path] = None) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[RoundTrip]:
-    """Pair entries with exits by symbol to build completed round-trips.
+def _match_journal(journal: Optional[pd.DataFrame]):
+    """Side/slice-aware FIFO matching of journal fills.
 
-    Logic: for each symbol, entries and exits are matched FIFO by timestamp.
-    An entry with no subsequent exit is an open position (not a round-trip).
-    Partial fills are handled by matching min(entry_qty, exit_qty).
+    Returns (round_trips, unmatched_lots, unmatched_exits).
 
-    Returns only COMPLETED round-trips (entry+exit paired). Open positions
-    are excluded -- they have unrealized, not realized, P&L.
+    Matching rules (2026-10 ROI pass; the previous symbol-only FIFO is
+    the bug this replaces):
+      - Long entries (side buy) can only be closed by long-closing exits
+        and short entries (side sell) only by short-covering exits. An
+        exit's closing pool is resolved, in order, from: its order side
+        (sell closes longs, buy covers shorts), the SIGNED qty that
+        close_position snapshots from the broker position (+ long,
+        - short), a filled protective-stop order with the same order_id
+        (sell stop closes a long, buy stop covers a short), and finally
+        the exit's own slice_label when it names an open lot. A September
+        long close can therefore no longer "exit" a July short (the
+        AMC/BITO phantoms: fake -48%/-19% round-trips held 349/194 bars).
+      - Filled protective-stop orders are exit events in their own
+        right (exit_kind="protective_stop"), deduplicated by order_id
+        against explicit exits: stop_manager's synthetic exit journals
+        the stop's order_id, so the pair collapses to one event whose
+        pool is resolved from the stop order's side.
+      - Within a pool, an exit carrying a slice_label first consumes
+        lots of that slice (FIFO among them), then falls back to pool
+        FIFO; the fallback is flagged slice_match_exact=False.
+      - Causality: an exit never consumes an entry timestamped after it.
+
+    Unmatched entry lots and over-closing exits are returned, not
+    dropped: a lot with no journaled exit is either still open at the
+    broker or was closed by a fill nobody journaled, and either way it
+    must stay visible (see roi_watchdog).
     """
     if journal is None:
         journal = load_trade_journal()
     if journal is None or journal.empty:
-        return []
+        return [], [], []
     if "action" not in journal.columns or "symbol" not in journal.columns:
-        return []
+        return [], [], []
 
-    # Submission-time accepted/pending rows are not fills. Require a final
-    # broker-confirmed status and a positive filled quantity/price. This is
-    # what prevents expired/canceled/unfilled orders from becoming trades.
     j = journal.copy()
     j["_canonical_status"] = j.apply(_canonical_status, axis=1)
-    j = j[
-        j["action"].isin(["entry", "enter", "exit", "close"])
-        & j["_canonical_status"].isin(CONFIRMED_FILL_STATUSES)
-    ].copy()
-    if j.empty:
-        return []
-    j["resolved_qty"] = j.apply(_confirmed_qty, axis=1)
-    j["resolved_price"] = j.apply(
-        lambda row: _confirmed_price(row, "entry" if row["action"] == "entry" else "exit"),
-        axis=1,
-    )
-    j = j.dropna(subset=["resolved_qty", "resolved_price"])
-    j = j[(j["resolved_qty"] > 0) & (j["resolved_price"] > 0)]
-    if j.empty:
-        return []
+    confirmed = j["_canonical_status"].isin(CONFIRMED_FILL_STATUSES)
 
-    j["_ts"] = pd.to_datetime(j.get("submitted_at", j.get("timestamp_utc")),
-                              errors="coerce", utc=True)
-    j = j.dropna(subset=["_ts"]).sort_values("_ts")
-    if j.empty:
-        return []
+    entries = j[j["action"].isin(["entry", "enter"]) & confirmed].copy()
+    exits = j[j["action"].isin(["exit", "close"]) & confirmed].copy()
+    stops = j[j["action"].isin(["protective_stop_submit"]) & confirmed].copy()
+    if "order_type" in stops.columns:
+        stops = stops[stops["order_type"].astype(str).str.lower().isin(["stop", "nan", ""])]
 
-    def _get(row, col, default=0.0):
-        v = getattr(row, col, default)
-        try:
-            v = float(v)
-        except (TypeError, ValueError):
-            return default
-        return v if v == v else default
+    def _resolve(frame, kind):
+        if frame.empty:
+            return frame
+        frame = frame.copy()
+        frame["resolved_qty"] = frame.apply(_confirmed_qty, axis=1)
+        frame["resolved_price"] = frame.apply(
+            lambda row: _confirmed_price(row, kind), axis=1)
+        frame = frame.dropna(subset=["resolved_qty", "resolved_price"])
+        frame = frame[(frame["resolved_qty"] > 0) & (frame["resolved_price"] > 0)]
+        # Prefer the true fill time; submission time is the fallback the
+        # legacy code used (kept so old rows without filled_at still pair).
+        ts = None
+        for col in ("filled_at", "submitted_at", "timestamp_utc"):
+            if col in frame.columns:
+                parsed = pd.to_datetime(frame[col], errors="coerce", utc=True)
+                ts = parsed if ts is None else ts.fillna(parsed)
+        frame["_ts"] = ts
+        return frame.dropna(subset=["_ts"]).sort_values("_ts")
 
-    def _str(row, col, default=""):
-        v = getattr(row, col, None)
+    entries = _resolve(entries, "entry")
+    exits = _resolve(exits, "exit")
+    stops = _resolve(stops, "exit")
+    if entries.empty:
+        return [], [], []
+
+    def _s(row, col, default=""):
+        v = row.get(col) if hasattr(row, "get") else getattr(row, col, default)
         return str(v) if v is not None and str(v).lower() != "nan" else default
 
-    round_trips: List[RoundTrip] = []
+    def _side_of_entry(row) -> str:
+        return "short" if _s(row, "side", "buy").lower() in ("sell", "short") else "long"
 
-    for symbol, grp in j.groupby("symbol"):
-        entries = grp[grp["action"].isin(["entry", "enter"])].copy()
-        exits = grp[grp["action"].isin(["exit", "close"])].copy()
-        if entries.empty or exits.empty:
-            continue
+    # Filled stop order_id -> closing pool, for enriching synthetic exits.
+    stop_pool_by_order: Dict[str, str] = {}
+    for _, srow in stops.iterrows():
+        oid = _s(srow, "order_id")
+        if oid:
+            stop_pool_by_order[oid] = "long" if _s(srow, "side").lower() == "sell" else "short"
 
-        # FIFO matching: consume entry quantity from the exit quantity.
-        entry_q = list(zip(entries["_ts"], entries.itertuples()))
-        entry_q.sort(key=lambda x: x[0])
-        exit_q = list(zip(exits["_ts"], exits.itertuples()))
-        exit_q.sort(key=lambda x: x[0])
-
-        pending_entries = list(entry_q)  # FIFO queue
-        pending_residuals: dict = {}
-        for exit_ts, exit_row in exit_q:
-            exit_qty_remaining = _get(exit_row, "resolved_qty", 0.0)
-            if exit_qty_remaining <= 0:
+    exit_events: List[dict] = []
+    seen_exit_orders = set()
+    for _, erow in exits.iterrows():
+        oid = _s(erow, "order_id")
+        if oid:
+            if oid in seen_exit_orders:
+                # The live journal re-journals the same broker exit across
+                # scans (one order_id appears up to 9x). One broker fill is
+                # one exit event; consuming the duplicates fabricated
+                # round-trips against unrelated later lots.
                 continue
-            exit_price = _get(exit_row, "resolved_price", 0.0)
+            seen_exit_orders.add(oid)
+        exit_events.append({"row": erow, "kind": "explicit", "ts": erow["_ts"]})
+    for _, srow in stops.iterrows():
+        oid = _s(srow, "order_id")
+        if oid and oid in seen_exit_orders:
+            continue  # synthetic exit already journals this stop fill
+        if not _s(srow, "symbol"):
+            continue  # unattributable fill (no symbol): cannot pair honestly
+        exit_events.append({"row": srow, "kind": "protective_stop", "ts": srow["_ts"]})
+    exit_events.sort(key=lambda e: e["ts"])
 
-            while exit_qty_remaining > 1e-9 and pending_entries:
-                # CAUSALITY GUARD: an exit can only close an entry that
-                # already happened. Without this, once all genuinely prior
-                # entries are consumed the FIFO queue happily pops a LATER
-                # entry and books a round-trip that exits before it enters.
-                # Measured 2026-07-29: 6 of 25 round-trips were impossible,
-                # inflating reported realized P&L by +260.47 while the broker
-                # account was actually down -111.07. The docstring said
-                # "matched FIFO by timestamp"; the code never checked.
-                if pending_entries[0][0] > exit_ts:
+    # Open lots per (symbol, pool), FIFO.
+    lots: Dict[tuple, List[dict]] = {}
+    for _, erow in entries.iterrows():
+        sym = str(erow["symbol"]).upper()
+        pool = _side_of_entry(erow)
+        lots.setdefault((sym, pool), []).append({
+            "symbol": sym, "pool": pool, "row": erow,
+            "qty_remaining": float(erow["resolved_qty"]),
+            "ts": erow["_ts"],
+        })
+
+    def _exit_pool(erow, kind: str) -> Optional[str]:
+        side = _s(erow, "side").lower()
+        if side == "sell":
+            return "long"
+        if side == "buy":
+            return "short"
+        if kind == "protective_stop":
+            return "long" if side == "sell" else "short"
+        signed = _float_or_none(erow.get("qty"))
+        if signed is not None and signed != 0:
+            return "long" if signed > 0 else "short"
+        oid = _s(erow, "order_id")
+        if oid in stop_pool_by_order:
+            return stop_pool_by_order[oid]
+        return None
+
+    round_trips: List[RoundTrip] = []
+    unmatched_exits: List[dict] = []
+
+    for event in exit_events:
+        erow = event["row"]
+        sym = str(erow.get("symbol", "") or "").upper()
+        if not sym:
+            continue
+        exit_qty = float(erow["resolved_qty"])
+        exit_price = float(erow["resolved_price"])
+        exit_slice = _s(erow, "slice_label")
+        pool = _exit_pool(erow, event["kind"])
+        pools_to_try: List[str] = []
+        if pool:
+            pools_to_try = [pool]
+        else:
+            # Last resort: slice-named lot decides the pool, else long-first
+            # legacy order. The match is flagged inexact either way.
+            if exit_slice:
+                for cand in ("long", "short"):
+                    if any(l["qty_remaining"] > 1e-9 and l["ts"] <= event["ts"]
+                           and _s(l["row"], "slice_label") == exit_slice
+                           for l in lots.get((sym, cand), [])):
+                        pools_to_try = [cand]
+                        break
+            if not pools_to_try:
+                pools_to_try = ["long", "short"]
+
+        remaining = exit_qty
+        for pool_name in pools_to_try:
+            if remaining <= 1e-9:
+                break
+            queue = lots.get((sym, pool_name), [])
+            # Preference tiers, FIFO within each (sorted() is stable):
+            #   1. the exit's snapshot avg_entry_price names the broker
+            #      position being closed — the lot(s) at that price are
+            #      the economic position, even when an older lot in the
+            #      same pool is still journal-open (broker netting means
+            #      journal-FIFO and broker-truth routinely disagree);
+            #   2. slice-exact lots when the exit carries a slice label;
+            #   3. plain pool FIFO.
+            exit_avg_entry = _float_or_none(erow.get("avg_entry_price"))
+
+            def _tier(lot):
+                price_tier = 1
+                if exit_avg_entry:
+                    lp = float(lot["row"]["resolved_price"])
+                    if abs(lp - exit_avg_entry) <= max(0.01, 0.005 * exit_avg_entry):
+                        price_tier = 0
+                slice_tier = 0 if (exit_slice and _s(lot["row"], "slice_label") == exit_slice) else 1
+                return (price_tier, slice_tier)
+
+            ordered = sorted(queue, key=_tier)
+            for lot in ordered:
+                if remaining <= 1e-9:
                     break
-                ent_ts, ent_row = pending_entries.pop(0)
-                ent_qty = pending_residuals.pop(id(ent_row), _get(ent_row, "resolved_qty", 0.0))
-                if ent_qty <= 0:
+                if lot["qty_remaining"] <= 1e-9 or lot["ts"] > event["ts"]:
                     continue
-                ent_price = _get(ent_row, "resolved_price", 0.0)
-                if ent_price <= 0:
-                    continue
-
-                matched_qty = min(ent_qty, exit_qty_remaining)
-                exit_qty_remaining -= matched_qty
-
-                # Side is determined by the ENTRY, not the exit: a long enters
-                # "buy" and closes "sell"; a short enters "sell" and closes
-                # "buy". Reading the exit's side would mis-label every long
-                # close as a short.
-                ent_side = _str(ent_row, "side", "buy")
-                is_short = ent_side.lower() in ("sell", "short")
-                gross_pnl = ((exit_price - ent_price) * matched_qty
-                             if not is_short
-                             else (ent_price - exit_price) * matched_qty)
+                ent_row = lot["row"]
+                ent_price = float(ent_row["resolved_price"])
+                matched_qty = min(lot["qty_remaining"], remaining)
+                lot["qty_remaining"] -= matched_qty
+                remaining -= matched_qty
+                is_short = pool_name == "short"
+                gross_pnl = ((ent_price - exit_price) * matched_qty if is_short
+                             else (exit_price - ent_price) * matched_qty)
                 notional = ent_price * matched_qty
-                gross_return = gross_pnl / notional if notional > 0 else 0.0
-
-                slice_lbl = _str(ent_row, "slice_label", "")
-                if not slice_lbl:
-                    slice_lbl = _str(exit_row, "slice_label", "unknown")
-
+                entry_slice = _s(ent_row, "slice_label") or exit_slice or "unknown"
                 round_trips.append(RoundTrip(
-                    symbol=str(symbol).upper(),
-                    slice_combination=slice_lbl,
+                    symbol=sym,
+                    slice_combination=entry_slice,
                     side="short" if is_short else "long",
                     qty=matched_qty,
                     entry_price=ent_price,
-                    entry_ts=str(ent_ts),
+                    entry_ts=str(lot["ts"]),
                     exit_price=exit_price,
-                    exit_ts=str(exit_ts),
+                    exit_ts=str(event["ts"]),
                     gross_pnl=gross_pnl,
-                    gross_return=gross_return,
-                    timeframe=_str(ent_row, "timeframe", ""),
-                    bin_mode=_str(ent_row, "bin_mode", "insample"),
-                    entry_order_id=_str(ent_row, "order_id", ""),
-                    exit_order_id=_str(exit_row, "order_id", ""),
-                    signal_bar_ts=_str(ent_row, "entry_bar_ts", ""),
+                    gross_return=gross_pnl / notional if notional > 0 else 0.0,
+                    timeframe=_s(ent_row, "timeframe", ""),
+                    bin_mode=_s(ent_row, "bin_mode", "insample"),
+                    entry_order_id=_s(ent_row, "order_id", ""),
+                    exit_order_id=_s(erow, "order_id", ""),
+                    signal_bar_ts=_s(ent_row, "entry_bar_ts", ""),
+                    exit_kind=event["kind"],
+                    # Inexact only when the exit explicitly named a slice
+                    # other than this lot's (an exit with no slice label
+                    # inherits the entry's, which is the normal path).
+                    slice_match_exact=bool(not exit_slice or exit_slice == _s(ent_row, "slice_label")),
                 ))
+        if remaining > 1e-9:
+            unmatched_exits.append({
+                "symbol": sym,
+                "qty": round(remaining, 6),
+                "exit_price": exit_price,
+                "exit_ts": str(event["ts"]),
+                "exit_order_id": _s(erow, "order_id", ""),
+                "exit_kind": event["kind"],
+            })
 
-                # If entry had leftover qty, push it back (partial fill).
-                residual = ent_qty - matched_qty
-                if residual > 1e-9:
-                    pending_residuals[id(ent_row)] = residual
-                    pending_entries.insert(0, (ent_ts, ent_row))
+    as_of = None
+    all_ts = [l["ts"] for queue in lots.values() for l in queue] + [e["ts"] for e in exit_events]
+    if all_ts:
+        as_of = max(all_ts)
+    unmatched_lots: List[dict] = []
+    for (sym, pool), queue in lots.items():
+        for lot in queue:
+            if lot["qty_remaining"] <= 1e-9:
+                continue
+            ent_row = lot["row"]
+            age = None
+            if as_of is not None:
+                age = float((as_of - lot["ts"]).total_seconds()) / 86400.0
+            unmatched_lots.append({
+                "symbol": sym,
+                "side": pool,
+                "qty": round(lot["qty_remaining"], 6),
+                "entry_price": float(ent_row["resolved_price"]),
+                "notional": round(float(ent_row["resolved_price"]) * lot["qty_remaining"], 2),
+                "entry_ts": str(lot["ts"]),
+                "age_days": (round(age, 2) if age is not None else None),
+                "slice_combination": _s(ent_row, "slice_label"),
+                "timeframe": _s(ent_row, "timeframe", ""),
+                "bin_mode": _s(ent_row, "bin_mode", "insample"),
+                "entry_order_id": _s(ent_row, "order_id", ""),
+            })
+    unmatched_lots.sort(key=lambda l: -(l["notional"] or 0))
+    return round_trips, unmatched_lots, unmatched_exits
 
+
+def reconstruct_round_trips(journal: Optional[pd.DataFrame] = None) -> List[RoundTrip]:
+    """Pair entries with exits to build completed round-trips.
+
+    Side/slice-aware FIFO (see _match_journal). An entry with no closing
+    exit is an open/unjournaled lot, not a round-trip; surface those via
+    unmatched_lots() instead of silently dropping or mis-pairing them.
+
+    Returns only COMPLETED round-trips. Open positions are excluded --
+    they have unrealized, not realized, P&L.
+    """
+    round_trips, _, _ = _match_journal(journal)
     return round_trips
+
+
+def unmatched_lots(journal: Optional[pd.DataFrame] = None) -> List[dict]:
+    """Entry lots with no journaled closing exit (oldest evidence first
+    is NOT guaranteed; sorted by notional desc). Each lot is either a
+    position still open at the broker or a position closed by a fill
+    nobody journaled — both demand reconciliation before per-slice P&L
+    can be trusted."""
+    _, lots, _ = _match_journal(journal)
+    return lots
 
 
 def load_expected_returns(
@@ -596,7 +748,7 @@ def attribute_pnl(
     """Build attribution from confirmed fills and optional broker exposure."""
     if journal is None:
         journal = load_trade_journal()
-    round_trips = reconstruct_round_trips(journal)
+    round_trips, open_lots, orphan_exits = _match_journal(journal)
 
     # bars_held and exit_reason are computed at exit by check_exits and recorded in the paper
     # audit log (paper_trade_log.csv) keyed by exit order_id. The trade journal
@@ -732,6 +884,50 @@ def attribute_pnl(
 
     if not expected:
         notes.append("No symbol/timeframe-matched candidate leaderboard rows found; expected-vs-realized comparison is unavailable.")
+    if open_lots:
+        oldest = max(open_lots, key=lambda l: (l["age_days"] or 0))
+        notes.append(
+            f"{len(open_lots)} unmatched lot(s) "
+            f"(${sum(l['notional'] for l in open_lots):.2f} entry notional) have no "
+            "journaled closing exit: still open at the broker, or closed by an "
+            "unjournaled fill. Oldest: "
+            f"{oldest['symbol']} {oldest['side']} {oldest['qty']:g} since "
+            f"{oldest['entry_ts'][:10]} ({oldest['age_days']}d). Reconcile with "
+            "--sync-broker / roi_watchdog.py before trusting per-slice P&L."
+        )
+    if orphan_exits:
+        notes.append(
+            f"{len(orphan_exits)} exit fill(s) could not be paired with any open "
+            "lot (over-close or missing entry journal). Their P&L is excluded "
+            "from realized totals."
+        )
+
+    # Era split: pure-horizon exits deployed 2026-07-30. Blending eras made
+    # exit-policy comparisons meaningless (state-break-heavy early data vs
+    # horizon-heavy later data), so report them side by side.
+    eras: dict = {}
+    if round_trips:
+        era_cut = pd.Timestamp("2026-07-30T00:00:00Z")
+        for label, sel in (
+            ("pre_pure_horizon", lambda t: t < era_cut),
+            ("post_pure_horizon", lambda t: t >= era_cut),
+        ):
+            subset = []
+            for rt in round_trips:
+                try:
+                    ts = pd.Timestamp(rt.exit_ts)
+                    ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts
+                except Exception:  # noqa: BLE001
+                    continue
+                if sel(ts):
+                    subset.append(rt)
+            if subset:
+                eras[label] = {
+                    "n_round_trips": len(subset),
+                    "total_pnl": round(sum(r.gross_pnl for r in subset), 2),
+                    "win_rate": round(sum(1 for r in subset if r.gross_pnl > 0) / len(subset), 4),
+                    "mean_return": round(sum(r.gross_return for r in subset) / len(subset), 6),
+                }
 
     return {
         "summary": {
@@ -739,7 +935,13 @@ def attribute_pnl(
             "n_open_positions": n_open,
             "open_positions_source": "alpaca" if broker_positions is not None else "unavailable",
             "total_realized_pnl": round(sum(rt.gross_pnl for rt in round_trips), 4),
+            "n_unmatched_lots": len(open_lots),
+            "unmatched_notional": round(sum(l["notional"] for l in open_lots), 2),
+            "n_unmatched_exits": len(orphan_exits),
         },
+        "unmatched_lots": open_lots,
+        "unmatched_exits": orphan_exits,
+        "eras": eras,
         "by_slice": [a.to_dict() for a in slice_attrs],
         "round_trips": [rt.to_dict() for rt in round_trips],
         "timing": round_trip_timing(round_trips),
@@ -797,6 +999,35 @@ def format_report(report: dict) -> str:
         for sc, bps in slip.items():
             lines.append(f"  {sc[:50]:50} {bps:>7.1f} bps (entry leg)")
         lines.append("  Favorable signal-to-fill movement is not treated as negative cost.")
+        lines.append("")
+
+    open_lots = report.get("unmatched_lots") or []
+    if open_lots:
+        lines.append("-" * 72)
+        lines.append("UNMATCHED LOTS (no journaled closing exit — reconcile before trusting P&L)")
+        lines.append("-" * 72)
+        for lot in open_lots[:15]:
+            lines.append(
+                f"  {lot['symbol']:8} {lot['side']:5} qty={lot['qty']:>8g} "
+                f"@ {lot['entry_price']:.2f} (${lot['notional']:.2f}) "
+                f"since {str(lot['entry_ts'])[:10]} ({lot['age_days']}d) "
+                f"{lot['timeframe']} {lot['slice_combination'][:40]}"
+            )
+        if len(open_lots) > 15:
+            lines.append(f"  ... and {len(open_lots) - 15} more")
+        lines.append("")
+
+    eras = report.get("eras") or {}
+    if eras:
+        lines.append("-" * 72)
+        lines.append("ERA SPLIT (pure-horizon exits deployed 2026-07-30)")
+        lines.append("-" * 72)
+        for label, agg in eras.items():
+            lines.append(
+                f"  {label:18} n={agg['n_round_trips']:3d} "
+                f"pnl=${agg['total_pnl']:>9.2f} win={agg['win_rate']*100:>3.0f}% "
+                f"meanRet={agg['mean_return']*100:>6.2f}%"
+            )
         lines.append("")
 
     timing = report.get("timing")

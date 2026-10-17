@@ -528,6 +528,15 @@ def compute_position_size(
 
     qty = max(0, qty)
 
+    # Cost-negated edges (2026-10 ROI pass): conviction 0.05 used to size
+    # dust positions that pay the full spread/slippage percentage for an
+    # edge already known to be negative net of costs. Size them to zero;
+    # the signal still flows through the audit log with mode cost_negated
+    # (qty_notional preserved below) so the decision stays visible.
+    if cr.mode == "cost_negated" and qty > 0:
+        qty = 0
+        sizing_mode = "cost_negated"
+
     reasons = list(cr.reasons)
     reasons.append(f"target_notional={target_notional:.2f} (conviction {conviction:.3f} * cap {max_notional:.2f})")
     reasons.append(f"qty_notional={qty_notional}")

@@ -54,6 +54,20 @@ class RiskLimits:
     # This is the kill-switch for the short side -- even a validated short
     # candidate cannot reach trading.submit_entry unless allow_shorts=True.
     allow_shorts: bool = False
+    # Pool gate (2026-10 ROI pass): timeframes on which NEW short entries
+    # are blocked pool-wide because the pool's live shadow expectancy is
+    # negative (1h shorts: negative realized AND negative shadow median
+    # on 500+ signals). Long entries and other timeframes are unaffected.
+    # A slice can be exempted individually via short_exempt_slices when
+    # its own evidence clears the bar (see shadow_gate.py).
+    short_blocked_timeframes: frozenset = frozenset()
+    # Exemptions to the pool gate, as "SYMBOL|TIMEFRAME|slice_combination".
+    short_exempt_slices: frozenset = frozenset()
+    # Shadow demotion gate (2026-10 ROI pass): when True, monitor blocks
+    # entries whose slice identity is in shadow_demoted_slices.csv (the
+    # two-strike demotion ledger written by scripts/shadow_gate.py).
+    # Missing file = no demotions (fails open).
+    shadow_gate_enabled: bool = False
     # ---- Position sizing knobs (edge- and volatility-aware sizing) ----
     # When True, monitor sizes each matched signal by conviction (derived
     # from the slice's research edge metrics in candidate_leaderboard.csv)
@@ -277,6 +291,8 @@ def check_entry(
     equity_for_risk_cap: Optional[float] = None,
     open_positions_notional: Optional[float] = None,
     buying_power: Optional[float] = None,
+    timeframe: Optional[str] = None,
+    slice_combination: Optional[str] = None,
 ) -> RiskCheckResult:
     """Run ALL risk checks. Returns allowed=True only if every one passes.
 
@@ -313,6 +329,22 @@ def check_entry(
 
     if side == "short" and not limits.allow_shorts:
         reasons.append("shorts not enabled (RiskLimits.allow_shorts is False)")
+
+    # Pool gate: shorts on a blocked timeframe need a per-slice exemption.
+    # Fails open when timeframe/slice context is absent (legacy callers).
+    if (
+        side == "short"
+        and timeframe
+        and getattr(limits, "short_blocked_timeframes", frozenset())
+        and str(timeframe) in limits.short_blocked_timeframes
+    ):
+        exempt_key = f"{str(symbol).upper()}|{timeframe}|{slice_combination or ''}"
+        if exempt_key not in getattr(limits, "short_exempt_slices", frozenset()):
+            reasons.append(
+                f"short entries blocked on {timeframe} by pool gate "
+                "(negative live expectancy pool; slice not exempt — see "
+                "scripts/shadow_gate.py pool stats)"
+            )
 
     notional = qty * price
     if notional > limits.max_notional_per_position:

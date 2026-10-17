@@ -45,6 +45,10 @@ def main() -> int:
                         help="Reconcile journaled order IDs with Alpaca and use broker positions as the authoritative exposure count. Read-only; no orders are placed.")
     parser.add_argument("--json", action="store_true",
                         help="Emit the report as JSON instead of text.")
+    parser.add_argument("--fail-on-stale-lots", type=float, default=0,
+                        help="Exit 2 when an unmatched lot is at least N days old "
+                        "(age vs newest journal timestamp). 0 disables. For "
+                        "workflow/operator gating; see roi_watchdog.py.")
     # Broker backfill flags (opt-in; requires --sync-broker)
     parser.add_argument("--backfill-broker-orders", action="store_true",
                         help="Detect broker-filled orders absent from the trade journal and "
@@ -99,6 +103,16 @@ def main() -> int:
 
     # Attach backfill summary to JSON output when present.
     report["backfill"] = backfill_summary
+
+    if args.fail_on_stale_lots > 0:
+        from price.roi_guards import stale_lots
+        stale = stale_lots(report.get("unmatched_lots") or [],
+                           max_age_days=args.fail_on_stale_lots)
+        if stale:
+            print(f"ERROR: {len(stale)} unmatched lot(s) >= "
+                  f"{args.fail_on_stale_lots:.0f}d old; reconcile before "
+                  "trusting P&L (see roi_watchdog.py).", file=sys.stderr)
+            return 2
 
     if args.json:
         print(json.dumps(report, indent=2, default=str))

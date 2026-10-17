@@ -27,6 +27,7 @@ import pandas as pd
 from price.discovery import apply_state_bins
 from price.features import compute_price_features
 from price.profit_protection import ProfitPolicy
+from price.roi_guards import WatchdogConfig, watchdog_exit_reason
 from price.trading import load_trade_journal
 from price.validation import parse_slice_combination
 from price.warehouse import load_from_warehouse
@@ -185,6 +186,14 @@ class ExitPolicy:
     respect_r_multiple_gate: bool = True
     profit_policy: Optional['ProfitPolicy'] = None
     pure_horizon_exits: bool = False
+    # Slice-independent tail watchdog (2026-10 ROI pass). None disables
+    # it entirely (legacy behaviour). When set, a non-winner may not
+    # outlive watchdog.max_horizon_multiple x its horizon, no position
+    # may sit beyond -watchdog.hard_loss_r, and a position whose slice
+    # context is unrecoverable is force-exited after
+    # watchdog.max_no_context_days calendar days. Pure-horizon mode and
+    # the R-gate never suppress a watchdog exit.
+    watchdog: Optional[WatchdogConfig] = None
 
 
 def _parse_ts(ts) -> Optional[datetime]:
@@ -698,6 +707,24 @@ def recover_entry_context_for_symbol(symbol: str) -> Optional[dict]:
     return result
 
 
+def _unrealized_r_multiple(symbol: str, current_price) -> Optional[float]:
+    """Current unrealized R for `symbol` from tracked stop state.
+
+    None when unknowable (no stop state, degenerate R, bad price). The
+    watchdog treats None as 'unprotected/unknown', never as 'winner'."""
+    try:
+        from price.stops import load_stop_states
+        state = load_stop_states().get(symbol.upper())
+        if state is None:
+            return None
+        price = float(current_price)
+        if price != price:
+            return None
+        return state.unrealized_r_multiple(price)
+    except Exception:  # noqa: BLE001 - exit logic must never crash the scan
+        return None
+
+
 def _r_gate_suppresses_horizon(symbol: str, current_price, breakeven_trigger_r: float = 1.0) -> bool:
     """True if `symbol`'s tracked R-state (price.stops) shows it has already
     reached `breakeven_trigger_r` unrealized, so the time-stop horizon exit
@@ -788,6 +815,44 @@ def check_exits(
                 slice_combo = recovered_ctx.get("slice_combination")
 
         if not slice_combo:
+            # Watchdog: a position with NO recoverable slice context has
+            # no state-break, horizon, or profit exit — only its broker
+            # stop (if any). If it is also OLD, force-exit it rather than
+            # letting an unowned zombie ride indefinitely.
+            _wd = exit_policy.watchdog
+            if _wd is not None and _wd.max_no_context_days is not None:
+                _age_days = None
+                for _ts_key in ("submitted_at", "entry_bar_ts"):
+                    _parsed = _parse_ts(ctx.get(_ts_key))
+                    if _parsed is not None:
+                        _age_days = (datetime.now(timezone.utc) - _parsed).total_seconds() / 86400.0
+                        break
+                if _age_days is None:
+                    try:
+                        from price.stops import load_stop_states
+                        _st = load_stop_states().get(symbol)
+                        _parsed = _parse_ts(getattr(_st, "opened_at", None)) if _st else None
+                        if _parsed is not None:
+                            _age_days = (datetime.now(timezone.utc) - _parsed).total_seconds() / 86400.0
+                    except Exception:  # noqa: BLE001
+                        _age_days = None
+                if _age_days is not None and _age_days >= float(_wd.max_no_context_days):
+                    intents.append({
+                        "symbol": symbol,
+                        "action": "exit",
+                        "reason": (
+                            f"watchdog_no_context: position has no recoverable slice "
+                            f"context and is {_age_days:.0f}d old (>= "
+                            f"{_wd.max_no_context_days}d cap); slice-independent tail exit"
+                        ),
+                        "bars_held": None,
+                        "horizon_bars": exit_policy.horizon_bars,
+                        "metadata_missing": True,
+                        "metadata_recovery_attempted": True,
+                        "metadata_recovery_source": None,
+                        "watchdog_exit": True,
+                    })
+                    continue
             intents.append({
                 "symbol": symbol,
                 "action": "hold",
@@ -909,7 +974,23 @@ def check_exits(
         if ps_horizon <= 0:
             ps_horizon = exit_policy.horizon_bars
 
+        # Tail watchdog: evaluated before (and never suppressed by) the
+        # state-break / pure-horizon / R-gate logic below.
+        _current_price = pos.get("current_price")
+        _r_mult = (_unrealized_r_multiple(symbol, _current_price)
+                   if _current_price is not None else None)
+        _wd_reason = None
+        if exit_policy.watchdog is not None:
+            _wd_reason = watchdog_exit_reason(
+                bars_held=bars_held,
+                horizon_bars=ps_horizon,
+                r_multiple=_r_mult,
+                config=exit_policy.watchdog,
+            )
+
         exit_reasons: List[str] = []
+        if _wd_reason:
+            exit_reasons.append(_wd_reason)
         if mismatches:
             # Pure-horizon hold suppresses the state-break exit ONLY during the
             # active window: we can bound the hold (bars_held known), at least
@@ -1016,6 +1097,8 @@ def check_exits(
             "horizon_bars": ps_horizon,
             "timeframe": timeframe,
             "r_multiple_suppressed_horizon": r_gate_active,
+            "watchdog_exit": bool(_wd_reason),
+            "unrealized_r": _r_mult,
             "reason": reason,
             "context_source": ctx.get("context_source"),
         }
