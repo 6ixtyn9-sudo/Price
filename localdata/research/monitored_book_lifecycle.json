@@ -1,12 +1,11 @@
 {
-  "previous_book_count": 275,
+  "previous_book_count": 271,
   "new_book_count": 271,
-  "added_candidates": [],
+  "added_candidates": [
+    "MO|1d|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling"
+  ],
   "removed_candidates": [
-    "BSX|15m|state_session=lunch + state_ext=stretched_up|short|rolling",
-    "EQIX|15m|state_ext=stretched_down + state_ret_1=ret_up|long|rolling",
-    "ISRG|15m|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down|short|rolling",
-    "SHW|15m|state_relvol=relvol_normal + state_ext=stretched_down|long|rolling"
+    "PDD|1d|cross_USO_state_slope=downtrend + state_ext=stretched_up|long|rolling"
   ],
   "retained_candidates": [
     "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -165,7 +164,6 @@
     "OXY|1h|state_session=morning + state_slope=downtrend + state_vol=mid_vol|short|rolling",
     "O|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "PANW|1d|cross_USO_state_ext=stretched_down + state_ext=neutral|long|rolling",
-    "PDD|1d|cross_USO_state_slope=downtrend + state_ext=stretched_up|long|rolling",
     "PG|1h|cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
     "PG|1h|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
     "PG|1h|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up|short|rolling",
@@ -283,11 +281,10 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {
-    "BSX|15m|state_session=lunch + state_ext=stretched_up|short|rolling": "registry_status:research_only",
-    "EQIX|15m|state_ext=stretched_down + state_ret_1=ret_up|long|rolling": "registry_status:research_only",
-    "ISRG|15m|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down|short|rolling": "registry_status:research_only",
-    "SHW|15m|state_relvol=relvol_normal + state_ext=stretched_down|long|rolling": "registry_status:research_only"
+    "PDD|1d|cross_USO_state_slope=downtrend + state_ext=stretched_up|long|rolling": "decaying_suspended"
   },
-  "promotion_reasons": {},
-  "discovery_run_id": "38973796849"
+  "promotion_reasons": {
+    "MO|1d|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling": "paper_proposal"
+  },
+  "discovery_run_id": null
 }
