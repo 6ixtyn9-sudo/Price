@@ -107,12 +107,24 @@ jobs:
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 1d --days 1825 --skip-postprocess
           python scripts/capture_bars.py --symbols $SYMBOLS --timeframes 15m --days 365
 
+      # ROI pass (2026-10): fill expected-return coverage gaps from the
+      # research leaderboards before sizing runs. Existing curated rows in
+      # monitored_edge_metrics.csv are never overwritten; idempotent.
+      - name: Build expected-return coverage for sizing
+        run: python scripts/build_expected_returns.py
+
       - name: Run paper trade using repository monitor list
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
+          # ROI pass (2026-10): 1h shorts pool-gated (negative live
+          # expectancy); shadow-demoted slices blocked; tail watchdog
+          # force-exits non-winners at 3x horizon / -2R / 45d no-context.
+          # --equal-notional freezes conviction sizing: calibration on
+          # realized data is unproven (see scripts/calibration_report.py).
+          # Remove it only when that report verdicts 'calibrated'.
           python scripts/paper_trade.py \
             --max-notional 2500 --max-open 20 --max-daily-loss 500 \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
@@ -127,7 +139,13 @@ jobs:
             --giveback-trigger-r 2.0 \
             --max-giveback-r 1.0 \
             --pure-horizon-exits \
-            --regime-filter
+            --regime-filter \
+            --block-short-timeframes 1h \
+            --shadow-gate \
+            --watchdog-horizon-multiple 3 \
+            --watchdog-hard-loss-r 2 \
+            --watchdog-no-context-days 45 \
+            --equal-notional
 
       - name: Run live forward-return capture
         env:
@@ -136,6 +154,18 @@ jobs:
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
           python scripts/live_forward_returns.py --universe-source monitored
+
+      # ROI pass (2026-10): advance the shadow-demotion ledger on the
+      # forward returns just captured. Demotions written here gate entries
+      # from the NEXT run (paper_trade.py --shadow-gate reads the CSV).
+      - name: Update shadow demotion ledger
+        run: python scripts/shadow_gate.py
+
+      # Audit-only: surface stale unmatched lots in the run log. Never
+      # blocks the workflow; the live force-exit is the exit watchdog.
+      - name: ROI watchdog audit (unmatched lots)
+        continue-on-error: true
+        run: python scripts/roi_watchdog.py --max-lot-age-days 30
 
       - name: Check operational paper state cache content
         id: ops_state
@@ -197,6 +227,9 @@ jobs:
             localdata/live_forward_returns.csv
             localdata/monitored_edge_metrics.csv
             localdata/monitored_slices.csv
+            localdata/shadow_demoted_slices.csv
+            localdata/shadow_gate_state.json
+            localdata/shadow_gate_report.json
             localdata/trade_journal.csv
             localdata/paper_trade_log.csv
             localdata/stop_state.json
