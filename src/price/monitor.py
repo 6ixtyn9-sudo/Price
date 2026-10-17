@@ -38,6 +38,7 @@ from price.leverage import total_open_notional
 from price.position_manager import ExitPolicy, check_exits, claiming_entry_rows, get_today_realized_pnl
 from price.regime import check_regime, per_slice_regime_verdict, regime_blocks_entry
 from price.risk_limits import RiskLimits, check_entry, risk_group_key
+from price.roi_guards import shadow_key as _shadow_key
 from price.sizing import compute_atr_14, compute_position_size, load_edge_metrics
 from price.stop_manager import reconcile_stops
 from price.stops import DEFAULT_STOP_ATR_MULT, load_stop_states
@@ -615,6 +616,32 @@ def _load_open_position_slice_labels() -> Dict[str, str]:
     return labels
 
 
+def _load_shadow_demotions(path=None) -> set:
+    """Identity keys demoted by the live shadow-expectancy ledger.
+
+    Written by scripts/shadow_gate.py (two consecutive negative cycles).
+    Missing/unreadable file = empty set (the gate fails open, like every
+    other data-dependent lever in this system)."""
+    try:
+        p = Path(path) if path else Path(
+            os.getenv("SHADOW_DEMOTED_PATH", str(DATA_DIR / "shadow_demoted_slices.csv")))
+        if not p.exists():
+            return set()
+        rows = pd.read_csv(p)
+        if rows.empty:
+            return set()
+        keys = set()
+        for _, r in rows.iterrows():
+            keys.add(_shadow_key(
+                r.get("symbol", ""), r.get("timeframe", ""),
+                r.get("slice_combination", ""),
+                r.get("side", "long"), r.get("bin_mode", "insample"),
+            ))
+        return keys
+    except Exception:  # noqa: BLE001 - demotion data must never crash the scan
+        return set()
+
+
 def scan_all_slices(
     slices: Optional[List[dict]] = None,
     limits: Optional[RiskLimits] = None,
@@ -789,6 +816,11 @@ def scan_all_slices(
     open_stop_states = load_stop_states()
 
     sector_commit = list(exposure_for_entry_gate) + unmonitored_sector_positions
+    shadow_demoted_keys = (
+        _load_shadow_demotions() if getattr(limits, "shadow_gate_enabled", False) else set()
+    )
+    if shadow_demoted_keys:
+        print(f"  Shadow gate: {len(shadow_demoted_keys)} demoted slice(s) will be blocked.")
     groups: Dict[tuple, List[dict]] = {}
     for s in slices:
         bin_mode = str(s.get("bin_mode", "insample") or "insample").lower()
@@ -1004,6 +1036,22 @@ def scan_all_slices(
             suggested_side = "sell" if side == "short" else "buy"
             candidate_group = risk_group_key(symbol, s["slice_combination"])
 
+            # Shadow demotion gate (2026-10 ROI pass): this slice's live
+            # forward expectancy has been materially negative for two
+            # consecutive data cycles (scripts/shadow_gate.py). Exits and
+            # stops for existing positions are unaffected — entries only.
+            shadow_blocked = False
+            shadow_reason = None
+            if getattr(limits, "shadow_gate_enabled", False):
+                _skey = _shadow_key(symbol, timeframe, s["slice_combination"], side, bin_mode)
+                if _skey in shadow_demoted_keys:
+                    shadow_blocked = True
+                    shadow_reason = (
+                        "shadow demoted: live forward expectancy materially "
+                        "negative for 2 consecutive cycles (see "
+                        "localdata/shadow_demoted_slices.csv)"
+                    )
+
             if not dry_run:
 
                 # Proposed R for the aggregate open-risk budget: the same
@@ -1038,6 +1086,8 @@ def scan_all_slices(
                     equity_for_risk_cap=getattr(limits, "account_equity_for_sizing", None),
                     open_positions_notional=open_positions_notional,
                     buying_power=buying_power,
+                    timeframe=timeframe,
+                    slice_combination=s["slice_combination"],
                 )
                 gate_reasons = list(risk_result.reasons)
                 tradable = risk_result.allowed
@@ -1070,6 +1120,9 @@ def scan_all_slices(
                 if knife_blocked:
                     tradable = False
                     gate_reasons.insert(0, knife_reason)
+                if shadow_blocked:
+                    tradable = False
+                    gate_reasons.insert(0, shadow_reason)
                 status_label = "MATCH  " if tradable else "BLOCKED"
                 reasons_str = ", ".join(gate_reasons) if gate_reasons else "risk gate passed"
                 risk_payload = {
@@ -1082,7 +1135,14 @@ def scan_all_slices(
                 }
             else:
                 gate_reasons = ["dry_run"]
-                tradable = not regime_blocked and not entry_sync_blocked and not blackout and not knife_blocked
+                tradable = not regime_blocked and not entry_sync_blocked and not blackout and not knife_blocked and not shadow_blocked
+                # Pool gate also applies in dry-run (check_entry is skipped).
+                if side == "short" and timeframe in getattr(limits, "short_blocked_timeframes", frozenset()):
+                    _exempt = f"{symbol.upper()}|{timeframe}|{s['slice_combination']}"
+                    if _exempt not in getattr(limits, "short_exempt_slices", frozenset()):
+                        tradable = False
+                        gate_reasons.append(
+                            f"short entries blocked on {timeframe} by pool gate")
                 
                 # Check sector cap in dry_run (G2)
                 from price.risk_limits import check_sector_concentration_cap
@@ -1117,6 +1177,8 @@ def scan_all_slices(
                     )
                 if knife_blocked:
                     gate_reasons.append(knife_reason)
+                if shadow_blocked:
+                    gate_reasons.append(shadow_reason)
                 status_label = "MATCH  " if tradable else "BLOCKED"
                 reasons_str = ", ".join(gate_reasons)
                 risk_payload = {
@@ -1140,6 +1202,8 @@ def scan_all_slices(
                 "suggested_side": suggested_side,
                 "suggested_notional": (qty * close_adj) if close_adj == close_adj else None,
                 "risk_group": candidate_group,
+                "shadow_gate": ("demoted" if shadow_blocked else
+                                ("clear" if getattr(limits, "shadow_gate_enabled", False) else "off")),
                 "exit_horizon": int(s.get("exit_horizon", 5)),
                 "stop_atr_mult": float(s.get("stop_atr_mult", limits.stop_atr_multiple)),
                 **regime_state.to_audit_dict(),

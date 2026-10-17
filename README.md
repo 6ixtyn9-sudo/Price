@@ -44,7 +44,11 @@ The live workflow auto-commits to main every hour. If git pull ever rejects you 
 cd ~/Price && git stash && git pull --ff-only && git stash drop
 
 PYTHONPATH=src python3 scripts/paper_trade.py --dry-run   # what the system would do
-PYTHONPATH=src python3 scripts/attribute_pnl.py           # realized P&L per slice
+PYTHONPATH=src python3 scripts/attribute_pnl.py           # realized P&L per slice (+ unmatched lots, era split)
+PYTHONPATH=src python3 scripts/roi_watchdog.py            # stale unmatched lots / unprotected positions
+PYTHONPATH=src python3 scripts/shadow_gate.py --dry-run   # live shadow-expectancy demotion candidates
+PYTHONPATH=src python3 scripts/calibration_report.py      # has conviction sizing earned differentiation?
+PYTHONPATH=src python3 scripts/expired_order_study.py     # what did unfilled (expired) orders go on to do?
 python3 -m pytest -q                                      # test suite
 Doctrine
 Price first, side second. Discovery before promotion, validation before execution. No slice is promoted without surviving the full gate. Every risk lever fails open on missing data. Paper account only — no live capital without multi-month out-of-sample survival. Read HANDOVER.md for the complete project history.

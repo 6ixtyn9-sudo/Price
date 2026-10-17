@@ -506,3 +506,57 @@ def test_claiming_all_offset_fallback_recency_and_ties():
     assert sbux["timeframe"] == "15m"
     # XLF tie (two open 1d entries) -> most recent of the tied entries
     assert xlf["slice_label"] == "s4"
+
+
+# ---------------------------------------------------------------------------
+# Tail watchdog (2026-10 ROI pass)
+# ---------------------------------------------------------------------------
+
+def test_watchdog_max_hold_exits_under_pure_horizon(monkeypatch):
+    from price.roi_guards import WatchdogConfig
+    df = _syn_warehouse(80)
+    ctx = {"XLF": {
+        "slice_combination": SLICE, "timeframe": "1d",
+        "entry_bar_ts": "2026-01-11", "submitted_at": "2026-01-11",
+    }}  # 69 bars held; cap = 3 x 5 = 15
+    _setup(monkeypatch, df, ctx, STABLE_MATCH)
+    policy = ExitPolicy(horizon_bars=5, pure_horizon_exits=True,
+                        watchdog=WatchdogConfig(max_horizon_multiple=3.0))
+    intents = check_exits(_positions_df(), {"XLF": SLICE}, exit_policy=policy)
+    assert intents[0]["action"] == "exit"
+    assert "watchdog_max_hold" in intents[0]["reason"]
+    assert intents[0]["watchdog_exit"] is True
+
+
+def test_watchdog_disabled_by_default_keeps_legacy_hold(monkeypatch):
+    df = _syn_warehouse(80)
+    last_ts = str(df["bar_ts_utc"].iloc[-1])
+    ctx = {"XLF": {
+        "slice_combination": SLICE, "timeframe": "1d",
+        "entry_bar_ts": last_ts, "submitted_at": last_ts,
+    }}
+    _setup(monkeypatch, df, ctx, STABLE_MATCH)
+    intents = check_exits(_positions_df(), {"XLF": SLICE},
+                          exit_policy=ExitPolicy(horizon_bars=5))
+    assert intents[0]["action"] == "hold"
+    assert intents[0]["watchdog_exit"] is False
+
+
+def test_watchdog_hard_loss_exits_within_horizon(monkeypatch):
+    from price.roi_guards import WatchdogConfig
+    df = _syn_warehouse(80)
+    last_ts = str(df["bar_ts_utc"].iloc[-1])
+    ctx = {"XLF": {
+        "slice_combination": SLICE, "timeframe": "1d",
+        "entry_bar_ts": last_ts, "submitted_at": last_ts,
+    }}  # 0 bars held, state matches: only the -R watchdog can exit
+    _setup(monkeypatch, df, ctx, STABLE_MATCH)
+    monkeypatch.setattr(
+        "price.position_manager._unrealized_r_multiple", lambda *a, **k: -2.5)
+    positions = _positions_df()
+    positions["current_price"] = 40.0
+    policy = ExitPolicy(horizon_bars=5,
+                        watchdog=WatchdogConfig(hard_loss_r=2.0))
+    intents = check_exits(positions, {"XLF": SLICE}, exit_policy=policy)
+    assert intents[0]["action"] == "exit"
+    assert "watchdog_hard_loss" in intents[0]["reason"]

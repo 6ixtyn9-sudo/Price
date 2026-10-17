@@ -571,3 +571,93 @@ def test_round_trip_timing_graceful_with_empty_journal():
     assert report["timing"]["by_exit_hour_et"] == {}
     assert report["timing"]["by_exit_dow"] == {}
     assert "TIMING PROFILE" not in format_report(report)
+
+
+# ---------------------------------------------------------------------------
+# Side/slice-aware matching, stop fills, unmatched lots (2026-10 ROI pass)
+# ---------------------------------------------------------------------------
+
+def test_long_close_cannot_exit_a_short_lot():
+    """The AMC phantom: a later long entry+close must not consume an
+    older short lot. The short stays visible as an unmatched lot."""
+    from price.attribution import unmatched_lots
+    j = _journal([
+        {"symbol": "AMC", "qty": 480, "side": "sell", "action": "entry",
+         "order_id": "E-SHORT", "submitted_at": "2026-07-20T10:00:00Z",
+         "filled_qty": 480, "filled_avg_price": 2.19, "broker_status": "filled",
+         "slice_label": "short_slice", "timeframe": "1h"},
+        {"symbol": "AMC", "qty": 279, "side": "buy", "action": "entry",
+         "order_id": "E-LONG", "submitted_at": "2026-09-29T10:00:00Z",
+         "filled_qty": 279, "filled_avg_price": 3.25, "broker_status": "filled",
+         "slice_label": "long_slice", "timeframe": "15m"},
+        {"symbol": "AMC", "qty": 279, "side": "close", "action": "exit",
+         "order_id": "X-LONG", "submitted_at": "2026-09-29T11:00:00Z",
+         "filled_qty": 279, "filled_avg_price": 3.24, "broker_status": "filled",
+         "avg_entry_price": 3.25, "current_price": 3.24},
+    ])
+    rts = reconstruct_round_trips(j)
+    assert len(rts) == 1
+    assert rts[0].side == "long"
+    assert abs(rts[0].gross_pnl - (-2.79)) < 1e-9
+    lots = unmatched_lots(j)
+    assert len(lots) == 1
+    assert lots[0]["side"] == "short" and lots[0]["qty"] == 480
+    assert lots[0]["age_days"] > 60
+
+
+def test_filled_protective_stop_is_an_exit():
+    j = _journal([
+        {"symbol": "XLF", "qty": 10, "side": "buy", "action": "entry",
+         "order_id": "E1", "submitted_at": "2026-07-01T10:00:00Z",
+         "filled_qty": 10, "filled_avg_price": 100.0, "broker_status": "filled",
+         "slice_label": "sl", "timeframe": "1d"},
+        {"symbol": "XLF", "qty": 10, "side": "sell", "order_type": "stop",
+         "action": "protective_stop_submit", "order_id": "S1",
+         "submitted_at": "2026-07-01T11:00:00Z",
+         "filled_qty": 10, "filled_avg_price": 95.0, "broker_status": "filled"},
+    ])
+    rts = reconstruct_round_trips(j)
+    assert len(rts) == 1
+    assert rts[0].exit_kind == "protective_stop"
+    assert rts[0].gross_pnl == -50.0
+
+
+def test_duplicate_exit_order_id_counted_once():
+    row = {"symbol": "ITA", "qty": 5, "side": "close", "action": "exit",
+           "order_id": "X1", "submitted_at": "2026-09-14T10:00:00Z",
+           "filled_qty": 5, "filled_avg_price": 215.54, "broker_status": "filled",
+           "avg_entry_price": 235.35, "current_price": 215.54}
+    j = _journal([
+        {"symbol": "ITA", "qty": 5, "side": "buy", "action": "entry",
+         "order_id": "E1", "submitted_at": "2026-09-10T10:00:00Z",
+         "filled_qty": 5, "filled_avg_price": 235.35, "broker_status": "filled",
+         "slice_label": "sl", "timeframe": "1d"},
+        dict(row), dict(row), dict(row),  # journaled 3x, one broker fill
+    ])
+    rts = reconstruct_round_trips(j)
+    assert len(rts) == 1
+    assert abs(rts[0].gross_pnl - (215.54 - 235.35) * 5) < 1e-9
+
+
+def test_report_carries_unmatched_and_eras(tmp_path):
+    j = _journal([
+        {"symbol": "NOW", "qty": 22, "side": "buy", "action": "entry",
+         "order_id": "E1", "submitted_at": "2026-07-30T10:00:00Z",
+         "filled_qty": 22, "filled_avg_price": 110.0, "broker_status": "filled",
+         "slice_label": "sl", "timeframe": "1h"},
+        {"symbol": "XLF", "qty": 10, "side": "buy", "action": "entry",
+         "order_id": "E2", "submitted_at": "2026-08-01T10:00:00Z",
+         "filled_qty": 10, "filled_avg_price": 100.0, "broker_status": "filled",
+         "slice_label": "sl", "timeframe": "1d"},
+        {"symbol": "XLF", "qty": 10, "side": "close", "action": "exit",
+         "order_id": "X2", "submitted_at": "2026-08-03T10:00:00Z",
+         "filled_qty": 10, "filled_avg_price": 103.0, "broker_status": "filled",
+         "avg_entry_price": 100.0, "current_price": 103.0},
+    ])
+    rep = attribute_pnl(journal=j, paper_log_path=tmp_path / "no.csv",
+                        leaderboard_path=tmp_path / "no_lb.csv")
+    assert rep["summary"]["n_unmatched_lots"] == 1
+    assert rep["summary"]["unmatched_notional"] == 2420.0
+    assert rep["eras"]["post_pure_horizon"]["n_round_trips"] == 1
+    assert any("unmatched lot" in n for n in rep["notes"])
+    assert "UNMATCHED LOTS" in format_report(rep)

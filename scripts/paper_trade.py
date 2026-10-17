@@ -547,6 +547,27 @@ def main() -> int:
     parser.add_argument("--allow-shorts", action="store_true",
                         help="Enable short-side entries on the paper account. Default: short signals "
                         "are computed and logged but BLOCKED at the risk gate (allow_shorts=False).")
+    parser.add_argument("--block-short-timeframes", type=str, default="",
+                        help="Comma-separated timeframes on which NEW short entries are pool-gated "
+                        "(e.g. '1h'). Based on negative live shadow expectancy for the pool; "
+                        "exempt individual slices with --allow-short-slice. Default: none.")
+    parser.add_argument("--allow-short-slice", action="append", default=[],
+                        help="Exempt one slice from --block-short-timeframes, as "
+                        "'SYMBOL|TIMEFRAME|slice_combination'. Repeatable.")
+    parser.add_argument("--shadow-gate", action="store_true",
+                        help="Block entries whose slice is demoted in "
+                        "localdata/shadow_demoted_slices.csv (scripts/shadow_gate.py, "
+                        "two consecutive negative live-forward cycles). Missing file = no-op.")
+    parser.add_argument("--watchdog-horizon-multiple", type=float, default=0.0,
+                        help="Tail watchdog: force-exit a non-winner held >= this multiple of "
+                        "its slice horizon (e.g. 3). 0 disables. Winners past +1R are exempt "
+                        "(trailing stop manages them).")
+    parser.add_argument("--watchdog-hard-loss-r", type=float, default=0.0,
+                        help="Tail watchdog: force-exit any position at or beyond -N R "
+                        "(e.g. 2 = -2R), regardless of slice logic. 0 disables.")
+    parser.add_argument("--watchdog-no-context-days", type=int, default=0,
+                        help="Tail watchdog: force-exit a position with no recoverable slice "
+                        "context after N calendar days. 0 disables.")
     parser.add_argument("--halt", action="store_true",
                         help="Touch the localdata/HALT_TRADING.flag kill switch and exit. No orders will be placed on subsequent runs until --unhalt is used.")
     parser.add_argument("--unhalt", action="store_true",
@@ -634,6 +655,10 @@ def main() -> int:
             args.max_aggregate_risk_pct if args.max_aggregate_risk_pct > 0 else None
         ),
         whipsaw_stopout_limit=args.whipsaw_limit,
+        short_blocked_timeframes=frozenset(
+            t.strip() for t in args.block_short_timeframes.split(",") if t.strip()),
+        short_exempt_slices=frozenset(args.allow_short_slice),
+        shadow_gate_enabled=args.shadow_gate,
         target_leverage_multiple=args.target_leverage,
         margin_cushion_pct=(args.margin_cushion_pct if args.margin_cushion_pct > 0 else None),
     )
@@ -657,11 +682,21 @@ def main() -> int:
         apply_eod_to_crypto=args.eod_crypto,
         apply_eod_to_futures=args.eod_futures,
     )
+    from price.roi_guards import WatchdogConfig
+    watchdog = WatchdogConfig(
+        max_horizon_multiple=(args.watchdog_horizon_multiple
+                              if args.watchdog_horizon_multiple > 0 else None),
+        hard_loss_r=(args.watchdog_hard_loss_r
+                     if args.watchdog_hard_loss_r > 0 else None),
+        max_no_context_days=(args.watchdog_no_context_days
+                             if args.watchdog_no_context_days > 0 else None),
+    )
     exit_policy = ExitPolicy(
         horizon_bars=args.exit_horizon,
         respect_r_multiple_gate=not args.no_r_gate,
         profit_policy=profit_policy,
         pure_horizon_exits=args.pure_horizon_exits,
+        watchdog=(watchdog if watchdog.enabled else None),
     )
     print(f"Exit policy: horizon_bars={exit_policy.horizon_bars}, "
           f"respect_r_multiple_gate={exit_policy.respect_r_multiple_gate}, "

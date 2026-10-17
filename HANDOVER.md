@@ -6943,3 +6943,70 @@ out-of-sample in Tempest at n=1,307, +0.083 R, CI [+0.019, +0.153] — the
 session's one positive result, attenuated from +0.224 discovery. Its home
 is Price's vocabulary ("pullback-in-trend regime"), but it should NOT be
 added as slice #63 until the concentration issue is addressed.
+
+---
+
+### 2026-10-17 — ROI pass: honest attribution, tail watchdog, pool/shadow gates
+
+Built on branch arena/c3ae90a4-price from the Oct-15 journal snapshot.
+Motivation was the operator question "how do we improve ROI?" — the
+answer was not a new edge. Corrected baseline first:
+
+**Attribution was wrong (now fixed).** reconstruct_round_trips paired
+FIFO by symbol only, ignored filled protective stops, and consumed
+duplicate exit journals (one order_id appears up to 9x; 20 ids, 40
+extra rows). It fabricated the book's two worst "trades" (AMC short
+-47.9% "held 349 bars" was a September long close paired against a
+July short; BITO -19.2% likewise). _match_journal is now side/slice/
+price-aware (exit pool from order side, signed close qty, same-id stop
+fill, exit avg_entry_price tier, slice tier, then FIFO), deduplicates
+exits by order_id, counts filled stops as exits, and RETURNS unmatched
+lots/exits instead of dropping them. Corrected realized: **-$447.11 on
+247 round-trips** (was reported -$339/273), era split pre/post
+pure-horizon (2026-07-30): -$423.53/31 vs -$23.58/216 (+0.04%/trade —
+flat). 63 unmatched lots ($70.4k entry notional, 34 >= 30d: AMC 480sh
+short since 2026-07-20 with no stop ever submitted is real and still
+needs broker reconciliation). attribute_pnl report/JSON now carries
+unmatched_lots, unmatched_exits, eras; --fail-on-stale-lots gates.
+
+**Tail watchdog** (price/roi_guards.WatchdogConfig +
+position_manager.ExitPolicy.watchdog, paper_trade --watchdog-*):
+non-winner force-exit at 3x horizon, any position at -2R, no-context
+position at 45d. Never suppressed by pure-horizon or the R-gate;
+winners past +1R exempt from the time cap only. OFF by default.
+
+**Pool gate**: RiskLimits.short_blocked_timeframes +
+--block-short-timeframes (dry-run parity in monitor). 1h shorts were
+the negative pool on both realized (-$125/30 corrected) and shadow
+(582 signals, mean -4bp/median -20bp) evidence. Per-slice exemption
+via short_exempt_slices / --allow-short-slice.
+
+**Shadow demotion**: scripts/shadow_gate.py aggregates
+live_forward_returns per slice (n>=30, mean5 < -13bp cost drag,
+confirmed on 20b) into a two-strike ledger keyed by data cycle
+(re-runs on unchanged data cannot strike twice), writing
+shadow_demoted_slices.csv; monitor --shadow-gate blocks demoted
+entries. scripts/roi_watchdog.py audits unmatched lots offline or
+against the broker (--sync-broker). On Oct-15 data: zero demote
+candidates — the gate is armed and conservative, not trigger-happy.
+
+**Sizing honesty**: cost-negated edges now size to ZERO (was dust
+qty at 0.05 conviction paying full spread). scripts/
+calibration_report.py: expected-vs-realized corr 0.167, slope 0.46 on
+45 slices -> verdict uncalibrated_freeze_conviction (run with
+--equal-notional until live-forward recalibration clears).
+scripts/build_expected_returns.py fills monitored_edge_metrics gaps
+from merged leaderboards without overwriting curated rows (Oct-15:
+book already 264/264 covered, 0 added). scripts/
+expired_order_study.py measures expired-order forward returns vs
+filled expectancy before anyone widens the winner-capture premium
+(needs warehouse; 0 measurable in a bare checkout).
+
+**Workflows NOT touched.** Complete patched copies of
+live_capture_equities.yml + live_capture_scan15m.yml (flags, coverage/
+shadow/watchdog steps, commit list incl. shadow ledgers) are in
+workflow-patches/ with apply/rollback instructions for the operator.
+
+Tests: 717 passed, 1 skipped (baseline 697+1; +20 new). Doctrine kept:
+everything fails open, everything is off without its flag, no sizing
+scale-up while expectancy is flat, no session gates off small buckets.
