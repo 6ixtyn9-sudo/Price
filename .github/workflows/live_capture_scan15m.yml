@@ -95,6 +95,12 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
         run: |
+          # ROI pass (2026-10): 1h shorts pool-gated (negative live
+          # expectancy); shadow-demoted slices blocked; tail watchdog
+          # force-exits non-winners at 3x horizon / -2R / 45d no-context.
+          # --equal-notional freezes conviction sizing: calibration on
+          # realized data is unproven (see scripts/calibration_report.py).
+          # Remove it only when that report verdicts 'calibrated'.
           python scripts/paper_trade.py \
             --max-notional 2500 --max-open 20 --max-daily-loss 500 \
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
@@ -109,7 +115,13 @@ jobs:
             --giveback-trigger-r 2.0 \
             --max-giveback-r 1.0 \
             --pure-horizon-exits \
-            --regime-filter
+            --regime-filter \
+            --block-short-timeframes 1h \
+            --shadow-gate \
+            --watchdog-horizon-multiple 3 \
+            --watchdog-hard-loss-r 2 \
+            --watchdog-no-context-days 45 \
+            --equal-notional
 
       - name: Run live forward-return capture
         env:
