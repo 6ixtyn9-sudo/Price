@@ -1,9 +1,10 @@
 {
-  "previous_book_count": 276,
-  "new_book_count": 275,
+  "previous_book_count": 275,
+  "new_book_count": 273,
   "added_candidates": [],
   "removed_candidates": [
-    "HOOD|1h|state_session=afternoon + state_slope=downtrend + state_vol=mid_vol|long|rolling"
+    "MO|1d|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling",
+    "TSM|1d|state_ext=neutral + state_ret_1=ret_down|long|rolling"
   ],
   "retained_candidates": [
     "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -150,7 +151,6 @@
     "META|1d|cross_TLT_state_slope=uptrend + state_ext=neutral|long|rolling",
     "META|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
     "META|1d|state_slope=downtrend + state_vol=low_vol|long|rolling",
-    "MO|1d|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling",
     "MPC|15m|state_session=morning + state_ext=stretched_down|long|rolling",
     "MPC|15m|state_session=morning + state_slope=downtrend + state_vol=mid_vol|long|rolling",
     "MPC|15m|state_volume=vol_surge + state_ext=stretched_down|long|rolling",
@@ -213,7 +213,6 @@
     "TSLA|1d|cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
     "TSLA|1d|cross_TLT_state_slope=uptrend + state_slope=uptrend|long|rolling",
     "TSLA|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=downtrend + state_ext=stretched_down|long|rolling",
-    "TSM|1d|state_ext=neutral + state_ret_1=ret_down|long|rolling",
     "TXN|1d|cross_USO_state_slope=uptrend + state_slope=uptrend|long|rolling",
     "UNP|1d|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "UPS|1d|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
@@ -284,8 +283,9 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {
-    "HOOD|1h|state_session=afternoon + state_slope=downtrend + state_vol=mid_vol|long|rolling": "registry_status:research_only"
+    "MO|1d|cross_TLT_state_vol=mid_vol + state_ext=stretched_down|long|rolling": "registry_status:research_only",
+    "TSM|1d|state_ext=neutral + state_ret_1=ret_down|long|rolling": "registry_status:research_only"
   },
   "promotion_reasons": {},
-  "discovery_run_id": "39073770845"
+  "discovery_run_id": null
 }
