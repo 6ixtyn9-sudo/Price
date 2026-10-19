@@ -1,18 +1,4 @@
 {
-  "AAPL": {
-    "symbol": "AAPL",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 338.015,
-    "initial_stop_price": 312.12337167266963,
-    "current_stop_price": 312.12337167266963,
-    "r_per_share": 25.891628327330345,
-    "stage": "initial",
-    "extreme_price": 338.015,
-    "stop_order_id": "3b2e1231-60a5-4bc5-8fdf-174150eb7ede",
-    "opened_at": "2026-09-21T18:16:41.372640+00:00",
-    "updated_at": "2026-09-21T18:16:41.372640+00:00"
-  },
   "ARKW": {
     "symbol": "ARKW",
     "side": "long",
@@ -180,5 +166,61 @@
     "stop_order_id": "3f828f7e-b6a7-4fe9-a3fd-df80f6807520",
     "opened_at": "2026-10-15T17:55:04.660980+00:00",
     "updated_at": "2026-10-15T17:55:04.660980+00:00"
+  },
+  "ADI": {
+    "symbol": "ADI",
+    "side": "long",
+    "qty": 6.0,
+    "entry_price": 392.138333,
+    "initial_stop_price": 337.2403224292826,
+    "current_stop_price": 337.2403224292826,
+    "r_per_share": 54.89801057071737,
+    "stage": "initial",
+    "extreme_price": 392.138333,
+    "stop_order_id": "19bd586d-e62d-4629-b8e6-847ce1346c37",
+    "opened_at": "2026-10-19T14:43:31.757786+00:00",
+    "updated_at": "2026-10-19T14:43:31.757786+00:00"
+  },
+  "AMGN": {
+    "symbol": "AMGN",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 431.914,
+    "initial_stop_price": 425.8550714285714,
+    "current_stop_price": 425.8550714285714,
+    "r_per_share": 6.058928571428543,
+    "stage": "initial",
+    "extreme_price": 431.914,
+    "stop_order_id": "db71e167-9124-4f73-b7f5-4b7c26ed6f8d",
+    "opened_at": "2026-10-19T14:43:31.967626+00:00",
+    "updated_at": "2026-10-19T14:43:31.967626+00:00"
+  },
+  "CBOE": {
+    "symbol": "CBOE",
+    "side": "long",
+    "qty": 8.0,
+    "entry_price": 304.67,
+    "initial_stop_price": 301.09863474400817,
+    "current_stop_price": 301.09863474400817,
+    "r_per_share": 3.5713652559918576,
+    "stage": "initial",
+    "extreme_price": 304.67,
+    "stop_order_id": "ae763e85-5ee4-40ac-bd7e-afce512f1f15",
+    "opened_at": "2026-10-19T14:43:32.305170+00:00",
+    "updated_at": "2026-10-19T14:43:32.305170+00:00"
+  },
+  "GM": {
+    "symbol": "GM",
+    "side": "long",
+    "qty": 29.0,
+    "entry_price": 82.93,
+    "initial_stop_price": 80.7825025853583,
+    "current_stop_price": 80.7825025853583,
+    "r_per_share": 2.147497414641699,
+    "stage": "initial",
+    "extreme_price": 82.93,
+    "stop_order_id": "e6f2c549-3aba-4f55-8207-6e9e60af7280",
+    "opened_at": "2026-10-19T14:43:32.528442+00:00",
+    "updated_at": "2026-10-19T14:43:32.528442+00:00"
   }
 }
