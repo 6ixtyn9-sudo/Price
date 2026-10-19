@@ -181,20 +181,6 @@
     "opened_at": "2026-10-19T14:43:31.757786+00:00",
     "updated_at": "2026-10-19T14:43:31.757786+00:00"
   },
-  "AMGN": {
-    "symbol": "AMGN",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 431.914,
-    "initial_stop_price": 425.8550714285714,
-    "current_stop_price": 425.8550714285714,
-    "r_per_share": 6.058928571428543,
-    "stage": "initial",
-    "extreme_price": 431.914,
-    "stop_order_id": "db71e167-9124-4f73-b7f5-4b7c26ed6f8d",
-    "opened_at": "2026-10-19T14:43:31.967626+00:00",
-    "updated_at": "2026-10-19T14:43:31.967626+00:00"
-  },
   "GM": {
     "symbol": "GM",
     "side": "long",
@@ -264,5 +250,19 @@
     "stop_order_id": "5afd8d34-be91-4b57-bcca-1c87928dc97e",
     "opened_at": "2026-10-19T17:14:06.949627+00:00",
     "updated_at": "2026-10-19T17:14:06.949627+00:00"
+  },
+  "TGT": {
+    "symbol": "TGT",
+    "side": "long",
+    "qty": 16.0,
+    "entry_price": 153.66,
+    "initial_stop_price": 147.0314701847676,
+    "current_stop_price": 147.0314701847676,
+    "r_per_share": 6.628529815232394,
+    "stage": "initial",
+    "extreme_price": 153.66,
+    "stop_order_id": "86072744-4161-468c-8536-dea3c9ccd799",
+    "opened_at": "2026-10-19T18:03:04.768968+00:00",
+    "updated_at": "2026-10-19T18:03:04.768968+00:00"
   }
 }
