@@ -13,20 +13,6 @@
     "opened_at": "2026-09-21T18:16:41.372640+00:00",
     "updated_at": "2026-09-21T18:16:41.372640+00:00"
   },
-  "F": {
-    "symbol": "F",
-    "side": "long",
-    "qty": 69.0,
-    "entry_price": 13.21,
-    "initial_stop_price": 12.930492741132715,
-    "current_stop_price": 12.930492741132715,
-    "r_per_share": 0.279507258867285,
-    "stage": "initial",
-    "extreme_price": 13.21,
-    "stop_order_id": "69eaa900-a53b-4c5d-b453-e5d3017deb0f",
-    "opened_at": "2026-09-22T14:05:53.937023+00:00",
-    "updated_at": "2026-09-22T14:05:53.937023+00:00"
-  },
   "ARKW": {
     "symbol": "ARKW",
     "side": "long",
