@@ -195,20 +195,6 @@
     "opened_at": "2026-10-19T14:43:31.967626+00:00",
     "updated_at": "2026-10-19T14:43:31.967626+00:00"
   },
-  "CBOE": {
-    "symbol": "CBOE",
-    "side": "long",
-    "qty": 8.0,
-    "entry_price": 304.67,
-    "initial_stop_price": 301.09863474400817,
-    "current_stop_price": 301.09863474400817,
-    "r_per_share": 3.5713652559918576,
-    "stage": "initial",
-    "extreme_price": 304.67,
-    "stop_order_id": "ae763e85-5ee4-40ac-bd7e-afce512f1f15",
-    "opened_at": "2026-10-19T14:43:32.305170+00:00",
-    "updated_at": "2026-10-19T14:43:32.305170+00:00"
-  },
   "GM": {
     "symbol": "GM",
     "side": "long",
@@ -222,5 +208,61 @@
     "stop_order_id": "e6f2c549-3aba-4f55-8207-6e9e60af7280",
     "opened_at": "2026-10-19T14:43:32.528442+00:00",
     "updated_at": "2026-10-19T14:43:32.528442+00:00"
+  },
+  "ETN": {
+    "symbol": "ETN",
+    "side": "long",
+    "qty": 6.0,
+    "entry_price": 394.06,
+    "initial_stop_price": 374.02250000000004,
+    "current_stop_price": 374.02250000000004,
+    "r_per_share": 20.037499999999987,
+    "stage": "initial",
+    "extreme_price": 394.06,
+    "stop_order_id": "1139b515-2b8e-4664-a525-71f9e5767bb7",
+    "opened_at": "2026-10-19T17:14:05.119150+00:00",
+    "updated_at": "2026-10-19T17:14:05.119150+00:00"
+  },
+  "FBTC": {
+    "symbol": "FBTC",
+    "side": "long",
+    "qty": 35.0,
+    "entry_price": 71.25,
+    "initial_stop_price": 68.675,
+    "current_stop_price": 68.675,
+    "r_per_share": 2.574999999999998,
+    "stage": "initial",
+    "extreme_price": 71.25,
+    "stop_order_id": "872435ab-c932-44ad-91ca-055e2c7e55a4",
+    "opened_at": "2026-10-19T17:14:05.726610+00:00",
+    "updated_at": "2026-10-19T17:14:05.726610+00:00"
+  },
+  "IBIT": {
+    "symbol": "IBIT",
+    "side": "long",
+    "qty": 53.0,
+    "entry_price": 46.36,
+    "initial_stop_price": 44.64928571428571,
+    "current_stop_price": 44.64928571428571,
+    "r_per_share": 1.7107142857142879,
+    "stage": "initial",
+    "extreme_price": 46.36,
+    "stop_order_id": "64e5e6e1-60a9-493f-a7f2-f51123b32d49",
+    "opened_at": "2026-10-19T17:14:06.327703+00:00",
+    "updated_at": "2026-10-19T17:14:06.327703+00:00"
+  },
+  "MRK": {
+    "symbol": "MRK",
+    "side": "long",
+    "qty": 17.0,
+    "entry_price": 144.58,
+    "initial_stop_price": 138.49678019047332,
+    "current_stop_price": 138.49678019047332,
+    "r_per_share": 6.083219809526695,
+    "stage": "initial",
+    "extreme_price": 144.58,
+    "stop_order_id": "5afd8d34-be91-4b57-bcca-1c87928dc97e",
+    "opened_at": "2026-10-19T17:14:06.949627+00:00",
+    "updated_at": "2026-10-19T17:14:06.949627+00:00"
   }
 }
