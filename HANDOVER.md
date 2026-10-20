@@ -7010,3 +7010,32 @@ workflow-patches/ with apply/rollback instructions for the operator.
 Tests: 717 passed, 1 skipped (baseline 697+1; +20 new). Doctrine kept:
 everything fails open, everything is off without its flag, no sizing
 scale-up while expectancy is flat, no session gates off small buckets.
+
+---
+
+### 2026-10-20 — payoff asymmetry: diagnosis + non-winner time-stop
+
+Question: winners are taken smaller than losers are cut — fixable?
+Diagnosis on the corrected matcher (post-pure-horizon era, n=218):
+book-wide payoff is actually 1.00 (avgWin +2.13% / avgLoss -2.14%,
+expectancy +0.015%/trade) — the scary asymmetry was one 4-trade day.
+The real defect is concentrated: **1d longs** (n=37, payoff 0.67,
+avgWin +3.74% vs avgLoss -5.59%, expectancy -0.546%, -$360.83). On the
+daily timeframe -2R is a wide % loss and losers ride the full 20-bar
+horizon; winners exit at horizon too, so the tail sets the ratio.
+1h longs remain the earner (+$344.52, win 55%); 15m pools have
+payoff >1.5 at tiny expectancy.
+
+Fix (flagged, default off): **watchdog_loser_stop** — a position still
+underwater (R<0) at `loser_stop_fraction` x its horizon is force-exited
+(WatchdogConfig.loser_stop_fraction, paper_trade
+--watchdog-loser-stop-fraction; evaluated inside watchdog_exit_reason,
+never suppressed by pure-horizon/R-gate; winners, flat, and unknown-R
+positions exempt; hard-loss still outranks it). Recommended live value
+0.5. Effect to verify forward: avgLoss and 1d-long payoff over the
+next >=30 exits/pool vs the +1.00/0.67 baselines above; rollback is
+removing the flag. Trade-off accepted: some underwater-at-half trades
+would have recovered by horizon; they now realize small losses.
+
+Workflow copies with the flag added are in workflow-patches/*.yml.txt
+(operator applies manually, as before). Tests: 719 passed, 1 skipped.
