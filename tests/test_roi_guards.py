@@ -102,6 +102,34 @@ def test_watchdog_max_hold_and_winner_exemption():
     assert watchdog_exit_reason(bars_held=10, horizon_bars=5, r_multiple=0.0, config=cfg) is None
 
 
+def test_watchdog_loser_stop_fires_only_underwater_at_fraction():
+    cfg = WatchdogConfig(loser_stop_fraction=0.5)
+    # horizon 20 -> trigger at ceil(0.5*20)=10 bars
+    reason = watchdog_exit_reason(bars_held=10, horizon_bars=20, r_multiple=-0.4, config=cfg)
+    assert reason is not None and reason.startswith("watchdog_loser_stop")
+    # before the fraction: no fire
+    assert watchdog_exit_reason(bars_held=9, horizon_bars=20, r_multiple=-0.4, config=cfg) is None
+    # winners and flat positions are exempt at any age
+    assert watchdog_exit_reason(bars_held=19, horizon_bars=20, r_multiple=0.3, config=cfg) is None
+    assert watchdog_exit_reason(bars_held=19, horizon_bars=20, r_multiple=0.0, config=cfg) is None
+    # unknown R never fires the loser stop (other rules own that case)
+    assert watchdog_exit_reason(bars_held=19, horizon_bars=20, r_multiple=None, config=cfg) is None
+    # ceil behaviour on odd horizons: 0.5 x 5 -> 3 bars
+    assert watchdog_exit_reason(bars_held=2, horizon_bars=5, r_multiple=-0.1, config=cfg) is None
+    assert watchdog_exit_reason(bars_held=3, horizon_bars=5, r_multiple=-0.1, config=cfg) is not None
+
+
+def test_watchdog_loser_stop_disabled_by_default_and_hard_loss_precedence():
+    assert WatchdogConfig().enabled is False
+    assert WatchdogConfig(loser_stop_fraction=0.5).enabled is True
+    assert watchdog_exit_reason(bars_held=99, horizon_bars=5, r_multiple=-0.5,
+                                config=WatchdogConfig()) is None
+    # hard-loss still outranks the loser stop when both apply
+    cfg = WatchdogConfig(hard_loss_r=2.0, loser_stop_fraction=0.5)
+    reason = watchdog_exit_reason(bars_held=10, horizon_bars=20, r_multiple=-2.5, config=cfg)
+    assert reason is not None and reason.startswith("watchdog_hard_loss")
+
+
 def test_watchdog_hard_loss_fires_even_for_managed_trade():
     cfg = WatchdogConfig(max_horizon_multiple=3.0, hard_loss_r=2.0)
     reason = watchdog_exit_reason(bars_held=1, horizon_bars=5, r_multiple=-2.5, config=cfg)

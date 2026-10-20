@@ -565,6 +565,11 @@ def main() -> int:
     parser.add_argument("--watchdog-hard-loss-r", type=float, default=0.0,
                         help="Tail watchdog: force-exit any position at or beyond -N R "
                         "(e.g. 2 = -2R), regardless of slice logic. 0 disables.")
+    parser.add_argument("--watchdog-loser-stop-fraction", type=float, default=0.0,
+                        help="Tail watchdog: force-exit a position still underwater "
+                        "(R < 0) once held >= this fraction of its horizon "
+                        "(e.g. 0.5). Winners and flat positions are exempt. "
+                        "0 disables.")
     parser.add_argument("--watchdog-no-context-days", type=int, default=0,
                         help="Tail watchdog: force-exit a position with no recoverable slice "
                         "context after N calendar days. 0 disables.")
@@ -688,6 +693,8 @@ def main() -> int:
                               if args.watchdog_horizon_multiple > 0 else None),
         hard_loss_r=(args.watchdog_hard_loss_r
                      if args.watchdog_hard_loss_r > 0 else None),
+        loser_stop_fraction=(args.watchdog_loser_stop_fraction
+                             if args.watchdog_loser_stop_fraction > 0 else None),
         max_no_context_days=(args.watchdog_no_context_days
                              if args.watchdog_no_context_days > 0 else None),
     )

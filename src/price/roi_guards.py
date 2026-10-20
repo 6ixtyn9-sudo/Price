@@ -218,13 +218,15 @@ class WatchdogConfig:
     max_horizon_multiple: Optional[float] = None   # e.g. 3.0 -> cap at 3x horizon
     hard_loss_r: Optional[float] = None            # positive magnitude: exit at -2.0R
     max_no_context_days: Optional[int] = None      # calendar cap when slice context is lost
+    loser_stop_fraction: Optional[float] = None    # e.g. 0.5 -> exit losers at 0.5x horizon
     breakeven_r: float = 1.0                       # winners at/above this are time-cap exempt
 
     @property
     def enabled(self) -> bool:
         return (self.max_horizon_multiple is not None
                 or self.hard_loss_r is not None
-                or self.max_no_context_days is not None)
+                or self.max_no_context_days is not None
+                or self.loser_stop_fraction is not None)
 
 
 def watchdog_exit_reason(
@@ -250,6 +252,22 @@ def watchdog_exit_reason(
             return (f"watchdog_hard_loss: unrealized {r_multiple:.2f}R <= "
                     f"-{abs(float(config.hard_loss_r)):.2f}R hard limit; "
                     "slice-independent tail exit")
+    if config.loser_stop_fraction is not None:
+        # Non-winner time-stop: a position still underwater at this
+        # fraction of its horizon has not confirmed; cut it here rather
+        # than letting it drift to the stop or the full horizon. Only
+        # fires with a known negative R -- winners, flat positions, and
+        # unknown-R positions are left to the other rules.
+        if (bars_held is not None and horizon_bars and int(horizon_bars) > 0
+                and r_multiple is not None and r_multiple < 0):
+            trigger = math.ceil(
+                abs(float(config.loser_stop_fraction)) * int(horizon_bars))
+            if int(bars_held) >= trigger:
+                return (f"watchdog_loser_stop: underwater {r_multiple:.2f}R at "
+                        f"{int(bars_held)} bars >= "
+                        f"{config.loser_stop_fraction:g}x horizon "
+                        f"({trigger} bars); non-winner time-stop, "
+                        "slice-independent tail exit")
     if config.max_horizon_multiple is not None:
         if bars_held is not None and horizon_bars and int(horizon_bars) > 0:
             cap = math.ceil(abs(float(config.max_horizon_multiple)) * int(horizon_bars))
