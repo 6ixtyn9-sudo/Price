@@ -144,6 +144,7 @@ jobs:
             --shadow-gate \
             --watchdog-horizon-multiple 3 \
             --watchdog-hard-loss-r 2 \
+            --watchdog-loser-stop-fraction 0.5 \
             --watchdog-no-context-days 45 \
             --equal-notional
 
