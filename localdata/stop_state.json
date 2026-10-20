@@ -1,60 +1,4 @@
 {
-  "ARKW": {
-    "symbol": "ARKW",
-    "side": "long",
-    "qty": 10.0,
-    "entry_price": 161.4,
-    "initial_stop_price": 144.63209351337198,
-    "current_stop_price": 144.63209351337198,
-    "r_per_share": 16.767906486628025,
-    "stage": "initial",
-    "extreme_price": 161.4,
-    "stop_order_id": "d9448740-3249-4bdd-bade-a8e5ae49e844",
-    "opened_at": "2026-09-29T15:31:02.153139+00:00",
-    "updated_at": "2026-09-29T15:31:02.153139+00:00"
-  },
-  "AVGO": {
-    "symbol": "AVGO",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 351.973333,
-    "initial_stop_price": 306.18172638281766,
-    "current_stop_price": 306.18172638281766,
-    "r_per_share": 45.79160661718236,
-    "stage": "initial",
-    "extreme_price": 351.973333,
-    "stop_order_id": "844c4007-28f4-4ea0-afe9-42671bf54c80",
-    "opened_at": "2026-09-30T19:55:10.472697+00:00",
-    "updated_at": "2026-09-30T19:55:10.472697+00:00"
-  },
-  "DE": {
-    "symbol": "DE",
-    "side": "long",
-    "qty": 1.0,
-    "entry_price": 660.0,
-    "initial_stop_price": 597.8497073455006,
-    "current_stop_price": 597.8497073455006,
-    "r_per_share": 62.150292654499374,
-    "stage": "initial",
-    "extreme_price": 660.0,
-    "stop_order_id": "3dca8b98-3f71-46c2-807c-6b588ef28ddf",
-    "opened_at": "2026-10-01T13:55:10.059732+00:00",
-    "updated_at": "2026-10-01T13:55:10.059732+00:00"
-  },
-  "NVDA": {
-    "symbol": "NVDA",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 229.2,
-    "initial_stop_price": 202.71428985595702,
-    "current_stop_price": 202.71428985595702,
-    "r_per_share": 26.48571014404297,
-    "stage": "initial",
-    "extreme_price": 229.2,
-    "stop_order_id": "290ad000-3480-43a6-9f46-3748c4594bc7",
-    "opened_at": "2026-10-01T15:49:57.148517+00:00",
-    "updated_at": "2026-10-01T15:49:57.148517+00:00"
-  },
   "GOOG": {
     "symbol": "GOOG",
     "side": "long",
@@ -139,34 +83,6 @@
     "opened_at": "2026-10-15T13:58:52.853996+00:00",
     "updated_at": "2026-10-15T13:58:52.853996+00:00"
   },
-  "FDX": {
-    "symbol": "FDX",
-    "side": "short",
-    "qty": 3.0,
-    "entry_price": 290.86,
-    "initial_stop_price": 300.1135714285714,
-    "current_stop_price": 300.1135714285714,
-    "r_per_share": 9.253571428571377,
-    "stage": "initial",
-    "extreme_price": 290.86,
-    "stop_order_id": "9858881f-8de3-414b-9cb4-8e842a2b028b",
-    "opened_at": "2026-10-15T14:38:45.401369+00:00",
-    "updated_at": "2026-10-15T14:38:45.401369+00:00"
-  },
-  "VLO": {
-    "symbol": "VLO",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 443.74,
-    "initial_stop_price": 422.7279248906597,
-    "current_stop_price": 422.7279248906597,
-    "r_per_share": 21.012075109340305,
-    "stage": "initial",
-    "extreme_price": 443.74,
-    "stop_order_id": "3f828f7e-b6a7-4fe9-a3fd-df80f6807520",
-    "opened_at": "2026-10-15T17:55:04.660980+00:00",
-    "updated_at": "2026-10-15T17:55:04.660980+00:00"
-  },
   "ADI": {
     "symbol": "ADI",
     "side": "long",
@@ -180,34 +96,6 @@
     "stop_order_id": "19bd586d-e62d-4629-b8e6-847ce1346c37",
     "opened_at": "2026-10-19T14:43:31.757786+00:00",
     "updated_at": "2026-10-19T14:43:31.757786+00:00"
-  },
-  "GM": {
-    "symbol": "GM",
-    "side": "long",
-    "qty": 29.0,
-    "entry_price": 82.93,
-    "initial_stop_price": 80.7825025853583,
-    "current_stop_price": 80.7825025853583,
-    "r_per_share": 2.147497414641699,
-    "stage": "initial",
-    "extreme_price": 82.93,
-    "stop_order_id": "e6f2c549-3aba-4f55-8207-6e9e60af7280",
-    "opened_at": "2026-10-19T14:43:32.528442+00:00",
-    "updated_at": "2026-10-19T14:43:32.528442+00:00"
-  },
-  "ETN": {
-    "symbol": "ETN",
-    "side": "long",
-    "qty": 6.0,
-    "entry_price": 394.06,
-    "initial_stop_price": 374.02250000000004,
-    "current_stop_price": 374.02250000000004,
-    "r_per_share": 20.037499999999987,
-    "stage": "initial",
-    "extreme_price": 394.06,
-    "stop_order_id": "1139b515-2b8e-4664-a525-71f9e5767bb7",
-    "opened_at": "2026-10-19T17:14:05.119150+00:00",
-    "updated_at": "2026-10-19T17:14:05.119150+00:00"
   },
   "FBTC": {
     "symbol": "FBTC",
@@ -264,5 +152,19 @@
     "stop_order_id": "86072744-4161-468c-8536-dea3c9ccd799",
     "opened_at": "2026-10-19T18:03:04.768968+00:00",
     "updated_at": "2026-10-19T18:03:04.768968+00:00"
+  },
+  "GILD": {
+    "symbol": "GILD",
+    "side": "long",
+    "qty": 16.0,
+    "entry_price": 153.53,
+    "initial_stop_price": 150.66238799438318,
+    "current_stop_price": 154.52546677542247,
+    "r_per_share": 2.8676120056168215,
+    "stage": "trailing",
+    "extreme_price": 156.72,
+    "stop_order_id": "4b5b6ee9-ef8f-469f-8c7e-7dc4c691bad5",
+    "opened_at": "2026-10-19T19:59:03.613384+00:00",
+    "updated_at": "2026-10-20T13:49:55.098750+00:00"
   }
 }
