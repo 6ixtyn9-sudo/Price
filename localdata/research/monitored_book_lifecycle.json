@@ -1,10 +1,12 @@
 {
-  "previous_book_count": 271,
-  "new_book_count": 269,
-  "added_candidates": [],
+  "previous_book_count": 269,
+  "new_book_count": 270,
+  "added_candidates": [
+    "HOOD|1d|cross_TLT_state_slope=uptrend + state_slope=uptrend|long|rolling",
+    "VRTX|1d|state_relvol=relvol_normal + state_ext=stretched_down|long|rolling"
+  ],
   "removed_candidates": [
-    "LRCX|1h|state_session=lunch + state_ext=neutral|long|rolling",
-    "XRT|1h|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling"
+    "AMAT|1d|state_ext=stretched_down + state_ret_1=ret_down|long|rolling"
   ],
   "retained_candidates": [
     "AAPL|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
@@ -29,7 +31,6 @@
     "ADI|1d|state_volume=vol_normal + state_slope=downtrend|long|rolling",
     "ADI|1h|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down|long|rolling",
     "AFRM|1h|state_slope=downtrend + state_vol=mid_vol|long|rolling",
-    "AMAT|1d|state_ext=stretched_down + state_ret_1=ret_down|long|rolling",
     "AMD|15m|cross_USO_state_ext=neutral + cross_TLT_state_slope=uptrend + state_ext=stretched_down|long|rolling",
     "AMD|1h|cross_USO_state_slope=uptrend + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
     "AMGN|15m|cross_USO_state_slope=flat + cross_TLT_state_slope=flat + state_ext=neutral|long|rolling",
@@ -279,9 +280,11 @@
   ],
   "changed_sides_or_slices": [],
   "removal_reasons": {
-    "LRCX|1h|state_session=lunch + state_ext=neutral|long|rolling": "registry_status:research_only",
-    "XRT|1h|state_relvol=relvol_elevated + state_ext=stretched_down|long|rolling": "registry_status:research_only"
+    "AMAT|1d|state_ext=stretched_down + state_ret_1=ret_down|long|rolling": "registry_status:research_only"
   },
-  "promotion_reasons": {},
-  "discovery_run_id": "39684126746"
+  "promotion_reasons": {
+    "HOOD|1d|cross_TLT_state_slope=uptrend + state_slope=uptrend|long|rolling": "paper_proposal",
+    "VRTX|1d|state_relvol=relvol_normal + state_ext=stretched_down|long|rolling": "paper_proposal"
+  },
+  "discovery_run_id": null
 }
