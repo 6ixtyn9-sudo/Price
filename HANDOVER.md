@@ -7061,4 +7061,37 @@ First hourly run after this merges will trim the cached 103.84 MB
 log and commits should land again — verify the journal unfreezes
 (Oct 21+ exits appear) and that loser-stop evidence resumes
 accruing. Tests: tests/test_paper_trade_audit_log.py (6 new);
-suite 725 passed, 1 skipped.
+suite 725 passed, 1 skipped. (PR #4 merged 2026-10-23, 9812220.)
+
+### 2026-10-23 (later) — live-capture collisions: O(1) audit append + retimed triggers
+
+Root cause of the cancellation storm: successful 15m scans take
+17-34 min (paper_trade step 27.9 min) on a 15-min dispatch cadence,
+all sharing the single live-capture concurrency group (1 running +
+1 pending; a new dispatch REPLACES the pending one). The hourly
+capture — the only run that ingests data and commits — was itself
+being cancelled: dispatched :17, queued behind a scan, then
+replaced by the :30 scan dispatch (cancelled after exactly 13.1 min
+at 14:17 and 21:17). Big runtime driver: _append_audit re-read and
+rewrote the entire ~100 MB audit CSV for every audit row
+(30-120 rows/run).
+
+Fixes:
+1. scripts/paper_trade.py _append_audit is now O(1) on the fast
+   path: stat (cap check) + header-only read + single-row append
+   aligned to existing columns. Full rewrite only when over cap
+   (trim) or when a row introduces a new column. Tests: 9 in
+   tests/test_paper_trade_audit_log.py; suite 728 passed, 1 skipped.
+2. cron-job.org retiming (operator): scans :00/:15/:30/:45 ->
+   :05/:20/:35/:50; hourly stays :17 so it starts in an idle group
+   and cannot be displaced once running; worst case is now one
+   queued scan replaced during the hourly window, never the hourly.
+3. workflow-patches/research_refresh_equities.yml.txt (operator
+   applies): the refresh shared group live-capture with
+   cancel-in-progress: true, so a refresh dispatch could cancel a
+   RUNNING capture/scan; patch sets false (queue instead).
+
+Verify after 24h: scan-run p50 duration (target <12 min) and
+cancellation counts by workflow. If scans still exceed ~12 min,
+fall back to 30-min scan cadence (minutes 2,32) or implement a
+15m-only timeframe filter for the scan (53 of 255 slices).

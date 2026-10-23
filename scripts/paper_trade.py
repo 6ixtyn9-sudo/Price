@@ -119,27 +119,45 @@ def _trim_audit_frame(out: pd.DataFrame, *, max_bytes: int, bytes_per_row: float
 
 
 def _append_audit(row: dict) -> None:
-    """Append one row to the audit CSV, creating the file if needed."""
+    """Append one row to the audit CSV, creating the file if needed.
+
+    Fast path is O(1): stat the file (size cap check) and read only its
+    header, then append the single row aligned to the existing columns.
+    The previous implementation re-read and rewrote the entire
+    ~100 MB CSV for EVERY row (~30-120 rows/run), which dominated scan
+    runtime and drove the live-capture queue collisions. The full
+    read/concat/rewrite path now runs only when the file is over
+    AUDIT_LOG_MAX_BYTES (trim) or a row introduces a new column.
+    """
     row = dict(row)
     row["logged_at_utc"] = datetime.now(timezone.utc).isoformat()
     df = pd.DataFrame([row])
-    if Path(AUDIT_LOG_PATH).exists():
-        existing = pd.read_csv(AUDIT_LOG_PATH)
+    path = Path(AUDIT_LOG_PATH)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists() or path.stat().st_size == 0:
+        df.to_csv(path, index=False)
+        return
+    if path.stat().st_size > AUDIT_LOG_MAX_BYTES:
+        existing = pd.read_csv(path)
         out = pd.concat([existing, df], ignore_index=True)
-        try:
-            size = Path(AUDIT_LOG_PATH).stat().st_size
-        except OSError:
-            size = 0
-        if size > AUDIT_LOG_MAX_BYTES and len(existing):
-            out = _trim_audit_frame(
-                out,
-                max_bytes=AUDIT_LOG_MAX_BYTES,
-                bytes_per_row=size / len(existing),
-            )
-    else:
-        out = df
-    Path(AUDIT_LOG_PATH).parent.mkdir(parents=True, exist_ok=True)
-    out.to_csv(AUDIT_LOG_PATH, index=False)
+        out = _trim_audit_frame(
+            out,
+            max_bytes=AUDIT_LOG_MAX_BYTES,
+            bytes_per_row=path.stat().st_size / max(len(existing), 1),
+        )
+        out.to_csv(path, index=False)
+        return
+    try:
+        cols = pd.read_csv(path, nrows=0).columns.tolist()
+    except pd.errors.EmptyDataError:
+        df.to_csv(path, index=False)
+        return
+    if set(df.columns) - set(cols):
+        # New audit field: one full rewrite to extend the schema.
+        existing = pd.read_csv(path)
+        pd.concat([existing, df], ignore_index=True).to_csv(path, index=False)
+        return
+    df.reindex(columns=cols).to_csv(path, mode="a", header=False, index=False)
 
 
 def _resolve_sizing_equity(auto: bool, manual: float, get_account_info_fn=None) -> float:
