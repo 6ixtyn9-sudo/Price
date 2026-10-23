@@ -1,0 +1,367 @@
+name: Research Refresh Equities
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Symbols per shard for discovery dispatch"
+        required: false
+        default: "20"
+      timeframes:
+        description: "Timeframes to refresh (space-separated)"
+        required: false
+        default: "1d 1h 15m"
+      min_new_daily_bars:
+        description: "Minimum new daily bars per symbol for discovery gate"
+        required: false
+        default: "5"
+      allow_discovery:
+        description: "Allow discovery to run if gate opens"
+        required: false
+        default: true
+        type: boolean
+      condition_on:
+        description: "Conditioning symbols (space-separated)"
+        required: false
+        default: "USO TLT"
+
+concurrency:
+  # Shares the live-capture group with the hourly capture + 15m scan so
+  # state-writing runs never overlap. cancel-in-progress MUST stay false
+  # here: with true, a refresh dispatch would CANCEL a running capture
+  # or scan mid-flight. False = the refresh queues behind it instead.
+  group: live-capture
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: src
+
+jobs:
+  research-refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    permissions:
+      contents: write
+    outputs:
+      should_dispatch_discovery: ${{ steps.dispatch_gate.outputs.should_dispatch }}
+      cache_key: ${{ steps.cache_key.outputs.key }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.lock
+
+      - name: Compute research warehouse cache key
+        id: cache_key
+        run: |
+          echo "key=research-warehouse-v4-${{ runner.os }}-equities-refresh-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore latest research warehouse cache
+        id: warehouse
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+          restore-keys: |
+            research-warehouse-v4-${{ runner.os }}-equities-refresh-
+            research-warehouse-v4-${{ runner.os }}-crypto-discovery-merged-
+            research-warehouse-v4-${{ runner.os }}-futures-discovery-merged-
+            research-warehouse-v4-${{ runner.os }}-research-discovery-
+            research-warehouse-v4-${{ runner.os }}-crypto-refresh-
+            research-warehouse-v4-${{ runner.os }}-futures-refresh-
+            research-warehouse-v4-${{ runner.os }}-crypto-discovery-
+            research-warehouse-v4-${{ runner.os }}-futures-discovery-
+            research-warehouse-v4-${{ runner.os }}-
+      - name: Refuse cross-lane warehouse cache
+        if: steps.warehouse.outputs.cache-matched-key != ''
+        run: |
+          case "${{ steps.warehouse.outputs.cache-matched-key }}" in
+            *live-capture*)
+              echo "::error::research restored live-lane warehouse cache '${{ steps.warehouse.outputs.cache-matched-key }}' — shallow lineage silently starves discovery (see HANDOVER 2026-08-08); refusing to run blind"
+              exit 1 ;;
+          esac
+          echo "warehouse cache lineage ok: ${{ steps.warehouse.outputs.cache-matched-key }}"
+
+      - name: Seed warehouse from release if cache is empty
+        if: steps.warehouse.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -d localdata/warehouse ] && [ "$(find localdata/warehouse -name '*.parquet' | wc -l)" -gt 0 ]; then
+            echo "Warehouse already populated from cache restore. Skipping seed."
+            exit 0
+          fi
+          echo "Cache miss — attempting to seed warehouse from release asset..."
+          SEED_TAG="${WAREHOUSE_SEED_TAG:-warehouse-v1}"
+          if gh release view "$SEED_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            mkdir -p localdata
+            gh release download "$SEED_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern 'warehouse-research.tar.gz' \
+              --dir /tmp \
+              --clobber
+            tar xzf /tmp/warehouse-research.tar.gz -C localdata
+            rm /tmp/warehouse-research.tar.gz
+            PARQUET_COUNT=$(find localdata/warehouse -name '*.parquet' | wc -l)
+            echo "Seeded warehouse: $PARQUET_COUNT parquet partitions."
+          else
+            echo "No warehouse release found ($SEED_TAG). Will fetch from APIs."
+          fi
+
+      - name: Restore operational paper state cache for telemetry
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            localdata/trade_journal.csv
+            localdata/paper_trade_log.csv
+            localdata/stop_state.json
+            localdata/stopout_journal.json
+            localdata/cooldown_journal.json
+          key: live-ops-state-v1-${{ runner.os }}-research-${{ github.run_id }}
+          restore-keys: |
+            live-ops-state-v1-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Verify required secrets
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          : "${ALPACA_API_KEY:?Missing repository secret ALPACA_API_KEY}"
+          : "${ALPACA_SECRET_KEY:?Missing repository secret ALPACA_SECRET_KEY}"
+          : "${TIINGO_API_KEY:?Missing repository secret TIINGO_API_KEY}"
+
+      - name: Guard against tracked secrets
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked by git"
+            exit 1
+          fi
+
+      - name: Capture full equity universe
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          if ! jq -e '.equities | type == "array"' localdata/explicit_allowlist.json >/dev/null; then
+            echo "::error::localdata/explicit_allowlist.json missing or invalid .equities array"
+            exit 1
+          fi
+          mapfile -t ACTIVE_SYMBOLS < <(jq -r '.equities[]' localdata/explicit_allowlist.json)
+          if [ "${#ACTIVE_SYMBOLS[@]}" -eq 0 ]; then
+            echo "::error::No equity symbols resolved from .equities"
+            exit 1
+          fi
+          if [ "${#ACTIVE_SYMBOLS[@]}" -gt 500 ]; then
+            echo "::error::Refusing research refresh: ${#ACTIVE_SYMBOLS[@]} symbols > cap 500"
+            exit 1
+          fi
+          for sym in "${ACTIVE_SYMBOLS[@]}"; do
+            if [[ "$sym" == */* || "$sym" == FUT/* ]]; then
+              echo "::error::Equity refresh received non-equity symbol: $sym"
+              exit 1
+            fi
+          done
+
+          python scripts/capture_bars.py \
+            --symbols "${ACTIVE_SYMBOLS[@]}" \
+            --timeframes 1d 1h \
+            --days 7300
+
+          python scripts/capture_bars.py \
+            --symbols "${ACTIVE_SYMBOLS[@]}" \
+            --timeframes 15m \
+            --days 365
+
+          printf '%s\n' "${ACTIVE_SYMBOLS[@]}" > localdata/active_symbols.txt
+
+      - name: Run autonomous research controller
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+        run: |
+          mapfile -t ACTIVE_SYMBOLS < localdata/active_symbols.txt
+          python scripts/research_refresh.py \
+            --symbols "${ACTIVE_SYMBOLS[@]}" \
+            --timeframes ${{ inputs.timeframes }} \
+            --min-new-daily-bars ${{ inputs.min_new_daily_bars }} \
+            ${{ inputs.allow_discovery && '--allow-discovery' || '' }} \
+            --condition-on ${{ inputs.condition_on }}
+
+      - name: Build research manifest
+        run: |
+          mkdir -p localdata/research
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+          MERGE='{"workflow":"research_refresh","generated_at_utc":"'"$NOW"'","orders_placed":false,"monitored_slices_modified":false,"automatic_promotion_enabled":false}'
+          if [ -f localdata/research/refresh_state.json ]; then
+            jq '. + '"$MERGE" localdata/research/refresh_state.json > /tmp/_rs.json && mv /tmp/_rs.json localdata/research/refresh_state.json
+          else
+            echo "$MERGE" | jq . > localdata/research/refresh_state.json
+          fi
+
+      - name: Sync monitored slices from registry
+        run: python3 scripts/sync_monitored.py
+
+      - name: Compute discovery dispatch gate
+        id: dispatch_gate
+        run: |
+          should_dispatch=$(jq -r '
+            if .fresh_data_gate_open == true and .sharded_discovery_required == true and (.discovery_ran // false) != true
+            then "true" else "false" end
+          ' localdata/research/refresh_state.json 2>/dev/null || echo "false")
+          echo "should_dispatch=$should_dispatch" >> "$GITHUB_OUTPUT"
+          echo "Discovery dispatch gate: $should_dispatch"
+
+      - name: Save refreshed research warehouse
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: localdata/warehouse
+          key: ${{ steps.cache_key.outputs.key }}
+
+      - name: Commit isolated research outputs only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          shopt -s nullglob
+          files=(localdata/research/*.csv localdata/research/*.json)
+          if ((${#files[@]} == 0)); then
+            echo "No research outputs were produced."
+            exit 0
+          fi
+          git add "${files[@]}"
+          if git diff --cached --quiet; then
+            echo "No research output changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(research-refresh): update full-universe research state [skip ci]"
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME:-main}" && git push --force-with-lease && break
+            if [ "$attempt" = 5 ]; then
+              echo "::error::git push failed after 5 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+
+  cache-maintenance:
+    needs: research-refresh
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Remove superseded research warehouse caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_CACHE_KEY: ${{ needs.research-refresh.outputs.cache_key }}
+        run: |
+          sleep 5
+          # Scope (2026-08-08): delete only OUR lineage. This cleanup previously deleted
+          # EVERY cache in the namespace except its own current save (the 2026-08-07 wipe).
+          # 2026-08-10: parenthesised the jq clauses (a precedence slip indexed .key into
+          # the key string -> exit 5 on the first non-family element; two red runs, zero
+          # deletions), added payload validation before any delete, and dropped the legacy
+          # bare-key clause — the last pre-wipe deep cache rides to natural TTL (~08-14)
+          # while the 15m depth verdict is open. Lanes stay governed by the live pruner.
+          LIST=/tmp/research-caches.json
+          ok=0
+          for attempt in 1 2; do
+            gh cache list --limit 100 --json id,key --repo "$GITHUB_REPOSITORY" > "$LIST" || true
+            if jq -e 'type == "array" and all(.[]?; has("id") and has("key"))' "$LIST" > /dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::cache list payload invalid after retry (transient API error) — refusing to delete anything this run; cleanup retries next schedule"
+            exit 1
+          fi
+          jq -r '.[] | select(.key | startswith("research-warehouse-v4-${{ runner.os }}-equities-refresh-")) | select(.key != env.CURRENT_CACHE_KEY) | .id' "$LIST" | while read -r cache_id; do
+            if [ -n "$cache_id" ]; then
+              gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+
+  # ── Three parallel timeframe-specific discovery dispatches ─────────
+  # Each fires an independent workflow with its own concurrency group
+  # and max-parallel: 12 shards.  All three run simultaneously, each
+  # finishing in ~90 minutes (vs 6+ hours for the old single runner).
+  dispatch-discovery-1d:
+    needs: research-refresh
+    if: ${{ needs.research-refresh.outputs.should_dispatch_discovery == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch 1d discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research_discovery_equities_1d.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f parent_run_id="$GITHUB_RUN_ID" \
+            -f batch_size="${{ inputs.batch_size }}"
+
+  dispatch-discovery-1h:
+    needs: research-refresh
+    if: ${{ needs.research-refresh.outputs.should_dispatch_discovery == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch 1h discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research_discovery_equities_1h.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f parent_run_id="$GITHUB_RUN_ID" \
+            -f batch_size="${{ inputs.batch_size }}"
+
+  dispatch-discovery-15m:
+    needs: research-refresh
+    if: ${{ needs.research-refresh.outputs.should_dispatch_discovery == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Dispatch 15m discovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research_discovery_equities_15m.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f parent_run_id="$GITHUB_RUN_ID" \
+            -f batch_size="${{ inputs.batch_size }}"

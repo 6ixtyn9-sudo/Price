@@ -89,3 +89,41 @@ def test_trim_helper_keeps_newest_and_at_least_one():
 
 def test_default_cap_is_safely_below_github_limit():
     assert 0 < paper_trade.AUDIT_LOG_MAX_BYTES < 100 * 1024 * 1024
+
+
+def test_append_mode_aligns_missing_columns(audit_path, monkeypatch):
+    # Under-cap appends must land values in the right columns even when
+    # a row omits fields present in the file (append-mode alignment).
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_MAX_BYTES", 10 * 1024 * 1024)
+    paper_trade._append_audit({"action": "enter", "symbol": "AAA", "qty": 3})
+    paper_trade._append_audit({"action": "exit", "symbol": "BBB"})
+    df = pd.read_csv(audit_path)
+    assert df["symbol"].tolist() == ["AAA", "BBB"]
+    assert df.iloc[0]["qty"] == 3
+    assert pd.isna(df.iloc[1]["qty"])
+
+
+def test_append_mode_new_column_extends_schema(audit_path, monkeypatch):
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_MAX_BYTES", 10 * 1024 * 1024)
+    paper_trade._append_audit({"action": "enter", "symbol": "AAA"})
+    paper_trade._append_audit({"action": "exit", "symbol": "BBB", "new_field": "z"})
+    df = pd.read_csv(audit_path)
+    assert df["symbol"].tolist() == ["AAA", "BBB"]
+    assert df.iloc[1]["new_field"] == "z"
+    assert pd.isna(df.iloc[0]["new_field"])
+    # Subsequent appends align against the extended schema.
+    paper_trade._append_audit({"action": "enter", "symbol": "CCC"})
+    df = pd.read_csv(audit_path)
+    assert df["symbol"].tolist() == ["AAA", "BBB", "CCC"]
+
+
+def test_append_mode_does_not_rewrite_existing_rows(audit_path, monkeypatch):
+    # O(1) append: appending must not parse/rewrite history -- the raw
+    # bytes of the pre-existing content stay a strict prefix.
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_MAX_BYTES", 10 * 1024 * 1024)
+    paper_trade._append_audit({"action": "enter", "symbol": "AAA"})
+    before = audit_path.read_bytes()
+    paper_trade._append_audit({"action": "exit", "symbol": "BBB"})
+    after = audit_path.read_bytes()
+    assert after.startswith(before)
+    assert len(after) > len(before)
