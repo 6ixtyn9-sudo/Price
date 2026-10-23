@@ -46,6 +46,14 @@ from price.trading import close_position, submit_entry, entry_limit_with_premium
 
 import os
 AUDIT_LOG_PATH: Path = Path(os.getenv("PAPER_TRADE_LOG_PATH", str(DATA_DIR / "paper_trade_log.csv")))
+# The audit CSV is append-only and committed to git by the live
+# workflows; GitHub rejects any file over 100 MB, which silently froze
+# ALL workflow-output commits once this log crossed the limit
+# (2026-10-20: paper_trade_log.csv reached 103.84 MB and every hourly
+# "Commit workflow outputs" step failed GH001). Cap the file well
+# below the limit by dropping the oldest rows on append; pre-cap
+# history remains in git history. Override via env for tests/ops.
+AUDIT_LOG_MAX_BYTES: int = int(os.getenv("PAPER_TRADE_LOG_MAX_BYTES", str(60 * 1024 * 1024)))
 
 def _get_lane() -> str:
     path_str = str(AUDIT_LOG_PATH)
@@ -98,6 +106,18 @@ def _emit_scan_summary(action: str, started_monotonic: float, lane: str, **field
         print(f"scan_summary heartbeat emit failed (non-fatal): {exc}")
 
 
+def _trim_audit_frame(out: pd.DataFrame, *, max_bytes: int, bytes_per_row: float) -> pd.DataFrame:
+    """Drop the oldest audit rows so a rewrite stays under `max_bytes`
+    (target 90% of the cap, estimated from the current bytes/row).
+    Newest rows are always kept; order is preserved."""
+    if bytes_per_row <= 0 or len(out) == 0:
+        return out
+    keep = int((float(max_bytes) * 0.9) / float(bytes_per_row))
+    if keep >= len(out):
+        return out
+    return out.tail(max(keep, 1)).reset_index(drop=True)
+
+
 def _append_audit(row: dict) -> None:
     """Append one row to the audit CSV, creating the file if needed."""
     row = dict(row)
@@ -106,6 +126,16 @@ def _append_audit(row: dict) -> None:
     if Path(AUDIT_LOG_PATH).exists():
         existing = pd.read_csv(AUDIT_LOG_PATH)
         out = pd.concat([existing, df], ignore_index=True)
+        try:
+            size = Path(AUDIT_LOG_PATH).stat().st_size
+        except OSError:
+            size = 0
+        if size > AUDIT_LOG_MAX_BYTES and len(existing):
+            out = _trim_audit_frame(
+                out,
+                max_bytes=AUDIT_LOG_MAX_BYTES,
+                bytes_per_row=size / len(existing),
+            )
     else:
         out = df
     Path(AUDIT_LOG_PATH).parent.mkdir(parents=True, exist_ok=True)
