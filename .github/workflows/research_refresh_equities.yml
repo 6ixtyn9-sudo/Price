@@ -26,8 +26,12 @@ on:
         default: "USO TLT"
 
 concurrency:
+  # Shares the live-capture group with the hourly capture + 15m scan so
+  # state-writing runs never overlap. cancel-in-progress MUST stay false
+  # here: with true, a refresh dispatch would CANCEL a running capture
+  # or scan mid-flight. False = the refresh queues behind it instead.
   group: live-capture
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 defaults:
   run:
