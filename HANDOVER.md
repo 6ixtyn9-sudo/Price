@@ -7039,3 +7039,26 @@ would have recovered by horizon; they now realize small losses.
 
 Workflow copies with the flag added are in workflow-patches/*.yml.txt
 (operator applies manually, as before). Tests: 719 passed, 1 skipped.
+
+### 2026-10-23 — audit-log 100 MB cap (hourly commit freeze root-caused + fixed)
+
+Symptom: from 2026-10-20 21:17 UTC every hourly "Commit workflow
+outputs" step failed; trade journal froze on main (261 RTs,
+-$767.96) while trading continued via the Actions cache. Root cause
+(confirmed from the failed-run log, run 39959915690):
+localdata/paper_trade_log.csv reached 103.84 MB and GitHub rejected
+every push with GH001 (100 MB per-file limit). Not a rebase conflict.
+
+Fix: scripts/paper_trade.py caps the audit CSV at
+AUDIT_LOG_MAX_BYTES (default 60 MB, env PAPER_TRADE_LOG_MAX_BYTES).
+_append_audit drops the oldest rows (to 90% of cap, estimated from
+current bytes/row) whenever the existing file exceeds the cap, so the
+rewritten log always stays committable. Pre-cap history remains in
+git history (through 2026-10-20); the CI cache keeps a rolling
+recent window thereafter. Consumers (forward returns, watchdog,
+attribution) read recent rows; trade_journal.csv is unaffected.
+First hourly run after this merges will trim the cached 103.84 MB
+log and commits should land again — verify the journal unfreezes
+(Oct 21+ exits appear) and that loser-stop evidence resumes
+accruing. Tests: tests/test_paper_trade_audit_log.py (6 new);
+suite 725 passed, 1 skipped.
