@@ -7095,3 +7095,20 @@ Verify after 24h: scan-run p50 duration (target <12 min) and
 cancellation counts by workflow. If scans still exceed ~12 min,
 fall back to 30-min scan cadence (minutes 2,32) or implement a
 15m-only timeframe filter for the scan (53 of 255 slices).
+
+### 2026-10-26 — standing instruction: staged sizing increase
+
+Operator instruction: when the corner-turn gates pass, prepare a
++25% position-sizing step for approval; do not auto-apply it.
+Gates (operator-chosen looser calibration): (1) post-era
+(entry >= 2026-07-30) expectancy is positive after costs, and
+(2) one additional completed positive calendar month after
+2026-10 (the October baseline: +$10.46 over 62 exits). Each later
+positive month while gate (1) still passes is another +25% step,
+capped at 2.0x current sizing. Execution is prepare-and-ask:
+show the gate evidence and provide any PR/workflow patches for
+the operator to approve and manually apply.
+
+Status at instruction date: not triggered. Post-era gross
+expectancy was -0.035%/trade (negative after the 13 bp round-trip
+cost assumption), and no post-October completed month exists yet.
