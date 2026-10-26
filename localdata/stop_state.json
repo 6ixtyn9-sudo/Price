@@ -153,20 +153,6 @@
     "opened_at": "2026-10-21T19:50:11.538141+00:00",
     "updated_at": "2026-10-21T19:50:11.538141+00:00"
   },
-  "XLE": {
-    "symbol": "XLE",
-    "side": "long",
-    "qty": 36.0,
-    "entry_price": 68.2,
-    "initial_stop_price": 65.89285714285714,
-    "current_stop_price": 65.89285714285714,
-    "r_per_share": 2.307142857142865,
-    "stage": "initial",
-    "extreme_price": 68.2,
-    "stop_order_id": "693e8b47-bd2d-498f-9ac2-c1d45a74a0d5",
-    "opened_at": "2026-10-21T19:50:12.615111+00:00",
-    "updated_at": "2026-10-21T19:50:12.615111+00:00"
-  },
   "TSLA": {
     "symbol": "TSLA",
     "side": "long",
