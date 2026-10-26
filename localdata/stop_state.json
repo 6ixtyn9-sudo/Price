@@ -1,18 +1,4 @@
 {
-  "LNG": {
-    "symbol": "LNG",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 275.72,
-    "initial_stop_price": 243.18340338718258,
-    "current_stop_price": 243.18340338718258,
-    "r_per_share": 32.53659661281744,
-    "stage": "initial",
-    "extreme_price": 275.72,
-    "stop_order_id": "fd03ba9c-2ba4-4e9c-85be-ebde833b793d",
-    "opened_at": "2026-10-07T13:49:12.774666+00:00",
-    "updated_at": "2026-10-07T13:49:12.774666+00:00"
-  },
   "VRTX": {
     "symbol": "VRTX",
     "side": "long",
@@ -166,5 +152,47 @@
     "stop_order_id": "ba4ee5cd-a813-4f8a-9ed4-5c40f381d6ea",
     "opened_at": "2026-10-22T13:55:45.190390+00:00",
     "updated_at": "2026-10-22T13:55:45.190390+00:00"
+  },
+  "MRK": {
+    "symbol": "MRK",
+    "side": "long",
+    "qty": 17.0,
+    "entry_price": 140.53,
+    "initial_stop_price": 134.25101614685187,
+    "current_stop_price": 134.25101614685187,
+    "r_per_share": 6.278983853148142,
+    "stage": "initial",
+    "extreme_price": 140.53,
+    "stop_order_id": "97883708-613b-417b-a472-0d263f7e652d",
+    "opened_at": "2026-10-26T19:48:03.529375+00:00",
+    "updated_at": "2026-10-26T19:48:03.529375+00:00"
+  },
+  "VLO": {
+    "symbol": "VLO",
+    "side": "long",
+    "qty": 5.0,
+    "entry_price": 426.38,
+    "initial_stop_price": 401.6582111830705,
+    "current_stop_price": 401.6582111830705,
+    "r_per_share": 24.721788816929518,
+    "stage": "initial",
+    "extreme_price": 426.38,
+    "stop_order_id": "b0eb14c5-3f49-42e5-a0a8-6a190b1320c2",
+    "opened_at": "2026-10-26T19:48:04.564376+00:00",
+    "updated_at": "2026-10-26T19:48:04.564376+00:00"
+  },
+  "XOM": {
+    "symbol": "XOM",
+    "side": "long",
+    "qty": 13.0,
+    "entry_price": 184.019231,
+    "initial_stop_price": 178.30673099999998,
+    "current_stop_price": 178.30673099999998,
+    "r_per_share": 5.712500000000011,
+    "stage": "initial",
+    "extreme_price": 184.019231,
+    "stop_order_id": "bee25d49-bb4d-4205-aeca-f2b4d0c2a75d",
+    "opened_at": "2026-10-26T19:48:05.607757+00:00",
+    "updated_at": "2026-10-26T19:48:05.607757+00:00"
   }
 }
