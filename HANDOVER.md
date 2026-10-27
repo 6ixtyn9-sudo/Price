@@ -7112,3 +7112,40 @@ the operator to approve and manually apply.
 Status at instruction date: not triggered. Post-era gross
 expectancy was -0.035%/trade (negative after the 13 bp round-trip
 cost assumption), and no post-October completed month exists yet.
+
+### 2026-10-27 — ATR blind spot repaired; 1d-long entries pool-gated
+
+Tuesday's exits exposed the failure mode directly: XME (-$113.40)
+and CAT (-$123.13), both 1d longs, rode to their 20-bar horizons
+because they had been `stop_pending` since entry (920 audit rows
+each). Root cause chain: compute_atr_14 returned None if ANY
+high/low/close value in the full warehouse history was missing, so
+stop_manager could never attach a StopState; with no StopState, R
+was unknown and the watchdog loser-stop was explicitly blind to
+exactly these positions. The other permanently-pending names were
+SHW, LRCX, COST, TMO, XLC and XYZ — all 1d.
+
+Fixes:
+1. price/sizing.compute_atr_14 now accepts adjusted or raw OHLC,
+   coerces to numeric, drops only invalid rows, and computes from
+   the latest >=15 valid bars. Isolated corporate-action/backfill
+   gaps no longer poison ATR forever. Once merged, the next scan
+   should attach real stops to the still-open pending names and
+   the loser-stop/watchdog can see their R.
+2. Long-side pool gate mirroring the 1h-short gate:
+   RiskLimits.long_blocked_timeframes / long_exempt_slices,
+   enforced in risk_limits.check_entry and the monitor dry-run
+   path, with --block-long-timeframes / --allow-long-slice CLI
+   flags in paper_trade.py. Entries only — exits and stops for
+   existing 1d positions are unaffected. Workflow copies with
+   `--block-long-timeframes 1d` added are in
+   workflow-patches/live_capture_equities.yml.txt and
+   live_capture_scan15m.yml.txt (operator applies manually).
+
+Evidence for the gate at ship time: post-era 1d long was 45 exits,
+-$759.00, win 46.7%, payoff 0.62, expectancy -1.202%/trade — the
+book's structural bleeder, larger than all other pools' combined
+losses. Re-open the pool only when its forward expectancy is
+proven non-negative (or exempt individual slices that clear the
+bar). Tests: 3 new ATR tests + 2 long-gate tests; suite 733
+passed, 1 skipped.

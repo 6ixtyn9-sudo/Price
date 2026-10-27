@@ -602,6 +602,13 @@ def main() -> int:
     parser.add_argument("--allow-short-slice", action="append", default=[],
                         help="Exempt one slice from --block-short-timeframes, as "
                         "'SYMBOL|TIMEFRAME|slice_combination'. Repeatable.")
+    parser.add_argument("--block-long-timeframes", type=str, default="",
+                        help="Comma-separated timeframes on which NEW long entries are pool-gated "
+                        "(e.g. '1d'). Based on negative live expectancy for the pool; "
+                        "exempt individual slices with --allow-long-slice. Default: none.")
+    parser.add_argument("--allow-long-slice", action="append", default=[],
+                        help="Exempt one slice from --block-long-timeframes, as "
+                        "'SYMBOL|TIMEFRAME|slice_combination'. Repeatable.")
     parser.add_argument("--shadow-gate", action="store_true",
                         help="Block entries whose slice is demoted in "
                         "localdata/shadow_demoted_slices.csv (scripts/shadow_gate.py, "
@@ -711,6 +718,9 @@ def main() -> int:
         short_blocked_timeframes=frozenset(
             t.strip() for t in args.block_short_timeframes.split(",") if t.strip()),
         short_exempt_slices=frozenset(args.allow_short_slice),
+        long_blocked_timeframes=frozenset(
+            t.strip() for t in args.block_long_timeframes.split(",") if t.strip()),
+        long_exempt_slices=frozenset(args.allow_long_slice),
         shadow_gate_enabled=args.shadow_gate,
         target_leverage_multiple=args.target_leverage,
         margin_cushion_pct=(args.margin_cushion_pct if args.margin_cushion_pct > 0 else None),

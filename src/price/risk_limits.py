@@ -63,6 +63,15 @@ class RiskLimits:
     short_blocked_timeframes: frozenset = frozenset()
     # Exemptions to the pool gate, as "SYMBOL|TIMEFRAME|slice_combination".
     short_exempt_slices: frozenset = frozenset()
+    # Long-side mirror of the short pool gate. The 1d-long pool is the
+    # book's structural bleeder (2026-10-27: 45 exits, -$759.00,
+    # expectancy -1.202%/trade, payoff 0.62), so NEW 1d long entries
+    # can be blocked pool-wide while exits/stops for existing 1d
+    # positions remain fully active. Exempt individually proven
+    # slices via long_exempt_slices.
+    long_blocked_timeframes: frozenset = frozenset()
+    # Exemptions to the long pool gate, as "SYMBOL|TIMEFRAME|slice_combination".
+    long_exempt_slices: frozenset = frozenset()
     # Shadow demotion gate (2026-10 ROI pass): when True, monitor blocks
     # entries whose slice identity is in shadow_demoted_slices.csv (the
     # two-strike demotion ledger written by scripts/shadow_gate.py).
@@ -342,6 +351,23 @@ def check_entry(
         if exempt_key not in getattr(limits, "short_exempt_slices", frozenset()):
             reasons.append(
                 f"short entries blocked on {timeframe} by pool gate "
+                "(negative live expectancy pool; slice not exempt — see "
+                "scripts/shadow_gate.py pool stats)"
+            )
+
+    # Long-side pool gate: the 1d-long pool has persistently negative
+    # realized expectancy. Entries only; exits and protective stops
+    # for positions already open are never gated here.
+    if (
+        side == "long"
+        and timeframe
+        and getattr(limits, "long_blocked_timeframes", frozenset())
+        and str(timeframe) in limits.long_blocked_timeframes
+    ):
+        exempt_key = f"{str(symbol).upper()}|{timeframe}|{slice_combination or ''}"
+        if exempt_key not in getattr(limits, "long_exempt_slices", frozenset()):
+            reasons.append(
+                f"long entries blocked on {timeframe} by pool gate "
                 "(negative live expectancy pool; slice not exempt — see "
                 "scripts/shadow_gate.py pool stats)"
             )
