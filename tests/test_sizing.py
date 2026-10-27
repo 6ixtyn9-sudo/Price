@@ -234,6 +234,30 @@ def test_compute_atr_14_none_on_short_or_missing_data():
     assert compute_atr_14(df) is None
 
 
+def test_compute_atr_14_ignores_isolated_invalid_ohlc_rows():
+    df = _syn_df(30)
+    df.loc[3, "high_adj"] = np.nan
+    df.loc[17, "close_adj"] = np.nan
+    atr = compute_atr_14(df)
+    assert atr is not None and atr > 0
+
+
+def test_compute_atr_14_accepts_raw_ohlc_columns():
+    df = _syn_df(30).rename(columns={
+        "high_adj": "high",
+        "low_adj": "low",
+        "close_adj": "close",
+    })
+    atr = compute_atr_14(df)
+    assert atr is not None and atr > 0
+
+
+def test_compute_atr_14_counts_only_valid_bars_toward_minimum():
+    df = _syn_df(16)
+    df.loc[[2, 9], "low_adj"] = np.nan
+    assert compute_atr_14(df) is None  # only 14 valid bars remain
+
+
 def test_load_edge_metrics_reads_synthetic_leaderboard(tmp_path):
     lb = pd.DataFrame([{
         "symbol": "KLAC", "timeframe": "1d",

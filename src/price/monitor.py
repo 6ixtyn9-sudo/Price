@@ -1143,6 +1143,12 @@ def scan_all_slices(
                         tradable = False
                         gate_reasons.append(
                             f"short entries blocked on {timeframe} by pool gate")
+                if side == "long" and timeframe in getattr(limits, "long_blocked_timeframes", frozenset()):
+                    _exempt = f"{symbol.upper()}|{timeframe}|{s['slice_combination']}"
+                    if _exempt not in getattr(limits, "long_exempt_slices", frozenset()):
+                        tradable = False
+                        gate_reasons.append(
+                            f"long entries blocked on {timeframe} by pool gate")
                 
                 # Check sector cap in dry_run (G2)
                 from price.risk_limits import check_sector_concentration_cap

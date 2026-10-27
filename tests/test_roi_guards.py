@@ -208,6 +208,32 @@ def test_short_pool_gate_exemption():
     assert res.allowed
 
 
+def test_long_pool_gate_blocks_1d_long_only():
+    limits = _limits(long_blocked_timeframes=frozenset({"1d"}))
+    blocked = check_entry("AAA", 10, 100.0, limits, [], 0.0, side="long",
+                          timeframe="1d", slice_combination="sl")
+    assert not blocked.allowed
+    assert any("long entries blocked on 1d by pool gate" in r for r in blocked.reasons)
+    ok_tf = check_entry("AAA", 10, 100.0, limits, [], 0.0, side="long",
+                        timeframe="1h", slice_combination="sl")
+    assert ok_tf.allowed
+    ok_short = check_entry("AAA", 10, 100.0, limits, [], 0.0, side="short",
+                           timeframe="1d", slice_combination="sl")
+    assert ok_short.allowed
+    legacy = check_entry("AAA", 10, 100.0, limits, [], 0.0, side="long")
+    assert legacy.allowed
+
+
+def test_long_pool_gate_exemption():
+    limits = _limits(
+        long_blocked_timeframes=frozenset({"1d"}),
+        long_exempt_slices=frozenset({"AAA|1d|sl"}),
+    )
+    res = check_entry("AAA", 10, 100.0, limits, [], 0.0, side="long",
+                      timeframe="1d", slice_combination="sl")
+    assert res.allowed
+
+
 # ---------------------------------------------------------------------------
 # Sizing: cost-negated = zero
 # ---------------------------------------------------------------------------

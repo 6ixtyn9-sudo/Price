@@ -288,25 +288,62 @@ def compute_conviction(
 
 
 def compute_atr_14(df: pd.DataFrame) -> Optional[float]:
-    """14-bar Average True Range in price units, from the latest row.
+    """14-bar Average True Range in price units, from the latest valid bars.
 
     Mirrors the TR/ATR definition in features.py but returns the actual
     ATR value (features.py only stores the normalized variant). Returns
-    None if there is not enough data or the latest ATR is non-finite.
+    None when fewer than 15 valid OHLC bars are available or the latest
+    ATR is non-finite.
+
+    Warehouse bars are long-lived research data: an isolated missing or
+    non-numeric OHLC row (common around corporate-action backfills)
+    must not poison the latest ATR forever. We therefore accept either
+    adjusted (`*_adj`) or raw OHLC columns, coerce values to numeric,
+    and drop only the invalid rows before calculating. This was the
+    blind spot that left some live 1d positions permanently
+    `stop_pending`: no ATR -> no StopState -> unknown R -> the
+    watchdog loser-stop could not fire.
     """
     if df is None or df.empty:
         return None
-    need = {"high_adj", "low_adj", "close_adj"}
-    if not need.issubset(df.columns):
+
+    column_sets = (
+        ("high_adj", "low_adj", "close_adj"),
+        ("high", "low", "close"),
+    )
+    valid: Optional[pd.DataFrame] = None
+    for high_col, low_col, close_col in column_sets:
+        if not {high_col, low_col, close_col}.issubset(df.columns):
+            continue
+        candidate = pd.DataFrame({
+            "high": pd.to_numeric(df[high_col], errors="coerce"),
+            "low": pd.to_numeric(df[low_col], errors="coerce"),
+            "close": pd.to_numeric(df[close_col], errors="coerce"),
+        })
+        if "bar_ts_utc" in df.columns:
+            candidate["bar_ts_utc"] = pd.to_datetime(
+                df["bar_ts_utc"], errors="coerce", utc=True)
+            candidate = candidate.dropna(subset=["bar_ts_utc"])
+            candidate = candidate.sort_values("bar_ts_utc")
+        candidate = candidate.dropna(subset=["high", "low", "close"])
+        candidate = candidate[
+            (candidate["high"] > 0)
+            & (candidate["low"] > 0)
+            & (candidate["close"] > 0)
+            & (candidate["high"] >= candidate["low"])
+        ]
+        if len(candidate) >= 15:
+            valid = candidate.reset_index(drop=True)
+            break
+        if valid is None and len(candidate) > 0:
+            valid = candidate.reset_index(drop=True)
+
+    if valid is None or len(valid) < 15:
         return None
-    d = df.sort_values("bar_ts_utc").reset_index(drop=True)
-    if len(d) < 15:
-        return None
-    high = d["high_adj"]
-    low = d["low_adj"]
-    close = d["close_adj"]
-    if close.isna().any() or high.isna().any() or low.isna().any():
-        return None
+
+    high = valid["high"]
+    low = valid["low"]
+    close = valid["close"]
     tr = pd.concat(
         [
             (high - low).abs(),
