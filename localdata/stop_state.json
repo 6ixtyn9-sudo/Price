@@ -167,20 +167,6 @@
     "opened_at": "2026-10-26T19:48:03.529375+00:00",
     "updated_at": "2026-10-26T19:48:03.529375+00:00"
   },
-  "VLO": {
-    "symbol": "VLO",
-    "side": "long",
-    "qty": 5.0,
-    "entry_price": 426.38,
-    "initial_stop_price": 401.6582111830705,
-    "current_stop_price": 401.6582111830705,
-    "r_per_share": 24.721788816929518,
-    "stage": "initial",
-    "extreme_price": 426.38,
-    "stop_order_id": "b0eb14c5-3f49-42e5-a0a8-6a190b1320c2",
-    "opened_at": "2026-10-26T19:48:04.564376+00:00",
-    "updated_at": "2026-10-26T19:48:04.564376+00:00"
-  },
   "XOM": {
     "symbol": "XOM",
     "side": "long",
