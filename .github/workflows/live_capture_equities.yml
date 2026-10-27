@@ -21,7 +21,7 @@ env:
 
 jobs:
   live-capture:
-    runs-on: ubuntu-24.04
+    runs-on: Ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: write
@@ -130,20 +130,21 @@ jobs:
             --cooldown-seconds 3600 --auto-sizing-equity --risk-fraction 0.005 \
             --max-per-group 3 \
             --max-per-sector 4 \
-            --trail-atr-mult 3.0 --breakeven-trigger-r 1.0 --trail-adaptive \
+            --trail-atr-mult 3.0 --breakeven-trigger-R 1.0 --trail-adaptive \
             --max-aggregate-risk-pct 0.03 --whipsaw-limit 2 \
             --cost-spread-bps 1.5 --cost-slippage-bps 5.0 --allow-shorts \
-            --take-profit-r 3.0 \
-            --eod-profit-lock-r 0.75 \
+            --take-profit-R 3.0 \
+            --eod-profit-lock-R 0.75 \
             --eod-lock-minutes 45 \
-            --giveback-trigger-r 2.0 \
-            --max-giveback-r 1.0 \
+            --giveback-trigger-R 2.0 \
+            --max-giveback-R 1.0 \
             --pure-horizon-exits \
             --regime-filter \
             --block-short-timeframes 1h \
+            --block-long-timeframes 1d \
             --shadow-gate \
             --watchdog-horizon-multiple 3 \
-            --watchdog-hard-loss-r 2 \
+            --watchdog-hard-loss-R 2 \
             --watchdog-loser-stop-fraction 0.5 \
             --watchdog-no-context-days 45 \
             --equal-notional
