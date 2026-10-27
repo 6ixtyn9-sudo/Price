@@ -131,13 +131,13 @@
     "qty": 32.0,
     "entry_price": 76.14,
     "initial_stop_price": 71.73130354502811,
-    "current_stop_price": 71.73130354502811,
+    "current_stop_price": 79.20252550350321,
     "r_per_share": 4.408696454971895,
-    "stage": "initial",
-    "extreme_price": 76.14,
-    "stop_order_id": "d749b32d-1e6e-4577-ae8b-21f52acb7499",
+    "stage": "trailing",
+    "extreme_price": 81.3,
+    "stop_order_id": "bfbca5ba-268e-45a7-8382-6a59012c558c",
     "opened_at": "2026-10-21T19:50:11.538141+00:00",
-    "updated_at": "2026-10-21T19:50:11.538141+00:00"
+    "updated_at": "2026-10-27T15:24:21.560253+00:00"
   },
   "TSLA": {
     "symbol": "TSLA",
