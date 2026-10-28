@@ -27,20 +27,6 @@
     "opened_at": "2026-10-15T13:58:52.562394+00:00",
     "updated_at": "2026-10-15T13:58:52.562394+00:00"
   },
-  "MPC": {
-    "symbol": "MPC",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 478.266667,
-    "initial_stop_price": 416.5865080422219,
-    "current_stop_price": 416.5865080422219,
-    "r_per_share": 61.68015895777806,
-    "stage": "initial",
-    "extreme_price": 478.266667,
-    "stop_order_id": "b40f97b2-556f-4e20-a952-fb013ddaa05e",
-    "opened_at": "2026-10-15T13:58:52.707280+00:00",
-    "updated_at": "2026-10-15T13:58:52.707280+00:00"
-  },
   "PDD": {
     "symbol": "PDD",
     "side": "long",
@@ -194,20 +180,6 @@
     "stop_order_id": "d136489b-bf0c-4e94-b33c-861247850628",
     "opened_at": "2026-10-27T15:55:24.725245+00:00",
     "updated_at": "2026-10-27T15:55:24.725245+00:00"
-  },
-  "SHW": {
-    "symbol": "SHW",
-    "side": "long",
-    "qty": 7.0,
-    "entry_price": 321.42,
-    "initial_stop_price": 283.6781213066439,
-    "current_stop_price": 283.6781213066439,
-    "r_per_share": 37.74187869335614,
-    "stage": "initial",
-    "extreme_price": 321.42,
-    "stop_order_id": "7931f31b-2a93-4128-a54b-ece8acb61f6f",
-    "opened_at": "2026-10-27T15:55:25.153132+00:00",
-    "updated_at": "2026-10-27T15:55:25.153132+00:00"
   },
   "TMO": {
     "symbol": "TMO",
