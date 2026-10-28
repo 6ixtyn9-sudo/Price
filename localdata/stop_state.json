@@ -139,20 +139,6 @@
     "opened_at": "2026-10-26T19:48:03.529375+00:00",
     "updated_at": "2026-10-26T19:48:03.529375+00:00"
   },
-  "XOM": {
-    "symbol": "XOM",
-    "side": "long",
-    "qty": 13.0,
-    "entry_price": 184.019231,
-    "initial_stop_price": 178.30673099999998,
-    "current_stop_price": 178.30673099999998,
-    "r_per_share": 5.712500000000011,
-    "stage": "initial",
-    "extreme_price": 184.019231,
-    "stop_order_id": "bee25d49-bb4d-4205-aeca-f2b4d0c2a75d",
-    "opened_at": "2026-10-26T19:48:05.607757+00:00",
-    "updated_at": "2026-10-26T19:48:05.607757+00:00"
-  },
   "COST": {
     "symbol": "COST",
     "side": "long",
