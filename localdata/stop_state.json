@@ -13,20 +13,6 @@
     "opened_at": "2026-10-07T19:35:27.449635+00:00",
     "updated_at": "2026-10-07T19:35:27.449635+00:00"
   },
-  "GOOGL": {
-    "symbol": "GOOGL",
-    "side": "long",
-    "qty": 2.0,
-    "entry_price": 344.51,
-    "initial_stop_price": 304.2921480887277,
-    "current_stop_price": 304.2921480887277,
-    "r_per_share": 40.21785191127232,
-    "stage": "initial",
-    "extreme_price": 344.51,
-    "stop_order_id": "1e8614e8-8ff5-451f-894a-5af9cc19165d",
-    "opened_at": "2026-10-15T13:58:52.562394+00:00",
-    "updated_at": "2026-10-15T13:58:52.562394+00:00"
-  },
   "PDD": {
     "symbol": "PDD",
     "side": "long",
@@ -68,20 +54,6 @@
     "stop_order_id": "21af46fc-2733-4cba-81b3-0d50ef5c5f80",
     "opened_at": "2026-10-20T15:47:56.702400+00:00",
     "updated_at": "2026-10-20T15:47:56.702400+00:00"
-  },
-  "GOOG": {
-    "symbol": "GOOG",
-    "side": "long",
-    "qty": 7.0,
-    "entry_price": 335.317143,
-    "initial_stop_price": 291.04679649469864,
-    "current_stop_price": 291.04679649469864,
-    "r_per_share": 44.27034650530133,
-    "stage": "initial",
-    "extreme_price": 335.317143,
-    "stop_order_id": "e238363b-2b2f-424a-b2f7-1249ee41e8f1",
-    "opened_at": "2026-10-20T19:55:17.749328+00:00",
-    "updated_at": "2026-10-20T19:55:17.749328+00:00"
   },
   "AMAT": {
     "symbol": "AMAT",
@@ -166,20 +138,6 @@
     "stop_order_id": "7a88b6bc-0d24-45ae-b906-79ade59735e5",
     "opened_at": "2026-10-27T15:55:25.573511+00:00",
     "updated_at": "2026-10-27T15:55:25.573511+00:00"
-  },
-  "XLC": {
-    "symbol": "XLC",
-    "side": "long",
-    "qty": 22.0,
-    "entry_price": 107.402273,
-    "initial_stop_price": 102.47132285678063,
-    "current_stop_price": 102.47132285678063,
-    "r_per_share": 4.930950143219365,
-    "stage": "initial",
-    "extreme_price": 107.402273,
-    "stop_order_id": "2aeb79ec-7ccb-41e4-9bad-45dd245e3188",
-    "opened_at": "2026-10-27T15:55:26.004830+00:00",
-    "updated_at": "2026-10-27T15:55:26.004830+00:00"
   },
   "XYZ": {
     "symbol": "XYZ",
