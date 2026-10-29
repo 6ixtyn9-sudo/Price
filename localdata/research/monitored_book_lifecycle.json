@@ -1,6 +1,6 @@
 {
-  "previous_book_count": 237,
-  "new_book_count": 237,
+  "previous_book_count": 238,
+  "new_book_count": 238,
   "added_candidates": [],
   "removed_candidates": [],
   "retained_candidates": [
@@ -92,6 +92,7 @@
     "HD|15m|cross_USO_state_slope=flat + state_ext=stretched_up|short|rolling",
     "HON|1d|state_relvol=relvol_quiet + state_ext=stretched_down|long|rolling",
     "HON|1d|state_volume=vol_quiet + state_ext=stretched_down|long|rolling",
+    "HOOD|1d|cross_TLT_state_ext=stretched_up + state_ext=stretched_up|long|rolling",
     "HOOD|1d|cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
     "HOOD|1d|cross_TLT_state_slope=uptrend + state_slope=uptrend|long|rolling",
     "HUM|1d|cross_USO_state_slope=uptrend + cross_TLT_state_ext=stretched_down + state_ext=stretched_down|long|rolling",
@@ -245,5 +246,5 @@
   "changed_sides_or_slices": [],
   "removal_reasons": {},
   "promotion_reasons": {},
-  "discovery_run_id": null
+  "discovery_run_id": "40779272124"
 }
