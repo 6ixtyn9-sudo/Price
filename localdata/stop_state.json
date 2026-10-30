@@ -5,13 +5,13 @@
     "qty": 3.0,
     "entry_price": 505.23,
     "initial_stop_price": 455.5931365301898,
-    "current_stop_price": 455.5931365301898,
+    "current_stop_price": 505.23,
     "r_per_share": 49.63686346981024,
-    "stage": "initial",
-    "extreme_price": 505.23,
-    "stop_order_id": "b1aea7b8-72f8-44fa-8e12-ddeb6ac9754c",
+    "stage": "breakeven",
+    "extreme_price": 554.9,
+    "stop_order_id": "d4bcc769-eadc-4aac-9d52-144041092178",
     "opened_at": "2026-10-07T19:35:27.449635+00:00",
-    "updated_at": "2026-10-07T19:35:27.449635+00:00"
+    "updated_at": "2026-10-29T23:46:42.236955+00:00"
   },
   "PDD": {
     "symbol": "PDD",
