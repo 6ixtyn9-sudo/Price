@@ -7180,4 +7180,13 @@ scripts or external dependencies:
    `sharpe_decay`):** recorded on validation scorecards and leaderboards
    (`overfit_ratio`, `wf_oos_sharpe_slope`) and factored conservatively
    into `robustness_score` ordering.
+4. **Purged IS-only exit/stop calibration & shard `min_samples` forwarding:**
+   `run_candidate_leaderboard` now calibrates `best_fwd_horizon`
+   (`[3, 5, 10, 20]`), `expected_return`, and `best_stop_atr_mult` on the
+   20-bar-purged IS split (`chronological_train_valid_split(..., split=0.7,
+   purge_bars=max(HORIZONS))`) rather than full-history `ef`, eliminating
+   OOS look-ahead in live exit horizons and ATR stop multipliers; and
+   `scripts/research_shard.py` now forwards `min_samples` to
+   `run_candidate_leaderboard` so `15m` shards validate and compute DSR
+   dispersion at `--min-samples 30` instead of silently falling back to 15.
 

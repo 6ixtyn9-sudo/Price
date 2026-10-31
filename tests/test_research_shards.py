@@ -72,6 +72,7 @@ def test_split_symbols_rejects_shell_metacharacters():
 
 def test_run_shard_passes_profile_to_discovery(monkeypatch, tmp_path: Path):
     called = {}
+    leaderboard_called = {}
 
     fake_discover = types.SimpleNamespace(DISCOVERED_SLICES_PATH="")
     fake_validate = types.SimpleNamespace(
@@ -87,6 +88,7 @@ def test_run_shard_passes_profile_to_discovery(monkeypatch, tmp_path: Path):
         )
 
     def fake_run_candidate_leaderboard(**kwargs):
+        leaderboard_called.update(kwargs)
         Path(kwargs["output_path"]).write_text(
             "symbol,timeframe,slice_combination\nBTC/USD,1h,a\n"
         )
@@ -99,13 +101,16 @@ def test_run_shard_passes_profile_to_discovery(monkeypatch, tmp_path: Path):
 
     manifest = research_shard.run_shard(
         symbols=["BTC/USD"],
-        timeframe="1h",
-        shard_id="crypto-1h-00",
+        timeframe="15m",
+        shard_id="crypto-15m-00",
         output_dir=tmp_path,
         condition_symbols=("BTC/USD", "ETH/USD"),
         bin_mode="rolling",
         profile="crypto",
+        min_samples=30,
     )
 
     assert manifest["status"] == "success"
     assert called["profile"] == "crypto"
+    assert called["min_samples"] == 30
+    assert leaderboard_called["min_samples"] == 30

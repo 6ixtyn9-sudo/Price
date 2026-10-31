@@ -1718,6 +1718,7 @@ def run_candidate_leaderboard(
     stop_map: dict[tuple, float | None] = {}
     expected_return_map: dict[tuple, float | None] = {}
     frame_cache: dict = {}
+    train_frame_cache: dict = {}
 
     for _, row in leaderboard.iterrows():
         sym = row["symbol"]
@@ -1740,15 +1741,26 @@ def run_candidate_leaderboard(
                 horizon_map[(sym, tf, combo)] = 5
                 continue
 
+            if ck not in train_frame_cache:
+                train_ef, _ = chronological_train_valid_split(
+                    ef, split=0.7, purge_bars=max(HORIZONS)
+                )
+                if train_ef.empty:
+                    train_ef, _ = chronological_train_valid_split(
+                        ef, split=0.7, purge_bars=0
+                    )
+                train_frame_cache[ck] = train_ef
+            cal_ef = train_frame_cache[ck]
+
             stable = {k: v for k, v in sf.items()
                       if k not in ("state_session", "state_dow", "state_month")}
-            matched = pd.Series(True, index=ef.index)
+            matched = pd.Series(True, index=cal_ef.index)
             for field, value in stable.items():
-                if field not in ef.columns:
-                    matched = pd.Series(False, index=ef.index)
+                if field not in cal_ef.columns:
+                    matched = pd.Series(False, index=cal_ef.index)
                     break
-                matched = matched & (ef[field].astype(str) == value)
-            window = ef[matched]
+                matched = matched & (cal_ef[field].astype(str) == value)
+            window = cal_ef[matched]
 
             best_h = 5
             best_mean = float("-inf")

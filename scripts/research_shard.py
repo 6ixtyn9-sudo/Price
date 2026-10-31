@@ -105,6 +105,7 @@ def run_shard(
             validate_slices.run_candidate_leaderboard(
                 slices_path=str(discovered_path),
                 output_path=str(leaderboard_path),
+                min_samples=min_samples,
                 bin_mode=bin_mode,
                 cost_bps=cost_bps,
                 short_cost_bps=short_cost_bps,
