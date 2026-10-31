@@ -7149,3 +7149,35 @@ losses. Re-open the pool only when its forward expectancy is
 proven non-negative (or exempt individual slices that clear the
 bar). Tests: 3 new ATR tests + 2 long-gate tests; suite 733
 passed, 1 skipped.
+
+### 2026-10-31 — Validation cherry-picks: pre-OOS purging, DSR, and fold-decay diagnostics
+
+Cherry-picked three standalone statistical guards inspired by
+`QuantJourneyOrg/quantjourney-bt` (Apache-2.0, surfaced via quants.md),
+integrated directly into existing validation modules with zero new
+scripts or external dependencies:
+
+1. **Pre-OOS horizon purging (`price.validation` + `scripts/validate_slices.py`):**
+   `chronological_train_valid_split` and `walk_forward_folds` now accept
+   `purge_bars` (and `infer_target_horizon_bars` extracts the holding
+   horizon from `fwd_ret_*` target names). `run_validation` and
+   `run_walk_forward_diagnostics` default to purging 5 trailing in-sample
+   bars (`--purge-bars`, `0` disables) before every OOS boundary across
+   slice, unconditional-baseline, parent-baseline, and walk-forward
+   splits so 5-bar forward targets cannot leak OOS prices into IS.
+2. **Probabilistic & Deflated Sharpe Ratio (`probabilistic_sharpe`,
+   `deflated_sharpe`):** Bailey & López de Prado (2012/2014) higher-moment
+   SR significance penalizing negative skewness, fat kurtosis, and
+   multiple-testing selection bias (`expected_max_sharpe`), paired with
+   an overlap-aware HAC effective sample size (`effective_n`) in
+   `summarize_returns` so overlapping forward bars cannot inflate `T`.
+   `annotate_search_wide_significance` computes vectorized
+   `search_wide_dsr` and `search_wide_dsr_pass` (>= 0.95) across merged
+   leaderboards while estimating cross-trial `V[SR]` on sample-sufficient
+   rows (`valid_n >= min_samples`) so tiny-sample outliers cannot blow up
+   `E[max SR]`. Carried into `candidate_registry.csv` via `build_registry`.
+3. **IS->OOS overfit ratio & fold OOS Sharpe slope (`overfit_ratio`,
+   `sharpe_decay`):** recorded on validation scorecards and leaderboards
+   (`overfit_ratio`, `wf_oos_sharpe_slope`) and factored conservatively
+   into `robustness_score` ordering.
+

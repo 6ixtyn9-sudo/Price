@@ -632,3 +632,125 @@ def test_calibrate_stop_atr_mult_basic():
     assert res is not None
     assert 1.5 <= res <= 5.0
     assert _calibrate_stop_atr_mult([1.0, 2.0]) is None  # < 5 instances -> None
+
+
+def test_annotate_search_wide_significance_dsr_matches_scalar_and_resists_tiny_n_outliers():
+    from price.validation import deflated_sharpe
+
+    lb = pd.DataFrame(
+        [
+            {
+                "symbol": "STRONG",
+                "valid_p_value_nw": 0.0001,
+                "valid_n": 120,
+                "valid_n_eff": 100.0,
+                "valid_sharpe": 0.45,
+                "valid_skew": 0.1,
+                "valid_kurtosis": 3.2,
+            },
+            {
+                "symbol": "MID",
+                "valid_p_value_nw": 0.03,
+                "valid_n": 80,
+                "valid_n_eff": 70.0,
+                "valid_sharpe": 0.20,
+                "valid_skew": -0.8,
+                "valid_kurtosis": 6.0,
+            },
+            {
+                "symbol": "WEAK",
+                "valid_p_value_nw": 0.40,
+                "valid_n": 60,
+                "valid_n_eff": 55.0,
+                "valid_sharpe": 0.05,
+                "valid_skew": 0.0,
+                "valid_kurtosis": 3.0,
+            },
+            # Pathological n=2 outlier: counted in total trials M=4, but must NOT
+            # blow up cross-trial V[SR] estimation.
+            {
+                "symbol": "TINY_OUTLIER",
+                "valid_p_value_nw": 0.01,
+                "valid_n": 2,
+                "valid_n_eff": 2.0,
+                "valid_sharpe": 50.0,
+                "valid_skew": 0.0,
+                "valid_kurtosis": 3.0,
+            },
+        ]
+    )
+
+    out = annotate_search_wide_significance(lb, p_threshold=0.05, min_samples=15)
+
+    stable_sharpes = [0.45, 0.20, 0.05]
+    expected_strong = deflated_sharpe(
+        stable_sharpes,
+        n_trials=4,
+        observed_sr=0.45,
+        n_obs=100.0,
+        skewness=0.1,
+        kurtosis=3.2,
+    )
+    expected_mid = deflated_sharpe(
+        stable_sharpes,
+        n_trials=4,
+        observed_sr=0.20,
+        n_obs=70.0,
+        skewness=-0.8,
+        kurtosis=6.0,
+    )
+
+    strong_row = out[out["symbol"] == "STRONG"].iloc[0]
+    mid_row = out[out["symbol"] == "MID"].iloc[0]
+    assert strong_row["search_wide_dsr"] == round(expected_strong, 6)
+    assert bool(strong_row["search_wide_dsr_pass"]) is True
+    assert mid_row["search_wide_dsr"] == round(expected_mid, 6)
+    assert bool(mid_row["search_wide_dsr_pass"]) is False
+
+    # Custom regime p_col without valid_sharpe must not inject search_wide_dsr
+    # columns that could collide during regime-leaderboard joins.
+    regime_frame = pd.DataFrame({"symbol": ["A", "B"], "__regime_p_value_nw__": [0.01, 0.50]})
+    regime_out = annotate_search_wide_significance(regime_frame, p_col="__regime_p_value_nw__")
+    assert "search_wide_dsr" not in regime_out.columns
+
+
+def test_run_validation_purges_5_bars_by_default_and_emits_dsr_inputs(monkeypatch, tmp_path):
+    import numpy as np
+    from validate_slices import run_validation
+
+    slices_csv = tmp_path / "discovered.csv"
+    validated_csv = tmp_path / "validated.csv"
+    monkeypatch.setattr("validate_slices.VALIDATED_SLICES_PATH", str(validated_csv))
+
+    pd.DataFrame(
+        [{"symbol": "SPY", "timeframe": "1d", "slice_combination": "state_ext=stretched_down", "side": "long"}]
+    ).to_csv(slices_csv, index=False)
+
+    rng = np.random.default_rng(42)
+    # 100 bars -> 70/30 split; default 5-bar purge leaves 65 IS rows and 30 OOS rows.
+    rets = rng.normal(0.015, 0.005, 100)
+    # Spike the 5 boundary rows (65..69) to verify default purging excludes them.
+    rets[65:70] = -0.90
+
+    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None, bin_mode="insample"):
+        return pd.DataFrame(
+            {
+                "bar_ts_utc": pd.date_range("2024-01-01", periods=100, freq="D", tz="UTC"),
+                "fwd_ret_5": rets,
+                "close_adj": [100.0] * 100,
+                "state_ext": ["stretched_down"] * 100,
+            }
+        )
+
+    monkeypatch.setattr("validate_slices.build_eligible_frame", fake_build_eligible_frame)
+
+    purged_df = run_validation(slices_path=str(slices_csv), cost_bps=0.0, min_samples=10)
+    unpurged_df = run_validation(slices_path=str(slices_csv), cost_bps=0.0, min_samples=10, purge_bars=0)
+
+    assert int(purged_df.iloc[0]["train_n"]) == 65
+    assert int(unpurged_df.iloc[0]["train_n"]) == 70
+    assert purged_df.iloc[0]["verdict"] == "survived"
+    assert unpurged_df.iloc[0]["verdict"] == "rejected"
+    for col in ("valid_sharpe", "valid_skew", "valid_kurtosis", "valid_n_eff", "valid_psr", "overfit_ratio", "wf_oos_sharpe_slope"):
+        assert col in purged_df.columns
+

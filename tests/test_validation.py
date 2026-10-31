@@ -9,9 +9,14 @@ from price.validation import (
     apply_slice_filter,
     apply_transaction_cost,
     chronological_train_valid_split,
+    deflated_sharpe,
     evaluate_slice_train_valid,
+    infer_target_horizon_bars,
     newey_west_tstat,
+    overfit_ratio,
     parse_slice_combination,
+    probabilistic_sharpe,
+    sharpe_decay,
     summarize_returns,
     walk_forward_folds,
     walk_forward_validate_slice,
@@ -267,3 +272,116 @@ def test_walk_forward_validate_slice_returns_one_entry_per_fold():
         assert "train" in entry and "valid" in entry
         assert entry["train"]["sample_count"] >= 0
         assert entry["valid"]["sample_count"] >= 0
+
+
+def test_infer_target_horizon_bars():
+    assert infer_target_horizon_bars("fwd_ret_5") == 5
+    assert infer_target_horizon_bars("fwd_ret_5b") == 5
+    assert infer_target_horizon_bars("tradeable_fwd_ret_20") == 20
+    assert infer_target_horizon_bars("custom_return") == 0
+    assert infer_target_horizon_bars("") == 0
+
+
+def test_chronological_split_purge_bars_drops_trailing_is_rows_without_shifting_oos():
+    df = _synthetic_frame(n=100)
+    train_unpurged, valid_unpurged = chronological_train_valid_split(df, split=0.7, purge_bars=0)
+    train_purged, valid_purged = chronological_train_valid_split(df, split=0.7, purge_bars=5)
+
+    assert len(train_purged) == 65
+    assert len(valid_purged) == 30
+    assert valid_purged["bar_ts_utc"].equals(valid_unpurged["bar_ts_utc"])
+    assert train_purged["bar_ts_utc"].max() == train_unpurged.iloc[64]["bar_ts_utc"]
+
+    with pytest.raises(ValueError):
+        chronological_train_valid_split(df, split=0.7, purge_bars=-1)
+
+
+def test_evaluate_slice_train_valid_auto_purge_blocks_boundary_leakage():
+    n = 100
+    base_time = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    timestamps = [base_time + timedelta(days=i) for i in range(n)]
+    # Rows 0..64 lose -1%; rows 65..69 (whose 5-bar forward window crosses into
+    # validation at row 70) leak a +50% spike; validation rows 70..99 gain +1%.
+    fwd_ret_5 = np.array([-0.01] * 65 + [0.50] * 5 + [0.01] * 30)
+    df = pd.DataFrame(
+        {
+            "bar_ts_utc": timestamps,
+            "close_adj": np.full(n, 100.0),
+            "fwd_ret_5": fwd_ret_5,
+            "state_ext": np.full(n, "stretched_down"),
+        }
+    )
+
+    leaked = evaluate_slice_train_valid(
+        df, {"state_ext": "stretched_down"}, split=0.7, purge_bars=0
+    )
+    purged = evaluate_slice_train_valid(
+        df, {"state_ext": "stretched_down"}, split=0.7, purge_bars=None
+    )
+
+    assert leaked["train"]["mean_return"] > 0.02
+    assert purged["train"]["sample_count"] == 65
+    assert purged["train"]["mean_return"] == pytest.approx(-0.01)
+    assert purged["valid"]["sample_count"] == 30
+
+
+def test_walk_forward_folds_purge_enforces_horizon_gap_every_fold():
+    df = _synthetic_frame(n=100)
+    for _fold_idx, train_df, valid_df in walk_forward_folds(df, n_folds=4, purge_bars=5):
+        gap_hours = (valid_df["bar_ts_utc"].min() - train_df["bar_ts_utc"].max()).total_seconds() / 3600.0
+        # 5 purged hourly bars -> 6 hours between last IS bar and first OOS bar.
+        assert gap_hours == pytest.approx(6.0)
+
+
+def test_probabilistic_sharpe_penalizes_negative_skew_and_fat_tails():
+    psr_gaussian = probabilistic_sharpe(0.25, n_obs=60, skewness=0.0, kurtosis=3.0)
+    psr_neg_skew = probabilistic_sharpe(0.25, n_obs=60, skewness=-1.5, kurtosis=3.0)
+    psr_fat_tail = probabilistic_sharpe(0.25, n_obs=60, skewness=0.0, kurtosis=9.0)
+
+    assert 0.5 < psr_neg_skew < psr_gaussian < 1.0
+    assert 0.5 < psr_fat_tail < psr_gaussian < 1.0
+    assert probabilistic_sharpe(0.25, n_obs=1) == 0.0
+
+
+def test_deflated_sharpe_reduces_to_psr_for_single_trial_and_deflates_multi_trial():
+    single = deflated_sharpe([0.30], n_obs=80, skewness=-0.2, kurtosis=4.0)
+    expected_psr = probabilistic_sharpe(0.30, n_obs=80, skewness=-0.2, kurtosis=4.0)
+    assert single == pytest.approx(expected_psr, rel=1e-12)
+
+    trials_10 = np.linspace(-0.2, 0.30, 10)
+    dsr_10 = deflated_sharpe(trials_10, n_trials=10, observed_sr=0.30, n_obs=80, skewness=-0.2, kurtosis=4.0)
+    dsr_5000 = deflated_sharpe(trials_10, n_trials=5000, observed_sr=0.30, n_obs=80, skewness=-0.2, kurtosis=4.0)
+
+    assert dsr_5000 < dsr_10 < single
+
+    with pytest.raises(ValueError):
+        deflated_sharpe(trials_10, n_trials=10, effective_n_trials=20, observed_sr=0.30, n_obs=80)
+
+
+def test_summarize_returns_shrinks_effective_n_and_psr_under_overlap():
+    rng = np.random.default_rng(11)
+    n = 200
+    shocks = rng.normal(0.0, 1.0, n)
+    ar = np.zeros(n)
+    for i in range(1, n):
+        ar[i] = 0.85 * ar[i - 1] + shocks[i]
+    returns = pd.Series(0.002 + 0.005 * ar)
+
+    summary_hac = summarize_returns(returns, nw_lags=5)
+    summary_iid = summarize_returns(returns, nw_lags=0)
+
+    assert summary_hac["effective_n"] < summary_hac["sample_count"]
+    assert summary_iid["effective_n"] == pytest.approx(float(n))
+    assert summary_hac["psr"] < summary_iid["psr"]
+
+
+def test_overfit_ratio_and_sharpe_decay_diagnostics():
+    assert overfit_ratio(0.6, 0.3) == pytest.approx(2.0)
+    assert math.isinf(overfit_ratio(0.5, -0.1))
+    assert overfit_ratio(-0.2, -0.1) == 0.0
+    assert math.isnan(overfit_ratio(float("nan"), 0.2))
+
+    # Preserves fold spacing even when fold 1 is NaN: points (0, 0.4), (2, 0.2), (3, 0.1) -> slope -0.1
+    assert sharpe_decay([0.4, float("nan"), 0.2, 0.1]) == pytest.approx(-0.1)
+    assert math.isnan(sharpe_decay([0.4]))
+
