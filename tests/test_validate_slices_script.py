@@ -815,3 +815,98 @@ def test_run_candidate_leaderboard_calibrates_horizon_return_and_stop_on_purged_
     assert abs(float(row["best_stop_atr_mult"]) - 1.8) < 1e-6
 
 
+def test_leaderboard_side_isolation_session_calibration_finite_overfit_and_small_neff_dsr(
+    monkeypatch, tmp_path
+):
+    import math
+    import numpy as np
+    from validate_slices import annotate_search_wide_significance, run_candidate_leaderboard
+
+    slices_csv = tmp_path / "discovered.csv"
+    validated_csv = tmp_path / "validated.csv"
+    leaderboard_csv = tmp_path / "leaderboard.csv"
+    monkeypatch.setattr("validate_slices.VALIDATED_SLICES_PATH", str(validated_csv))
+
+    # Same combo on BOTH sides ('long' and 'short') + session filter 'afternoon'.
+    pd.DataFrame([
+        {
+            "symbol": "SPY",
+            "timeframe": "1h",
+            "slice_combination": "state_session=afternoon + state_ext=stretched_down",
+            "side": "long",
+        },
+        {
+            "symbol": "SPY",
+            "timeframe": "1h",
+            "slice_combination": "state_session=afternoon + state_ext=stretched_down",
+            "side": "short",
+        },
+    ]).to_csv(slices_csv, index=False)
+
+    # 120 bars alternating morning/afternoon; in purged IS (0..63):
+    # afternoon bars have positive fwd_ret_10 = +0.03 (fwd_ret_5 = +0.015),
+    # whereas morning bars have fwd_ret_20 = +0.20 (would flip horizon to 20 if
+    # state_session were stripped!). OOS (84..119) is negative (-0.02) so the
+    # long row has train_sharpe > 0 and valid_sharpe < 0 -> finite overfit_ratio 999.0.
+    sessions = ["morning" if i % 2 == 0 else "afternoon" for i in range(120)]
+    jitter = np.array([(((i // 2) % 2) * 2 - 1) * 0.001 for i in range(120)])  # exact zero-mean on even counts
+    fwd5 = np.array([0.015 if i < 84 else -0.02 for i in range(120)]) + jitter
+    fwd10 = np.array([0.030 if (i < 84 and sessions[i] == "afternoon") else -0.01 for i in range(120)]) + jitter
+    fwd20 = np.array([0.200 if (i < 84 and sessions[i] == "morning") else 0.005 for i in range(120)]) + jitter
+
+    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None, bin_mode="insample"):
+        return pd.DataFrame({
+            "bar_ts_utc": pd.date_range("2024-01-01", periods=120, freq="h", tz="UTC"),
+            "fwd_ret_3": np.full(120, 0.005),
+            "fwd_ret_5": fwd5,
+            "fwd_ret_10": fwd10,
+            "fwd_ret_20": fwd20,
+            "fwd_mae_atr_10_long": np.full(120, 1.9),
+            "fwd_mae_atr_3_short": np.full(120, 3.4),
+            "fwd_mae_atr_5_short": np.full(120, 3.4),
+            "close_adj": [100.0] * 120,
+            "high": [101.0] * 120,
+            "low": [99.0] * 120,
+            "close": [100.0] * 120,
+            "volume": [1_000_000.0] * 120,
+            "state_session": sessions,
+            "state_ext": ["stretched_down"] * 120,
+        })
+
+    monkeypatch.setattr("validate_slices.build_eligible_frame", fake_build_eligible_frame)
+    monkeypatch.setattr("price.regime.attach_regime_labels", lambda df, sym, timeframe="1d", **kw: df.assign(regime="bull"))
+
+    lb = run_candidate_leaderboard(
+        slices_path=str(slices_csv),
+        output_path=str(leaderboard_csv),
+        cost_bps=10.0,  # 20 bps round-trip = 0.0020 drag
+        min_samples=5,
+    )
+    assert len(lb) == 2
+    # No literal inf values anywhere in output CSV
+    raw_csv = leaderboard_csv.read_text()
+    assert ",inf," not in raw_csv and ",-inf," not in raw_csv
+
+    long_row = lb[lb["side"] == "long"].iloc[0]
+    short_row = lb[lb["side"] == "short"].iloc[0]
+    # Long afternoon slice picks horizon 10 (0.030 - 0.002 = 0.028), NOT morning's 20,
+    # and is NOT overwritten by the short row's horizon/stop/sign!
+    assert int(long_row["best_fwd_horizon"]) == 10
+    assert abs(float(long_row["expected_return"]) - 0.028) < 1e-9
+    assert abs(float(long_row["best_stop_atr_mult"]) - 1.9) < 1e-6
+    assert math.isfinite(float(long_row["overfit_ratio"]))
+    assert float(long_row["overfit_ratio"]) == 999.0
+
+    assert int(short_row["best_fwd_horizon"]) != 10
+    assert float(short_row["expected_return"]) < 0.0
+    assert abs(float(short_row["best_stop_atr_mult"]) - 3.4) < 1e-6
+
+    # Also verify DSR parity when valid_n_eff <= 1.0 -> 0.0 (not NaN)
+    tiny_eff = annotate_search_wide_significance(pd.DataFrame([
+        {"symbol": "X", "valid_p_value_nw": 0.01, "valid_sharpe": 0.8, "valid_n": 20, "valid_n_eff": 0.9},
+        {"symbol": "Y", "valid_p_value_nw": 0.02, "valid_sharpe": 0.4, "valid_n": 20, "valid_n_eff": 20.0},
+    ]))
+    assert float(tiny_eff.loc[tiny_eff["symbol"] == "X", "search_wide_dsr"].iloc[0]) == 0.0
+
+
+

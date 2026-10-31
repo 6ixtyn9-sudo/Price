@@ -127,3 +127,34 @@ def test_append_mode_does_not_rewrite_existing_rows(audit_path, monkeypatch):
     after = audit_path.read_bytes()
     assert after.startswith(before)
     assert len(after) > len(before)
+
+
+def test_append_trims_strictly_under_cap_despite_wide_recent_rows_and_repairs_newline(
+    audit_path, monkeypatch
+):
+    # 150 tiny old rows (~15B) + 50 wide recent rows (~600B): whole-file mean
+    # bytes/row is ~160B, so a single-pass tail estimate would overshoot 15KB.
+    seed = pd.DataFrame({
+        "action": ["scan"] * 200,
+        "symbol": [f"S{i:03d}" for i in range(200)],
+        "pad": ["x"] * 150 + ["W" * 600] * 50,
+    })
+    seed.to_csv(audit_path, index=False)
+    assert audit_path.stat().st_size > 30_000
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_MAX_BYTES", 15_000)
+
+    paper_trade._append_audit({"action": "enter", "symbol": "LATEST", "pad": "W" * 600})
+    assert audit_path.stat().st_size <= 15_000
+    df = pd.read_csv(audit_path)
+    assert df.iloc[-1]["symbol"] == "LATEST"
+
+    # Strip trailing newline to simulate an interrupted prior write; next O(1)
+    # append must repair the newline rather than corrupting the last row.
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_MAX_BYTES", 10 * 1024 * 1024)
+    raw = audit_path.read_bytes().rstrip(b"\r\n")
+    audit_path.write_bytes(raw)
+    paper_trade._append_audit({"action": "exit", "symbol": "AFTER_TRUNC", "pad": "ok"})
+    repaired = pd.read_csv(audit_path)
+    assert repaired.iloc[-2]["symbol"] == "LATEST"
+    assert repaired.iloc[-1]["symbol"] == "AFTER_TRUNC"
+

@@ -385,12 +385,10 @@ def _match_journal(journal: Optional[pd.DataFrame]):
 
     def _exit_pool(erow, kind: str) -> Optional[str]:
         side = _s(erow, "side").lower()
-        if side == "sell":
+        if side in ("sell", "close_long"):
             return "long"
-        if side == "buy":
+        if side in ("buy", "cover", "close_short"):
             return "short"
-        if kind == "protective_stop":
-            return "long" if side == "sell" else "short"
         signed = _float_or_none(erow.get("qty"))
         if signed is not None and signed != 0:
             return "long" if signed > 0 else "short"
@@ -902,9 +900,10 @@ def attribute_pnl(
             "from realized totals."
         )
 
-    # Era split: pure-horizon exits deployed 2026-07-30. Blending eras made
-    # exit-policy comparisons meaningless (state-break-heavy early data vs
-    # horizon-heavy later data), so report them side by side.
+    # Era split: pure-horizon exits deployed 2026-07-30. Partition on ENTRY
+    # timestamp (matching HANDOVER's post-era scale-up gate) so legacy entries
+    # opened before 2026-07-30 cannot contaminate post-era expectancy when
+    # they close later.
     eras: dict = {}
     if round_trips:
         era_cut = pd.Timestamp("2026-07-30T00:00:00Z")
@@ -915,7 +914,8 @@ def attribute_pnl(
             subset = []
             for rt in round_trips:
                 try:
-                    ts = pd.Timestamp(rt.exit_ts)
+                    raw_ts = rt.entry_ts or rt.exit_ts
+                    ts = pd.Timestamp(raw_ts)
                     ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts
                 except Exception:  # noqa: BLE001
                     continue

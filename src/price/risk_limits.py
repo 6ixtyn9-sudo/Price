@@ -347,8 +347,13 @@ def check_entry(
         and getattr(limits, "short_blocked_timeframes", frozenset())
         and str(timeframe) in limits.short_blocked_timeframes
     ):
-        exempt_key = f"{str(symbol).upper()}|{timeframe}|{slice_combination or ''}"
-        if exempt_key not in getattr(limits, "short_exempt_slices", frozenset()):
+        from price.roi_guards import is_slice_exempt
+        if not is_slice_exempt(
+            getattr(limits, "short_exempt_slices", frozenset()),
+            symbol,
+            timeframe,
+            slice_combination,
+        ):
             reasons.append(
                 f"short entries blocked on {timeframe} by pool gate "
                 "(negative live expectancy pool; slice not exempt — see "
@@ -364,8 +369,13 @@ def check_entry(
         and getattr(limits, "long_blocked_timeframes", frozenset())
         and str(timeframe) in limits.long_blocked_timeframes
     ):
-        exempt_key = f"{str(symbol).upper()}|{timeframe}|{slice_combination or ''}"
-        if exempt_key not in getattr(limits, "long_exempt_slices", frozenset()):
+        from price.roi_guards import is_slice_exempt
+        if not is_slice_exempt(
+            getattr(limits, "long_exempt_slices", frozenset()),
+            symbol,
+            timeframe,
+            slice_combination,
+        ):
             reasons.append(
                 f"long entries blocked on {timeframe} by pool gate "
                 "(negative live expectancy pool; slice not exempt — see "

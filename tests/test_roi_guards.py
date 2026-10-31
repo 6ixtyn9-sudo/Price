@@ -267,3 +267,73 @@ def test_load_shadow_demotions_fails_open(tmp_path):
                    "side": "short", "slice_combination": "sl"}]).to_csv(p, index=False)
     keys = _load_shadow_demotions(p)
     assert shadow_key("AAA", "1h", "sl", "short", "rolling") in keys
+
+
+def test_per_slice_cycle_keys_prevent_unrelated_slice_from_manufacturing_strike():
+    # AAA has 35 losing signals on Oct 01; SPY gets a fresh 15m signal on Oct 02.
+    # AAA's own data has NOT changed, so AAA must stay at strike 1 until AAA
+    # itself accrues new resolved observations.
+    live_cycle_1 = _live(
+        _sig(symbol="AAA", tf="1d", n=35, signal_ts_utc="2026-10-01T16:00:00Z")
+        + _sig(symbol="SPY", tf="15m", ret5=0.01, ret20=0.02, n=35, signal_ts_utc="2026-10-01 16:00:00+00:00")
+    )
+    stats_1 = compute_shadow_stats(live_cycle_1)
+    verdicts_1 = {r["key"]: shadow_verdict(r) for r in stats_1}
+    cycles_1 = {r["key"]: r["cycle_key"] for r in stats_1}
+    aaa_key = shadow_key("AAA", "1d", "state_ext=neutral", "long", "rolling")
+
+    state, demoted = update_demotion_state(
+        {}, verdicts_1, "2026-10-01T16:00:00+00:00", slice_cycle_keys=cycles_1
+    )
+    assert state["strikes"][aaa_key] == 1
+    assert demoted == []
+
+    # Unrelated SPY 15m signal advances global timestamp (space format > 'T' if
+    # parsed chronologically, not lexicographically), while AAA is unchanged.
+    live_cycle_2 = _live(
+        _sig(symbol="AAA", tf="1d", n=35, signal_ts_utc="2026-10-01T16:00:00Z")
+        + _sig(symbol="SPY", tf="15m", ret5=0.01, ret20=0.02, n=36, signal_ts_utc="2026-10-02 14:15:00+00:00")
+    )
+    stats_2 = compute_shadow_stats(live_cycle_2)
+    verdicts_2 = {r["key"]: shadow_verdict(r) for r in stats_2}
+    cycles_2 = {r["key"]: r["cycle_key"] for r in stats_2}
+    state, demoted = update_demotion_state(
+        state, verdicts_2, "2026-10-02T14:15:00+00:00", slice_cycle_keys=cycles_2
+    )
+    assert state["strikes"][aaa_key] == 1
+    assert demoted == []
+
+    # Now AAA itself accrues new losing evidence -> strike 2 -> demoted.
+    live_cycle_3 = _live(
+        _sig(symbol="AAA", tf="1d", n=36, signal_ts_utc="2026-10-03 20:00:00+00:00")
+        + _sig(symbol="SPY", tf="15m", ret5=0.01, ret20=0.02, n=36, signal_ts_utc="2026-10-02 14:15:00+00:00")
+    )
+    stats_3 = compute_shadow_stats(live_cycle_3)
+    verdicts_3 = {r["key"]: shadow_verdict(r) for r in stats_3}
+    cycles_3 = {r["key"]: r["cycle_key"] for r in stats_3}
+    state, demoted = update_demotion_state(
+        state, verdicts_3, "2026-10-03T20:00:00+00:00", slice_cycle_keys=cycles_3
+    )
+    assert state["strikes"][aaa_key] == 2
+    assert demoted == [aaa_key]
+
+
+def test_loser_stop_deadband_and_full_horizon_guard():
+    cfg = WatchdogConfig(loser_stop_fraction=0.5)
+    # 1-cent / spread noise (-0.01R inside 0.05R deadband) does not prematurely exit.
+    assert watchdog_exit_reason(bars_held=3, horizon_bars=5, r_multiple=-0.01, config=cfg) is None
+    # Materially underwater (-0.08R) fires.
+    assert watchdog_exit_reason(bars_held=3, horizon_bars=5, r_multiple=-0.08, config=cfg) is not None
+    # Degenerate horizon_bars=1 (trigger == horizon_bars) leaves exit labeling to normal horizon rule.
+    assert watchdog_exit_reason(bars_held=1, horizon_bars=1, r_multiple=-0.4, config=cfg) is None
+
+
+def test_pool_gate_exemption_normalizes_case_and_whitespace():
+    limits = _limits(
+        long_blocked_timeframes=frozenset({"1d"}),
+        long_exempt_slices=frozenset({" aapl | 1d | sl "}),
+    )
+    res = check_entry("AAPL", 10, 100.0, limits, [], 0.0, side="long",
+                      timeframe="1d", slice_combination="sl")
+    assert res.allowed
+

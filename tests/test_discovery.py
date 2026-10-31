@@ -185,3 +185,50 @@ def test_demand_state_bins_boundary_symmetry():
         "gap_open_big_down", "gap_open_down", "gap_open_flat", "gap_open_flat",
         "gap_open_flat", "gap_open_flat", "gap_open_up", "gap_open_big_up", "gap_open_up",
     ]
+
+
+def test_discover_market_slices_locks_side_on_purged_insample(tmp_path):
+    """OOS crash in the final 30% of bars must not flip a slice's discovered
+    `side` from 'long' to 'short' when its purged IS mean was positive."""
+    old_dir = price.warehouse.WAREHOUSE_DIR
+    price.warehouse.WAREHOUSE_DIR = tmp_path
+    try:
+        base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        n = 120
+        timestamps = [base_time + timedelta(days=i) for i in range(n)]
+        # Steady +0.5% daily climb through bar 86 (covers 100% of purged IS +
+        # 5-bar forward horizon), then -8% daily crash in OOS so full-frame
+        # mean_fwd_ret_5 is strongly negative while purged IS mean is positive.
+        closes = [100.0]
+        for i in range(1, n):
+            mult = 1.005 if i < 87 else 0.92
+            closes.append(closes[-1] * mult)
+        opens = [closes[0]] + closes[:-1]  # open == prior close -> gap_open_flat everywhere
+
+        df = pd.DataFrame({
+            "symbol": ["SPY"] * n,
+            "timeframe": ["1d"] * n,
+            "bar_ts_utc": timestamps,
+            "source": ["tiingo"] * n,
+            "ingested_at_utc": [datetime.now(timezone.utc)] * n,
+            "open_raw": opens,
+            "high_raw": [max(o, c) * 1.01 for o, c in zip(opens, closes)],
+            "low_raw": [min(o, c) * 0.99 for o, c in zip(opens, closes)],
+            "close_raw": closes,
+            "volume_raw": [1_000_000] * n,
+            "open_adj": opens,
+            "high_adj": [max(o, c) * 1.01 for o, c in zip(opens, closes)],
+            "low_adj": [min(o, c) * 0.99 for o, c in zip(opens, closes)],
+            "close_adj": closes,
+            "adj_factor": [1.0] * n,
+            "split_factor": [1.0] * n,
+            "dividend_cash": [0.0] * n,
+        })
+        price.warehouse.save_to_warehouse(df)
+        slices = discover_market_slices("SPY", "1d", ["state_gap_open"], min_samples=15)
+        flat = slices[slices["slice_combination"] == "state_gap_open=gap_open_flat"].iloc[0]
+        assert float(flat["mean_fwd_ret_5"]) < 0.0  # full-frame mean dragged negative by OOS
+        assert flat["side"] == "long"               # locked strictly on positive purged IS
+    finally:
+        price.warehouse.WAREHOUSE_DIR = old_dir
+

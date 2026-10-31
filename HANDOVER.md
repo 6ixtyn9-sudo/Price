@@ -7190,3 +7190,42 @@ scripts or external dependencies:
    `run_candidate_leaderboard` so `15m` shards validate and compute DSR
    dispersion at `--min-samples 30` instead of silently falling back to 15.
 
+### 2026-10-31 (later) — Red-team hardening across PRs #1–#9
+
+Closed all red-team findings across validation, discovery, attribution,
+sizing, watchdog, shadow-gating, and audit logging ahead of the nightly
+discovery refresh:
+
+- **Per-slice shadow-gate cycle keys (`roi_guards.py`, `shadow_gate.py`):**
+  strikes now advance per slice (`n_5b|latest_signal_ts_utc`, mixed-ISO
+  parsed) so unrelated `15m` signals cannot manufacture Strike 2 on
+  unchanged `1d` slices.
+- **Merged `15m` DSR `min_samples` + `1d` gate-consume staging
+  (`research_shard.py`, `research_merge.py`, `commit_research_book.sh`):**
+  shard manifests persist `min_samples` so `research_merge.py` preserves
+  `min_samples=30` when recomputing merged `15m` DSR dispersion; `1d` book
+  commits now stage `localdata/research/refresh_state.json` so
+  `--consume-gate` persists.
+- **Attribution post-era split (`attribution.py`):** `eras` now partitions
+  on `entry_ts >= 2026-07-30` (matching the standing scale-up gate; live
+  250 RTs / -$991.88 vs the old `exit_ts` leak of 4 pre-era RTs), and
+  `_exit_pool` drops the dead blank-side protective-stop fallback.
+- **Remaining OOS & calibration leaks (`discovery.py`, `validate_slices.py`,
+  `validation.py`):** `discover_market_slices` locks `side` on the
+  5-bar-purged 70% IS prefix (preventing OOS sign-peeking on
+  `late_emerging` candidates); `run_candidate_leaderboard` keys all maps by
+  `(symbol, timeframe, combo, side)`, preserves session/calendar filters
+  and cost/short-borrow drag during calibration, passes `timeframe=tf` and
+  uses purged IS in `regime_valid_map`, floors HAC bandwidth at `H - 1`
+  overlap lags, caps serialized CSV `overfit_ratio` infinities at `999.0`,
+  and aligns `search_wide_dsr` at `valid_n_eff <= 1.0` (`0.0`).
+- **Contiguous `compute_atr_14` (`sizing.py`), atomic audit log
+  (`paper_trade.py`), loser-stop deadband & exemption normalization
+  (`roi_guards.py`, `risk_limits.py`, `monitor.py`, `position_manager.py`):**
+  masked invalid OHLC bars in place before `close.shift(1)` (no gap-stitch
+  TR or split-unadjusted fallback when `*_adj` columns exist); atomic
+  `tempfile + os.replace` rewrites with iterative byte-cap trimming and
+  newline repair on `paper_trade_log.csv`; `0.05R` spread-noise deadband on
+  `watchdog_loser_stop`; case/whitespace-normalized pool-gate exemptions
+  and uppercase stop-state lookup on no-context exits.
+

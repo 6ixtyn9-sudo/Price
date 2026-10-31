@@ -114,3 +114,42 @@ def test_run_shard_passes_profile_to_discovery(monkeypatch, tmp_path: Path):
     assert called["profile"] == "crypto"
     assert called["min_samples"] == 30
     assert leaderboard_called["min_samples"] == 30
+
+
+def test_merge_shards_propagates_min_samples_for_15m_dsr_dispersion(tmp_path):
+    root = tmp_path / "shards"
+    for idx, (sym, sr, vn) in enumerate([("A", 0.65, 35), ("B", 0.10, 35), ("OUTLIER", 99.0, 20)]):
+        sid = f"15m-0{idx}"
+        p = root / sid
+        p.mkdir(parents=True)
+        (p / "manifest.json").write_text(
+            json.dumps({"shard_id": sid, "status": "success", "timeframe": "15m", "min_samples": 30})
+        )
+        pd.DataFrame([{
+            "symbol": sym,
+            "timeframe": "15m",
+            "slice_combination": "state_ext=stretched_down",
+            "side": "long",
+            "bin_mode": "rolling",
+            "valid_p_value_nw": 0.001,
+            "valid_sharpe": sr,
+            "valid_n": vn,
+            "valid_n_eff": float(vn),
+            "valid_skew": 0.0,
+            "valid_kurtosis": 3.0,
+        }]).to_csv(p / "candidate_leaderboard.csv", index=False)
+        pd.DataFrame([{
+            "symbol": sym,
+            "timeframe": "15m",
+            "slice_combination": "state_ext=stretched_down",
+            "side": "long",
+            "bin_mode": "rolling",
+        }]).to_csv(p / "discovered_slices.csv", index=False)
+
+    merge_shards(root, {"15m-00", "15m-01", "15m-02"}, tmp_path / "merged")
+    merged = pd.read_csv(tmp_path / "merged" / "candidate_leaderboard_merged.csv")
+    row_a = merged[merged["symbol"] == "A"].iloc[0]
+    # With min_samples=30 propagated, the valid_n=20 outlier (SR=99) is excluded
+    # from V[SR], so A's DSR stays high instead of collapsing to ~0.
+    assert bool(row_a["search_wide_dsr_pass"]) is True
+

@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import argparse
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,6 +42,7 @@ from price.config import DATA_DIR
 from price.monitor import scan_all_slices
 from price.position_manager import ExitPolicy
 from price.risk_limits import RiskLimits, record_entry, set_halt_flag
+from price.roi_guards import normalize_exempt_slice_key
 from price.trading import close_position, submit_entry, entry_limit_with_premium, resolve_adverse_threshold_bps, resolve_entry_premium_bps
 
 
@@ -118,6 +120,61 @@ def _trim_audit_frame(out: pd.DataFrame, *, max_bytes: int, bytes_per_row: float
     return out.tail(max(keep, 1)).reset_index(drop=True)
 
 
+def _atomic_write_csv(frame: pd.DataFrame, path: Path, *, max_bytes: Optional[int] = None) -> None:
+    """Write `frame` via same-directory temp file + os.replace so a runner
+    timeout/SIGTERM mid-rewrite never leaves a truncated CSV in the cache.
+    When `max_bytes` is set, re-trims against measured output bytes so row-width
+    skew (wide recent rows vs narrow old rows) cannot overshoot the cap."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cur = frame
+    for _ in range(5):
+        fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=".audit_", suffix=".tmp")
+        os.close(fd)
+        tmp_path = Path(tmp_name)
+        try:
+            cur.to_csv(tmp_path, index=False)
+            written = tmp_path.stat().st_size
+            if max_bytes is None or written <= max_bytes or len(cur) <= 1:
+                os.replace(tmp_path, path)
+                return
+            next_cur = _trim_audit_frame(
+                cur,
+                max_bytes=max_bytes,
+                bytes_per_row=written / max(len(cur), 1),
+            )
+            if len(next_cur) >= len(cur):
+                next_cur = cur.tail(max(len(cur) - 1, 1)).reset_index(drop=True)
+            cur = next_cur
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+    # Final fallback if 5 iterations still didn't converge (single huge row).
+    fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=".audit_", suffix=".tmp")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        cur.tail(1).to_csv(tmp_path, index=False)
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _ensure_trailing_newline(path: Path) -> None:
+    """Ensure `path` ends with '\\n' before O(1) mode='a' appends."""
+    try:
+        if not path.exists() or path.stat().st_size == 0:
+            return
+        with open(path, "rb+") as fh:
+            fh.seek(-1, os.SEEK_END)
+            if fh.read(1) != b"\n":
+                fh.seek(0, os.SEEK_END)
+                fh.write(b"\n")
+    except OSError:
+        return
+
+
 def _append_audit(row: dict) -> None:
     """Append one row to the audit CSV, creating the file if needed.
 
@@ -127,7 +184,8 @@ def _append_audit(row: dict) -> None:
     ~100 MB CSV for EVERY row (~30-120 rows/run), which dominated scan
     runtime and drove the live-capture queue collisions. The full
     read/concat/rewrite path now runs only when the file is over
-    AUDIT_LOG_MAX_BYTES (trim) or a row introduces a new column.
+    AUDIT_LOG_MAX_BYTES (trim) or a row introduces a new column, and uses
+    atomic temp+os.replace rewrites.
     """
     row = dict(row)
     row["logged_at_utc"] = datetime.now(timezone.utc).isoformat()
@@ -135,28 +193,31 @@ def _append_audit(row: dict) -> None:
     path = Path(AUDIT_LOG_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists() or path.stat().st_size == 0:
-        df.to_csv(path, index=False)
+        _atomic_write_csv(df, path)
         return
     if path.stat().st_size > AUDIT_LOG_MAX_BYTES:
-        existing = pd.read_csv(path)
+        existing = pd.read_csv(path, low_memory=False)
         out = pd.concat([existing, df], ignore_index=True)
         out = _trim_audit_frame(
             out,
             max_bytes=AUDIT_LOG_MAX_BYTES,
             bytes_per_row=path.stat().st_size / max(len(existing), 1),
         )
-        out.to_csv(path, index=False)
+        _atomic_write_csv(out, path, max_bytes=AUDIT_LOG_MAX_BYTES)
         return
     try:
         cols = pd.read_csv(path, nrows=0).columns.tolist()
     except pd.errors.EmptyDataError:
-        df.to_csv(path, index=False)
+        _atomic_write_csv(df, path)
         return
     if set(df.columns) - set(cols):
-        # New audit field: one full rewrite to extend the schema.
-        existing = pd.read_csv(path)
-        pd.concat([existing, df], ignore_index=True).to_csv(path, index=False)
+        # New audit field: one atomic rewrite to extend the schema.
+        existing = pd.read_csv(path, low_memory=False)
+        out = pd.concat([existing, df], ignore_index=True)
+        cap = AUDIT_LOG_MAX_BYTES if path.stat().st_size > int(AUDIT_LOG_MAX_BYTES * 0.85) else None
+        _atomic_write_csv(out, path, max_bytes=cap)
         return
+    _ensure_trailing_newline(path)
     df.reindex(columns=cols).to_csv(path, mode="a", header=False, index=False)
 
 
@@ -717,10 +778,14 @@ def main() -> int:
         whipsaw_stopout_limit=args.whipsaw_limit,
         short_blocked_timeframes=frozenset(
             t.strip() for t in args.block_short_timeframes.split(",") if t.strip()),
-        short_exempt_slices=frozenset(args.allow_short_slice),
+        short_exempt_slices=frozenset(
+            normalize_exempt_slice_key(s) for s in args.allow_short_slice if str(s).strip()
+        ),
         long_blocked_timeframes=frozenset(
             t.strip() for t in args.block_long_timeframes.split(",") if t.strip()),
-        long_exempt_slices=frozenset(args.allow_long_slice),
+        long_exempt_slices=frozenset(
+            normalize_exempt_slice_key(s) for s in args.allow_long_slice if str(s).strip()
+        ),
         shadow_gate_enabled=args.shadow_gate,
         target_leverage_multiple=args.target_leverage,
         margin_cushion_pct=(args.margin_cushion_pct if args.margin_cushion_pct > 0 else None),

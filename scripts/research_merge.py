@@ -30,6 +30,7 @@ def merge_shards(
     enable_auto_promotion: bool = False,
     promote_proposals: bool = False,
     apply_monitored_slices: bool = False,
+    min_samples: int | None = None,
     **kwargs
 ) -> dict:
     manifests = discover_manifests(shard_root)
@@ -91,7 +92,27 @@ def merge_shards(
         # lifecycle classification can read search_wide_bh_pass.
         if "valid_p_value_nw" in leaderboard.columns:
             from validate_slices import annotate_search_wide_significance
-            leaderboard = annotate_search_wide_significance(leaderboard)
+            eff_min_samples = min_samples
+            if eff_min_samples is None:
+                manifest_floors = [
+                    int(m["min_samples"])
+                    for _, m in manifests
+                    if m.get("min_samples") is not None
+                ]
+                if manifest_floors:
+                    eff_min_samples = max(manifest_floors)
+                elif "timeframe" in leaderboard.columns:
+                    tfs = {
+                        str(t).strip()
+                        for t in leaderboard["timeframe"].dropna()
+                        if str(t).strip()
+                    }
+                    eff_min_samples = 30 if tfs == {"15m"} else 15
+                else:
+                    eff_min_samples = 15
+            leaderboard = annotate_search_wide_significance(
+                leaderboard, min_samples=int(eff_min_samples)
+            )
 
     discovered_path = output_dir / "discovered_slices_merged.csv"
     leaderboard_path = output_dir / "candidate_leaderboard_merged.csv"
@@ -140,6 +161,7 @@ def main() -> int:
     parser.add_argument("--promote-proposals", action="store_true")
     parser.add_argument("--apply-monitored-slices", action="store_true")
     parser.add_argument("--allow-partial", action="store_true", help="Allow merge if shards are missing/failed (disables lifecycle progression)")
+    parser.add_argument("--min-samples", type=int, default=None, help="Sample floor for merged DSR dispersion (auto-inferred from shard manifests / timeframe when omitted)")
     args = parser.parse_args()
     expected = set(json.loads(args.expected_shards.read_text())["shard_ids"])
     result = merge_shards(
@@ -149,6 +171,7 @@ def main() -> int:
         enable_auto_promotion=args.enable_auto_promotion,
         promote_proposals=args.promote_proposals,
         apply_monitored_slices=args.apply_monitored_slices,
+        min_samples=args.min_samples,
         allow_partial=args.allow_partial,
     )
     print(json.dumps(result, indent=2))
