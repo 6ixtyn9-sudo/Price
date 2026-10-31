@@ -201,3 +201,41 @@ def test_consume_fresh_data_gate_pins_baseline_and_preserves_other_keys(tmp_path
     empty = consume_fresh_data_gate(missing)
     assert empty["discovery_ran"] is True
     assert empty["discovery_baseline_coverage"] == {}
+
+
+def test_side_isolated_live_decay_and_5col_union_leaderboard_dedupe(tmp_path, monkeypatch):
+    import sync_monitored
+
+    # Negative live signals on 'long' must NOT suspend a 'short' candidate on the same combo.
+    lb_path = tmp_path / "lb.csv"
+    live_path = tmp_path / "live.csv"
+    combo = "state_ext=stretched_down"
+    pd.DataFrame([
+        {"symbol": "SPY", "timeframe": "1d", "slice_combination": combo, "side": "long",
+         "bin_mode": "rolling", "triage_bucket": "clean_survivor_wf_strong", "valid_n": 40,
+         "walk_forward_pass_count": 3, "scenario_survived_count": 5, "search_wide_bh_pass": True,
+         "valid_excess_vs_baseline": 0.01, "valid_excess_vs_best_parent": 0.002},
+        {"symbol": "SPY", "timeframe": "1d", "slice_combination": combo, "side": "short",
+         "bin_mode": "rolling", "triage_bucket": "clean_survivor_wf_strong", "valid_n": 40,
+         "walk_forward_pass_count": 3, "scenario_survived_count": 5, "search_wide_bh_pass": True,
+         "valid_excess_vs_baseline": 0.01, "valid_excess_vs_best_parent": 0.002},
+    ]).to_csv(lb_path, index=False)
+    pd.DataFrame([
+        {"symbol": "SPY", "timeframe": "1d", "slice_combination": combo, "side": "long",
+         "bin_mode": "rolling", "tradeable_fwd_ret_5b": -0.02}
+    ] * 6).to_csv(live_path, index=False)
+
+    reg = build_registry(lb_path, output_path=tmp_path / "reg.csv", live_forward_path=live_path)
+    assert reg[reg["side"] == "long"].iloc[0]["status"] == "decaying_suspended"
+    assert reg[reg["side"] == "short"].iloc[0]["status"] != "decaying_suspended"
+
+    # sync_monitored._load_union_leaderboard preserves distinct (side, bin_mode) rows.
+    merged_lb = tmp_path / "merged_lb.csv"
+    pd.DataFrame([
+        {"symbol": "SPY", "timeframe": "1d", "slice_combination": combo, "side": "long", "bin_mode": "rolling"},
+        {"symbol": "SPY", "timeframe": "1d", "slice_combination": combo, "side": "short", "bin_mode": "rolling"},
+    ]).to_csv(merged_lb, index=False)
+    monkeypatch.setattr(sync_monitored, "_discover_leaderboard_paths", lambda: [merged_lb])
+    unioned = sync_monitored._load_union_leaderboard()
+    assert len(unioned) == 2
+

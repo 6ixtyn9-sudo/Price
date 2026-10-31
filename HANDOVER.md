@@ -7228,4 +7228,17 @@ discovery refresh:
   newline repair on `paper_trade_log.csv`; `0.05R` spread-noise deadband on
   `watchdog_loser_stop`; case/whitespace-normalized pool-gate exemptions
   and uppercase stop-state lookup on no-context exits.
+- **External audit follow-up (`risk_limits.py`, `monitor.py`, `discovery.py`,
+  `roi_guards.py`, `research_merge.py`, `research_lifecycle.py`,
+  `sync_monitored.py`, `sizing.py`, `paper_trade.py`):** threaded `bin_mode`
+  into live `check_entry` for 4-part exemption parity; made `_expanding_qcut`
+  return `NaN` below `min_periods` (`FEATURES_SCHEMA_VERSION = 4`); preserved
+  accumulated shadow strikes when a slice is absent from a cycle's verdicts
+  and merged legacy `NaN`-side rows into `long`; guarded against vacuous DSR
+  columns on pre-#8 frames and dropped stale shard `search_wide_*` columns
+  before merged recomputation; stamped `git_sha` in `merge_manifest.json`;
+  deduped union leaderboards on the 5-column identity; isolated decay flags
+  by `side`; trimmed `candidate_registry.csv` size (~15 MB on `1h`); and
+  deduplicated `bar_ts_utc` in `compute_atr_14`.
+
 

@@ -323,7 +323,11 @@ def compute_atr_14(df: pd.DataFrame) -> Optional[float]:
         candidate["bar_ts_utc"] = pd.to_datetime(
             df["bar_ts_utc"], format="mixed", errors="coerce", utc=True
         )
-        candidate = candidate.dropna(subset=["bar_ts_utc"]).sort_values("bar_ts_utc")
+        candidate = (
+            candidate.dropna(subset=["bar_ts_utc"])
+            .sort_values("bar_ts_utc")
+            .drop_duplicates(subset=["bar_ts_utc"], keep="last")
+        )
     candidate = candidate.reset_index(drop=True)
 
     ok_bar = (
