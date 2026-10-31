@@ -754,3 +754,64 @@ def test_run_validation_purges_5_bars_by_default_and_emits_dsr_inputs(monkeypatc
     for col in ("valid_sharpe", "valid_skew", "valid_kurtosis", "valid_n_eff", "valid_psr", "overfit_ratio", "wf_oos_sharpe_slope"):
         assert col in purged_df.columns
 
+
+def test_run_candidate_leaderboard_calibrates_horizon_return_and_stop_on_purged_train_only(monkeypatch, tmp_path):
+    """best_fwd_horizon, expected_return, and best_stop_atr_mult must calibrate on
+    the 20-bar-purged IS split (indices 0..49 on a 100-bar frame), ignoring both
+    the 20-bar pre-OOS boundary (50..69) and the 30% OOS window (70..99)."""
+    import numpy as np
+    from validate_slices import run_candidate_leaderboard
+
+    slices_csv = tmp_path / "discovered.csv"
+    validated_csv = tmp_path / "validated.csv"
+    leaderboard_csv = tmp_path / "leaderboard.csv"
+    monkeypatch.setattr("validate_slices.VALIDATED_SLICES_PATH", str(validated_csv))
+
+    pd.DataFrame(
+        [{"symbol": "SPY", "timeframe": "1d", "slice_combination": "state_ext=stretched_down", "side": "long"}]
+    ).to_csv(slices_csv, index=False)
+
+    # 100 bars: purged IS for max(HORIZONS)=20 is indices 0..49.
+    # In 0..49: fwd_ret_5 = 0.02 beats fwd_ret_20 = 0.01, and MAE ATR is steady 1.8.
+    # In 50..99 (boundary + OOS): fwd_ret_20 = 0.50 and MAE ATR = 4.9 — if full
+    # history leaked, best_fwd_horizon would flip to 20, expected_return > 0.25,
+    # and best_stop_atr_mult would jump near 4.9.
+    fwd_5 = np.full(100, 0.02)
+    fwd_20 = np.concatenate([np.full(50, 0.01), np.full(50, 0.50)])
+    mae_5 = np.concatenate([np.full(50, 1.8), np.full(50, 4.9)])
+    mae_20 = np.concatenate([np.full(50, 1.8), np.full(50, 4.9)])
+
+    def fake_build_eligible_frame(symbol, timeframe, cross_symbols=None, bin_mode="insample"):
+        return pd.DataFrame(
+            {
+                "bar_ts_utc": pd.date_range("2024-01-01", periods=100, freq="D", tz="UTC"),
+                "fwd_ret_3": np.full(100, 0.005),
+                "fwd_ret_5": fwd_5,
+                "fwd_ret_10": np.full(100, 0.012),
+                "fwd_ret_20": fwd_20,
+                "fwd_mae_atr_5_long": mae_5,
+                "fwd_mae_atr_20_long": mae_20,
+                "close_adj": [100.0] * 100,
+                "high": [101.0] * 100,
+                "low": [99.0] * 100,
+                "close": [100.0] * 100,
+                "volume": [1_000_000.0] * 100,
+                "state_ext": ["stretched_down"] * 100,
+            }
+        )
+
+    monkeypatch.setattr("validate_slices.build_eligible_frame", fake_build_eligible_frame)
+
+    lb = run_candidate_leaderboard(
+        slices_path=str(slices_csv),
+        output_path=str(leaderboard_csv),
+        cost_bps=0.0,
+        min_samples=10,
+    )
+
+    row = lb.iloc[0]
+    assert int(row["best_fwd_horizon"]) == 5
+    assert abs(float(row["expected_return"]) - 0.02) < 1e-9
+    assert abs(float(row["best_stop_atr_mult"]) - 1.8) < 1e-6
+
+
