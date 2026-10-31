@@ -72,14 +72,14 @@ def test_expanding_qcut_boundary_excludes_current_bar():
     assert valid.issubset(set(LABELS3))
 
 
-def test_expanding_qcut_short_series_falls_back():
+def test_expanding_qcut_short_series_returns_nan_not_fabricated_fallback():
     out = _expanding_qcut(pd.Series([1.0, 2.0, 3.0]), LABELS3, min_periods=50, fallback="mid")
-    assert (pd.Series(out) == "mid").all()
+    assert pd.Series(out).isna().all()
 
 
-def test_expanding_qcut_all_nan_falls_back():
+def test_expanding_qcut_all_nan_returns_nan():
     out = _expanding_qcut(pd.Series([np.nan] * 300), LABELS3, min_periods=50, fallback="mid")
-    assert (pd.Series(out) == "mid").all()
+    assert pd.Series(out).isna().all()
 
 
 def test_expanding_qcut_first_min_periods_are_nan():

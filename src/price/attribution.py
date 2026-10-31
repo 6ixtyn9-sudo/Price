@@ -848,7 +848,8 @@ def attribute_pnl(
     prelim = [a for a in slice_attrs if a.preliminary]
     if prelim:
         notes.append(
-            f"{len(prelim)} slice(s) have fewer than {MIN_ROUND_TRIPS_FOR_STATS} round-trips; "
+            f"{len(prelim)} slice(s) are below their timeframe round-trip floor "
+            f"(1d={MIN_ROUND_TRIPS_FOR_STATS}, 1h=15, 15m=20); "
             "their stats are preliminary and should not be interpreted as stable."
         )
     unattributed = [a for a in slice_attrs if a.slice_combination == "UNATTRIBUTED_BROKER_FILL"]

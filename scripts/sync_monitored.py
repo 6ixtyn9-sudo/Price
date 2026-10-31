@@ -96,8 +96,8 @@ def _load_union_leaderboard() -> pd.DataFrame:
             continue
     if not frames:
         return pd.DataFrame()
-    result = pd.concat(frames, ignore_index=True)
-    key_cols = ["symbol", "timeframe", "slice_combination"]
+    result = _normalise_identity(pd.concat(frames, ignore_index=True))
+    key_cols = ["symbol", "timeframe", "slice_combination", "side", "bin_mode"]
     present = [c for c in key_cols if c in result.columns]
     if present:
         result = result.drop_duplicates(subset=present, keep="first")

@@ -53,7 +53,7 @@ FEATURES_CACHE_DIR = Path("localdata/features_cache")
 # Bump whenever compute_price_features / apply_state_bins semantics change.
 # Without this in the cache key, a feature-code fix silently keeps serving
 # stale cached features until the warehouse file's mtime happens to change.
-FEATURES_SCHEMA_VERSION = 3
+FEATURES_SCHEMA_VERSION = 4
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
 DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
@@ -1201,10 +1201,15 @@ def annotate_search_wide_significance(
     lb["search_wide_bh_pass"] = False
     lb["search_wide_bonferroni_pass"] = False
 
-    include_dsr = sharpe_col in lb.columns or p_col == "valid_p_value_nw"
+    include_dsr = sharpe_col in lb.columns
     if include_dsr:
         lb["search_wide_dsr"] = float("nan")
         lb["search_wide_dsr_pass"] = False
+    elif p_col == "valid_p_value_nw" and not lb.empty:
+        print(
+            f"WARNING: annotate_search_wide_significance missing '{sharpe_col}'; "
+            "omitting search_wide_dsr columns rather than emitting vacuous values."
+        )
 
     if m > 0:
         order = p[finite].sort_values(kind="mergesort")

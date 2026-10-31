@@ -1088,6 +1088,7 @@ def scan_all_slices(
                     buying_power=buying_power,
                     timeframe=timeframe,
                     slice_combination=s["slice_combination"],
+                    bin_mode=s.get("bin_mode"),
                 )
                 gate_reasons = list(risk_result.reasons)
                 tradable = risk_result.allowed

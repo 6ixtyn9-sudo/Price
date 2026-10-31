@@ -302,6 +302,7 @@ def check_entry(
     buying_power: Optional[float] = None,
     timeframe: Optional[str] = None,
     slice_combination: Optional[str] = None,
+    bin_mode: Optional[str] = None,
 ) -> RiskCheckResult:
     """Run ALL risk checks. Returns allowed=True only if every one passes.
 
@@ -353,6 +354,7 @@ def check_entry(
             symbol,
             timeframe,
             slice_combination,
+            bin_mode=bin_mode,
         ):
             reasons.append(
                 f"short entries blocked on {timeframe} by pool gate "
@@ -375,6 +377,7 @@ def check_entry(
             symbol,
             timeframe,
             slice_combination,
+            bin_mode=bin_mode,
         ):
             reasons.append(
                 f"long entries blocked on {timeframe} by pool gate "

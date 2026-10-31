@@ -319,14 +319,22 @@ def _live_decay_keys(path: Path = LIVE_FORWARD_PATH, min_completed: int = 5) -> 
     df[return_col] = pd.to_numeric(df[return_col], errors="coerce")
     if "bin_mode" not in df.columns:
         df["bin_mode"] = "insample"
+    else:
+        bm = df["bin_mode"].fillna("insample").astype(str).str.strip().str.lower()
+        df["bin_mode"] = bm.where(~bm.isin({"", "nan", "none"}), "insample")
+    if "side" not in df.columns:
+        df["side"] = "long"
+    else:
+        sd = df["side"].fillna("long").astype(str).str.strip().str.lower()
+        df["side"] = sd.where(~sd.isin({"", "nan", "none"}), "long")
     df = df.dropna(subset=[return_col])
     if df.empty:
         return set()
-    grouped = df.groupby(["symbol", "timeframe", "slice_combination", "bin_mode"])
+    grouped = df.groupby(["symbol", "timeframe", "slice_combination", "bin_mode", "side"])
     out: set[str] = set()
     for key, group in grouped:
-        # key = (symbol, timeframe, slice_combination, bin_mode). Effective floor
-        # is the timeframe-aware bar (1d=5, 1h=15, 15m=20); the passed
+        # key = (symbol, timeframe, slice_combination, bin_mode, side). Effective
+        # floor is the timeframe-aware bar (1d=5, 1h=15, 15m=20); the passed
         # min_completed acts as a floor for unknown/empty timeframes.
         tf = str(key[1] or "").strip()
         floor = {"1h": 15, "15m": 20, "1d": 5}.get(tf, min_completed)
@@ -370,6 +378,7 @@ def _pnl_decay_keys(
             str(rt.timeframe or ""),
             str(rt.slice_combination),
             str(rt.bin_mode or "insample").lower(),
+            str(rt.side or "long").lower(),
         ])
         by_key.setdefault(key, []).append(rt)
 
@@ -413,15 +422,16 @@ def build_registry(
         symbol = _clean(row.get("symbol"))
         timeframe = _clean(row.get("timeframe"))
         combo = _clean(row.get("slice_combination"))
-        side = _clean(row.get("side"), "long")
-        bin_mode = _clean(row.get("bin_mode"), "insample")
+        side = _clean(row.get("side"), "long").lower()
+        bin_mode = _clean(row.get("bin_mode"), "insample").lower()
         key = "|".join([symbol, timeframe, combo, bin_mode])
+        decay_key = f"{key}|{side}"
         eligible = _strict_candidate(row)
         tradeable = _tradeable_candidate(row)
         leverage = evaluate_candidate_leverage(row)
         leverage_gate = bool(leverage["leverage_auto_promotion_gate"])
-        is_decaying = key in decay
-        is_pnl_decaying = key in pnl_decay
+        is_decaying = decay_key in decay or key in decay
+        is_pnl_decaying = decay_key in pnl_decay or key in pnl_decay
         if is_decaying or is_pnl_decaying:
             status = "decaying_suspended"
         elif eligible and enable_auto_promotion:
@@ -470,8 +480,7 @@ def build_registry(
             "valid_in_bear": row.get("valid_in_bear"),
             "leverage_gate_pass": leverage_gate,
             "leverage_gate_reason": (
-                "risk data unavailable: lifecycle has no per-candidate ATR/R input; "
-                "auto-promotion remains disabled until that evidence source exists"
+                "missing_atr_risk_input"
                 if not leverage_gate else "1x/2x risk scenarios pass"
             ),
             "auto_promotion_block_reason": (
@@ -482,6 +491,9 @@ def build_registry(
             **leverage,
         })
     result = pd.DataFrame(rows).sort_values(["status", "symbol", "timeframe"]).reset_index(drop=True)
+    float_cols = result.select_dtypes(include="floating").columns
+    if len(float_cols):
+        result[float_cols] = result[float_cols].round(8)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(output_path, index=False)
     return result

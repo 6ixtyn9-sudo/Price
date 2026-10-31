@@ -4,12 +4,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 
 from research_lifecycle import build_registry, normalize_walk_forward_patterns
+
+
+def _current_git_sha() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parent.parent,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return ""
 
 
 def _read_manifest(path: Path) -> dict:
@@ -87,9 +100,22 @@ def merge_shards(
         leaderboard = leaderboard.drop_duplicates(
             subset=[c for c in ["symbol", "timeframe", "slice_combination", "side", "bin_mode"] if c in leaderboard.columns]
         )
-        # Shard-local correction is not sufficient. Recompute the multiple-
-        # testing family across the complete merged hypothesis set before any
-        # lifecycle classification can read search_wide_bh_pass.
+        # Shard-local correction is not sufficient. Drop any shard-local
+        # search_wide_* columns and recompute across the complete merged
+        # hypothesis set before any lifecycle classification runs.
+        stale_sw = [
+            c for c in (
+                "search_wide_family_size",
+                "search_wide_rank",
+                "search_wide_bh_pass",
+                "search_wide_bonferroni_pass",
+                "search_wide_dsr",
+                "search_wide_dsr_pass",
+            )
+            if c in leaderboard.columns
+        ]
+        if stale_sw:
+            leaderboard = leaderboard.drop(columns=stale_sw)
         if "valid_p_value_nw" in leaderboard.columns:
             from validate_slices import annotate_search_wide_significance
             eff_min_samples = min_samples
@@ -140,6 +166,7 @@ def merge_shards(
     manifest = {
         "status": "success",
         "merged_at_utc": datetime.now(timezone.utc).isoformat(),
+        "git_sha": _current_git_sha(),
         "expected_shard_count": len(expected_shard_ids),
         "merged_shard_count": len(manifests),
         "discovered_rows": len(discovered),

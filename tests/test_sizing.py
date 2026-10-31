@@ -289,6 +289,17 @@ def test_compute_atr_14_does_not_stitch_gap_or_fallback_to_unadjusted_split():
     })
     assert compute_atr_14(split_df) is None
 
+    # Duplicate bar_ts_utc rows from warehouse re-ingestion are deduplicated
+    # before computing the 14-bar trailing window.
+    clean_df = pd.DataFrame({
+        "bar_ts_utc": pd.date_range("2026-01-01", periods=20, freq="D", tz="UTC"),
+        "high_adj": [105.0] * 19 + [100.5],
+        "low_adj": [95.0] * 19 + [99.5],
+        "close_adj": [100.0] * 20,
+    })
+    dup_df = pd.concat([clean_df] + [clean_df.iloc[[-1]]] * 13, ignore_index=True)
+    assert abs(compute_atr_14(dup_df) - compute_atr_14(clean_df)) < 1e-9
+
 
 def test_load_edge_metrics_reads_synthetic_leaderboard(tmp_path):
     lb = pd.DataFrame([{

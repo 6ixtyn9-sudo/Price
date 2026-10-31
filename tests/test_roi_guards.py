@@ -328,12 +328,55 @@ def test_loser_stop_deadband_and_full_horizon_guard():
     assert watchdog_exit_reason(bars_held=1, horizon_bars=1, r_multiple=-0.4, config=cfg) is None
 
 
-def test_pool_gate_exemption_normalizes_case_and_whitespace():
+def test_pool_gate_exemption_normalizes_case_whitespace_and_4part_bin_mode():
     limits = _limits(
         long_blocked_timeframes=frozenset({"1d"}),
         long_exempt_slices=frozenset({" aapl | 1d | sl "}),
+        short_blocked_timeframes=frozenset({"1h"}),
+        short_exempt_slices=frozenset({" spy | 1h | rolling | sl_short "}),
     )
     res = check_entry("AAPL", 10, 100.0, limits, [], 0.0, side="long",
                       timeframe="1d", slice_combination="sl")
     assert res.allowed
+
+    # 4-part bin_mode-qualified exemption matches in live check_entry when bin_mode matches,
+    # and rejects a different bin_mode.
+    allowed_rolling = check_entry(
+        "SPY", 10, 100.0, limits, [], 0.0, side="short",
+        timeframe="1h", slice_combination="sl_short", bin_mode="rolling",
+    )
+    blocked_insample = check_entry(
+        "SPY", 10, 100.0, limits, [], 0.0, side="short",
+        timeframe="1h", slice_combination="sl_short", bin_mode="insample",
+    )
+    assert allowed_rolling.allowed
+    assert not blocked_insample.allowed
+
+
+def test_update_demotion_state_carries_strikes_on_absent_slice_and_cleans_nan_side():
+    k = shadow_key("AAA", "1d", "sl", "long", "rolling")
+    state, _ = update_demotion_state(
+        {}, {k: "demote_candidate"}, "2026-10-01T00:00:00Z", slice_cycle_keys={k: "35|2026-10-01T00:00:00+00:00"}
+    )
+    assert state["strikes"][k] == 1
+
+    # Slice temporarily absent from verdicts must NOT get a free strike reset.
+    state, demoted = update_demotion_state(
+        state, {}, "2026-10-02T00:00:00Z", slice_cycle_keys={}
+    )
+    assert state["strikes"][k] == 1
+    assert demoted == []
+
+    # Legacy NaN side in live_forward_returns merges into 'long', never forming a 'nan' pool.
+    df = pd.DataFrame([
+        {"symbol": "AAA", "timeframe": "1d", "bin_mode": "rolling", "side": float("nan"),
+         "slice_combination": "sl", "tradeable_fwd_ret_5b": -0.01, "tradeable_fwd_ret_20b": -0.02},
+        {"symbol": "AAA", "timeframe": "1d", "bin_mode": "rolling", "side": "long",
+         "slice_combination": "sl", "tradeable_fwd_ret_5b": -0.01, "tradeable_fwd_ret_20b": -0.02},
+    ])
+    stats = compute_shadow_stats(df)
+    assert len(stats) == 1
+    assert stats[0]["side"] == "long"
+    assert stats[0]["n_5b"] == 2
+
 

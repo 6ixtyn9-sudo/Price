@@ -954,37 +954,26 @@ def _revalidate_pending_entries(dry_run: bool, max_adverse_fill_bps: float, adve
         symbol = str(row.get("symbol", "")).upper()
         if not symbol: continue
         
-        # The broker stores no signal close; the resting limit price is the
-        # safe proxy for the staleness math (signal close plus premium).
-        # But broker orders don't carry this. We can try to reconstruct from
-        # warehouse's latest close, but that's what is_stale_entry does inherently
-        # if we supply the signal_close. Wait, how do we get signal_close?
-        # The limit price is roughly the signal close (plus premium). 
-        # Using limit_price is a safe proxy for signal_close.
-        
-        # BUT WAIT, the patch says "Every open entry LIMIT order is re-tested against 
-        # the live quote at run start with the identical is_stale_entry math; stale 
-        # ones are canceled."
-        
+        # Broker orders do not record the original signal close; the resting
+        # limit price (signal close plus/minus entry buffer) is the conservative
+        # proxy for re-testing adverse gap drift at run start.
         order_id = str(row.get("order_id", ""))
         limit_price = pd.to_numeric(row.get("limit_price"), errors="coerce")
         side = str(row.get("side", "buy")).lower()
+        row_tf = str(row.get("timeframe", "") or "").strip() or "1d"
         if pd.isna(limit_price):
             continue
-            
+
         _live = get_latest_price(symbol)
         if _live is None:
             continue
-            
-        # Re-resolve the threshold. NOTE: compute_atr_14 lives in price.sizing
-        # (imported by monitor.py and stop_manager.py); the original c83777f
-        # version of this block imported it from price.features, which has no
-        # such attribute -- a fifth latent defect this path carried unseen
-        # until its first live execution.
+
         from price.warehouse import load_from_warehouse
         from price.sizing import compute_atr_14
-        df = load_from_warehouse(symbol, "1d")
+        df = load_from_warehouse(symbol, row_tf)
         _atr = compute_atr_14(df)
+        if _atr is None and row_tf != "1d":
+            _atr = compute_atr_14(load_from_warehouse(symbol, "1d"))
         
         # resolve_adverse_threshold_bps is already imported at module top from
         # price.trading (same import list used by the scan path at line ~266).

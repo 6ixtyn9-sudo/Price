@@ -908,5 +908,12 @@ def test_leaderboard_side_isolation_session_calibration_finite_overfit_and_small
     ]))
     assert float(tiny_eff.loc[tiny_eff["symbol"] == "X", "search_wide_dsr"].iloc[0]) == 0.0
 
+    # Legacy frame lacking valid_sharpe must NOT receive vacuous all-NaN DSR columns.
+    legacy = annotate_search_wide_significance(pd.DataFrame([
+        {"symbol": "L1", "valid_p_value_nw": 0.001, "valid_n": 30},
+    ]))
+    assert "search_wide_dsr" not in legacy.columns
+    assert "search_wide_dsr_pass" not in legacy.columns
+
 
 

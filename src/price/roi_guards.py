@@ -106,6 +106,11 @@ def _mean(xs: Sequence[float]) -> Optional[float]:
     return sum(vals) / len(vals)
 
 
+def _clean_shadow_col(series: pd.Series, default: str) -> pd.Series:
+    s = series.fillna(default).astype(str).str.strip().str.lower()
+    return s.where(~s.isin({"", "nan", "none"}), default)
+
+
 def compute_shadow_stats(
     live_forward: Optional[pd.DataFrame],
     *,
@@ -121,10 +126,14 @@ def compute_shadow_stats(
     """
     if live_forward is None or live_forward.empty:
         return []
-    df = live_forward
     needed = {"symbol", "timeframe", "slice_combination"}
-    if not needed.issubset(df.columns):
+    if not needed.issubset(live_forward.columns):
         return []
+    df = live_forward.copy()
+    if "bin_mode" in df.columns:
+        df["bin_mode"] = _clean_shadow_col(df["bin_mode"], "insample")
+    if "side" in df.columns:
+        df["side"] = _clean_shadow_col(df["side"], "long")
     out: List[dict] = []
     group_cols = [c for c in ("symbol", "timeframe", "bin_mode", "side", "slice_combination")
                   if c in df.columns]
@@ -172,9 +181,12 @@ def compute_pool_stats(live_forward: Optional[pd.DataFrame]) -> List[dict]:
         return []
     if not {"timeframe"}.issubset(live_forward.columns):
         return []
+    df = live_forward.copy()
+    if "side" in df.columns:
+        df["side"] = _clean_shadow_col(df["side"], "long")
     out: List[dict] = []
-    cols = [c for c in ("timeframe", "side") if c in live_forward.columns]
-    for keys, grp in live_forward.groupby(cols, dropna=False):
+    cols = [c for c in ("timeframe", "side") if c in df.columns]
+    for keys, grp in df.groupby(cols, dropna=False):
         keys = keys if isinstance(keys, tuple) else (keys,)
         rec = dict(zip(cols, keys))
         row = {"timeframe": str(rec.get("timeframe", "")),
@@ -251,10 +263,19 @@ def update_demotion_state(
         }
         new_strikes: Dict[str, int] = {}
         new_cycles: Dict[str, str] = {}
+        for key, prev_strike in strikes.items():
+            if key not in verdicts:
+                # Temporary absence from verdicts must not forgive accumulated
+                # strikes; only explicit "ok"/"insufficient" on new data forgives.
+                new_strikes[key] = prev_strike
+                if key in prev_cycles:
+                    new_cycles[key] = prev_cycles[key]
         for key, verdict in verdicts.items():
             sc = str(slice_cycle_keys.get(key) or "")
             if sc:
                 new_cycles[key] = sc
+            elif key in prev_cycles:
+                new_cycles[key] = prev_cycles[key]
             if sc and sc != prev_cycles.get(key):
                 if verdict == "demote_candidate":
                     new_strikes[key] = strikes.get(key, 0) + 1
@@ -269,7 +290,7 @@ def update_demotion_state(
         if cycle_key:
             state["cycle_key"] = cycle_key
     elif cycle_key and cycle_key != state.get("cycle_key"):
-        new_strikes = {}
+        new_strikes = {k: v for k, v in strikes.items() if k not in verdicts}
         for key, verdict in verdicts.items():
             if verdict == "demote_candidate":
                 new_strikes[key] = strikes.get(key, 0) + 1

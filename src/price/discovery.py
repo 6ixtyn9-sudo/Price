@@ -157,15 +157,14 @@ def _expanding_qcut(series: pd.Series, labels: List[str], min_periods: int, fall
          (T is a test point against its forward return; the boundary must
          exclude it).
 
-    Bars before min_periods get NaN (dropped from evaluation -- they are early
-    history). Falls back to `fallback` when the series is too short or all-NaN
-    to produce stable boundaries. This is the single highest-value overfit-kill
-    flagged by the HANDOVER's V5 methodological note.
+    Bars before min_periods (including series shorter than min_periods or
+    all-NaN) get NaN so they are excluded from slice evaluation rather than
+    fabricating neutral fallback labels across un-warmed history.
     """
     n = len(labels)
     s = pd.Series(series).astype(float)
     if s.dropna().shape[0] < max(min_periods, n):
-        return fallback
+        return pd.Series(np.nan, index=s.index, dtype=object)
     # Shift by 1 so bar T's boundary uses only [0..T-1] (strictly excludes T).
     prior = s.shift(1)
     qs = [prior.expanding(min_periods=min_periods).quantile((i + 1) / n) for i in range(n - 1)]
