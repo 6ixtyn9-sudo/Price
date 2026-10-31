@@ -142,10 +142,15 @@ def build_eligible_frame(
     return df_binned[df_binned["label_eligible"]].reset_index(drop=True)
 
 
-def _round_metric(val: float, ndigits: int = 6) -> float:
-    if val is None or pd.isna(val) or math.isinf(float(val)):
+def _round_metric(val: float, ndigits: int = 6, inf_cap: float | None = None) -> float:
+    if val is None or pd.isna(val):
         return val
-    return round(float(val), ndigits)
+    fval = float(val)
+    if math.isinf(fval):
+        if inf_cap is None:
+            return val
+        return float(inf_cap) if fval > 0 else -float(inf_cap)
+    return round(fval, ndigits)
 
 
 def summarize_baseline_train_valid(
@@ -174,10 +179,13 @@ def summarize_baseline_train_valid(
     train_df, valid_df = chronological_train_valid_split(
         df, split=split, purge_bars=purge_bars
     )
+    overlap_lags = max(0, infer_target_horizon_bars(target_col) - 1)
 
     def summarize_window(window: pd.DataFrame) -> dict:
         if window.empty or target_col not in window.columns:
-            return summarize_returns(pd.Series(dtype=float), min_samples=min_samples)
+            return summarize_returns(
+                pd.Series(dtype=float), min_samples=min_samples, min_nw_lags=overlap_lags
+            )
 
         price = window[price_col] if price_col and price_col in window.columns else None
         returns = direction_adjusted_returns(
@@ -188,7 +196,9 @@ def summarize_baseline_train_valid(
             price=price,
             short_cost_bps=short_cost_bps,
         )
-        return summarize_returns(returns, min_samples=min_samples)
+        return summarize_returns(
+            returns, min_samples=min_samples, min_nw_lags=overlap_lags
+        )
 
     return {
         "train": summarize_window(train_df),
@@ -484,13 +494,13 @@ def run_validation(
                 "train_t_stat_nw": tv["train"]["t_stat"],
                 "train_pass": train_pass,
                 "valid_n": tv["valid"]["sample_count"],
-                "valid_n_eff": _round_metric(tv["valid"].get("effective_n", float("nan")), 2),
+                "valid_n_eff": _round_metric(tv["valid"].get("effective_n", float("nan")), 6),
                 "valid_mean_ret_costadj": tv["valid"]["mean_return"],
                 "valid_sharpe": _round_metric(valid_sr, 6),
                 "valid_skew": _round_metric(tv["valid"].get("skewness", float("nan")), 4),
                 "valid_kurtosis": _round_metric(tv["valid"].get("kurtosis", float("nan")), 4),
                 "valid_psr": _round_metric(tv["valid"].get("psr", float("nan")), 6),
-                "overfit_ratio": _round_metric(overfit_ratio(train_sr, valid_sr), 4),
+                "overfit_ratio": _round_metric(overfit_ratio(train_sr, valid_sr), 4, inf_cap=999.0),
                 "valid_baseline_mean_ret_costadj": baseline["valid"]["mean_return"],
                 "valid_excess_vs_baseline": tv["valid"]["mean_return"] - baseline["valid"]["mean_return"],
                 "valid_best_parent_filter": parent_baseline["valid"]["filter"],
@@ -1251,6 +1261,11 @@ def annotate_search_wide_significance(
             )
             kurt = np.where(np.isfinite(kurt), kurt, 3.0)
 
+            dsr_arr = np.full(len(lb), np.nan, dtype=float)
+            too_small_n = finite_sr & np.isfinite(n_obs) & (n_obs <= 1.0)
+            if np.any(too_small_n):
+                dsr_arr[too_small_n] = 0.0
+
             ok = finite_sr & np.isfinite(n_obs) & (n_obs > 1.0)
             if np.any(ok):
                 sr_ok = sr[ok]
@@ -1262,9 +1277,9 @@ def annotate_search_wide_significance(
                 z = (sr_ok - sr0) * np.sqrt(n_ok - 1.0) / np.sqrt(denom_sq)
                 sqrt2 = math.sqrt(2.0)
                 dsr_vals = [round(0.5 * (1.0 + math.erf(float(zv) / sqrt2)), 6) for zv in z]
-
-                dsr_arr = np.full(len(lb), np.nan, dtype=float)
                 dsr_arr[ok] = dsr_vals
+
+            if np.any(ok) or np.any(too_small_n):
                 lb["search_wide_dsr"] = dsr_arr
                 lb["search_wide_dsr_pass"] = np.isfinite(dsr_arr) & (dsr_arr >= dsr_threshold)
 
@@ -1555,11 +1570,10 @@ def run_candidate_leaderboard(
         print("No default validation rows available for candidate leaderboard.")
         return default_df
 
-    key_cols = ["symbol", "timeframe", "slice_combination"]
-
     rows = []
     for _, row in default_df.iterrows():
-        key = tuple(row[col] for col in key_cols)
+        row_side = str(row.get("side", "long") or "long").lower()
+        key = (row["symbol"], row["timeframe"], row["slice_combination"], row_side)
 
         scenario_verdicts = {}
         scenario_survived_count = 0
@@ -1568,11 +1582,16 @@ def run_candidate_leaderboard(
         scenario_significant_count = 0
 
         for label, frame in scenario_frames.items():
-            hit = frame[
+            cond = (
                 (frame["symbol"] == key[0])
                 & (frame["timeframe"] == key[1])
                 & (frame["slice_combination"] == key[2])
-            ]
+            )
+            if "side" in frame.columns:
+                cond = cond & (
+                    frame["side"].fillna("long").astype(str).str.lower() == key[3]
+                )
+            hit = frame[cond]
 
             if hit.empty:
                 verdict = "missing"
@@ -1720,13 +1739,39 @@ def run_candidate_leaderboard(
     frame_cache: dict = {}
     train_frame_cache: dict = {}
 
+    def _match_calibration_window(frame: pd.DataFrame, sf: dict, min_rows: int = 5) -> pd.DataFrame:
+        """Match full slice filter (including session/calendar states) when
+        sample-sufficient; fall back to stable fields only when sparse."""
+        full_mask = pd.Series(True, index=frame.index)
+        for field, value in sf.items():
+            if field not in frame.columns:
+                full_mask = pd.Series(False, index=frame.index)
+                break
+            full_mask = full_mask & (frame[field].astype(str) == value)
+        full_window = frame[full_mask]
+        if len(full_window) >= min_rows:
+            return full_window
+
+        stable = {k: v for k, v in sf.items()
+                  if k not in ("state_session", "state_dow", "state_month")}
+        if stable == sf:
+            return full_window
+        stable_mask = pd.Series(True, index=frame.index)
+        for field, value in stable.items():
+            if field not in frame.columns:
+                stable_mask = pd.Series(False, index=frame.index)
+                break
+            stable_mask = stable_mask & (frame[field].astype(str) == value)
+        return frame[stable_mask]
+
     for _, row in leaderboard.iterrows():
         sym = row["symbol"]
         tf = row["timeframe"]
         combo = row["slice_combination"]
         side = str(row.get("side", "long") or "long").lower()
-        stop_map[(sym, tf, combo)] = None  # default; overwritten on success
-        expected_return_map[(sym, tf, combo)] = None
+        map_key = (sym, tf, combo, side)
+        stop_map[map_key] = None  # default; overwritten on success
+        expected_return_map[map_key] = None
 
         try:
             sf = parse_slice_combination(combo)
@@ -1738,7 +1783,7 @@ def run_candidate_leaderboard(
                 )
             ef = frame_cache[ck]
             if ef.empty:
-                horizon_map[(sym, tf, combo)] = 5
+                horizon_map[map_key] = 5
                 continue
 
             if ck not in train_frame_cache:
@@ -1752,15 +1797,8 @@ def run_candidate_leaderboard(
                 train_frame_cache[ck] = train_ef
             cal_ef = train_frame_cache[ck]
 
-            stable = {k: v for k, v in sf.items()
-                      if k not in ("state_session", "state_dow", "state_month")}
-            matched = pd.Series(True, index=cal_ef.index)
-            for field, value in stable.items():
-                if field not in cal_ef.columns:
-                    matched = pd.Series(False, index=cal_ef.index)
-                    break
-                matched = matched & (cal_ef[field].astype(str) == value)
-            window = cal_ef[matched]
+            window = _match_calibration_window(cal_ef, sf, min_rows=5)
+            win_price = window["close_adj"] if "close_adj" in window.columns else None
 
             best_h = 5
             best_mean = float("-inf")
@@ -1768,26 +1806,33 @@ def run_candidate_leaderboard(
                 col = f"fwd_ret_{h}"
                 if col not in window.columns:
                     continue
-                rets = window[col].dropna()
+                rets = direction_adjusted_returns(
+                    window[col],
+                    side=side,
+                    cost_bps=cost_bps,
+                    short_cost_bps=short_cost_bps,
+                    price=win_price,
+                ).dropna()
                 if len(rets) < 5:
                     continue
-                avg = rets.mean()
-                if side == "short":
-                    avg = -avg
+                avg = float(rets.mean())
                 if avg > best_mean:
                     best_mean = avg
                     best_h = h
-            horizon_map[(sym, tf, combo)] = best_h
+            horizon_map[map_key] = best_h
 
             best_h_for_ret = best_h
             ret_col = f"fwd_ret_{best_h_for_ret}"
             if ret_col in window.columns:
-                rets_er = window[ret_col].dropna()
+                rets_er = direction_adjusted_returns(
+                    window[ret_col],
+                    side=side,
+                    cost_bps=cost_bps,
+                    short_cost_bps=short_cost_bps,
+                    price=win_price,
+                ).dropna()
                 if len(rets_er) >= 5:
-                    er = float(rets_er.mean())
-                    if side == "short":
-                        er = -er
-                    expected_return_map[(sym, tf, combo)] = er
+                    expected_return_map[map_key] = float(rets_er.mean())
             # Per-slice stop multiplier = high percentile of the slice's own
             # adverse excursion (ATR) over the hold, clamped to [1.5, 5.0].
             # Mirrors best_fwd_horizon; non-overfit (percentile, not optimum).
@@ -1799,20 +1844,27 @@ def run_candidate_leaderboard(
             if _adv_col not in window.columns:
                 _adv_col = "fwd_mae_atr_5_short" if side == "short" else "fwd_mae_atr_5_long"
             if _adv_col in window.columns:
-                stop_map[(sym, tf, combo)] = _calibrate_stop_atr_mult(window[_adv_col])
+                stop_map[map_key] = _calibrate_stop_atr_mult(window[_adv_col])
         except Exception:
-            horizon_map[(sym, tf, combo)] = 5
+            horizon_map[map_key] = 5
 
     leaderboard["best_fwd_horizon"] = [
-        horizon_map.get((r["symbol"], r["timeframe"], r["slice_combination"]), 5)
+        horizon_map.get(
+            (r["symbol"], r["timeframe"], r["slice_combination"], str(r.get("side", "long") or "long").lower()),
+            5,
+        )
         for _, r in leaderboard.iterrows()
     ]
     leaderboard["best_stop_atr_mult"] = [
-        stop_map.get((r["symbol"], r["timeframe"], r["slice_combination"]))
+        stop_map.get(
+            (r["symbol"], r["timeframe"], r["slice_combination"], str(r.get("side", "long") or "long").lower())
+        )
         for _, r in leaderboard.iterrows()
     ]
     leaderboard["expected_return"] = [
-        expected_return_map.get((r["symbol"], r["timeframe"], r["slice_combination"]))
+        expected_return_map.get(
+            (r["symbol"], r["timeframe"], r["slice_combination"], str(r.get("side", "long") or "long").lower())
+        )
         for _, r in leaderboard.iterrows()
     ]
 
@@ -1823,6 +1875,7 @@ def run_candidate_leaderboard(
     for _, row in leaderboard.head(50).iterrows():  # top 50 candidates
         sym, tf, combo = row["symbol"], row["timeframe"], row["slice_combination"]
         side = str(row.get("side", "long") or "long").lower()
+        map_key = (sym, tf, combo, side)
         try:
             sf = parse_slice_combination(combo)
             _cross = cross_symbols_from_filter(sf)
@@ -1832,19 +1885,20 @@ def run_candidate_leaderboard(
                 continue
 
             regime_symbol = sym  # use own symbol as regime proxy
-            ef_labelled = attach_regime_labels(ef.copy(), regime_symbol)
+            ef_labelled = attach_regime_labels(ef.copy(), regime_symbol, timeframe=tf)
+            if ef_labelled is None or ef_labelled.empty:
+                continue
 
-            stable = {k: v for k, v in sf.items()
-                      if k not in ("state_session", "state_dow", "state_month")}
-            matched = pd.Series(True, index=ef_labelled.index)
-            for field, value in stable.items():
-                if field not in ef_labelled.columns:
-                    matched = pd.Series(False, index=ef_labelled.index)
-                    break
-                matched = matched & (ef_labelled[field].astype(str) == value)
+            train_labelled, _ = chronological_train_valid_split(
+                ef_labelled, split=0.7, purge_bars=max(HORIZONS)
+            )
+            if train_labelled.empty:
+                train_labelled, _ = chronological_train_valid_split(
+                    ef_labelled, split=0.7, purge_bars=0
+                )
 
-            window = ef_labelled[matched]
-            best_h = horizon_map.get((sym, tf, combo), 5)
+            window = _match_calibration_window(train_labelled, sf, min_rows=5)
+            best_h = horizon_map.get(map_key, 5)
             ret_col = f"fwd_ret_{best_h}"
             if ret_col not in window.columns or "regime" not in window.columns:
                 continue
@@ -1852,22 +1906,29 @@ def run_candidate_leaderboard(
             regime_valid = {}
             for regime in ("bull", "neutral", "bear"):
                 regime_window = window[window["regime"] == regime]
-                rets = regime_window[ret_col].dropna()
+                reg_price = regime_window["close_adj"] if "close_adj" in regime_window.columns else None
+                rets = direction_adjusted_returns(
+                    regime_window[ret_col],
+                    side=side,
+                    cost_bps=cost_bps,
+                    short_cost_bps=short_cost_bps,
+                    price=reg_price,
+                ).dropna()
                 if len(rets) >= 5:
-                    mean_ret = float(rets.mean())
-                    if side == "short":
-                        mean_ret = -mean_ret
-                    regime_valid[regime] = mean_ret > 0
+                    regime_valid[regime] = float(rets.mean()) > 0
                 else:
                     regime_valid[regime] = None  # insufficient data
-            regime_valid_map[(sym, tf, combo)] = regime_valid
+            regime_valid_map[map_key] = regime_valid
         except Exception:
-            regime_valid_map[(sym, tf, combo)] = {}
+            regime_valid_map[map_key] = {}
 
     # Add columns
     for regime in ("bull", "neutral", "bear"):
         leaderboard[f"valid_in_{regime}"] = [
-            regime_valid_map.get((r["symbol"], r["timeframe"], r["slice_combination"]), {}).get(regime)
+            regime_valid_map.get(
+                (r["symbol"], r["timeframe"], r["slice_combination"], str(r.get("side", "long") or "long").lower()),
+                {},
+            ).get(regime)
             for _, r in leaderboard.iterrows()
         ]
 

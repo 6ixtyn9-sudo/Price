@@ -58,6 +58,47 @@ def shadow_key(symbol, timeframe, slice_combination, side="long", bin_mode="insa
     ])
 
 
+def normalize_exempt_slice_key(raw: str) -> str:
+    """Normalize a pool-gate exemption string so CLI case/whitespace cannot
+    silently miss at runtime.
+
+    Accepts either:
+      - 3-part: 'SYMBOL|TIMEFRAME|slice_combination'
+      - 4-part: 'SYMBOL|TIMEFRAME|bin_mode|slice_combination'
+    """
+    parts = [p.strip() for p in str(raw or "").split("|")]
+    if len(parts) == 3:
+        return f"{parts[0].upper()}|{parts[1]}|{parts[2]}"
+    if len(parts) >= 4:
+        combo = "|".join(parts[3:]).strip()
+        return f"{parts[0].upper()}|{parts[1]}|{(parts[2] or 'insample').lower()}|{combo}"
+    return str(raw or "").strip()
+
+
+def is_slice_exempt(
+    exempt_slices: Iterable[str],
+    symbol: str,
+    timeframe: str,
+    slice_combination: Optional[str],
+    bin_mode: Optional[str] = None,
+) -> bool:
+    """True when (symbol, timeframe, slice_combination[, bin_mode]) matches
+    any entry in `exempt_slices` after case/whitespace normalization."""
+    if not exempt_slices:
+        return False
+    norm_set = {normalize_exempt_slice_key(x) for x in exempt_slices if x}
+    sym = str(symbol or "").strip().upper()
+    tf = str(timeframe or "").strip()
+    combo = str(slice_combination or "").strip()
+    if f"{sym}|{tf}|{combo}" in norm_set:
+        return True
+    if bin_mode:
+        bm = str(bin_mode).strip().lower()
+        if f"{sym}|{tf}|{bm}|{combo}" in norm_set:
+            return True
+    return False
+
+
 def _mean(xs: Sequence[float]) -> Optional[float]:
     vals = [float(x) for x in xs if x is not None and float(x) == float(x)]
     if not vals:
@@ -109,6 +150,15 @@ def compute_shadow_stats(
                 row[f"win_{label}"] = None
         row["key"] = shadow_key(row["symbol"], row["timeframe"],
                                 row["slice_combination"], row["side"], row["bin_mode"])
+        latest_ts = ""
+        if "signal_ts_utc" in grp.columns:
+            parsed_ts = pd.to_datetime(
+                grp["signal_ts_utc"], format="mixed", errors="coerce", utc=True
+            ).dropna()
+            if len(parsed_ts):
+                latest_ts = parsed_ts.max().isoformat()
+        row["latest_signal_ts_utc"] = latest_ts
+        row["cycle_key"] = f"{row['n_5b']}|{latest_ts}" if row["n_5b"] > 0 else ""
         out.append(row)
     out.sort(key=lambda r: (-r["n_5b"], r["key"]))
     return out
@@ -179,19 +229,47 @@ def update_demotion_state(
     verdicts: Dict[str, str],
     cycle_key: str,
     *,
+    slice_cycle_keys: Optional[Dict[str, str]] = None,
     required_strikes: int = DEFAULT_REQUIRED_STRIKES,
 ) -> Tuple[dict, List[str]]:
     """Advance the two-strike demotion ledger by one data cycle.
 
     `verdicts` maps shadow_key -> shadow_verdict for the current cycle.
     A slice is demoted once its strike count reaches `required_strikes`.
-    Re-running with the same `cycle_key` (unchanged underlying data)
-    never adds a strike — it only re-derives the demoted list.
+    When `slice_cycle_keys` is provided (mapping shadow_key -> per-slice
+    `n_5b|latest_signal_ts_utc`), each slice only advances or forgives its
+    strike when THAT slice's own resolved signal set has changed — so an
+    unrelated 15m signal elsewhere in the book cannot manufacture a second
+    strike on an unchanged 1d slice. Falls back to `cycle_key` when
+    `slice_cycle_keys` is omitted.
     """
     state = dict(state or {})
     strikes: Dict[str, int] = {str(k): int(v) for k, v in (state.get("strikes") or {}).items()}
-    if cycle_key and cycle_key != state.get("cycle_key"):
+    if slice_cycle_keys is not None:
+        prev_cycles: Dict[str, str] = {
+            str(k): str(v) for k, v in (state.get("slice_cycles") or {}).items()
+        }
         new_strikes: Dict[str, int] = {}
+        new_cycles: Dict[str, str] = {}
+        for key, verdict in verdicts.items():
+            sc = str(slice_cycle_keys.get(key) or "")
+            if sc:
+                new_cycles[key] = sc
+            if sc and sc != prev_cycles.get(key):
+                if verdict == "demote_candidate":
+                    new_strikes[key] = strikes.get(key, 0) + 1
+                elif key in strikes and verdict in ("watch",):
+                    new_strikes[key] = strikes[key]
+                # "ok"/"insufficient" on new slice evidence forgive strikes.
+            elif key in strikes:
+                # Unchanged slice data: neither manufacture nor erase strikes.
+                new_strikes[key] = strikes[key]
+        strikes = new_strikes
+        state["slice_cycles"] = new_cycles
+        if cycle_key:
+            state["cycle_key"] = cycle_key
+    elif cycle_key and cycle_key != state.get("cycle_key"):
+        new_strikes = {}
         for key, verdict in verdicts.items():
             if verdict == "demote_candidate":
                 new_strikes[key] = strikes.get(key, 0) + 1
@@ -219,6 +297,7 @@ class WatchdogConfig:
     hard_loss_r: Optional[float] = None            # positive magnitude: exit at -2.0R
     max_no_context_days: Optional[int] = None      # calendar cap when slice context is lost
     loser_stop_fraction: Optional[float] = None    # e.g. 0.5 -> exit losers at 0.5x horizon
+    loser_stop_min_neg_r: float = 0.05             # spread-noise deadband: require <= -0.05R
     breakeven_r: float = 1.0                       # winners at/above this are time-cap exempt
 
     @property
@@ -253,16 +332,17 @@ def watchdog_exit_reason(
                     f"-{abs(float(config.hard_loss_r)):.2f}R hard limit; "
                     "slice-independent tail exit")
     if config.loser_stop_fraction is not None:
-        # Non-winner time-stop: a position still underwater at this
-        # fraction of its horizon has not confirmed; cut it here rather
-        # than letting it drift to the stop or the full horizon. Only
-        # fires with a known negative R -- winners, flat positions, and
-        # unknown-R positions are left to the other rules.
+        # Non-winner time-stop: a position materially underwater (beyond the
+        # spread-noise deadband) at this fraction of its horizon has not
+        # confirmed; cut it here rather than letting it drift to the stop or
+        # full horizon. Skip when trigger >= horizon_bars so normal horizon
+        # exits are never mislabeled as watchdog_loser_stop.
+        min_neg_r = abs(float(config.loser_stop_min_neg_r or 0.0))
         if (bars_held is not None and horizon_bars and int(horizon_bars) > 0
-                and r_multiple is not None and r_multiple < 0):
+                and r_multiple is not None and r_multiple <= -max(min_neg_r, 1e-12) and r_multiple < 0):
             trigger = math.ceil(
                 abs(float(config.loser_stop_fraction)) * int(horizon_bars))
-            if int(bars_held) >= trigger:
+            if trigger < int(horizon_bars) and int(bars_held) >= trigger:
                 return (f"watchdog_loser_stop: underwater {r_multiple:.2f}R at "
                         f"{int(bars_held)} bars >= "
                         f"{config.loser_stop_fraction:g}x horizon "

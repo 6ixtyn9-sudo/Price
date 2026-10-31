@@ -258,6 +258,38 @@ def test_compute_atr_14_counts_only_valid_bars_toward_minimum():
     assert compute_atr_14(df) is None  # only 14 valid bars remain
 
 
+def test_compute_atr_14_does_not_stitch_gap_or_fallback_to_unadjusted_split():
+    # 30 steady $2-range bars around $100, then jump to $200 after a NaN bar at
+    # index 25 (inside the trailing 14-bar window). Dropping row 25 before
+    # shifting close would fabricate a $100 1-bar gap TR and blow up ATR > 8.
+    ts = pd.date_range("2026-01-01", periods=30, freq="D", tz="UTC")
+    closes = [100.0] * 25 + [float("nan")] + [200.0] * 4
+    highs = [c + 1.0 if c == c else float("nan") for c in closes]
+    lows = [c - 1.0 if c == c else float("nan") for c in closes]
+    df = pd.DataFrame({
+        "bar_ts_utc": ts,
+        "high_adj": highs,
+        "low_adj": lows,
+        "close_adj": closes,
+    })
+    atr = compute_atr_14(df)
+    assert atr is not None
+    assert abs(atr - 2.0) < 1e-9
+
+    # When *_adj columns exist with < 15 valid bars, must NOT fall back to
+    # unadjusted raw OHLC across a 10-for-1 split.
+    split_df = pd.DataFrame({
+        "bar_ts_utc": ts,
+        "high_adj": [101.0] * 10 + [float("nan")] * 20,
+        "low_adj": [99.0] * 10 + [float("nan")] * 20,
+        "close_adj": [100.0] * 10 + [float("nan")] * 20,
+        "high": [1010.0] * 20 + [101.0] * 10,
+        "low": [990.0] * 20 + [99.0] * 10,
+        "close": [1000.0] * 20 + [100.0] * 10,
+    })
+    assert compute_atr_14(split_df) is None
+
+
 def test_load_edge_metrics_reads_synthetic_leaderboard(tmp_path):
     lb = pd.DataFrame([{
         "symbol": "KLAC", "timeframe": "1d",

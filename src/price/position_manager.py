@@ -830,7 +830,7 @@ def check_exits(
                 if _age_days is None:
                     try:
                         from price.stops import load_stop_states
-                        _st = load_stop_states().get(symbol)
+                        _st = load_stop_states().get(str(symbol).upper())
                         _parsed = _parse_ts(getattr(_st, "opened_at", None)) if _st else None
                         if _parsed is not None:
                             _age_days = (datetime.now(timezone.utc) - _parsed).total_seconds() / 86400.0

@@ -83,7 +83,13 @@ def main() -> int:
 
     cycle_key = ""
     if not live.empty and "signal_ts_utc" in live.columns:
-        cycle_key = str(live["signal_ts_utc"].astype(str).max())
+        parsed_ts = pd.to_datetime(
+            live["signal_ts_utc"], format="mixed", errors="coerce", utc=True
+        ).dropna()
+        if len(parsed_ts):
+            cycle_key = parsed_ts.max().isoformat()
+
+    slice_cycle_keys = {row["key"]: row.get("cycle_key", "") for row in stats}
 
     state = {}
     if args.state.exists() and not args.reset:
@@ -92,7 +98,12 @@ def main() -> int:
         except Exception:  # noqa: BLE001
             state = {}
     state, demoted_keys = update_demotion_state(
-        state, verdicts, cycle_key, required_strikes=args.strikes)
+        state,
+        verdicts,
+        cycle_key,
+        slice_cycle_keys=slice_cycle_keys,
+        required_strikes=args.strikes,
+    )
     demoted_set = set(demoted_keys)
     for row in stats:
         row["strikes"] = int((state.get("strikes") or {}).get(row["key"], 0))

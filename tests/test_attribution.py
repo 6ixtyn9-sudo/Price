@@ -661,3 +661,26 @@ def test_report_carries_unmatched_and_eras(tmp_path):
     assert rep["eras"]["post_pure_horizon"]["n_round_trips"] == 1
     assert any("unmatched lot" in n for n in rep["notes"])
     assert "UNMATCHED LOTS" in format_report(rep)
+
+
+def test_era_split_partitions_on_entry_ts_and_stop_blank_side_falls_through(tmp_path):
+    j = _journal([
+        # Pre-era entry (2026-07-25) closed post-cutoff (2026-08-05) via stop fill
+        # whose synthetic exit row has blank `side` and signed +qty=10.
+        {"symbol": "LEG", "qty": 10, "side": "buy", "action": "entry",
+         "order_id": "E_LEG", "submitted_at": "2026-07-25T10:00:00Z",
+         "filled_qty": 10, "filled_avg_price": 100.0, "broker_status": "filled",
+         "slice_label": "sl", "timeframe": "1d"},
+        {"symbol": "LEG", "qty": 10, "side": "sell", "action": "protective_stop_submit",
+         "order_type": "stop", "order_id": "S_LEG", "submitted_at": "2026-08-05T14:00:00Z",
+         "filled_qty": 10, "filled_avg_price": 105.0, "broker_status": "filled"},
+        {"symbol": "LEG", "qty": 10, "side": "", "action": "exit",
+         "order_id": "S_LEG", "submitted_at": "2026-08-05T14:00:00Z",
+         "filled_qty": 10, "filled_avg_price": 105.0, "broker_status": "filled"},
+    ])
+    rep = attribute_pnl(journal=j, paper_log_path=tmp_path / "no.csv",
+                        leaderboard_path=tmp_path / "no_lb.csv")
+    assert rep["summary"]["n_round_trips"] == 1
+    assert rep["eras"]["pre_pure_horizon"]["n_round_trips"] == 1
+    assert "post_pure_horizon" not in rep["eras"]
+

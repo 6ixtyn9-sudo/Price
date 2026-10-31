@@ -1137,15 +1137,26 @@ def scan_all_slices(
                 gate_reasons = ["dry_run"]
                 tradable = not regime_blocked and not entry_sync_blocked and not blackout and not knife_blocked and not shadow_blocked
                 # Pool gate also applies in dry-run (check_entry is skipped).
+                from price.roi_guards import is_slice_exempt
                 if side == "short" and timeframe in getattr(limits, "short_blocked_timeframes", frozenset()):
-                    _exempt = f"{symbol.upper()}|{timeframe}|{s['slice_combination']}"
-                    if _exempt not in getattr(limits, "short_exempt_slices", frozenset()):
+                    if not is_slice_exempt(
+                        getattr(limits, "short_exempt_slices", frozenset()),
+                        symbol,
+                        timeframe,
+                        s["slice_combination"],
+                        bin_mode=s.get("bin_mode"),
+                    ):
                         tradable = False
                         gate_reasons.append(
                             f"short entries blocked on {timeframe} by pool gate")
                 if side == "long" and timeframe in getattr(limits, "long_blocked_timeframes", frozenset()):
-                    _exempt = f"{symbol.upper()}|{timeframe}|{s['slice_combination']}"
-                    if _exempt not in getattr(limits, "long_exempt_slices", frozenset()):
+                    if not is_slice_exempt(
+                        getattr(limits, "long_exempt_slices", frozenset()),
+                        symbol,
+                        timeframe,
+                        s["slice_combination"],
+                        bin_mode=s.get("bin_mode"),
+                    ):
                         tradable = False
                         gate_reasons.append(
                             f"long entries blocked on {timeframe} by pool gate")

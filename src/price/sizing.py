@@ -307,53 +307,55 @@ def compute_atr_14(df: pd.DataFrame) -> Optional[float]:
     if df is None or df.empty:
         return None
 
-    column_sets = (
-        ("high_adj", "low_adj", "close_adj"),
-        ("high", "low", "close"),
-    )
-    valid: Optional[pd.DataFrame] = None
-    for high_col, low_col, close_col in column_sets:
-        if not {high_col, low_col, close_col}.issubset(df.columns):
-            continue
-        candidate = pd.DataFrame({
-            "high": pd.to_numeric(df[high_col], errors="coerce"),
-            "low": pd.to_numeric(df[low_col], errors="coerce"),
-            "close": pd.to_numeric(df[close_col], errors="coerce"),
-        })
-        if "bar_ts_utc" in df.columns:
-            candidate["bar_ts_utc"] = pd.to_datetime(
-                df["bar_ts_utc"], errors="coerce", utc=True)
-            candidate = candidate.dropna(subset=["bar_ts_utc"])
-            candidate = candidate.sort_values("bar_ts_utc")
-        candidate = candidate.dropna(subset=["high", "low", "close"])
-        candidate = candidate[
-            (candidate["high"] > 0)
-            & (candidate["low"] > 0)
-            & (candidate["close"] > 0)
-            & (candidate["high"] >= candidate["low"])
-        ]
-        if len(candidate) >= 15:
-            valid = candidate.reset_index(drop=True)
-            break
-        if valid is None and len(candidate) > 0:
-            valid = candidate.reset_index(drop=True)
-
-    if valid is None or len(valid) < 15:
+    if {"high_adj", "low_adj", "close_adj"}.issubset(df.columns):
+        high_col, low_col, close_col = "high_adj", "low_adj", "close_adj"
+    elif {"high", "low", "close"}.issubset(df.columns):
+        high_col, low_col, close_col = "high", "low", "close"
+    else:
         return None
 
-    high = valid["high"]
-    low = valid["low"]
-    close = valid["close"]
+    candidate = pd.DataFrame({
+        "high": pd.to_numeric(df[high_col], errors="coerce"),
+        "low": pd.to_numeric(df[low_col], errors="coerce"),
+        "close": pd.to_numeric(df[close_col], errors="coerce"),
+    })
+    if "bar_ts_utc" in df.columns:
+        candidate["bar_ts_utc"] = pd.to_datetime(
+            df["bar_ts_utc"], format="mixed", errors="coerce", utc=True
+        )
+        candidate = candidate.dropna(subset=["bar_ts_utc"]).sort_values("bar_ts_utc")
+    candidate = candidate.reset_index(drop=True)
+
+    ok_bar = (
+        candidate["high"].notna()
+        & candidate["low"].notna()
+        & candidate["close"].notna()
+        & (candidate["high"] > 0)
+        & (candidate["low"] > 0)
+        & (candidate["close"] > 0)
+        & (candidate["high"] >= candidate["low"])
+    )
+    if int(ok_bar.sum()) < 15:
+        return None
+
+    # Mask invalid bars to NaN IN PLACE before shifting close so isolated bad
+    # rows never stitch non-adjacent closes together into a fake gap TR.
+    high = candidate["high"].where(ok_bar)
+    low = candidate["low"].where(ok_bar)
+    close = candidate["close"].where(ok_bar)
+    prev_close = close.shift(1)
     tr = pd.concat(
         [
             (high - low).abs(),
-            (high - close.shift(1)).abs(),
-            (low - close.shift(1)).abs(),
+            (high - prev_close).abs(),
+            (low - prev_close).abs(),
         ],
         axis=1,
-    ).max(axis=1)
-    atr = tr.rolling(14).mean()
-    val = atr.iloc[-1]
+    ).max(axis=1, skipna=True)
+    valid_tr = tr[ok_bar].dropna()
+    if len(valid_tr) < 14:
+        return None
+    val = valid_tr.tail(14).mean()
     try:
         val = float(val)
     except (TypeError, ValueError):

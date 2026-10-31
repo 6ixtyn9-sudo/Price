@@ -25,6 +25,9 @@ PATHS=(
   localdata/monitored_slices.csv
   localdata/monitored_edge_metrics.csv
 )
+if [ "${TIMEFRAME}" = "1d" ]; then
+  PATHS+=(localdata/research/refresh_state.json)
+fi
 
 stage() {
   local existing=() p

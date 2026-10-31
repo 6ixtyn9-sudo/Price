@@ -173,6 +173,7 @@ def direction_adjusted_returns(
 def _hac_moments(
     returns: np.ndarray,
     lags: Optional[int] = None,
+    min_lags: int = 0,
 ) -> Tuple[np.ndarray, float, float, float]:
     """Clean returns and compute (clean_r, mean, gamma0, hac_long_run_var)."""
     r = np.asarray(returns, dtype=float)
@@ -186,7 +187,8 @@ def _hac_moments(
     gamma0 = float(np.dot(demeaned, demeaned) / n)
 
     if lags is None:
-        lags = int(math.floor(4.0 * (n / 100.0) ** (2.0 / 9.0)))
+        auto_lags = int(math.floor(4.0 * (n / 100.0) ** (2.0 / 9.0)))
+        lags = max(auto_lags, int(min_lags))
     lags = max(0, min(lags, n - 1))
 
     long_run_var = gamma0
@@ -201,6 +203,7 @@ def _hac_moments(
 def newey_west_tstat(
     returns: np.ndarray,
     lags: Optional[int] = None,
+    min_lags: int = 0,
 ) -> Tuple[float, float]:
     """Newey-West (HAC, Bartlett kernel) t-stat and two-sided p-value for the
     sample mean of a (possibly serially correlated / overlapping) return
@@ -211,14 +214,14 @@ def newey_west_tstat(
         w_l = 1 - l / (L + 1)   (Bartlett kernel)
 
     If `lags` is None, the Newey-West (1994) automatic bandwidth rule
-    L = floor(4 * (n / 100) ** (2/9)) is used.
+    L = floor(4 * (n / 100) ** (2/9)) is used (floored at `min_lags`).
 
     The p-value uses the asymptotic normal approximation (no scipy
     dependency), which is standard practice for HAC t-stats.
 
     Returns (nan, nan) if there are fewer than 2 observations.
     """
-    r, mean, _gamma0, variance = _hac_moments(returns, lags=lags)
+    r, mean, _gamma0, variance = _hac_moments(returns, lags=lags, min_lags=min_lags)
     n = len(r)
     if n < 2:
         return float("nan"), float("nan")
@@ -459,6 +462,7 @@ def summarize_returns(
     returns: pd.Series,
     min_samples: int = DEFAULT_MIN_SAMPLES,
     nw_lags: Optional[int] = None,
+    min_nw_lags: int = 0,
 ) -> Dict[str, Union[int, float, bool]]:
     """Summary stats for a (cost-adjusted) return series, with a
     Newey-West-adjusted significance test and higher-moment PSR inputs."""
@@ -480,8 +484,8 @@ def summarize_returns(
             "meets_min_samples": False,
         }
 
-    _, mean, gamma0, long_run_var = _hac_moments(r, lags=nw_lags)
-    t_stat, p_value = newey_west_tstat(r, lags=nw_lags)
+    _, mean, gamma0, long_run_var = _hac_moments(r, lags=nw_lags, min_lags=min_nw_lags)
+    t_stat, p_value = newey_west_tstat(r, lags=nw_lags, min_lags=min_nw_lags)
 
     scale = max(abs(mean) if math.isfinite(mean) else 0.0, 1.0)
     if n < 2 or not math.isfinite(gamma0) or gamma0 <= 0 or math.isclose(gamma0, 0.0, abs_tol=1e-12 * scale**2):
@@ -580,9 +584,14 @@ def evaluate_slice_train_valid(
         cost_per_share=cost_per_share, price=valid_price, short_cost_bps=short_cost_bps,
     )
 
+    overlap_lags = max(0, infer_target_horizon_bars(target_col) - 1)
     return {
-        "train": summarize_returns(train_returns, min_samples=min_samples, nw_lags=nw_lags),
-        "valid": summarize_returns(valid_returns, min_samples=min_samples, nw_lags=nw_lags),
+        "train": summarize_returns(
+            train_returns, min_samples=min_samples, nw_lags=nw_lags, min_nw_lags=overlap_lags
+        ),
+        "valid": summarize_returns(
+            valid_returns, min_samples=min_samples, nw_lags=nw_lags, min_nw_lags=overlap_lags
+        ),
     }
 
 
@@ -612,6 +621,7 @@ def walk_forward_validate_slice(
     `purge_bars`: pass None to auto-infer from `target_col`; defaults to 0.
     """
     eff_purge = _resolve_purge_bars(purge_bars, target_col)
+    overlap_lags = max(0, infer_target_horizon_bars(target_col) - 1)
     results = []
     for fold_idx, train_df, valid_df in walk_forward_folds(
         df, ts_col=ts_col, n_folds=n_folds, purge_bars=eff_purge
@@ -634,8 +644,12 @@ def walk_forward_validate_slice(
         results.append(
             {
                 "fold": fold_idx,
-                "train": summarize_returns(train_returns, min_samples=min_samples, nw_lags=nw_lags),
-                "valid": summarize_returns(valid_returns, min_samples=min_samples, nw_lags=nw_lags),
+                "train": summarize_returns(
+                    train_returns, min_samples=min_samples, nw_lags=nw_lags, min_nw_lags=overlap_lags
+                ),
+                "valid": summarize_returns(
+                    valid_returns, min_samples=min_samples, nw_lags=nw_lags, min_nw_lags=overlap_lags
+                ),
             }
         )
     return results

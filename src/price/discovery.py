@@ -822,12 +822,27 @@ def discover_market_slices(
     if eval_df.empty:
         print(f"No eligible forward-looking evaluation rows for {symbol} ({timeframe}).")
         return pd.DataFrame()
+    if 'bar_ts_utc' in eval_df.columns:
+        eval_df = eval_df.sort_values('bar_ts_utc').reset_index(drop=True)
+    else:
+        eval_df = eval_df.reset_index(drop=True)
 
     for f in slice_fields:
         if f not in eval_df.columns:
             raise ValueError(f"Slice feature field '{f}' is not available in the state DataFrame.")
 
-    grouped = eval_df.groupby(slice_fields)
+    # Lock direction (`side`) on the 5-bar-purged 70% in-sample prefix so OOS
+    # returns can never choose the trade direction for late_emerging slices.
+    n_eval = len(eval_df)
+    n_train_raw = max(1, min(n_eval - 1, round(n_eval * 0.7))) if n_eval >= 2 else n_eval
+    train_cut = max(0, n_train_raw - 5) if n_eval >= 10 else n_train_raw
+    train_means = (
+        eval_df.iloc[:train_cut].groupby(slice_fields, observed=False)['fwd_ret_5'].mean()
+        if train_cut > 0
+        else None
+    )
+
+    grouped = eval_df.groupby(slice_fields, observed=False)
 
     slice_metrics = []
     for keys, group in grouped:
@@ -853,13 +868,19 @@ def discover_market_slices(
 
         ratio = mean_ret / std_ret if std_ret > 0 else 0.0
 
-        # Direction tag: a slice whose mean forward return is negative is a
-        # SHORT (it profits when price falls). The validation gate then
-        # direction-adjusts so the same mean_return > 0 test works for both.
-        # tradeable_mean_fwd_ret_5 is the sign-adjusted expected P&L, used to
-        # rank long and short edges on a single scale (best edge of either
-        # direction floats to the top).
-        side = "short" if mean_ret < 0 else "long"
+        # Direction tag chosen strictly on purged IS returns (neutral "long"
+        # prior if the slice never occurred in IS; full-frame fallback only on
+        # tiny <10-row synthetic frames where a 5-bar purge empties IS).
+        is_mean = float("nan")
+        if train_means is not None:
+            lookup_key = keys_t[0] if len(slice_fields) == 1 else keys_t
+            is_mean = train_means.get(lookup_key, float("nan"))
+        if pd.notna(is_mean):
+            side = "short" if float(is_mean) < 0 else "long"
+        elif train_cut == 0:
+            side = "short" if mean_ret < 0 else "long"
+        else:
+            side = "long"
 
         slice_metrics.append({
             'symbol': symbol,
@@ -868,7 +889,7 @@ def discover_market_slices(
             'sample_count': n,
             'mean_fwd_ret_5': mean_ret,
             'side': side,
-            'tradeable_mean_fwd_ret_5': -mean_ret if mean_ret < 0 else mean_ret,
+            'tradeable_mean_fwd_ret_5': -mean_ret if side == "short" else mean_ret,
             'win_rate': win_rate,
             'mean_mfe_5': mean_mfe,
             'mean_mae_5': mean_mae,

@@ -72,6 +72,7 @@ def run_shard(
         "shard_id": shard_id,
         "symbols": symbols,
         "timeframe": timeframe,
+        "min_samples": int(min_samples),
         "bin_mode": bin_mode,
         "profile": profile or "default",
         "status": "running",
