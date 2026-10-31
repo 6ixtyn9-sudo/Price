@@ -451,6 +451,8 @@ def build_registry(
             "scenario_survived_count": row.get("scenario_survived_count"),
             "search_wide_bh_pass": row.get("search_wide_bh_pass"),
             "search_wide_bonferroni_pass": row.get("search_wide_bonferroni_pass"),
+            "search_wide_dsr": row.get("search_wide_dsr"),
+            "search_wide_dsr_pass": row.get("search_wide_dsr_pass"),
             "valid_excess_vs_baseline": row.get("valid_excess_vs_baseline"),
             "valid_excess_vs_best_parent": row.get("valid_excess_vs_best_parent"),
             "triage_bucket": _clean(row.get("triage_bucket")),            "optimal_horizon": int(row.get("best_fwd_horizon", 5) or 5),

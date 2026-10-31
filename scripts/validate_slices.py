@@ -20,6 +20,7 @@ import argparse
 import contextlib
 import hashlib
 import io
+import math
 import os
 from itertools import combinations
 from pathlib import Path
@@ -35,8 +36,13 @@ from price.validation import (
     chronological_train_valid_split,
     direction_adjusted_returns,
     evaluate_slice_train_valid,
+    expected_max_sharpe,
+    infer_target_horizon_bars,
+    overfit_ratio,
     parse_slice_combination,
+    sharpe_decay,
     summarize_returns,
+    walk_forward_folds,
     walk_forward_validate_slice,
 )
 from price.warehouse import load_from_warehouse
@@ -136,6 +142,12 @@ def build_eligible_frame(
     return df_binned[df_binned["label_eligible"]].reset_index(drop=True)
 
 
+def _round_metric(val: float, ndigits: int = 6) -> float:
+    if val is None or pd.isna(val) or math.isinf(float(val)):
+        return val
+    return round(float(val), ndigits)
+
+
 def summarize_baseline_train_valid(
     df: pd.DataFrame,
     split: float = 0.7,
@@ -146,6 +158,7 @@ def summarize_baseline_train_valid(
     min_samples: int = 15,
     side: str = "long",
     short_cost_bps: float = 0.0,
+    purge_bars: int = 0,
 ) -> dict:
     """Summarize the unconditional symbol/timeframe baseline over the same
     chronological train/valid windows used for slice validation.
@@ -158,7 +171,9 @@ def summarize_baseline_train_valid(
     the unconditional SHORT baseline (negate every bar's return), not the
     long drift. This is what makes "excess vs baseline" meaningful for shorts.
     """
-    train_df, valid_df = chronological_train_valid_split(df, split=split)
+    train_df, valid_df = chronological_train_valid_split(
+        df, split=split, purge_bars=purge_bars
+    )
 
     def summarize_window(window: pd.DataFrame) -> dict:
         if window.empty or target_col not in window.columns:
@@ -212,6 +227,7 @@ def summarize_parent_baselines_train_valid(
     min_samples: int = 15,
     side: str = "long",
     short_cost_bps: float = 0.0,
+    purge_bars: int = 0,
 ) -> dict:
     """Find the strongest parent-regime baseline in train and validation.
 
@@ -238,6 +254,7 @@ def summarize_parent_baselines_train_valid(
             min_samples=min_samples,
             side=side,
             short_cost_bps=short_cost_bps,
+            purge_bars=purge_bars,
         )
         parent_results.append(
             {
@@ -331,7 +348,10 @@ def run_validation(
     p_threshold: float = 0.05,
     short_cost_bps: float = 0.0,
     bin_mode: str = "insample",
+    purge_bars: int | None = None,
 ) -> pd.DataFrame:
+    eff_purge = infer_target_horizon_bars("fwd_ret_5") if purge_bars is None else int(purge_bars)
+
     try:
         discovered = pd.read_csv(slices_path)
     except FileNotFoundError:
@@ -387,6 +407,7 @@ def run_validation(
             min_samples=min_samples,
             side=side,
             short_cost_bps=short_cost_bps,
+            purge_bars=eff_purge,
         )
 
         baseline = summarize_baseline_train_valid(
@@ -397,6 +418,7 @@ def run_validation(
             min_samples=min_samples,
             side=side,
             short_cost_bps=short_cost_bps,
+            purge_bars=eff_purge,
         )
 
         parent_baseline = summarize_parent_baselines_train_valid(
@@ -408,6 +430,7 @@ def run_validation(
             min_samples=min_samples,
             side=side,
             short_cost_bps=short_cost_bps,
+            purge_bars=eff_purge,
         )
 
         try:
@@ -420,6 +443,7 @@ def run_validation(
                 min_samples=min_samples,
                 side=side,
                 short_cost_bps=short_cost_bps,
+                purge_bars=eff_purge,
             )
         except ValueError:
             wf_folds = []
@@ -431,10 +455,16 @@ def run_validation(
         wf_pass_count = sum(wf_valid_pass)
         wf_pass_pattern = "".join("1" if passed else "0" for passed in wf_valid_pass)
         wf_survival_rate = (wf_pass_count / len(wf_valid_pass)) if wf_valid_pass else float("nan")
+        wf_oos_slope = sharpe_decay(
+            [fold["valid"].get("sharpe", float("nan")) for fold in wf_folds]
+        )
 
         train_pass = survives(tv["train"], min_samples=min_samples, p_threshold=p_threshold)
         valid_pass = survives(tv["valid"], min_samples=min_samples, p_threshold=p_threshold)
         verdict = classify_verdict(train_pass, valid_pass, tv["train"], tv["valid"], p_threshold)
+
+        train_sr = tv["train"].get("sharpe", float("nan"))
+        valid_sr = tv["valid"].get("sharpe", float("nan"))
 
         scorecard.append(
             {
@@ -445,6 +475,7 @@ def run_validation(
                 "short_cost_bps": short_cost_bps,
                 "train_n": tv["train"]["sample_count"],
                 "train_mean_ret_costadj": tv["train"]["mean_return"],
+                "train_sharpe": _round_metric(train_sr, 6),
                 "train_baseline_mean_ret_costadj": baseline["train"]["mean_return"],
                 "train_excess_vs_baseline": tv["train"]["mean_return"] - baseline["train"]["mean_return"],
                 "train_best_parent_filter": parent_baseline["train"]["filter"],
@@ -453,7 +484,13 @@ def run_validation(
                 "train_t_stat_nw": tv["train"]["t_stat"],
                 "train_pass": train_pass,
                 "valid_n": tv["valid"]["sample_count"],
+                "valid_n_eff": _round_metric(tv["valid"].get("effective_n", float("nan")), 2),
                 "valid_mean_ret_costadj": tv["valid"]["mean_return"],
+                "valid_sharpe": _round_metric(valid_sr, 6),
+                "valid_skew": _round_metric(tv["valid"].get("skewness", float("nan")), 4),
+                "valid_kurtosis": _round_metric(tv["valid"].get("kurtosis", float("nan")), 4),
+                "valid_psr": _round_metric(tv["valid"].get("psr", float("nan")), 6),
+                "overfit_ratio": _round_metric(overfit_ratio(train_sr, valid_sr), 4),
                 "valid_baseline_mean_ret_costadj": baseline["valid"]["mean_return"],
                 "valid_excess_vs_baseline": tv["valid"]["mean_return"] - baseline["valid"]["mean_return"],
                 "valid_best_parent_filter": parent_baseline["valid"]["filter"],
@@ -466,6 +503,7 @@ def run_validation(
                 "walk_forward_pass_count": wf_pass_count,
                 "walk_forward_pass_pattern": wf_pass_pattern,
                 "walk_forward_survival_rate": wf_survival_rate,
+                "wf_oos_sharpe_slope": _round_metric(wf_oos_slope, 6),
                 "survived": bool(train_pass and valid_pass),
                 "verdict": verdict,
             }
@@ -604,6 +642,7 @@ def run_walk_forward_diagnostics(
     top_n: int = 5,
     short_cost_bps: float = 0.0,
     bin_mode: str = "insample",
+    purge_bars: int | None = None,
 ) -> pd.DataFrame:
     """Run anchored fold-by-fold diagnostics for the leading candidates.
 
@@ -614,6 +653,8 @@ def run_walk_forward_diagnostics(
     It is intentionally targeted at the current candidates recorded in
     HANDOVER.md rather than a broad discovery expansion.
     """
+    eff_purge = infer_target_horizon_bars("fwd_ret_5") if purge_bars is None else int(purge_bars)
+
     targets = select_diagnostic_targets(
         scope=diagnostic_scope,
         top_n=top_n,
@@ -673,12 +714,9 @@ def run_walk_forward_diagnostics(
             )
             continue
 
-        edges = [round(i * len(sorted_df) / n_blocks) for i in range(n_blocks + 1)]
-        blocks = [sorted_df.iloc[edges[i] : edges[i + 1]].reset_index(drop=True) for i in range(n_blocks)]
-
-        for fold_idx in range(n_folds):
-            train_df = pd.concat(blocks[: fold_idx + 1], ignore_index=True)
-            valid_df = blocks[fold_idx + 1]
+        for fold_idx, train_df, valid_df in walk_forward_folds(
+            sorted_df, n_folds=n_folds, purge_bars=eff_purge
+        ):
 
             train_summary = summarize_filter_window(
                 train_df, slice_filter, cost_bps=cost_bps,
@@ -1127,13 +1165,18 @@ def annotate_search_wide_significance(
     leaderboard: pd.DataFrame,
     p_threshold: float = 0.05,
     p_col: str = "valid_p_value_nw",
+    dsr_threshold: float = 0.95,
+    min_samples: int = 15,
+    sharpe_col: str = "valid_sharpe",
 ) -> pd.DataFrame:
     """Add search-wide multiple-testing columns to a candidate leaderboard.
 
     The correction family is every leaderboard row with a finite p-value.
     Adds Benjamini-Hochberg FDR (search_wide_bh_pass), Bonferroni
     (search_wide_bonferroni_pass), the ascending p rank (search_wide_rank),
-    and the family size (search_wide_family_size). Read together with valid_n
+    the family size (search_wide_family_size), and -- when validation Sharpe
+    moments are available -- Bailey & López de Prado's Deflated Sharpe Ratio
+    (search_wide_dsr, search_wide_dsr_pass). Read together with valid_n
     and triage_bucket: the family includes sample-starved slices whose tiny
     small-sample p-values inflate the family, so these columns are a guard
     against over-claiming, not a promotion gate.
@@ -1148,22 +1191,82 @@ def annotate_search_wide_significance(
     lb["search_wide_bh_pass"] = False
     lb["search_wide_bonferroni_pass"] = False
 
-    if m == 0:
-        return lb
+    include_dsr = sharpe_col in lb.columns or p_col == "valid_p_value_nw"
+    if include_dsr:
+        lb["search_wide_dsr"] = float("nan")
+        lb["search_wide_dsr_pass"] = False
 
-    order = p[finite].sort_values(kind="mergesort")
-    ranks = {idx: i + 1 for i, idx in enumerate(order.index)}
-    lb.loc[finite, "search_wide_rank"] = [ranks[i] for i in p[finite].index]
+    if m > 0:
+        order = p[finite].sort_values(kind="mergesort")
+        ranks = {idx: i + 1 for i, idx in enumerate(order.index)}
+        lb.loc[finite, "search_wide_rank"] = [ranks[i] for i in p[finite].index]
 
-    bonf_thresh = p_threshold / m
-    lb.loc[finite, "search_wide_bonferroni_pass"] = p[finite] <= bonf_thresh
+        bonf_thresh = p_threshold / m
+        lb.loc[finite, "search_wide_bonferroni_pass"] = p[finite] <= bonf_thresh
 
-    ranked_p = order.to_numpy()
-    bh_crit = (np.arange(1, m + 1) / m) * p_threshold
-    passing = np.nonzero(ranked_p <= bh_crit)[0]
-    bh_cut_rank = int(passing.max() + 1) if passing.size else 0
-    bh_idx = [i for i in order.index if ranks[i] <= bh_cut_rank]
-    lb.loc[bh_idx, "search_wide_bh_pass"] = True
+        ranked_p = order.to_numpy()
+        bh_crit = (np.arange(1, m + 1) / m) * p_threshold
+        passing = np.nonzero(ranked_p <= bh_crit)[0]
+        bh_cut_rank = int(passing.max() + 1) if passing.size else 0
+        bh_idx = [i for i in order.index if ranks[i] <= bh_cut_rank]
+        lb.loc[bh_idx, "search_wide_bh_pass"] = True
+
+    if sharpe_col in lb.columns and not lb.empty:
+        sr = pd.to_numeric(lb[sharpe_col], errors="coerce").to_numpy(dtype=float)
+        finite_sr = np.isfinite(sr)
+        m_sr = int(finite_sr.sum())
+
+        if m_sr > 0:
+            # Estimate cross-trial Sharpe dispersion on sample-sufficient rows
+            # so pathological n=2 near-zero-variance outliers cannot blow up
+            # E[max SR], while still counting all m_sr tested trials in N.
+            if "valid_n" in lb.columns:
+                n_raw = pd.to_numeric(lb["valid_n"], errors="coerce").to_numpy(dtype=float)
+                stable = finite_sr & np.isfinite(n_raw) & (n_raw >= min_samples)
+                pool = sr[stable] if int(stable.sum()) >= 2 else sr[finite_sr]
+            else:
+                pool = sr[finite_sr]
+
+            sr_std = float(pool.std(ddof=0)) if pool.size > 1 else 0.0
+            sr0 = expected_max_sharpe(sr_std, float(m_sr)) if (m_sr > 1 and sr_std > 0.0) else 0.0
+
+            if "valid_n_eff" in lb.columns:
+                n_obs = pd.to_numeric(lb["valid_n_eff"], errors="coerce").to_numpy(dtype=float)
+            elif "valid_n" in lb.columns:
+                n_obs = pd.to_numeric(lb["valid_n"], errors="coerce").to_numpy(dtype=float)
+            else:
+                n_obs = np.full(len(lb), np.nan, dtype=float)
+
+            skew = (
+                pd.to_numeric(lb["valid_skew"], errors="coerce").to_numpy(dtype=float)
+                if "valid_skew" in lb.columns
+                else np.zeros(len(lb), dtype=float)
+            )
+            skew = np.where(np.isfinite(skew), skew, 0.0)
+
+            kurt = (
+                pd.to_numeric(lb["valid_kurtosis"], errors="coerce").to_numpy(dtype=float)
+                if "valid_kurtosis" in lb.columns
+                else np.full(len(lb), 3.0, dtype=float)
+            )
+            kurt = np.where(np.isfinite(kurt), kurt, 3.0)
+
+            ok = finite_sr & np.isfinite(n_obs) & (n_obs > 1.0)
+            if np.any(ok):
+                sr_ok = sr[ok]
+                n_ok = n_obs[ok]
+                g3 = skew[ok]
+                g4 = kurt[ok]
+                denom_sq = 1.0 - g3 * sr_ok + ((g4 - 1.0) / 4.0) * (sr_ok**2)
+                denom_sq = np.where(denom_sq > 0.0, denom_sq, 1.0 + 0.5 * (sr_ok**2))
+                z = (sr_ok - sr0) * np.sqrt(n_ok - 1.0) / np.sqrt(denom_sq)
+                sqrt2 = math.sqrt(2.0)
+                dsr_vals = [round(0.5 * (1.0 + math.erf(float(zv) / sqrt2)), 6) for zv in z]
+
+                dsr_arr = np.full(len(lb), np.nan, dtype=float)
+                dsr_arr[ok] = dsr_vals
+                lb["search_wide_dsr"] = dsr_arr
+                lb["search_wide_dsr_pass"] = np.isfinite(dsr_arr) & (dsr_arr >= dsr_threshold)
 
     return lb
 
@@ -1398,6 +1501,7 @@ def run_candidate_leaderboard(
     bin_mode: str = "insample",
     cost_bps: float = 1.0,
     short_cost_bps: float = 0.0,
+    purge_bars: int | None = None,
 ) -> pd.DataFrame:
     """Rank all discovered slices by validation quality and robustness.
 
@@ -1439,6 +1543,7 @@ def run_candidate_leaderboard(
             "p_threshold": p_threshold,
             "bin_mode": bin_mode,
             "short_cost_bps": short_cost_bps,
+            "purge_bars": purge_bars,
         }
         params.update(overrides)
 
@@ -1500,6 +1605,9 @@ def run_candidate_leaderboard(
         valid_excess_baseline = row.get("valid_excess_vs_baseline", float("nan"))
         valid_excess_parent = row.get("valid_excess_vs_best_parent", float("nan"))
         valid_p_value = row.get("valid_p_value_nw", float("nan"))
+        valid_psr = row.get("valid_psr", float("nan"))
+        row_overfit = row.get("overfit_ratio", float("nan"))
+        wf_oos_slope = row.get("wf_oos_sharpe_slope", float("nan"))
         wf_pass_count = row.get("walk_forward_pass_count", 0)
         wf_pass_pattern = str(row.get("walk_forward_pass_pattern", ""))
 
@@ -1535,6 +1643,12 @@ def run_candidate_leaderboard(
         robustness_score += scenario_survived_count * 1.0
         robustness_score += scenario_positive_parent_excess_count * 0.25
         robustness_score += scenario_significant_count * 0.25
+        if not pd.isna(valid_psr) and float(valid_psr) >= 0.95:
+            robustness_score += 0.5
+        if not pd.isna(row_overfit) and float(row_overfit) > 2.5:
+            robustness_score -= 0.5
+        if not pd.isna(wf_oos_slope) and float(wf_oos_slope) < 0.0:
+            robustness_score -= 0.25
         if valid_n < min_samples:
             robustness_score -= 2.0
         if not positive_parent:
@@ -1553,8 +1667,14 @@ def run_candidate_leaderboard(
                 "train_n": row["train_n"],
                 "train_pass": train_pass,
                 "valid_n": valid_n,
+                "valid_n_eff": row.get("valid_n_eff", float("nan")),
                 "valid_pass": valid_pass,
                 "valid_mean_ret_costadj": row["valid_mean_ret_costadj"],
+                "valid_sharpe": row.get("valid_sharpe", float("nan")),
+                "valid_skew": row.get("valid_skew", float("nan")),
+                "valid_kurtosis": row.get("valid_kurtosis", float("nan")),
+                "valid_psr": valid_psr,
+                "overfit_ratio": row_overfit,
                 "valid_excess_vs_baseline": valid_excess_baseline,
                 "valid_best_parent_filter": row.get("valid_best_parent_filter", ""),
                 "valid_excess_vs_best_parent": valid_excess_parent,
@@ -1562,6 +1682,7 @@ def run_candidate_leaderboard(
                 "walk_forward_pass_count": wf_pass_count,
                 "walk_forward_pass_pattern": wf_pass_pattern,
                 "walk_forward_survival_rate": wf,
+                "wf_oos_sharpe_slope": wf_oos_slope,
                 "scenario_survived_count": scenario_survived_count,
                 "scenario_positive_baseline_excess_count": scenario_positive_baseline_excess_count,
                 "scenario_positive_parent_excess_count": scenario_positive_parent_excess_count,
@@ -1739,7 +1860,7 @@ def run_candidate_leaderboard(
         ]
 
     leaderboard = annotate_search_wide_significance(
-        leaderboard, p_threshold=p_threshold
+        leaderboard, p_threshold=p_threshold, min_samples=min_samples
     )
     leaderboard.to_csv(output_path, index=False)
 
@@ -1755,31 +1876,38 @@ def run_candidate_leaderboard(
             p_threshold=p_threshold,
             bin_mode=bin_mode,
             short_cost_bps=short_cost_bps,
+            purge_bars=purge_bars,
         )
 
     print(f"Saved candidate leaderboard to {output_path}")
     display_cols = [
-        "rank",
-        "symbol",
-        "timeframe",
-        "slice_combination",
-        "verdict",
-        "side",
-        "triage_bucket",
-        "train_pass",
-        "valid_pass",
-        "valid_n",
-        "valid_mean_ret_costadj",
-        "valid_excess_vs_baseline",
-        "valid_excess_vs_best_parent",
-        "valid_p_value_nw",
-        "walk_forward_pass_pattern",
-        "walk_forward_survival_rate",
-        "scenario_survived_count",
-        "robustness_score",
-        "search_wide_rank",
-        "search_wide_bh_pass",
-        "search_wide_bonferroni_pass",
+        col
+        for col in [
+            "rank",
+            "symbol",
+            "timeframe",
+            "slice_combination",
+            "verdict",
+            "side",
+            "triage_bucket",
+            "train_pass",
+            "valid_pass",
+            "valid_n",
+            "valid_mean_ret_costadj",
+            "valid_excess_vs_baseline",
+            "valid_excess_vs_best_parent",
+            "valid_p_value_nw",
+            "walk_forward_pass_pattern",
+            "walk_forward_survival_rate",
+            "scenario_survived_count",
+            "robustness_score",
+            "search_wide_rank",
+            "search_wide_bh_pass",
+            "search_wide_bonferroni_pass",
+            "search_wide_dsr",
+            "search_wide_dsr_pass",
+        ]
+        if col in leaderboard.columns
     ]
     print(leaderboard[display_cols].head(25).to_string(index=False))
     return leaderboard
@@ -1792,6 +1920,7 @@ def run_scenario_grid(
     p_threshold: float = 0.05,
     output_path: str = SCENARIO_GRID_PATH,
     bin_mode: str = "insample",
+    purge_bars: int | None = None,
 ) -> pd.DataFrame:
     """Run a compact robustness grid for the current leading candidates.
 
@@ -1847,6 +1976,7 @@ def run_scenario_grid(
             "min_samples": min_samples,
             "p_threshold": p_threshold,
             "bin_mode": bin_mode,
+            "purge_bars": purge_bars,
         }
         params.update(overrides)
 
@@ -1888,6 +2018,7 @@ def run_scenario_grid(
             min_samples=min_samples,
             p_threshold=p_threshold,
             bin_mode=bin_mode,
+            purge_bars=purge_bars,
         )
 
     print(f"Saved scenario-grid diagnostics to {output_path}")
@@ -1905,6 +2036,13 @@ if __name__ == "__main__":
     parser.add_argument("--min-samples", type=int, default=15, help="Minimum sample floor per fold/window")
     parser.add_argument("--p-threshold", type=float, default=0.05, help="Newey-West p-value survival threshold")
     parser.add_argument("--short-cost-bps", type=float, default=0.0, help="Extra per-leg drag (bps) for SHORT slices only (borrow + dividend).")
+    parser.add_argument(
+        "--purge-bars",
+        type=int,
+        default=None,
+        help="Bars purged from the tail of each in-sample window before OOS starts "
+        "(default: auto-infer target horizon = 5 bars; pass 0 to disable).",
+    )
     parser.add_argument(
         "--bin-mode",
         default="insample",
@@ -1997,6 +2135,7 @@ if __name__ == "__main__":
             p_threshold=args.p_threshold,
             output_path=args.scenario_grid_output,
             bin_mode=args.bin_mode,
+            purge_bars=args.purge_bars,
         )
     elif args.walk_forward_diagnostics:
         run_walk_forward_diagnostics(
@@ -2011,6 +2150,7 @@ if __name__ == "__main__":
             top_n=args.top_n,
             short_cost_bps=args.short_cost_bps,
             bin_mode=args.bin_mode,
+            purge_bars=args.purge_bars,
         )
     elif args.date_range_diagnostics:
         run_date_range_diagnostics(
@@ -2049,6 +2189,9 @@ if __name__ == "__main__":
             p_threshold=args.p_threshold,
             output_path=args.candidate_leaderboard_output,
             bin_mode=args.bin_mode,
+            cost_bps=args.cost_bps,
+            short_cost_bps=args.short_cost_bps,
+            purge_bars=args.purge_bars,
         )
     else:
         run_validation(
@@ -2060,4 +2203,6 @@ if __name__ == "__main__":
             min_samples=args.min_samples,
             p_threshold=args.p_threshold,
             short_cost_bps=args.short_cost_bps,
+            bin_mode=args.bin_mode,
+            purge_bars=args.purge_bars,
         )
