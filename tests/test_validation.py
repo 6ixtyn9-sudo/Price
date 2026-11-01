@@ -144,6 +144,17 @@ def test_newey_west_tstat_handles_degenerate_input():
     assert math.isnan(p_value_zero_var)
 
 
+def test_newey_west_tstat_floors_variance_at_gamma0_under_negative_autocorrelation():
+    # Alternating +/- shocks around a positive drift produce negative sample
+    # autocovariance (long_run_var < gamma0); HAC must never claim a standard
+    # error smaller than iid (|t_nw| <= |t_iid|, p_nw >= p_iid).
+    returns = np.array([0.02, 0.00, 0.02, 0.00, 0.02, 0.00, 0.02, 0.00])
+    t_iid, p_iid = newey_west_tstat(returns, lags=0)
+    t_nw, p_nw = newey_west_tstat(returns, min_lags=4)
+    assert abs(t_nw) == pytest.approx(abs(t_iid), rel=1e-12)
+    assert p_nw == pytest.approx(p_iid, rel=1e-12)
+
+
 def test_walk_forward_folds_are_chronological_and_expanding():
     df = _synthetic_frame(n=100)
     folds = list(walk_forward_folds(df, n_folds=4))

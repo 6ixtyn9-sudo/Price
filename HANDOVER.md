@@ -7241,4 +7241,26 @@ discovery refresh:
   by `side`; trimmed `candidate_registry.csv` size (~15 MB on `1h`); and
   deduplicated `bar_ts_utc` in `compute_atr_14`.
 
+### 2026-11-01 — Post-refresh HAC variance floor & BH sample-sufficiency guard
+
+Overnight refresh (`58b8e2f`) ran 36/36 shards + 3 merges cleanly, stamped
+`git_sha`, closed `refresh_state.json`, trimmed registries by 11–17 MB, and
+verified `valid_n_eff <= valid_n` across all 207,338 rows. Diffing the book
+(`229 -> 262`) exposed one remaining statistical seam: finite-sample negative
+autocovariance under `min_lags = 4` left `HAC variance < gamma0` on 63.2% of
+sample-starved (`valid_n < 15`) `1h` slices, piling invalid small-`n` normal
+p-values into the top of the Benjamini–Hochberg step-up curve (`k / m * 0.05`)
+and lifting the BH threshold from `~0.0015` to `~0.0023`.
+
+- **`newey_west_tstat` (`src/price/validation.py`):** floored `eff_variance =
+  max(variance, gamma0)` so HAC standard errors never drop below iid (`se >=
+  sqrt(gamma0 / n)`), matching `summarize_returns`' `effective_n <= n`.
+- **`annotate_search_wide_significance` (`scripts/validate_slices.py`):** kept
+  full `m` across all finite trials in the denominator while ranking BH `k`
+  only across sample-sufficient (`valid_n >= min_samples`) rows so tiny-`n`
+  noise rows can neither pass BH nor inflate `k` for borderline slices.
+- Re-opened `discovery_baseline_coverage: {}` in `refresh_state.json` so
+  Sunday night's `22:11 UTC` refresh regenerates all shards and
+  `monitored_slices.csv` ahead of Monday's open.
+
 
