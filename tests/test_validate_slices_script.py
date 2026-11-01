@@ -915,5 +915,23 @@ def test_leaderboard_side_isolation_session_calibration_finite_overfit_and_small
     assert "search_wide_dsr" not in legacy.columns
     assert "search_wide_dsr_pass" not in legacy.columns
 
+    # Sample-starved valid_n < min_samples rows must still count toward family
+    # size m, never pass BH themselves, and never inflate rank k to let a
+    # borderline valid_n >= min_samples row piggyback across BH.
+    piggyback_df = pd.DataFrame([
+        {"symbol": "TINY1", "valid_p_value_nw": 1e-9, "valid_n": 3},
+        {"symbol": "TINY2", "valid_p_value_nw": 1e-8, "valid_n": 4},
+        {"symbol": "TINY3", "valid_p_value_nw": 1e-7, "valid_n": 5},
+        # m = 5 total trials -> rank 1 crit is (1/5)*0.05 = 0.010; without the
+        # valid_n >= min_samples guard, BORDERLINE would sit at rank 4 with crit
+        # (4/5)*0.05 = 0.040 and falsely pass!
+        {"symbol": "BORDERLINE", "valid_p_value_nw": 0.025, "valid_n": 30},
+        {"symbol": "NOISE", "valid_p_value_nw": 0.50, "valid_n": 30},
+    ])
+    pb_out = annotate_search_wide_significance(piggyback_df, p_threshold=0.05, min_samples=15)
+    assert (pb_out["search_wide_family_size"] == 5).all()
+    assert int(pb_out["search_wide_bh_pass"].sum()) == 0
+    assert pb_out.loc[pb_out["symbol"] == "BORDERLINE", "search_wide_rank"].iloc[0] == 1
+
 
 

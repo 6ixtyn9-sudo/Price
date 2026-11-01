@@ -1212,19 +1212,31 @@ def annotate_search_wide_significance(
         )
 
     if m > 0:
-        order = p[finite].sort_values(kind="mergesort")
-        ranks = {idx: i + 1 for i, idx in enumerate(order.index)}
-        lb.loc[finite, "search_wide_rank"] = [ranks[i] for i in p[finite].index]
+        # Count every tested hypothesis in family size `m`, while preventing
+        # sample-starved rows (valid_n < min_samples, whose asymptotic normal
+        # p-values are finite-sample invalid and structurally ineligible for
+        # promotion) from inflating the BH step-up rank `k` in (k / m) * alpha.
+        if p_col == "valid_p_value_nw" and "valid_n" in lb.columns:
+            n_col = pd.to_numeric(lb["valid_n"], errors="coerce")
+            eligible = finite & n_col.notna() & (n_col >= min_samples)
+        else:
+            eligible = finite
 
         bonf_thresh = p_threshold / m
-        lb.loc[finite, "search_wide_bonferroni_pass"] = p[finite] <= bonf_thresh
+        lb.loc[eligible, "search_wide_bonferroni_pass"] = p[eligible] <= bonf_thresh
 
-        ranked_p = order.to_numpy()
-        bh_crit = (np.arange(1, m + 1) / m) * p_threshold
-        passing = np.nonzero(ranked_p <= bh_crit)[0]
-        bh_cut_rank = int(passing.max() + 1) if passing.size else 0
-        bh_idx = [i for i in order.index if ranks[i] <= bh_cut_rank]
-        lb.loc[bh_idx, "search_wide_bh_pass"] = True
+        m_elig = int(eligible.sum())
+        if m_elig > 0:
+            order = p[eligible].sort_values(kind="mergesort")
+            ranks = {idx: i + 1 for i, idx in enumerate(order.index)}
+            lb.loc[eligible, "search_wide_rank"] = [ranks[i] for i in p[eligible].index]
+
+            ranked_p = order.to_numpy()
+            bh_crit = (np.arange(1, m_elig + 1) / m) * p_threshold
+            passing = np.nonzero(ranked_p <= bh_crit)[0]
+            bh_cut_rank = int(passing.max() + 1) if passing.size else 0
+            bh_idx = [i for i in order.index if ranks[i] <= bh_cut_rank]
+            lb.loc[bh_idx, "search_wide_bh_pass"] = True
 
     if sharpe_col in lb.columns and not lb.empty:
         sr = pd.to_numeric(lb[sharpe_col], errors="coerce").to_numpy(dtype=float)

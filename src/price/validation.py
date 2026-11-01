@@ -221,7 +221,7 @@ def newey_west_tstat(
 
     Returns (nan, nan) if there are fewer than 2 observations.
     """
-    r, mean, _gamma0, variance = _hac_moments(returns, lags=lags, min_lags=min_lags)
+    r, mean, gamma0, variance = _hac_moments(returns, lags=lags, min_lags=min_lags)
     n = len(r)
     if n < 2:
         return float("nan"), float("nan")
@@ -229,10 +229,15 @@ def newey_west_tstat(
     # Guard against floating-point noise around a true zero-variance series
     # (e.g. a constant return column) producing a spuriously huge t-stat.
     scale = max(abs(mean), 1.0)
-    if not math.isfinite(variance) or variance <= 0 or math.isclose(variance, 0.0, abs_tol=1e-12 * scale**2):
+    if not math.isfinite(gamma0) or gamma0 <= 0 or math.isclose(gamma0, 0.0, abs_tol=1e-12 * scale**2):
         return float("nan"), float("nan")
 
-    se = math.sqrt(variance / n)
+    # Floor HAC long-run variance at gamma0 so finite-sample negative sample
+    # autocovariances (especially on sparse/small-n conditional slices under
+    # multi-bar overlap lags) can never claim a standard error smaller than
+    # iid, matching summarize_returns' effective_n <= n cap.
+    eff_variance = max(variance, gamma0) if math.isfinite(variance) else gamma0
+    se = math.sqrt(eff_variance / n)
     if se == 0:
         return float("nan"), float("nan")
 
