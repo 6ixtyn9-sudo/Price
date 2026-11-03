@@ -892,7 +892,892 @@
       "last_bar": "2026-10-30 04:00:00+00:00"
     }
   },
-  "discovery_baseline_coverage": {},
+  "discovery_baseline_coverage": {
+    "AA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AAPL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ABBV:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ABNB:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ABT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ACWI:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ADBE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ADI:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AEP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AFRM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AGG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AMAT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AMC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AMD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AMGN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AMT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AMZN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "APD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ARKG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ARKK:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ARKW:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ARM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ASML:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AVGO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "AXP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BABA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BAC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BIDU:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BITO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BLK:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BND:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "BSX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "C:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CAT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CBOE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CMCSA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CME:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CMG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "COF:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "COIN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "COP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "COST:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CRM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CRWD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CSX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CVS:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "CVX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "DASH:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "DBA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "DE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "DIA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "DIS:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "DKNG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "DUK:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "EEM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "EFA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ELV:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "EOG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "EQIX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ETHA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ETHE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ETN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "F:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "FBTC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "FCX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "FDX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GDX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GDXJ:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GILD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GLD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GME:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GOLD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GOOG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GOOGL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "GS:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "HAL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "HD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "HON:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "HOOD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "HUM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "HYG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IBB:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IBIT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ICE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ICLN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IEF:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IGV:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "INTC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ISRG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ITA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IVV:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IWM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IYR:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "IYT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "JD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "JNJ:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "JNK:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "JPM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "KBE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "KLAC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "KMB:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "KO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "KRE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LCID:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LIN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LLY:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LMT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LNG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LOW:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LQD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "LRCX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MCD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MDLZ:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MDT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "META:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MPC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MRK:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MRVL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MS:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MSFT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "MU:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NEE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NEM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NFLX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NIO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NKE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NOC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NOW:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NSC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "NVDA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "O:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "OIH:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ORCL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "OXY:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PANW:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PDD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PEP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PFE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PLD:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PLTR:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PSX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "PYPL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "QCOM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "QQQ:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "RBLX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "REGN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "RIVN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "ROKU:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "RTX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SBUX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SCHW:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SHOP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SHW:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SHY:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SLB:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SLV:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SMCI:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SMH:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SNOW:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SOFI:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SOXX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SPG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SPOT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "SPY:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "T:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TAN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TGT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TIP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TLT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TMO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TMUS:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TSLA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TSM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "TXN:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "UBER:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "UNG:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "UNH:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "UNP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "UPS:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "URA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "USO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "V:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VEA:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VLO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VNQ:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VOO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VRTX:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VTI:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VWO:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "VZ:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "WFC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "WMT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XBI:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XEL:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLB:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLC:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLF:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLI:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLK:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLRE:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLU:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLV:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XLY:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XME:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XOM:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XOP:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XRT:1d": {
+      "count": 0,
+      "last_bar": null
+    },
+    "XYZ:1d": {
+      "count": 0,
+      "last_bar": null
+    }
+  },
   "new_daily_bars_since_previous_refresh": 0,
   "eligible_discovery_symbols": [],
   "eligible_discovery_symbol_count": 0,

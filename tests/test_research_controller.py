@@ -239,3 +239,94 @@ def test_side_isolated_live_decay_and_5col_union_leaderboard_dedupe(tmp_path, mo
     unioned = sync_monitored._load_union_leaderboard()
     assert len(unioned) == 2
 
+
+def test_empty_discovery_baseline_self_heals_instead_of_wedging(monkeypatch, tmp_path):
+    import research_refresh as rr
+
+    monkeypatch.chdir(tmp_path)
+    symbols = [f"S{i}" for i in range(60)]
+    prev_telemetry = {f"{s}:1d": {"count": 100, "last_bar": "2026-10-24"} for s in symbols}
+    current = {f"{s}:1d": {"count": 106, "last_bar": "2026-11-02"} for s in symbols}
+
+    # Empty `{}` baseline must fall back to `daily_coverage` rather than
+    # persisting `{}` forever and returning 0 eligible symbols.
+    monkeypatch.setattr(
+        rr,
+        "_load_state",
+        lambda: {"daily_coverage": prev_telemetry, "discovery_baseline_coverage": {}},
+    )
+    monkeypatch.setattr(rr, "_coverage", lambda syms, *args, **kwargs: current)
+    monkeypatch.setattr(rr, "build_coverage", lambda syms, tfs: pd.DataFrame())
+    monkeypatch.setattr(rr, "build_regime_opportunity_rates", lambda: pd.DataFrame())
+    written = {}
+    monkeypatch.setattr(rr, "_write_state", lambda payload: written.update(payload))
+
+    state = rr.run_refresh(
+        symbols=symbols,
+        timeframes=("1d", "1h", "15m"),
+        allow_discovery=True,
+        min_new_daily_bars=5,
+    )
+    assert state["eligible_discovery_symbol_count"] == 60
+    assert state["fresh_data_gate_open"] is True
+    assert state["sharded_discovery_required"] is True
+    assert written["discovery_baseline_coverage"] == prev_telemetry
+
+
+def test_cold_start_refresh_seeds_baseline_from_current_coverage(monkeypatch, tmp_path):
+    import research_refresh as rr
+
+    monkeypatch.chdir(tmp_path)
+    symbols = [f"S{i}" for i in range(60)]
+    current = {f"{s}:1d": {"count": 500, "last_bar": "2026-11-02"} for s in symbols}
+
+    monkeypatch.setattr(rr, "_load_state", lambda: {})
+    monkeypatch.setattr(rr, "_coverage", lambda syms, *args, **kwargs: current)
+    monkeypatch.setattr(rr, "build_coverage", lambda syms, tfs: pd.DataFrame())
+    monkeypatch.setattr(rr, "build_regime_opportunity_rates", lambda: pd.DataFrame())
+    written = {}
+    monkeypatch.setattr(rr, "_write_state", lambda payload: written.update(payload))
+
+    state = rr.run_refresh(
+        symbols=symbols,
+        timeframes=("1d", "1h", "15m"),
+        allow_discovery=True,
+        min_new_daily_bars=5,
+    )
+    assert state["fresh_data_gate_open"] is False
+    assert state["eligible_discovery_symbol_count"] == 0
+    assert written["discovery_baseline_coverage"] == current
+
+
+def test_zero_count_seeded_baseline_opens_sharded_discovery_until_consumed(monkeypatch, tmp_path):
+    import research_refresh as rr
+
+    monkeypatch.chdir(tmp_path)
+    symbols = [f"S{i}" for i in range(60)]
+    prev_telemetry = {f"{s}:1d": {"count": 500, "last_bar": "2026-10-30"} for s in symbols}
+    zero_seed = {f"{s}:1d": {"count": 0, "last_bar": None} for s in symbols}
+
+    monkeypatch.setattr(
+        rr,
+        "_load_state",
+        lambda: {"daily_coverage": prev_telemetry, "discovery_baseline_coverage": zero_seed},
+    )
+    monkeypatch.setattr(rr, "_coverage", lambda syms, *args, **kwargs: prev_telemetry)
+    monkeypatch.setattr(rr, "build_coverage", lambda syms, tfs: pd.DataFrame())
+    monkeypatch.setattr(rr, "build_regime_opportunity_rates", lambda: pd.DataFrame())
+    written = {}
+    monkeypatch.setattr(rr, "_write_state", lambda payload: written.update(payload))
+
+    state = rr.run_refresh(
+        symbols=symbols,
+        timeframes=("1d", "1h", "15m"),
+        allow_discovery=True,
+        min_new_daily_bars=5,
+    )
+    assert state["eligible_discovery_symbol_count"] == 60
+    assert state["fresh_data_gate_open"] is True
+    assert state["sharded_discovery_required"] is True
+    assert state["discovery_ran"] is False
+    assert written["discovery_baseline_coverage"] == zero_seed
+
+

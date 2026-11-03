@@ -7263,4 +7263,24 @@ and lifting the BH threshold from `~0.0015` to `~0.0023`.
   Sunday night's `22:11 UTC` refresh regenerates all shards and
   `monitored_slices.csv` ahead of Monday's open.
 
+### 2026-11-03 — Fix empty `discovery_baseline_coverage` deadlock & re-seed discovery gate
+
+Nov 1 (`f404e6c`) and Nov 2 (`37585a1`) `research_refresh_equities.yml` runs
+skipped sharded discovery because `_eligible_discovery_symbols({}, current, 5)`
+hit `if not previous: return []` while `discovery_baseline if
+discovery_baseline is not None` wrote `{}` right back on every refresh.
+
+- **`run_refresh` (`scripts/research_refresh.py`):** replaced `is not None`
+  with truthy fallback (`discovery_baseline or previous_telemetry` for delta
+  comparison and `discovery_baseline or previous_telemetry or current` when
+  persisting) so empty `{}` baselines self-heal instead of wedging, and cold
+  starts seed from `current` on run 1.
+- **`localdata/research/refresh_state.json`:** seeded
+  `discovery_baseline_coverage` with `{key: {"count": 0, "last_bar": null}}`
+  across all 221 `{SYM}:1d` entries so tonight's `22:11 UTC` refresh opens
+  `fresh_data_gate_open`, dispatches `1d`/`1h`/`15m` sharded discovery under
+  PR #12's tightened validation, and re-closes automatically via
+  `--consume-gate` after `1d` shard merge.
+
+
 
