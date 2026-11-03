@@ -211,7 +211,9 @@ def run_refresh(
         eligible_symbols = symbols
     else:
         # Compare against the DURABLE baseline so bars accumulate across days.
-        comparison_baseline = discovery_baseline if discovery_baseline is not None else previous_telemetry
+        # Treat an empty `{}` baseline as unset so `_eligible_discovery_symbols`
+        # is never permanently wedged on `if not previous: return []`.
+        comparison_baseline = discovery_baseline or previous_telemetry
         eligible_symbols = _eligible_discovery_symbols(
             comparison_baseline, current, min_new_daily_bars
         )
@@ -358,12 +360,12 @@ def run_refresh(
         "timeframes": list(timeframes),
         "daily_coverage": current,
         # Durable baseline: only reset when discovery runs so bars can
-        # accumulate across days.  Falls back to the previous baseline
-        # on the first refresh after deployment (when the key is absent).
+        # accumulate across days.  Falls back to `previous_telemetry` when
+        # the baseline is absent or empty `{}`, and to `current` on a cold
+        # start where no prior telemetry existed yet.
         "discovery_baseline_coverage": (
             current if discovery_ran
-            else discovery_baseline if discovery_baseline is not None
-            else previous_telemetry  # first-run migration: seed from legacy daily_coverage
+            else discovery_baseline or previous_telemetry or current
         ),
         "new_daily_bars_since_previous_refresh": new_bars,
         "eligible_discovery_symbols": eligible_symbols,
