@@ -27,20 +27,6 @@
     "opened_at": "2026-10-19T14:43:31.757786+00:00",
     "updated_at": "2026-10-19T14:43:31.757786+00:00"
   },
-  "AVGO": {
-    "symbol": "AVGO",
-    "side": "long",
-    "qty": 7.0,
-    "entry_price": 334.73,
-    "initial_stop_price": 280.5234853605968,
-    "current_stop_price": 280.5234853605968,
-    "r_per_share": 54.206514639403245,
-    "stage": "initial",
-    "extreme_price": 334.73,
-    "stop_order_id": "21af46fc-2733-4cba-81b3-0d50ef5c5f80",
-    "opened_at": "2026-10-20T15:47:56.702400+00:00",
-    "updated_at": "2026-10-20T15:47:56.702400+00:00"
-  },
   "AMAT": {
     "symbol": "AMAT",
     "side": "long",
@@ -96,20 +82,6 @@
     "stop_order_id": "e25e1ace-cc35-4400-bc23-054c9e7b51e4",
     "opened_at": "2026-10-27T15:55:24.295368+00:00",
     "updated_at": "2026-10-27T15:55:24.295368+00:00"
-  },
-  "LRCX": {
-    "symbol": "LRCX",
-    "side": "long",
-    "qty": 9.0,
-    "entry_price": 263.03,
-    "initial_stop_price": 196.40888517730932,
-    "current_stop_price": 196.40888517730932,
-    "r_per_share": 66.62111482269066,
-    "stage": "initial",
-    "extreme_price": 263.03,
-    "stop_order_id": "d136489b-bf0c-4e94-b33c-861247850628",
-    "opened_at": "2026-10-27T15:55:24.725245+00:00",
-    "updated_at": "2026-10-27T15:55:24.725245+00:00"
   },
   "TMO": {
     "symbol": "TMO",
