@@ -1,11 +1,11 @@
 {
   "status": "success",
-  "merged_at_utc": "2026-11-01T03:36:29.381189+00:00",
-  "git_sha": "0bac0bd6806a98379943d3326df2c6cd344195c8",
+  "merged_at_utc": "2026-11-04T03:24:12.936650+00:00",
+  "git_sha": "05ae9b848d5f33d32d02e90062d0e45869f7a8f1",
   "expected_shard_count": 12,
   "merged_shard_count": 12,
-  "discovered_rows": 77002,
-  "leaderboard_rows": 77002,
+  "discovered_rows": 77066,
+  "leaderboard_rows": 77066,
   "automatic_promotion_applied": true,
   "monitored_slices_modified": true
 }
