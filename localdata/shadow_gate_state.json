@@ -25,7 +25,7 @@
     "VLO|15m|rolling|long|state_ext=stretched_down + state_vol=high_vol": "18|2026-10-27T17:15:00+00:00",
     "VLO|1h|rolling|long|state_volume=vol_quiet + state_slope=downtrend": "18|2026-10-20T18:00:00+00:00",
     "AMGN|15m|rolling|long|cross_USO_state_slope=flat + cross_TLT_state_slope=flat + state_ext=neutral": "17|2026-11-03T20:15:00+00:00",
-    "AVGO|1d|rolling|long|state_ext=stretched_down + state_slope=downtrend": "17|2026-11-02T05:00:00+00:00",
+    "AVGO|1d|rolling|long|state_ext=stretched_down + state_slope=downtrend": "17|2026-11-03T05:00:00+00:00",
     "KLAC|1h|rolling|long|state_gap_open=gap_open_flat + state_ext=neutral": "17|2026-08-25T19:00:00+00:00",
     "PSX|1h|rolling|short|state_ext=stretched_up + state_slope=uptrend + state_vol=low_vol": "17|2026-08-19T15:00:00+00:00",
     "PSX|1h|rolling|short|state_ext=stretched_up + state_vol=low_vol": "17|2026-08-19T15:00:00+00:00",
