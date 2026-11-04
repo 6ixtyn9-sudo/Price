@@ -2837,3 +2837,7 @@ d136489b-bf0c-4e94-b33c-861247850628,,,,,,,canceled,,order_cancel,2026-11-03T13:
 79dbf9bb-939d-4877-acfa-30fb4959727b,LRCX,9.0,close,,,,filled,2026-11-03 13:26:27.001642+00:00,exit,2026-11-03T14:25:22.826458+00:00,filled,9.0,233.57,2026-11-03 14:31:05.786750+00:00,2026-11-04T08:20:56.841933+00:00,,,,,,263.03,237.4,,,,,,market close order already pending for LRCX; skipping cancel+resubmit to avoid the hourly cancel-resubmit cycle
 ,,,,,280.52,,rejected,,protective_stop_replace,2026-11-03T14:32:22.217745+00:00,,,,,,,,,,,,,,"{""code"":42210000,""message"":""order is not open""}",21af46fc-2733-4cba-81b3-0d50ef5c5f80,,,
 ,AVGO,,close,,,,rejected,,exit,2026-11-03T14:33:48.471856+00:00,,,,,,,,,,,,,,"{""code"":40410000,""message"":""position not found: AVGO""}",,,,
+e25e1ace-cc35-4400-bc23-054c9e7b51e4,,,,,,,cancel_requested,,order_cancel,2026-11-04T20:27:14.909626+00:00,,,,,,,,,,,,,,,,,,
+f3bfdaf1-42dd-41cf-aefb-12c62cb4a920,COST,2.0,close,,,,pending_new,2026-11-04 20:27:15.680176+00:00,exit,2026-11-04T20:27:15.691774+00:00,,,,,,,,,,,991.62,1048.96,,,,,,
+79f957a9-e827-497b-a715-6d0371090eb9,,,,,,,cancel_requested,,order_cancel,2026-11-04T20:27:16.018498+00:00,,,,,,,,,,,,,,,,,,
+401c679f-137f-44e1-9090-87ebd6b7a8e0,XYZ,31.0,close,,,,pending_new,2026-11-04 20:27:16.221541+00:00,exit,2026-11-04T20:27:16.234533+00:00,,,,,,,,,,,78.44,87.82,,,,,,
