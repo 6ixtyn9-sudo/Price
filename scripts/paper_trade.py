@@ -778,6 +778,9 @@ def main() -> int:
     parser.add_argument("--allow-long-slice", action="append", default=[],
                         help="Exempt one slice from --block-long-timeframes, as "
                         "'SYMBOL|TIMEFRAME|slice_combination'. Repeatable.")
+    parser.add_argument("--no-core-etf-sleeve", action="store_true",
+                        help="Disable automatic 1d long exemptions for monitored rows tagged "
+                        "source_note=core_etf_sleeve_v1 on the equity lane.")
     parser.add_argument("--shadow-gate", action="store_true",
                         help="Block entries whose slice is demoted in "
                         "localdata/shadow_demoted_slices.csv (scripts/shadow_gate.py, "
@@ -865,6 +868,9 @@ def main() -> int:
     if args.auto_sizing_equity and sizing_equity is not None:
         print(f"Auto-fetched account equity for sizing/risk-budget: ${sizing_equity:,.2f}")
 
+    from price.core_etf_sleeve import merge_long_exempt_slices
+    from price.monitor import MONITORED_SLICES_PATH
+
     limits = RiskLimits(
         max_notional_per_position=args.max_notional,
         max_open_positions=args.max_open,
@@ -893,8 +899,11 @@ def main() -> int:
         long_blocked_timeframes=resolve_blocked_timeframes(
             args.block_long_timeframes, lane=lane, allow_15m_equities=args.allow_15m_equities
         ),
-        long_exempt_slices=frozenset(
-            normalize_exempt_slice_key(s) for s in args.allow_long_slice if str(s).strip()
+        long_exempt_slices=merge_long_exempt_slices(
+            args.allow_long_slice,
+            lane=lane,
+            monitored_path=MONITORED_SLICES_PATH,
+            allow_core_etf_sleeve=not args.no_core_etf_sleeve,
         ),
         shadow_gate_enabled=args.shadow_gate,
         target_leverage_multiple=args.target_leverage,

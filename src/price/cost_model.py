@@ -41,6 +41,37 @@ EQUITY_COST_BPS = {
     "slippage_bps": DEFAULT_SLIPPAGE_BPS,
 }
 
+# Ultra-liquid core macro/sector SPDR & index ETFs (SPY, QQQ, XLK..XLU, TLT, GLD):
+# penny spreads (~0.2-1.0 bp) and deep top-of-book liquidity -> conservative 2.0 bp
+# per leg (4.0 bps round-trip) vs 13.0 bps generic single-stock assumption.
+CORE_ETF_COST_BPS = {
+    "commission_bps": 0.0,
+    "spread_bps": 1.0,
+    "slippage_bps": 1.0,
+}
+
+
+def core_etf_cost_model() -> CostModel:
+    """Return the 4.0 bps round-trip CostModel for core liquid macro/sector ETFs."""
+    return CostModel(**CORE_ETF_COST_BPS)
+
+
+def equity_execution_cost_model(symbol: str, base_cost_model: CostModel | None = None) -> CostModel:
+    """Return symbol-aware equity execution CostModel.
+
+    Uses the 4.0 bps round-trip core-ETF basis for `is_core_liquid_etf(symbol)`
+    when `base_cost_model` is None or equals the generic 13 bps equity default;
+    preserves explicit custom CostModel overrides and non-core single-stock costs.
+    """
+    from price.universe import is_core_liquid_etf
+
+    default_eq = CostModel(**EQUITY_COST_BPS)
+    if base_cost_model is not None and base_cost_model.to_dict() != default_eq.to_dict():
+        return base_cost_model
+    if is_core_liquid_etf(symbol):
+        return core_etf_cost_model()
+    return base_cost_model if base_cost_model is not None else default_eq
+
 
 class UnsupportedLaneError(ValueError):
     """No cost basis exists for the requested lane (inactive: crypto/futures)."""

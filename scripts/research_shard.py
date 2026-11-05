@@ -58,7 +58,7 @@ def run_shard(
     timeframe: str,
     shard_id: str,
     output_dir: Path,
-    condition_symbols: tuple[str, ...] = ("USO", "TLT"),
+    condition_symbols: tuple[str, ...] = ("SPY", "QQQ"),
     bin_mode: str = "rolling",
     profile: str | None = None,
     cost_bps: float = 1.0,
@@ -151,7 +151,7 @@ def main() -> int:
     parser.add_argument("--timeframe", choices=["1d", "1h", "15m"], required=True)
     parser.add_argument("--shard-id", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--condition-on", nargs="+", default=["USO", "TLT"])
+    parser.add_argument("--condition-on", nargs="+", default=["SPY", "QQQ"])
     parser.add_argument("--bin-mode", choices=["rolling", "insample"], default="rolling")
     parser.add_argument("--profile", choices=["default", "crypto", "futures"], default="default")
     parser.add_argument("--cost-bps", type=float, default=1.0, help="Cost bps per leg for validation (default 1.0 equity, use 15.0 for crypto, 7.0 for futures)")

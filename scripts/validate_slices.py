@@ -53,7 +53,7 @@ FEATURES_CACHE_DIR = Path("localdata/features_cache")
 # Bump whenever compute_price_features / apply_state_bins semantics change.
 # Without this in the cache key, a feature-code fix silently keeps serving
 # stale cached features until the warehouse file's mtime happens to change.
-FEATURES_SCHEMA_VERSION = 4
+FEATURES_SCHEMA_VERSION = 5
 SCENARIO_GRID_PATH = "localdata/validation_scenario_grid.csv"
 WALK_FORWARD_DIAGNOSTICS_PATH = "localdata/walk_forward_diagnostics.csv"
 DATE_RANGE_DIAGNOSTICS_PATH = "localdata/date_range_diagnostics.csv"
@@ -130,6 +130,16 @@ def build_eligible_frame(
             df_feat.to_parquet(cache_file, index=False)
     else:
         df_feat = compute_price_features(df_raw)
+
+    # Attach external/macro & sector-relative features outside the raw
+    # single-symbol disk cache so updates to benchmark ETF / external frames
+    # never go stale, and so external state slices validate with the exact
+    # same columns discovery produced (fixing the valid_n=0 gap).
+    try:
+        from price.external_data import attach_lane_externals
+        df_feat = attach_lane_externals(df_feat, symbol)
+    except Exception:
+        pass
 
     df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
 
@@ -1245,11 +1255,19 @@ def annotate_search_wide_significance(
 
         if m_sr > 0:
             # Estimate cross-trial Sharpe dispersion on sample-sufficient rows
-            # so pathological n=2 near-zero-variance outliers cannot blow up
-            # E[max SR], while still counting all m_sr tested trials in N.
+            # so pathological n=2 near-zero-variance outliers or overlapped
+            # multi-bar clusters (valid_n >= min_samples but valid_n_eff < min_samples)
+            # cannot blow up E[max SR], while still counting all m_sr tested trials in N.
             if "valid_n" in lb.columns:
                 n_raw = pd.to_numeric(lb["valid_n"], errors="coerce").to_numpy(dtype=float)
                 stable = finite_sr & np.isfinite(n_raw) & (n_raw >= min_samples)
+                if "valid_n_eff" in lb.columns:
+                    n_eff_raw = pd.to_numeric(lb["valid_n_eff"], errors="coerce").to_numpy(dtype=float)
+                    stable = stable & (~np.isfinite(n_eff_raw) | (n_eff_raw >= min_samples))
+                pool = sr[stable] if int(stable.sum()) >= 2 else sr[finite_sr]
+            elif "valid_n_eff" in lb.columns:
+                n_eff_raw = pd.to_numeric(lb["valid_n_eff"], errors="coerce").to_numpy(dtype=float)
+                stable = finite_sr & np.isfinite(n_eff_raw) & (n_eff_raw >= min_samples)
                 pool = sr[stable] if int(stable.sum()) >= 2 else sr[finite_sr]
             else:
                 pool = sr[finite_sr]

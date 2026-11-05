@@ -121,6 +121,59 @@ def augment_with_open_equity_positions(
     return base + extra
 
 
+_SECTOR_STATE_MARKERS = (
+    "state_rel_ret_sector",
+    "state_rel_ext_sector",
+    "state_sector_regime",
+)
+
+
+def augment_with_sector_benchmark_etfs(
+    symbols,
+    data_dir: Path = DATA_DIR,
+) -> list[str]:
+    """Ensure SPY and relevant GICS sector SPDR ETFs are captured whenever an
+    equity batch monitors sector-relative or cross-SPY/QQQ slices."""
+    base = list(symbols or [])
+    if not base or not any(is_equity(str(s)) for s in base):
+        return base
+
+    monitored_path = Path(data_dir) / "monitored_slices.csv"
+    if not monitored_path.exists():
+        return base
+
+    try:
+        mon_df = pd.read_csv(monitored_path)
+    except Exception:
+        return base
+    if mon_df.empty or "slice_combination" not in mon_df.columns:
+        return base
+
+    from price.universe import get_symbol_sector_etf
+
+    needed: set[str] = set()
+    for _, row in mon_df.iterrows():
+        combo = str(row.get("slice_combination", ""))
+        sym = str(row.get("symbol", "")).strip().upper()
+        if any(m in combo for m in _SECTOR_STATE_MARKERS):
+            needed.add("SPY")
+            if sym and is_equity(sym):
+                needed.add(get_symbol_sector_etf(sym))
+        if "cross_SPY_" in combo:
+            needed.add("SPY")
+        if "cross_QQQ_" in combo:
+            needed.add("QQQ")
+
+    if not needed:
+        return base
+
+    seen = {str(s).upper() if "/" not in str(s) else str(s) for s in base}
+    extra = sorted(s for s in needed if s not in seen)
+    if extra:
+        print(f"📌 Including {len(extra)} benchmark/sector ETF symbol(s) for monitored state context: {extra}")
+    return base + extra
+
+
 def capture_bars(
     target_symbols=None,
     target_timeframes=None,
@@ -132,6 +185,7 @@ def capture_bars(
     symbols = list(target_symbols or SYMBOLS)
     if include_open_positions:
         symbols = augment_with_open_equity_positions(symbols)
+        symbols = augment_with_sector_benchmark_etfs(symbols)
     timeframes = target_timeframes or ["1d", "15m", "1h"]
 
     end_dt = datetime.now(timezone.utc)

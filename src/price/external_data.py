@@ -985,14 +985,16 @@ _BREADTH_ETFS = [
     "XLY", "XLU", "XLB", "XLRE", "XLC", "KRE", "SMH", "KWEB", "GDX",
 ]
 
-# In-memory breadth caches. Populated once per process:
-#   _BREADTH_ETF_CACHE  {symbol: daily_df}        — each ETF loaded once
-#   _BREADTH_PCT_CACHE  {(date_iso, lookback): pct} — per-date breadth result
+# In-memory breadth & sector-benchmark caches. Populated once per process:
+#   _BREADTH_ETF_CACHE    {symbol: daily_df}               — each ETF loaded once
+#   _BREADTH_PCT_CACHE    {(date_iso, lookback): pct}      — per-date breadth result
+#   _BENCHMARK_REF_CACHE  {(symbol, tf_key): ref_feat_df}  — sector/SPY reference features
 # Without these caches a 236-symbol daily run would reload the 19 breadth
 # ETFs ~236 times (once per symbol); with them, 19 loads total plus a few
 # dict lookups per symbol.
 _BREADTH_ETF_CACHE: dict = {}
 _BREADTH_PCT_CACHE: dict = {}
+_BENCHMARK_REF_CACHE: dict = {}
 
 
 def _load_breadth_etf(sym: str) -> pd.DataFrame:
@@ -1066,10 +1068,11 @@ def compute_breadth_pct(reference_date: pd.Timestamp, lookback: int = 20,
 
 
 def reset_breadth_cache() -> None:
-    """Clear in-memory breadth caches. Call between research shards, after
-    warehouse refreshes, or in tests so stale data doesn't persist."""
+    """Clear in-memory breadth and benchmark caches. Call between research shards,
+    after warehouse refreshes, or in tests so stale data doesn't persist."""
     _BREADTH_ETF_CACHE.clear()
     _BREADTH_PCT_CACHE.clear()
+    _BENCHMARK_REF_CACHE.clear()
 
 
 def _is_intraday_frame(df: pd.DataFrame) -> bool:
@@ -1098,8 +1101,171 @@ def _daily_effective_ts(ts: pd.Timestamp, intraday: bool) -> pd.Timestamp:
     return ts
 
 
-def _attach_macro_context(df: pd.DataFrame) -> pd.DataFrame:
-    """Attach VIX extension, DXY slope, and breadth for equity frames."""
+def _infer_frame_timeframe(df: pd.DataFrame) -> tuple[str, pd.Timedelta]:
+    """Infer warehouse timeframe key and backward as-of staleness tolerance."""
+    if not _is_intraday_frame(df):
+        return "1d", pd.Timedelta(days=7)
+    try:
+        med = df["bar_ts_utc"].sort_values().diff().dropna().median()
+        if pd.notna(med) and med <= pd.Timedelta(minutes=20):
+            return "15m", pd.Timedelta(hours=2)
+    except Exception:
+        pass
+    return "1h", pd.Timedelta(hours=8)
+
+
+def _load_benchmark_ref_features(bench_sym: str, tf_key: str) -> pd.DataFrame:
+    """Load and cache causal 5-bar return, ATR-normalized 20-MA extension,
+    and >SMA20 trend state for a benchmark ETF (`SPY`, `XLK`, ...)."""
+    cache_key = (str(bench_sym).upper().strip(), str(tf_key))
+    if cache_key in _BENCHMARK_REF_CACHE:
+        return _BENCHMARK_REF_CACHE[cache_key]
+    try:
+        from price.warehouse import load_from_warehouse
+
+        raw = load_from_warehouse(cache_key[0], cache_key[1])
+    except Exception:
+        raw = pd.DataFrame()
+    if raw is None or raw.empty or len(raw) < 15 or "bar_ts_utc" not in raw.columns:
+        empty = pd.DataFrame()
+        _BENCHMARK_REF_CACHE[cache_key] = empty
+        return empty
+
+    b = raw.sort_values("bar_ts_utc").reset_index(drop=True)
+    close = pd.to_numeric(b["close_adj"] if "close_adj" in b.columns else b.get("close_raw"), errors="coerce")
+    high = pd.to_numeric(b["high_adj"] if "high_adj" in b.columns else b.get("high_raw"), errors="coerce")
+    low = pd.to_numeric(b["low_adj"] if "low_adj" in b.columns else b.get("low_raw"), errors="coerce")
+    tr = pd.concat(
+        [high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()],
+        axis=1,
+    ).max(axis=1)
+    atr_14 = tr.rolling(14, min_periods=7).mean()
+    sma_20 = close.rolling(20, min_periods=10).mean()
+
+    ref = pd.DataFrame({
+        "bar_ts_utc": pd.to_datetime(b["bar_ts_utc"], utc=True),
+        "bench_ret_5": close.pct_change(5),
+        "bench_atr_ext": (close - sma_20) / atr_14.where(atr_14 > 0),
+        "bench_above_sma20": np.where(
+            close.notna() & sma_20.notna(),
+            np.where(close > sma_20, 1.0, -1.0),
+            np.nan,
+        ),
+    })
+    _BENCHMARK_REF_CACHE[cache_key] = ref
+    return ref
+
+
+def _merge_benchmark_asof(
+    out: pd.DataFrame,
+    bench_sym: str,
+    tf_key: str,
+    tol: pd.Timedelta,
+    intraday: bool,
+    prefix: str,
+) -> pd.DataFrame:
+    """Backward as-of join benchmark reference features without look-ahead."""
+    cols = [f"{prefix}_ret_5", f"{prefix}_atr_ext", f"{prefix}_above_sma20"]
+    ref = _load_benchmark_ref_features(bench_sym, tf_key)
+    if not ref.empty:
+        renamed = ref.rename(columns={
+            "bench_ret_5": cols[0],
+            "bench_atr_ext": cols[1],
+            "bench_above_sma20": cols[2],
+        })
+        merged = pd.merge_asof(
+            out.sort_values("bar_ts_utc"),
+            renamed.sort_values("bar_ts_utc"),
+            on="bar_ts_utc",
+            direction="backward",
+            tolerance=tol,
+        )
+        return merged
+
+    # Intraday fallback: use prior-day daily >SMA20 regime only (never mix 1d
+    # ret_5/atr_ext scale into intraday bars; _daily_effective_ts blocks today's close).
+    if intraday:
+        ref_1d = _load_benchmark_ref_features(bench_sym, "1d")
+        if not ref_1d.empty:
+            work = out.copy()
+            work["_bench_lookup_ts"] = work["bar_ts_utc"].apply(lambda t: _daily_effective_ts(t, True))
+            daily_regime = ref_1d[["bar_ts_utc", "bench_above_sma20"]].rename(
+                columns={"bench_above_sma20": cols[2]}
+            )
+            merged = pd.merge_asof(
+                work.sort_values("_bench_lookup_ts"),
+                daily_regime.sort_values("bar_ts_utc"),
+                left_on="_bench_lookup_ts",
+                right_on="bar_ts_utc",
+                direction="backward",
+                tolerance=pd.Timedelta(days=7),
+            )
+            if "bar_ts_utc_y" in merged.columns:
+                merged = merged.drop(columns=["bar_ts_utc_y"])
+            if "bar_ts_utc_x" in merged.columns:
+                merged = merged.rename(columns={"bar_ts_utc_x": "bar_ts_utc"})
+            merged = merged.drop(columns=["_bench_lookup_ts"], errors="ignore")
+            merged[cols[0]] = np.nan
+            merged[cols[1]] = np.nan
+            return merged.sort_values("bar_ts_utc").reset_index(drop=True)
+
+    work = out.copy()
+    for c in cols:
+        work[c] = np.nan
+    return work
+
+
+def _attach_sector_relative_context(out: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    """Attach sector-residualized 5-bar return z-score, ATR-normalized 20-MA
+    extension spread vs sector ETF, and joint Sector+SPY uptrend regime."""
+    out["feat_rel_ret_sector_z"] = np.nan
+    out["feat_rel_ext_sector_atr"] = np.nan
+    out["feat_sector_regime"] = np.nan
+
+    sym = str(symbol or "").upper().strip()
+    if not sym or out.empty:
+        return out
+
+    from price.universe import get_symbol_sector_etf
+
+    sector_etf = get_symbol_sector_etf(sym)
+    intraday = _is_intraday_frame(out)
+    tf_key, tol = _infer_frame_timeframe(out)
+
+    work = _merge_benchmark_asof(out, sector_etf, tf_key, tol, intraday, "_sec")
+    if sector_etf == "SPY":
+        work["_spy_above_sma20"] = work["_sec_above_sma20"]
+    else:
+        work = _merge_benchmark_asof(work, "SPY", tf_key, tol, intraday, "_spy")
+
+    if sym != sector_etf:
+        if "feat_ret_5" in work.columns and "feat_realized_vol_20" in work.columns:
+            vol_5b = (pd.to_numeric(work["feat_realized_vol_20"], errors="coerce") * np.sqrt(5.0)).clip(lower=1e-4)
+            ret_5 = pd.to_numeric(work["feat_ret_5"], errors="coerce")
+            work["feat_rel_ret_sector_z"] = (ret_5 - work["_sec_ret_5"]) / vol_5b
+        if "feat_atr_norm_ext" in work.columns:
+            atr_ext = pd.to_numeric(work["feat_atr_norm_ext"], errors="coerce")
+            work["feat_rel_ext_sector_atr"] = atr_ext - work["_sec_atr_ext"]
+
+    sec_up = work["_sec_above_sma20"]
+    spy_up = work["_spy_above_sma20"]
+    both_valid = sec_up.notna() & spy_up.notna()
+    work["feat_sector_regime"] = np.where(
+        both_valid,
+        np.where(
+            (sec_up > 0) & (spy_up > 0),
+            1.0,
+            np.where((sec_up < 0) & (spy_up < 0), -1.0, 0.0),
+        ),
+        np.nan,
+    )
+
+    drop_cols = [c for c in work.columns if c.startswith("_sec_") or c.startswith("_spy_")]
+    return work.drop(columns=drop_cols, errors="ignore").sort_values("bar_ts_utc").reset_index(drop=True)
+
+
+def _attach_macro_context(df: pd.DataFrame, symbol: str = "") -> pd.DataFrame:
+    """Attach VIX extension, DXY slope, breadth, and sector-relative context for equity frames."""
     if df.empty:
         return df
     out = df.copy().sort_values("bar_ts_utc").reset_index(drop=True)
@@ -1170,6 +1336,13 @@ def _attach_macro_context(df: pd.DataFrame) -> pd.DataFrame:
     except Exception:
         out["feat_breadth_pct"] = np.nan
 
+    try:
+        out = _attach_sector_relative_context(out, symbol)
+    except Exception:
+        out["feat_rel_ret_sector_z"] = np.nan
+        out["feat_rel_ext_sector_atr"] = np.nan
+        out["feat_sector_regime"] = np.nan
+
     out = out.sort_values("bar_ts_utc").reset_index(drop=True)
     return out
 
@@ -1184,7 +1357,8 @@ def attach_lane_externals(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
       - crypto: feat_funding_rate, feat_funding_ann, feat_funding_z20,
                 feat_oi, feat_oi_value, feat_oi_change_5, feat_oi_change_20
       - futures: feat_cot_mm_net_pct, feat_cot_mm_z52
-      - equities: feat_vix_ext, feat_vix_close, feat_dxy_slope, feat_breadth_pct
+      - equities: feat_vix_ext, feat_vix_close, feat_dxy_slope, feat_breadth_pct,
+                  feat_rel_ret_sector_z, feat_rel_ext_sector_atr, feat_sector_regime
       - all lanes: feat_event_blackout  (also attached in compute_price_features,
                   duplicated here is harmless; ensures presence even if features
                   import fails)
@@ -1198,7 +1372,7 @@ def attach_lane_externals(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
         elif is_futures(symbol):
             out = attach_futures_externals(out, symbol)
         else:
-            out = _attach_macro_context(out)
+            out = _attach_macro_context(out, symbol)
     except Exception:
         # Never let an external-data failure poison discovery.
         pass

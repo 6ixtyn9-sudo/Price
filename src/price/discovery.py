@@ -39,6 +39,9 @@ ML_FEATURE_TO_STATE: Dict[str, str] = {
     "feat_vix_ext": "state_vix",
     "feat_breadth_pct": "state_breadth",
     "feat_dxy_slope": "state_dxy",
+    "feat_rel_ret_sector_z": "state_rel_ret_sector",
+    "feat_rel_ext_sector_atr": "state_rel_ext_sector",
+    "feat_sector_regime": "state_sector_regime",
 }
 
 # Ordered state labels (low -> high) for the ML feature -> state mapping.
@@ -77,10 +80,13 @@ STATE_LABELS: Dict[str, tuple] = {
     "state_oi": ("oi_collapsing", "oi_flat", "oi_building"),
     # T3 futures COT
     "state_cot": ("cot_short", "cot_neutral", "cot_long"),
-    # T4 equity macro context
+    # T4 equity macro & sector-relative context
     "state_vix": ("vix_low", "vix_mid", "vix_high"),
     "state_breadth": ("breadth_weak", "breadth_mixed", "breadth_strong"),
     "state_dxy": ("dxy_weak", "dxy_flat", "dxy_strong"),
+    "state_rel_ret_sector": ("rel_ret_lagging", "rel_ret_inline", "rel_ret_leading"),
+    "state_rel_ext_sector": ("rel_ext_oversold", "rel_ext_inline", "rel_ext_stretched"),
+    "state_sector_regime": ("sector_downtrend", "sector_mixed", "sector_uptrend"),
 }
 
 
@@ -130,6 +136,39 @@ def _bin_gap_open(val):
     if val > 0.02:
         return "gap_open_up"
     return "gap_open_flat"
+
+
+def _bin_rel_ret_sector(val):
+    """Fixed-prior sector-residualized 5-bar return z-score bins (+-0.75 sigma)."""
+    if pd.isna(val):
+        return np.nan
+    if val <= -0.75:
+        return "rel_ret_lagging"
+    if val >= 0.75:
+        return "rel_ret_leading"
+    return "rel_ret_inline"
+
+
+def _bin_rel_ext_sector(val):
+    """Fixed-prior ATR-normalized 20-MA extension spread vs sector ETF (+-1.0 ATR)."""
+    if pd.isna(val):
+        return np.nan
+    if val <= -1.0:
+        return "rel_ext_oversold"
+    if val >= 1.0:
+        return "rel_ext_stretched"
+    return "rel_ext_inline"
+
+
+def _bin_sector_regime(val):
+    """Joint Sector ETF + SPY > SMA20 regime (+1 both up, -1 both down, 0 mixed)."""
+    if pd.isna(val):
+        return np.nan
+    if val >= 0.5:
+        return "sector_uptrend"
+    if val <= -0.5:
+        return "sector_downtrend"
+    return "sector_mixed"
 
 
 def _qcut_state(series: pd.Series, labels: List[str], fallback: str):
@@ -434,6 +473,21 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df_binned["state_dxy"] = "dxy_flat"
 
+    if "feat_rel_ret_sector_z" in df_binned.columns and not df_binned["feat_rel_ret_sector_z"].dropna().empty:
+        df_binned["state_rel_ret_sector"] = df_binned["feat_rel_ret_sector_z"].apply(_bin_rel_ret_sector)
+    else:
+        df_binned["state_rel_ret_sector"] = "rel_ret_inline"
+
+    if "feat_rel_ext_sector_atr" in df_binned.columns and not df_binned["feat_rel_ext_sector_atr"].dropna().empty:
+        df_binned["state_rel_ext_sector"] = df_binned["feat_rel_ext_sector_atr"].apply(_bin_rel_ext_sector)
+    else:
+        df_binned["state_rel_ext_sector"] = "rel_ext_inline"
+
+    if "feat_sector_regime" in df_binned.columns and not df_binned["feat_sector_regime"].dropna().empty:
+        df_binned["state_sector_regime"] = df_binned["feat_sector_regime"].apply(_bin_sector_regime)
+    else:
+        df_binned["state_sector_regime"] = "sector_mixed"
+
     # Ensure every state promised by STATE_LABELS / ML_FEATURE_TO_STATE exists even when the
     # source feat_* column was absent (e.g. synthetic fixtures). This guarantees
     # bin_features() always exposes the full state vocabulary the validation and ML
@@ -467,6 +521,9 @@ def bin_features(df: pd.DataFrame) -> pd.DataFrame:
         "state_vix": "vix_mid",
         "state_breadth": "breadth_mixed",
         "state_dxy": "dxy_flat",
+        "state_rel_ret_sector": "rel_ret_inline",
+        "state_rel_ext_sector": "rel_ext_inline",
+        "state_sector_regime": "sector_mixed",
     }
     for _state_col, _fallback in _fallback_state.items():
         if _state_col not in df_binned.columns:
@@ -718,6 +775,21 @@ def bin_features_rolling(
     else:
         df_binned["state_dxy"] = "dxy_flat"
 
+    if "feat_rel_ret_sector_z" in df_binned.columns and not df_binned["feat_rel_ret_sector_z"].dropna().empty:
+        df_binned["state_rel_ret_sector"] = df_binned["feat_rel_ret_sector_z"].apply(_bin_rel_ret_sector)
+    else:
+        df_binned["state_rel_ret_sector"] = "rel_ret_inline"
+
+    if "feat_rel_ext_sector_atr" in df_binned.columns and not df_binned["feat_rel_ext_sector_atr"].dropna().empty:
+        df_binned["state_rel_ext_sector"] = df_binned["feat_rel_ext_sector_atr"].apply(_bin_rel_ext_sector)
+    else:
+        df_binned["state_rel_ext_sector"] = "rel_ext_inline"
+
+    if "feat_sector_regime" in df_binned.columns and not df_binned["feat_sector_regime"].dropna().empty:
+        df_binned["state_sector_regime"] = df_binned["feat_sector_regime"].apply(_bin_sector_regime)
+    else:
+        df_binned["state_sector_regime"] = "sector_mixed"
+
     _fallback_state = {
         "state_ext": np.nan,
         "state_slope": "flat",
@@ -747,6 +819,9 @@ def bin_features_rolling(
         "state_vix": "vix_mid",
         "state_breadth": "breadth_mixed",
         "state_dxy": "dxy_flat",
+        "state_rel_ret_sector": "rel_ret_inline",
+        "state_rel_ext_sector": "rel_ext_inline",
+        "state_sector_regime": "sector_mixed",
     }
     for _state_col, _fallback in _fallback_state.items():
         if _state_col not in df_binned.columns:
@@ -802,6 +877,11 @@ def discover_market_slices(
             return pd.DataFrame()
 
         df_feat = compute_price_features(df_raw)
+        try:
+            from price.external_data import attach_lane_externals
+            df_feat = attach_lane_externals(df_feat, symbol)
+        except Exception:
+            pass
         df_binned = apply_state_bins(df_feat, bin_mode=bin_mode)
 
         # Optional cross-asset conditioning: attach each conditioning symbol's

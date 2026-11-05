@@ -7333,6 +7333,52 @@ occupying 24 of the 47 previously un-gated slices.
      beat buy-and-hold `72.0%` of the time (`+23 bps` mean excess vs `+9 bps` /
      `58.5%` for isolated stock dip-buys and `-8 bps` for stock breakouts).
 
+### 2026-11-05 — Low-DOF Core Macro/Sector ETF Sleeve + Sector-Relative Features & DSR Effective-N Guard
+
+Following PR #15 (`6f17e10`), both structural upgrades identified by the
+signal-class audit are implemented end-to-end:
+
+1. **Low-DOF Core Macro/Sector ETF Pullback Sleeve (`src/price/core_etf_sleeve.py`, `src/price/cost_model.py`, `src/price/universe.py`, `scripts/sync_monitored.py`, `scripts/paper_trade.py`):**
+   - Expanded `EQUITY_SECTOR_MAP` across all 11 GICS sector families with
+     `SECTOR_BENCHMARK_ETF`, `CORE_LIQUID_ETFS` (`23` orthogonal broad-index,
+     GICS SPDR sector, duration, credit, and commodity ETFs), `is_core_liquid_etf`,
+     and `get_symbol_sector_etf`.
+   - Added `CORE_ETF_COST_BPS` (`1.0` spread + `1.0` slippage/leg = `4.0 bps`
+     round-trip), `core_etf_cost_model()`, and `equity_execution_cost_model()`
+     (wired at `monitor.py` position sizing while preserving `13.0 bps` lane
+     defaults on single stocks and explicit `CostModel` overrides).
+   - `select_core_etf_sleeve` evaluates a fixed `N = 6` pre-specified daily
+     pullback/dip template family across `CORE_LIQUID_ETFS` (`SR₀ ≈ 0.23` vs
+     `0.91` mined), requiring `verdict == "survived"`, `valid_n >= 30`,
+     `exit_horizon >= 10`, `walk_forward_survival_rate >= 0.50`,
+     `etf_excess_bh >= +20 bps` after full `4.0 bps` ETF drag, `sleeve_dsr >= 0.50`,
+     and max `1` template per ETF (skipping `decaying_suspended` registry rows).
+   - `sync_monitored.py` attaches the 5 verified `20d`-horizon (`5.0 ATR` stop)
+     Core ETF sleeve survivors (`XLP`, `XLV`, `XLB`, `SPY`, `XLK`) tagged
+     `source_note = "core_etf_sleeve_v1"` with full `monitored_edge_metrics.csv`
+     coverage; `paper_trade.py` grants targeted `long_exempt_slices` on the
+     equity lane (opt-out via `--no-core-etf-sleeve`) while keeping mined
+     single-stock `1d` and `15m` entries pool-gated and `shadow_gate` active.
+2. **True Sector-Relative Stock Features, SPY/QQQ Conditioning, External Validation Fix & DSR Guard (`src/price/external_data.py`, `src/price/discovery.py`, `scripts/validate_slices.py`, `scripts/discover_slices.py`, `scripts/research_shard.py`, `scripts/capture_bars.py`):**
+   - Added cached, look-ahead-free `_attach_sector_relative_context` inside
+     `attach_lane_externals` (`feat_rel_ret_sector_z` -> `state_rel_ret_sector`,
+     `feat_rel_ext_sector_atr` -> `state_rel_ext_sector`, and joint Sector ETF +
+     `SPY > SMA20` `feat_sector_regime` -> `state_sector_regime`, with prior-day
+     `_daily_effective_ts` `1d` regime fallback on intraday frames).
+   - Fixed the validation pipeline defect where `validate_slices.build_eligible_frame`
+     (and standalone `discover_market_slices`) omitted `attach_lane_externals`,
+     which previously caused discovered external-state slices to validate with
+     `valid_n = 0` (`FEATURES_SCHEMA_VERSION = 5`).
+   - Replaced default equity conditioning `("USO", "TLT")` with `("SPY", "QQQ")`
+     in `market_profiles.py`, `research_shard.py`, and
+     `workflow-patches/research_refresh_equities.yml.txt`, updated `discover_slices.py`
+     to avoid self-conditioning without skipping benchmark symbols, and added
+     `augment_with_sector_benchmark_etfs` in `capture_bars.py`.
+   - Hardened `annotate_search_wide_significance` so overlapped multi-bar
+     clusters (`valid_n >= min_samples` but `valid_n_eff < min_samples`) cannot
+     inflate cross-trial `sr_std` while remaining counted in total trials `N`.
+
+
 
 
 

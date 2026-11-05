@@ -23,7 +23,7 @@ on:
       condition_on:
         description: "Conditioning symbols (space-separated)"
         required: false
-        default: "USO TLT"
+        default: "SPY QQQ"
 
 concurrency:
   # Shares the live-capture group with the hourly capture + 15m scan so

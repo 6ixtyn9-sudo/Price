@@ -78,10 +78,10 @@ XLB,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_e
 XLB,1d,cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""neutral"", ""bear""]"
 XLK,1d,cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,5.0,[]
 XLK,1d,cross_USO_state_ext=neutral + state_ext=neutral,long,auto_promoted_tradeable,rolling,20,5.0,[]
-XLP,1d,state_volume=vol_surge + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""neutral"", ""bear""]"
+XLP,1d,state_volume=vol_surge + state_ext=stretched_down,long,core_etf_sleeve_v1,rolling,20,5.0,"[""neutral"", ""bear""]"
 XLP,1d,cross_USO_state_vol=mid_vol + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,4.33412271,[]
 XLU,1d,cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=neutral,long,auto_promoted_strict_candidate,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
-XLV,1d,state_volume=vol_surge + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,20,5.0,"[""bull"", ""neutral""]"
+XLV,1d,state_volume=vol_surge + state_ext=stretched_down,long,core_etf_sleeve_v1,rolling,20,5.0,"[""bull"", ""neutral""]"
 XLV,1d,state_relvol=relvol_elevated + state_ext=stretched_down,long,auto_promoted_tradeable,rolling,5,3.88424628,"[""neutral"", ""bear""]"
 XLY,1d,state_slope=flat + state_vol=low_vol,long,auto_promoted_tradeable,rolling,20,5.0,[]
 XYZ,1d,cross_USO_state_slope=downtrend + state_slope=uptrend,long,auto_promoted_tradeable,rolling,20,3.81579346,"[""bull"", ""neutral"", ""bear""]"
@@ -141,3 +141,6 @@ VLO,15m,state_volume=vol_quiet + state_ext=stretched_down,long,auto_promoted_str
 VLO,15m,cross_USO_state_ext=stretched_down + state_ext=stretched_down,long,auto_promoted_strict_candidate,rolling,20,3.70989899,"[""neutral"", ""bear""]"
 VNQ,15m,state_session=morning + state_slope=flat + state_vol=low_vol,short,auto_promoted_tradeable,rolling,10,2.63424956,"[""neutral"", ""bear""]"
 XLRE,15m,state_session=morning + state_slope=flat + state_vol=low_vol,short,auto_promoted_tradeable,rolling,10,2.63923228,"[""neutral"", ""bear""]"
+XLB,1d,state_ext=stretched_down + state_vol=mid_vol,long,core_etf_sleeve_v1,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"
+SPY,1d,state_ext=stretched_down + state_vol=mid_vol,long,core_etf_sleeve_v1,rolling,20,5.0,[]
+XLK,1d,state_ext=stretched_down + state_ret_5=ret_down,long,core_etf_sleeve_v1,rolling,20,5.0,"[""bull"", ""neutral"", ""bear""]"

@@ -293,27 +293,108 @@ def is_equity_symbol(symbol: str) -> bool:
 
 
 EQUITY_SECTOR_MAP: Dict[str, str] = {
-    # Semiconductors / High-Beta Tech
+    # Semiconductors / High-Beta Tech (XLK)
     "KLAC": "SEMI_TECH", "LRCX": "SEMI_TECH", "AMAT": "SEMI_TECH", "ASML": "SEMI_TECH",
     "NVDA": "SEMI_TECH", "AMD": "SEMI_TECH", "INTC": "SEMI_TECH", "TSM": "SEMI_TECH",
     "AVGO": "SEMI_TECH", "TXN": "SEMI_TECH", "QCOM": "SEMI_TECH", "SMCI": "SEMI_TECH",
-    "SMH": "SEMI_TECH", "SOXX": "SEMI_TECH", "XLK": "SEMI_TECH", "QQQ": "SEMI_TECH",
-    # Financials
-    "JPM": "FIN", "BAC": "FIN", "GS": "FIN", "MS": "FIN", "C": "FIN", "SCHW": "FIN", "XLF": "FIN",
-    # Energy
+    "AAPL": "SEMI_TECH", "MSFT": "SEMI_TECH", "MU": "SEMI_TECH", "MRVL": "SEMI_TECH",
+    "ARM": "SEMI_TECH", "ADBE": "SEMI_TECH", "CRM": "SEMI_TECH", "ORCL": "SEMI_TECH",
+    "NOW": "SEMI_TECH", "PANW": "SEMI_TECH", "CRWD": "SEMI_TECH", "SNOW": "SEMI_TECH",
+    "PLTR": "SEMI_TECH", "SHOP": "SEMI_TECH", "ADI": "SEMI_TECH",
+    "SMH": "SEMI_TECH", "SOXX": "SEMI_TECH", "IGV": "SEMI_TECH", "XLK": "SEMI_TECH", "QQQ": "SEMI_TECH",
+    # Communication Services (XLC)
+    "GOOG": "COMM", "GOOGL": "COMM", "META": "COMM", "NFLX": "COMM", "DIS": "COMM",
+    "CMCSA": "COMM", "T": "COMM", "VZ": "COMM", "SPOT": "COMM", "RBLX": "COMM",
+    "ROKU": "COMM", "XLC": "COMM",
+    # Financials (XLF)
+    "JPM": "FIN", "BAC": "FIN", "GS": "FIN", "MS": "FIN", "C": "FIN", "WFC": "FIN",
+    "SCHW": "FIN", "BLK": "FIN", "AXP": "FIN", "V": "FIN", "MA": "FIN", "PYPL": "FIN",
+    "XYZ": "FIN", "COF": "FIN", "CBOE": "FIN", "CME": "FIN", "ICE": "FIN",
+    "HOOD": "FIN", "SOFI": "FIN", "AFRM": "FIN", "COIN": "FIN",
+    "KBE": "FIN", "KRE": "FIN", "XLF": "FIN",
+    # Energy (XLE)
     "XLE": "NRG", "XOP": "NRG", "OIH": "NRG", "USO": "NRG", "CVX": "NRG", "XOM": "NRG",
-    # Healthcare / Biotech
-    "XLV": "HLTH", "XBI": "HLTH", "HUM": "HLTH", "UNH": "HLTH", "ABBV": "HLTH", "JNJ": "HLTH",
-    # Industrials / Materials
-    "XLB": "IND", "XLI": "IND", "HON": "IND", "FDX": "IND", "GE": "IND", "CAT": "IND",
-    # Retail / Consumer
-    "WMT": "CONS", "CMG": "CONS", "SBUX": "CONS", "XLY": "CONS", "XLP": "CONS",
+    "COP": "NRG", "EOG": "NRG", "SLB": "NRG", "HAL": "NRG", "MPC": "NRG", "VLO": "NRG",
+    "PSX": "NRG", "OXY": "NRG", "LNG": "NRG",
+    # Healthcare / Biotech (XLV)
+    "XLV": "HLTH", "XBI": "HLTH", "IBB": "HLTH", "HUM": "HLTH", "UNH": "HLTH",
+    "ABBV": "HLTH", "JNJ": "HLTH", "LLY": "HLTH", "MRK": "HLTH", "ABT": "HLTH",
+    "TMO": "HLTH", "ISRG": "HLTH", "AMGN": "HLTH", "GILD": "HLTH", "VRTX": "HLTH",
+    "REGN": "HLTH", "PFE": "HLTH", "BSX": "HLTH", "MDT": "HLTH", "ELV": "HLTH", "CVS": "HLTH",
+    # Industrials (XLI)
+    "XLI": "IND", "HON": "IND", "FDX": "IND", "GE": "IND", "CAT": "IND", "DE": "IND",
+    "RTX": "IND", "LMT": "IND", "NOC": "IND", "GD": "IND", "BA": "IND", "ETN": "IND",
+    "UNP": "IND", "CSX": "IND", "NSC": "IND", "UPS": "IND", "UBER": "IND",
+    "ITA": "IND", "IYT": "IND",
+    # Materials (XLB)
+    "XLB": "MAT", "LIN": "MAT", "APD": "MAT", "SHW": "MAT", "FCX": "MAT",
+    "NEM": "MAT", "GOLD": "MAT", "AA": "MAT", "XME": "MAT", "GDX": "MAT", "GDXJ": "MAT",
+    # Retail / Consumer Discretionary (XLY)
+    "WMT": "CONS", "CMG": "CONS", "SBUX": "CONS", "XLY": "CONS", "XRT": "CONS",
+    "AMZN": "CONS", "TSLA": "CONS", "HD": "CONS", "LOW": "CONS", "MCD": "CONS",
+    "NKE": "CONS", "ABNB": "CONS", "DASH": "CONS", "DKNG": "CONS", "GM": "CONS",
+    "F": "CONS", "RIVN": "CONS", "LCID": "CONS", "NIO": "CONS",
+    "BABA": "CONS", "PDD": "CONS", "JD": "CONS", "BIDU": "CONS",
+    # Consumer Staples (XLP)
+    "XLP": "CONS_STAP", "COST": "CONS_STAP", "PG": "CONS_STAP", "KO": "CONS_STAP",
+    "PEP": "CONS_STAP", "PM": "CONS_STAP", "MO": "CONS_STAP", "MDLZ": "CONS_STAP",
+    "CL": "CONS_STAP", "KMB": "CONS_STAP", "TGT": "CONS_STAP",
+    # Utilities (XLU)
+    "XLU": "UTIL", "NEE": "UTIL", "DUK": "UTIL", "SO": "UTIL", "AEP": "UTIL", "XEL": "UTIL",
+    # Real Estate (XLRE)
+    "XLRE": "REIT", "VNQ": "REIT", "IYR": "REIT", "PLD": "REIT", "AMT": "REIT",
+    "EQIX": "REIT", "O": "REIT", "SPG": "REIT",
 }
+
+SECTOR_BENCHMARK_ETF: Dict[str, str] = {
+    "SEMI_TECH": "XLK",
+    "COMM": "XLC",
+    "FIN": "XLF",
+    "NRG": "XLE",
+    "HLTH": "XLV",
+    "IND": "XLI",
+    "MAT": "XLB",
+    "CONS": "XLY",
+    "CONS_STAP": "XLP",
+    "UTIL": "XLU",
+    "REIT": "XLRE",
+}
+
+# Orthogonal 23-ETF liquid macro, cap-style, GICS sector, credit, rate & commodity
+# universe (no duplicate S&P 500 trackers like IVV/VOO/VTI alongside SPY).
+CORE_LIQUID_ETFS = frozenset({
+    "SPY", "QQQ", "IWM", "DIA", "EFA", "EEM",
+    "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY",
+    "TLT", "IEF", "HYG", "LQD", "GLD", "USO",
+})
+
+
+def is_core_liquid_etf(symbol: str) -> bool:
+    """Return True when symbol belongs to the orthogonal 23-ETF liquid core universe."""
+    return str(symbol or "").upper().strip() in CORE_LIQUID_ETFS
 
 
 def get_symbol_sector(symbol: str) -> Optional[str]:
     """Return canonical GICS sector ETF family for symbol, or None if unmapped."""
     return EQUITY_SECTOR_MAP.get(str(symbol).upper().strip())
+
+
+def get_symbol_sector_etf(symbol: str) -> str:
+    """Return the liquid benchmark ETF used to residualize `symbol`.
+
+    - Core/sector ETFs themselves benchmark against SPY so an ETF never
+      subtracts its own return from itself.
+    - Mapped stocks benchmark against their GICS SPDR sector ETF (XLK, XLF, ...).
+    - Unmapped equities fall back to SPY.
+    """
+    sym = str(symbol or "").upper().strip()
+    if sym in CORE_LIQUID_ETFS:
+        return "SPY"
+    sec = EQUITY_SECTOR_MAP.get(sym)
+    if sec and sec in SECTOR_BENCHMARK_ETF:
+        etf = SECTOR_BENCHMARK_ETF[sec]
+        return "SPY" if sym == etf else etf
+    return "SPY"
 
 
 if __name__ == "__main__":

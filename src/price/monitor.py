@@ -952,13 +952,19 @@ def scan_all_slices(
             # Edge- and volatility-aware sizing. Falls back to equal-notional
             # when no candidate_leaderboard.csv edge data is available, so the
             # live paper book is unaffected on a fresh/leaderboard-less run.
+            from price.cost_model import equity_execution_cost_model
+            eff_cost_model = (
+                equity_execution_cost_model(symbol, cost_model)
+                if cost_model is not None
+                else None
+            )
             size = compute_position_size(
                 symbol=symbol,
                 timeframe=timeframe,
                 slice_combination=s["slice_combination"],
                 close_adj=close_adj,
                 limits=limits,
-                cost_model=cost_model,
+                cost_model=eff_cost_model,
             )
             qty = size.qty
             # LOUD missing-edge warning: a monitored slice with no edge row

@@ -206,6 +206,56 @@ def main() -> int:
     result["exit_horizon"] = result["exit_horizon"].fillna(5).astype(int)
     if "stop_atr_mult" not in result.columns:
         result["stop_atr_mult"] = None
+
+    # Attach low-DOF Core Macro/Sector ETF pullback sleeve (1d / 20b hold,
+    # 4.0 bps ETF cost model), skipping any candidate marked decaying_suspended
+    # in the union registry so live OOS decay governance still applies.
+    if os.getenv("DISABLE_CORE_ETF_SLEEVE", "").strip().lower() not in {"1", "true", "yes"}:
+        from price.core_etf_sleeve import CORE_ETF_SLEEVE_SOURCE_NOTE, select_core_etf_sleeve
+
+        union_lb = _load_union_leaderboard()
+        sleeve = select_core_etf_sleeve(union_lb)
+        if not sleeve.empty:
+            key_cols = ["symbol", "timeframe", "slice_combination", "side", "bin_mode"]
+            if not reg.empty and "status" in reg.columns:
+                norm_reg = _normalise_identity(reg)
+                suspended = set(
+                    norm_reg.loc[norm_reg["status"] == "decaying_suspended", key_cols]
+                    .itertuples(index=False, name=None)
+                )
+                if suspended:
+                    keep_mask = [
+                        tuple(r) not in suspended
+                        for r in sleeve[key_cols].itertuples(index=False, name=None)
+                    ]
+                    sleeve = sleeve.loc[keep_mask].reset_index(drop=True)
+
+            if not sleeve.empty:
+                sleeve_keys = set(sleeve[key_cols].itertuples(index=False, name=None))
+                if not result.empty:
+                    existing_mask = [
+                        tuple(r) in sleeve_keys
+                        for r in result[key_cols].itertuples(index=False, name=None)
+                    ]
+                    if any(existing_mask):
+                        result.loc[existing_mask, "source_note"] = CORE_ETF_SLEEVE_SOURCE_NOTE
+                existing_keys = (
+                    set(result[key_cols].itertuples(index=False, name=None))
+                    if not result.empty
+                    else set()
+                )
+                new_rows = sleeve[
+                    [tuple(r) not in existing_keys for r in sleeve[key_cols].itertuples(index=False, name=None)]
+                ]
+                if not new_rows.empty:
+                    result = pd.concat([result, new_rows], ignore_index=True)
+                    result = _normalise_identity(result)
+                    result["exit_horizon"] = pd.to_numeric(result["exit_horizon"], errors="coerce").fillna(5).astype(int)
+                print(
+                    f"sync_monitored: core_etf_sleeve active={len(sleeve)} "
+                    f"(newly attached={len(new_rows)})"
+                )
+
     after = len(result)
     print(f"sync_monitored: {before} -> {after} ({after - before:+d})")
     result.to_csv(MONITORED, index=False)

@@ -86,6 +86,11 @@ def _build_combinations(timeframe: str, cond_symbols=None, profile: str | None =
             ["state_gap_open", "state_ext"],
             ["state_relvol", "state_ext"],
             ["state_gap_open", "state_relvol", "state_ext"],
+            # ── Sector-relative & Sector+SPY uptrend regime combos ─────
+            ["state_sector_regime", "state_rel_ext_sector"],
+            ["state_sector_regime", "state_rel_ret_sector"],
+            ["state_sector_regime", "state_rel_ext_sector", "state_ext"],
+            ["state_rel_ext_sector", "state_slope"],
         ]
         if timeframe in ["15m", "1h"]:
             combinations.append(["state_session", "state_volume"])
@@ -129,22 +134,24 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
 
     for symbol in symbols:
         symbol = symbol.upper()
-        if cond_symbols and symbol in [s.upper() for s in cond_symbols]:
-            print(f"Skipping {symbol}: cannot condition a symbol on itself.")
-            continue
+        sym_cond = [s for s in (cond_symbols or []) if s.upper() != symbol] or None
+        sym_combos = (
+            combinations
+            if sym_cond == cond_symbols
+            else _build_combinations(timeframe, cond_symbols=sym_cond, profile=profile)
+        )
         print(f"\n[search] Exploring state slices for {symbol} ({timeframe})...")
         
         # KEY OPTIMISATION: compute features + bins + cross-asset states ONCE
         # per (symbol, timeframe), then reuse the cached frame for every
         # combination.  Previously each combination triggered a full
         # load→feature→bin→attach cycle — 13× redundant compute per symbol.
-        # Cross-asset conditioning frames (USO, TLT) are cached globally
-        # across all primary symbols, so they're loaded+featured+binned
-        # exactly once, not once per primary symbol.
+        # Cross-asset conditioning frames are cached globally across all
+        # primary symbols, so they're loaded+featured+binned once.
         try:
             binned_frame = precompute_binned_frame(
                 symbol, timeframe,
-                cond_symbols=cond_symbols,
+                cond_symbols=sym_cond,
                 bin_mode=bin_mode,
             )
         except Exception as e:
@@ -155,13 +162,13 @@ def run_discovery(target_symbols=None, timeframe="1d", min_samples=15, append=Fa
             print(f"  No data for {symbol} ({timeframe}); skipping.")
             continue
         
-        for fields in combinations:
+        for fields in sym_combos:
             print(f"Testing state-space combination: {fields}")
             try:
                 slices = discover_market_slices(
                     symbol, timeframe, fields,
                     min_samples=min_samples,
-                    cond_symbols=cond_symbols,
+                    cond_symbols=sym_cond,
                     bin_mode=bin_mode,
                     _precomputed_binned=binned_frame,
                 )
