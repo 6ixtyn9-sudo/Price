@@ -7282,5 +7282,27 @@ discovery_baseline is not None` wrote `{}` right back on every refresh.
   PR #12's tightened validation, and re-closes automatically via
   `--consume-gate` after `1d` shard merge.
 
+### 2026-11-05 — Preserve open-position bar capture & gate equity execution to NYSE RTH
+
+After Nov 3's sharded discovery rebuild trimmed `monitored_slices.csv`
+(`262 -> 142` slices), open legacy positions (`AMAT`, `PDD`) absent from both
+`monitored_slices.csv` and `live_symbols` stopped receiving `1d`/`15m` bars in
+`live-capture-equities`'s lane-scoped warehouse cache, freezing `AMAT` at
+`bars_held = 9 < 10` (`-0.754R`) and `PDD` at `14 < 20`. Separately, after US
+DST fall-back (`UTC-5`), pre-market/post-close scans submitted equity exits
+(`13:26Z`/`14:24Z`, canceling live GTC stops before the opening bell) and
+after-hours limit entries (`00:11Z` resting overnight).
+
+- **`augment_with_open_equity_positions` (`scripts/capture_bars.py`):** CLI
+  equity captures now union active equity tickers from `stop_state.json` and
+  live broker open positions (skipping crypto-only and futures-only batches) so
+  open positions continue advancing `bars_held` until closed.
+- **`is_nyse_rth_open` & `_handle_signals` (`scripts/paper_trade.py`):** live
+  equity `entry_signal` and `exit_intent` execution is gated on regular NYSE
+  session hours via `pandas_market_calendars` (DST-, holiday-, and early-close
+  aware; override via `--allow-off-hours-equities`), deferring off-hours equity
+  entries/exits while keeping stop reconciliation, crypto, and futures active.
+
+
 
 
