@@ -367,6 +367,68 @@ def test_update_demotion_state_carries_strikes_on_absent_slice_and_cleans_nan_si
     assert state["strikes"][k] == 1
     assert demoted == []
 
+
+def test_resolve_blocked_timeframes_gates_15m_on_equity_lane_only():
+    import paper_trade
+
+    assert paper_trade.resolve_blocked_timeframes("1d", lane="eq") == frozenset({"1d", "15m"})
+    assert paper_trade.resolve_blocked_timeframes("1h", lane="equity") == frozenset({"1h", "15m"})
+    assert paper_trade.resolve_blocked_timeframes("", lane="eq") == frozenset({"15m"})
+
+    # Opt-out flag restores explicit-only CLI behavior on equity lane.
+    assert paper_trade.resolve_blocked_timeframes("1d", lane="eq", allow_15m_equities=True) == frozenset({"1d"})
+    assert paper_trade.resolve_blocked_timeframes("", lane="eq", allow_15m_equities=True) == frozenset()
+
+    # Non-equity lanes are unaffected by the equity 15m default gate.
+    assert paper_trade.resolve_blocked_timeframes("", lane="crypto") == frozenset()
+    assert paper_trade.resolve_blocked_timeframes("1h", lane="fut") == frozenset({"1h"})
+
+
+def test_paper_trade_main_wires_equity_15m_pool_gate_and_preserves_1h_long(tmp_path, monkeypatch):
+    import sys
+    import pandas as pd
+    import paper_trade
+    import price.trading as _trading
+
+    captured_limits = []
+
+    def _fake_scan(**kwargs):
+        captured_limits.append(kwargs["limits"])
+        return []
+
+    monkeypatch.setattr(paper_trade, "AUDIT_LOG_PATH", tmp_path / "paper_trade_log.csv")
+    monkeypatch.setattr(paper_trade, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(paper_trade, "scan_all_slices", _fake_scan)
+    monkeypatch.setattr(paper_trade, "_handle_signals", lambda signals, **kw: {})
+    monkeypatch.setattr(_trading, "get_open_orders", lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(_trading, "reconcile_trade_journal", lambda *a, **k: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "paper_trade.py",
+            "--sizing-equity", "100000",
+            "--allow-shorts",
+            "--block-short-timeframes", "1h",
+            "--block-long-timeframes", "1d",
+            "--allow-long-slice", "AAPL|15m|sl_exempt",
+        ],
+    )
+
+    rc = paper_trade.main()
+    assert rc == 0
+    assert len(captured_limits) == 1
+    lim = captured_limits[0]
+    assert lim.long_blocked_timeframes == frozenset({"1d", "15m"})
+    assert lim.short_blocked_timeframes == frozenset({"1h", "15m"})
+
+    # 15m long & short blocked by default; 1h long allowed; explicit 15m slice exemption still works.
+    assert not check_entry("MSFT", 10, 100.0, lim, [], 0.0, side="long", timeframe="15m", slice_combination="sl").allowed
+    assert not check_entry("MSFT", 10, 100.0, lim, [], 0.0, side="short", timeframe="15m", slice_combination="sl").allowed
+    assert check_entry("MSFT", 10, 100.0, lim, [], 0.0, side="long", timeframe="1h", slice_combination="sl").allowed
+    assert check_entry("AAPL", 10, 100.0, lim, [], 0.0, side="long", timeframe="15m", slice_combination="sl_exempt").allowed
+
+
     # Legacy NaN side in live_forward_returns merges into 'long', never forming a 'nan' pool.
     df = pd.DataFrame([
         {"symbol": "AAA", "timeframe": "1d", "bin_mode": "rolling", "side": float("nan"),
