@@ -13,20 +13,6 @@
     "opened_at": "2026-10-15T13:58:52.853996+00:00",
     "updated_at": "2026-10-15T13:58:52.853996+00:00"
   },
-  "AMAT": {
-    "symbol": "AMAT",
-    "side": "long",
-    "qty": 6.0,
-    "entry_price": 408.976667,
-    "initial_stop_price": 311.17543161186035,
-    "current_stop_price": 311.17543161186035,
-    "r_per_share": 97.80123538813967,
-    "stage": "initial",
-    "extreme_price": 408.976667,
-    "stop_order_id": "d9b4b473-5032-4ad1-aea7-f98f1926d2e3",
-    "opened_at": "2026-10-21T14:08:05.642840+00:00",
-    "updated_at": "2026-10-21T14:08:05.642840+00:00"
-  },
   "DE": {
     "symbol": "DE",
     "side": "long",
@@ -40,20 +26,6 @@
     "stop_order_id": "ea89480f-6fa3-427e-bbbd-1b9a90f68e76",
     "opened_at": "2026-10-21T14:08:05.928294+00:00",
     "updated_at": "2026-10-21T14:08:05.928294+00:00"
-  },
-  "TMO": {
-    "symbol": "TMO",
-    "side": "long",
-    "qty": 3.0,
-    "entry_price": 694.22,
-    "initial_stop_price": 599.6130846932751,
-    "current_stop_price": 599.6130846932751,
-    "r_per_share": 94.60691530672489,
-    "stage": "initial",
-    "extreme_price": 694.22,
-    "stop_order_id": "7a88b6bc-0d24-45ae-b906-79ade59735e5",
-    "opened_at": "2026-10-27T15:55:25.573511+00:00",
-    "updated_at": "2026-10-27T15:55:25.573511+00:00"
   },
   "PM": {
     "symbol": "PM",
