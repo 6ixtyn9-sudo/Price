@@ -68,5 +68,19 @@
     "stop_order_id": "1bed692d-37e7-4c27-b49b-ae92074ca938",
     "opened_at": "2026-11-05T14:40:12.149227+00:00",
     "updated_at": "2026-11-05T14:40:12.149227+00:00"
+  },
+  "ETN": {
+    "symbol": "ETN",
+    "side": "long",
+    "qty": 7.0,
+    "entry_price": 332.08,
+    "initial_stop_price": 293.62107142857144,
+    "current_stop_price": 293.62107142857144,
+    "r_per_share": 38.45892857142857,
+    "stage": "initial",
+    "extreme_price": 332.08,
+    "stop_order_id": "ff4658b8-cf9e-40ee-9f90-0ea562d8b9da",
+    "opened_at": "2026-11-05T15:32:50.608026+00:00",
+    "updated_at": "2026-11-05T15:32:50.608026+00:00"
   }
 }
