@@ -609,12 +609,38 @@ def _handle_signals(
     return counts
 
 
+def resolve_blocked_timeframes(
+    csv_arg: str,
+    *,
+    lane: str = "eq",
+    allow_15m_equities: bool = False,
+) -> frozenset:
+    """Resolve pool-gated timeframes from CLI flags plus lane defaults.
+
+    On the equity lane, 15m entries are pool-gated by default (822 live shadow
+    signals: 15m long -26.1 bps net t=-4.28, 15m short -25.4 bps net t=-4.43,
+    compounded by ~8m runner/capture latency + IEX 15m bars on a 75m horizon).
+    Existing exits/stops and live forward-return shadow capture remain active;
+    individual slices can still be exempted via --allow-long-slice /
+    --allow-short-slice, or the equity 15m gate can be bypassed via
+    --allow-15m-equities. Non-equity lanes are unaffected.
+    """
+    from price.lane_guard import normalize_lane
+
+    blocked = {t.strip() for t in (csv_arg or "").split(",") if t.strip()}
+    if normalize_lane(lane) == "equity" and not allow_15m_equities:
+        blocked.add("15m")
+    return frozenset(blocked)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Paper-trade the V4 monitored slices.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Compute signals and write the audit log, but do not call trading.submit_entry / close_position.")
     parser.add_argument("--allow-off-hours-equities", action="store_true",
                         help="Allow equity entry/exit order submission outside NYSE regular trading hours (default: gated to NYSE RTH).")
+    parser.add_argument("--allow-15m-equities", action="store_true",
+                        help="Allow new 15m equity entries (default: 15m long and short are pool-gated on the equity lane).")
     parser.add_argument("--loop", type=int, default=0,
                         help="If > 0, loop and re-scan every N seconds. 0 = single scan and exit.")
     parser.add_argument("--max-notional", type=float, default=2500.0,
@@ -858,13 +884,15 @@ def main() -> int:
             args.max_aggregate_risk_pct if args.max_aggregate_risk_pct > 0 else None
         ),
         whipsaw_stopout_limit=args.whipsaw_limit,
-        short_blocked_timeframes=frozenset(
-            t.strip() for t in args.block_short_timeframes.split(",") if t.strip()),
+        short_blocked_timeframes=resolve_blocked_timeframes(
+            args.block_short_timeframes, lane=lane, allow_15m_equities=args.allow_15m_equities
+        ),
         short_exempt_slices=frozenset(
             normalize_exempt_slice_key(s) for s in args.allow_short_slice if str(s).strip()
         ),
-        long_blocked_timeframes=frozenset(
-            t.strip() for t in args.block_long_timeframes.split(",") if t.strip()),
+        long_blocked_timeframes=resolve_blocked_timeframes(
+            args.block_long_timeframes, lane=lane, allow_15m_equities=args.allow_15m_equities
+        ),
         long_exempt_slices=frozenset(
             normalize_exempt_slice_key(s) for s in args.allow_long_slice if str(s).strip()
         ),

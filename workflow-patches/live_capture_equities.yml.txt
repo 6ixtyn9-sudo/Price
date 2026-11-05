@@ -140,8 +140,8 @@ jobs:
             --max-giveback-r 1.0 \
             --pure-horizon-exits \
             --regime-filter \
-            --block-short-timeframes 1h \
-            --block-long-timeframes 1d \
+            --block-short-timeframes 1h,15m \
+            --block-long-timeframes 1d,15m \
             --shadow-gate \
             --watchdog-horizon-multiple 3 \
             --watchdog-hard-loss-r 2 \

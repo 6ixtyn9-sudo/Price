@@ -7303,6 +7303,37 @@ after-hours limit entries (`00:11Z` resting overnight).
   aware; override via `--allow-off-hours-equities`), deferring off-hours equity
   entries/exits while keeping stop reconciliation, crypto, and futures active.
 
+### 2026-11-05 — Pool-gate 15m equity entries & offline signal-class audit
+
+Live shadow forward returns (`n = 822` `15m` observations across `rolling`
+bins: `15m long` `n = 643`, `-26.1 bps` net at 13 bp, `t = -4.28`; `15m short`
+`n = 179`, `-25.4 bps` net, `t = -4.43`), compounded by ~8m GitHub Actions
+runner/bar-capture latency and Alpaca free-tier IEX `15m` bars on a 75m (`5b`)
+holding horizon, leave `15m` equity entries structurally negative while
+occupying 24 of the 47 previously un-gated slices.
+
+- **`resolve_blocked_timeframes` (`scripts/paper_trade.py`):** pool-gates `15m`
+  long and short entries by default on the equity lane (leaving only the 23
+  `1h long` slices active for live orders while preserving stops/exits,
+  shadow forward-return capture, `--allow-long-slice`/`--allow-short-slice`
+  exemptions, non-equity lanes, and `--allow-15m-equities` opt-out). Full
+  matching workflow copies updated in `workflow-patches/live_capture_equities.yml.txt`
+  and `workflow-patches/live_capture_scan15m.yml.txt`.
+- **Offline signal-class audit (`177,553` `valid_n >= 20` purged-OOS trials +
+  `3,467` live OOS shadow rows):**
+  1. Combinatorial 3-bin rule-mining (`54k–64k` trials/timeframe) pushes the
+     multiple-testing hurdle `SR₀` to `0.79–0.93` per-trade Sharpe vs `0.29–0.35`
+     for a low-DOF (`N <= 10`) pre-specified sleeve (`2/975` `1d` and `0/251`
+     `1h` survivors clear `DSR >= 0.95` even after filtering `valid_n < 20`
+     sample-starved Sharpe outliers).
+  2. Current discovery never conditioned stocks on `SPY` or own-sector ETFs
+     (`cross_*` only attached `TLT`/`USO`, and shard runs lacked hydrated
+     `state_vix`/`state_breadth`).
+  3. On `1d` (`valid_n >= 30`), Core Macro/Sector ETF pullbacks (`4 bp` cost)
+     beat buy-and-hold `72.0%` of the time (`+23 bps` mean excess vs `+9 bps` /
+     `58.5%` for isolated stock dip-buys and `-8 bps` for stock breakouts).
+
+
 
 
 
