@@ -68,19 +68,5 @@
     "stop_order_id": "707f8c32-687c-4b7a-aafc-f3238fb25e05",
     "opened_at": "2026-11-05T16:31:37.963508+00:00",
     "updated_at": "2026-11-05T16:31:37.963508+00:00"
-  },
-  "ADI": {
-    "symbol": "ADI",
-    "side": "long",
-    "qty": 6.0,
-    "entry_price": 375.413333,
-    "initial_stop_price": 353.8091228042572,
-    "current_stop_price": 353.8091228042572,
-    "r_per_share": 21.60421019574284,
-    "stage": "initial",
-    "extreme_price": 375.413333,
-    "stop_order_id": "b77a68ed-c738-4392-a4db-dea89b9aa1d3",
-    "opened_at": "2026-11-05T17:24:21.622004+00:00",
-    "updated_at": "2026-11-05T17:24:21.622004+00:00"
   }
 }
