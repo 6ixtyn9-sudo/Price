@@ -4,9 +4,21 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import argparse
+import json
+from pathlib import Path
 import pandas as pd
 from datetime import datetime, timedelta, timezone
-from price.config import SYMBOLS, is_futures, is_crypto, is_equity, ETF_SYMBOLS, UNIVERSE_TIER, UNIVERSE_MAX_SYMBOLS
+from price.config import (
+    DATA_DIR,
+    ETF_SYMBOLS,
+    SYMBOLS,
+    SYMBOL_PATTERN,
+    UNIVERSE_MAX_SYMBOLS,
+    UNIVERSE_TIER,
+    is_crypto,
+    is_equity,
+    is_futures,
+)
 from price.data_sources import (
     fetch_universal_bars,
     fetch_alpaca_bars,
@@ -44,14 +56,82 @@ def _needs_resample_and_propagate(symbol: str, tf: str, source: str) -> bool:
     return True
 
 
+def _open_equity_position_symbols(
+    data_dir: Path = DATA_DIR,
+    include_broker: bool = True,
+) -> list[str]:
+    """Return active open equity position symbols from stop_state.json and
+    (when credentials are present) live broker open positions.
+
+    Ensures positions whose originating slices are pruned from
+    monitored_slices.csv during a research rebuild keep receiving warehouse
+    bars so check_exits (horizon / watchdog_loser_stop) continues advancing
+    bars_held until the position closes.
+    """
+    found: set[str] = set()
+    stop_path = Path(data_dir) / "stop_state.json"
+    if stop_path.exists():
+        try:
+            payload = json.loads(stop_path.read_text())
+            if isinstance(payload, dict):
+                for raw_sym in payload.keys():
+                    sym = str(raw_sym or "").strip().upper()
+                    if sym and SYMBOL_PATTERN.match(sym) and is_equity(sym):
+                        found.add(sym)
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    if include_broker and os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY"):
+        try:
+            from price.trading import get_open_positions
+
+            pos_df = get_open_positions()
+            if pos_df is not None and not pos_df.empty and "symbol" in pos_df.columns:
+                for raw_sym in pos_df["symbol"].dropna().tolist():
+                    sym = str(raw_sym).strip().upper()
+                    if sym and SYMBOL_PATTERN.match(sym) and is_equity(sym):
+                        found.add(sym)
+        except Exception:  # noqa: BLE001 - best-effort supplement; never fail capture
+            pass
+
+    return sorted(found)
+
+
+def augment_with_open_equity_positions(
+    symbols,
+    data_dir: Path = DATA_DIR,
+    include_broker: bool = True,
+) -> list[str]:
+    """Append open equity position symbols missing from an equity batch.
+
+    Crypto-only and futures-only batches are returned unchanged so non-equity
+    lanes never ingest equity tickers from a shared localdata directory.
+    """
+    base = list(symbols or [])
+    if not base or not any(is_equity(str(s)) for s in base):
+        return base
+    seen = {str(s).upper() if "/" not in str(s) else str(s) for s in base}
+    extra = [
+        sym
+        for sym in _open_equity_position_symbols(data_dir=data_dir, include_broker=include_broker)
+        if sym not in seen
+    ]
+    if extra:
+        print(f"📌 Including {len(extra)} open-position equity symbol(s) missing from target list: {extra}")
+    return base + extra
+
+
 def capture_bars(
     target_symbols=None,
     target_timeframes=None,
     days_lookback=365,
     use_universal_router=True,
     post_process=True,
+    include_open_positions=False,
 ):
-    symbols = target_symbols or SYMBOLS
+    symbols = list(target_symbols or SYMBOLS)
+    if include_open_positions:
+        symbols = augment_with_open_equity_positions(symbols)
     timeframes = target_timeframes or ["1d", "15m", "1h"]
 
     end_dt = datetime.now(timezone.utc)
@@ -208,6 +288,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Fetch/save bars but defer 15m->1h resampling and adjustment propagation to a later capture pass.",
     )
+    parser.add_argument(
+        "--no-open-positions",
+        action="store_true",
+        help="Do not auto-append open equity positions from stop_state.json / broker.",
+    )
 
     args = parser.parse_args()
 
@@ -240,4 +325,5 @@ if __name__ == "__main__":
         days_lookback=args.days,
         use_universal_router=not args.no_router,
         post_process=not args.skip_postprocess,
+        include_open_positions=not args.no_open_positions,
     )

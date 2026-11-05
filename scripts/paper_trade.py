@@ -32,13 +32,13 @@ import argparse
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import pandas as pd
 
-from price.config import DATA_DIR
+from price.config import DATA_DIR, is_equity
 from price.monitor import scan_all_slices
 from price.position_manager import ExitPolicy
 from price.risk_limits import RiskLimits, record_entry, set_halt_flag
@@ -268,13 +268,68 @@ def _warehouse_adverse_reference(symbol: str, timeframe: Optional[str]) -> Optio
         return None
 
 
-def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill_bps: float = 0.0, entry_premium_bps: float = 0.0, adverse_atr_mult: float = 0.0, entry_premium_atr_mult: float = 0.0) -> Dict[str, int]:
+_NYSE_CALENDAR = None
+
+
+def is_nyse_rth_open(now_utc: Optional[datetime] = None) -> bool:
+    """Return True iff `now_utc` falls inside regular NYSE trading hours.
+
+    Accounts for US DST transitions (13:30-20:00 UTC in EDT vs 14:30-21:00 UTC
+    in EST), full market holidays, and 13:00 ET early-close sessions via the
+    NYSE calendar in `pandas_market_calendars`. Falls back to a conservative
+    Mon-Fri 09:30-16:00 America/New_York check if calendar lookup fails.
+    """
+    global _NYSE_CALENDAR
+    ts = now_utc if now_utc is not None else datetime.now(timezone.utc)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    else:
+        ts = ts.astimezone(timezone.utc)
+
+    try:
+        import pandas_market_calendars as mcal
+
+        if _NYSE_CALENDAR is None:
+            _NYSE_CALENDAR = mcal.get_calendar("NYSE")
+        start_d = (ts - timedelta(days=1)).date()
+        end_d = (ts + timedelta(days=1)).date()
+        sched = _NYSE_CALENDAR.schedule(start_date=start_d, end_date=end_d)
+        if sched.empty:
+            return False
+        for _, row in sched.iterrows():
+            m_open = row["market_open"]
+            m_close = row["market_close"]
+            m_open = m_open.tz_localize("UTC") if m_open.tzinfo is None else m_open.tz_convert("UTC")
+            m_close = m_close.tz_localize("UTC") if m_close.tzinfo is None else m_close.tz_convert("UTC")
+            if m_open <= ts < m_close:
+                return True
+        return False
+    except Exception:  # noqa: BLE001
+        from zoneinfo import ZoneInfo
+
+        ny = ts.astimezone(ZoneInfo("America/New_York"))
+        if ny.weekday() >= 5:
+            return False
+        return (9, 30) <= (ny.hour, ny.minute) < (16, 0)
+
+
+def _handle_signals(
+    signals: List[dict],
+    dry_run: bool = False,
+    max_adverse_fill_bps: float = 0.0,
+    entry_premium_bps: float = 0.0,
+    adverse_atr_mult: float = 0.0,
+    entry_premium_atr_mult: float = 0.0,
+    enforce_equity_rth: bool = False,
+    now_utc: Optional[datetime] = None,
+) -> Dict[str, int]:
     """For each signal in the list, either submit a real order, log a
     blocked entry, or close a position. Returns counts for the summary."""
     counts = {
         "entry_submitted": 0,
         "entry_blocked": 0,
         "exit_submitted": 0,
+        "exit_deferred": 0,
         "exit_hold": 0,
         "no_state_data": 0,
         "stop_actions": 0,
@@ -282,6 +337,7 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
     }
     submitted_symbols_this_run: set[str] = set()
     closed_symbols_this_run: set[str] = set()
+    equity_rth_open = is_nyse_rth_open(now_utc) if enforce_equity_rth else True
 
     for sig in signals:
         kind = sig.get("kind")
@@ -330,6 +386,16 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
             qty = int(sig.get("suggested_qty", 0))
             slice_label = sig["slice_combination"]
             signal_close = sig.get("close_adj")  # researched entry price (signal bar close)
+
+            if enforce_equity_rth and not dry_run and is_equity(str(symbol)) and not equity_rth_open:
+                counts["entry_blocked"] += 1
+                _append_audit({
+                    "action": "block",
+                    "reason": "market_closed_rth",
+                    "blocked_reasons": "NYSE regular trading hours closed; deferring equity entry until RTH open",
+                    **_strip_known_keys(sig, ["action"]),
+                })
+                continue
 
             # Entry orders must be LIMIT, never market. submit_entry falls back
             # to a market order when limit_price is None/NaN; for scheduled runs
@@ -514,6 +580,20 @@ def _handle_signals(signals: List[dict], dry_run: bool = False, max_adverse_fill
                     })
                     continue
 
+                if enforce_equity_rth and is_equity(str(symbol)) and not equity_rth_open:
+                    closed_symbols_this_run.add(symbol)
+                    counts["exit_deferred"] += 1
+                    _append_audit({
+                        "action": "exit_deferred",
+                        "symbol": symbol,
+                        "reason": (
+                            "market_closed_rth: deferring equity exit until NYSE RTH open"
+                            + (f" ({sig.get('reason')})" if sig.get("reason") else "")
+                        ),
+                        **sig_for_audit,
+                    })
+                    continue
+
                 result = close_position(symbol)
                 closed_symbols_this_run.add(symbol)
                 counts["exit_submitted"] += 1
@@ -533,6 +613,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Paper-trade the V4 monitored slices.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Compute signals and write the audit log, but do not call trading.submit_entry / close_position.")
+    parser.add_argument("--allow-off-hours-equities", action="store_true",
+                        help="Allow equity entry/exit order submission outside NYSE regular trading hours (default: gated to NYSE RTH).")
     parser.add_argument("--loop", type=int, default=0,
                         help="If > 0, loop and re-scan every N seconds. 0 = single scan and exit.")
     parser.add_argument("--max-notional", type=float, default=2500.0,
@@ -877,7 +959,15 @@ def main() -> int:
                 entry_sync_blocked=not reconciliation_health.get("ok", False),
                 reconciliation_health=reconciliation_health,
             )
-            counts = _handle_signals(signals, dry_run=args.dry_run, max_adverse_fill_bps=args.max_adverse_fill_bps, entry_premium_bps=args.entry_premium_bps, adverse_atr_mult=args.adverse_atr_mult, entry_premium_atr_mult=args.entry_premium_atr_mult)
+            counts = _handle_signals(
+                signals,
+                dry_run=args.dry_run,
+                max_adverse_fill_bps=args.max_adverse_fill_bps,
+                entry_premium_bps=args.entry_premium_bps,
+                adverse_atr_mult=args.adverse_atr_mult,
+                entry_premium_atr_mult=args.entry_premium_atr_mult,
+                enforce_equity_rth=not args.allow_off_hours_equities,
+            )
         except Exception as scan_exc:
             # Loud failure is the design — but a crashed pass must still
             # leave its heartbeat row so the ledger can tell crashed apart

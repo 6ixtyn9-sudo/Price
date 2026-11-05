@@ -308,3 +308,46 @@ def test_split_adjusted_dividend_cash_rescaled_with_prices():
     # factor: dividend-only 0.9815 pre-ex at 1/10 scale, stepping x10 at the split
     af = out["adj_factor"].tolist()
     assert abs(af[2] / af[1] - 10.0) < 0.01
+
+
+def test_augment_with_open_equity_positions_unions_stop_state_and_skips_non_equity(tmp_path, monkeypatch):
+    import json
+    import sys
+    from pathlib import Path
+
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import capture_bars as cb
+
+    (tmp_path / "stop_state.json").write_text(
+        json.dumps(
+            {
+                "AMAT": {"qty": 6},
+                "PDD": {"qty": 13},
+                "SPY": {"qty": 5},
+                "BTC/USD": {"qty": 0.1},
+                "FUT/ES": {"qty": 1},
+            }
+        )
+    )
+    monkeypatch.setenv("ALPACA_API_KEY", "test-key")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "test-secret")
+    import price.trading as _trading
+
+    monkeypatch.setattr(
+        _trading,
+        "get_open_positions",
+        lambda: pd.DataFrame([{"symbol": "ETN"}, {"symbol": "BTC/USD"}]),
+    )
+
+    eq_out = cb.augment_with_open_equity_positions(["SPY", "QQQ"], data_dir=tmp_path)
+    assert eq_out == ["SPY", "QQQ", "AMAT", "ETN", "PDD"]
+
+    # Crypto and futures batches must NEVER pull in equity symbols from stop_state.json.
+    crypto_out = cb.augment_with_open_equity_positions(["BTC/USD", "ETH/USD"], data_dir=tmp_path)
+    assert crypto_out == ["BTC/USD", "ETH/USD"]
+
+    fut_out = cb.augment_with_open_equity_positions(["FUT/ES", "FUT/NQ"], data_dir=tmp_path)
+    assert fut_out == ["FUT/ES", "FUT/NQ"]
+
