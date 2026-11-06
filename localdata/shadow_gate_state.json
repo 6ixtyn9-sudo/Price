@@ -1,5 +1,5 @@
 {
-  "cycle_key": "2026-11-06T19:00:00+00:00",
+  "cycle_key": "2026-11-06T20:00:00+00:00",
   "strikes": {},
   "slice_cycles": {
     "XLP|1h|rolling|short|state_volume=vol_quiet + state_slope=uptrend": "66|2026-10-14T19:00:00+00:00",
@@ -83,7 +83,7 @@
     "XLY|1d|rolling|long|state_slope=flat + state_vol=low_vol": "10|2026-10-19T04:00:00+00:00",
     "AAPL|1h|rolling|long|cross_TLT_state_slope=flat + state_ext=stretched_down": "9|2026-09-09T15:00:00+00:00",
     "ADI|1h|rolling|long|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down": "9|2026-10-30T18:00:00+00:00",
-    "ADI|1h|rolling|long|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_down": "9|2026-11-06T18:00:00+00:00",
+    "ADI|1h|rolling|long|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_down": "9|2026-11-06T20:00:00+00:00",
     "DIS|1h|rolling|long|cross_USO_state_slope=uptrend + state_ext=stretched_down": "9|2026-10-27T13:00:00+00:00",
     "GOOGL|1d|rolling|long|state_ext=neutral + state_slope=flat + state_vol=low_vol": "9|2026-10-20T04:00:00+00:00",
     "GOOGL|1d|rolling|long|state_slope=flat + state_vol=low_vol": "9|2026-09-22T04:00:00+00:00",
@@ -172,7 +172,7 @@
     "PEP|15m|rolling|short|state_ext=stretched_up + state_vol=high_vol": "6|2026-10-30T16:15:00+00:00",
     "PSX|15m|rolling|long|state_ext=stretched_down + state_vol=high_vol": "6|2026-10-02T14:15:00+00:00",
     "SOXX|1h|rolling|long|state_session=lunch + state_slope=uptrend + state_vol=low_vol": "6|2026-10-28T17:00:00+00:00",
-    "SPG|1h|rolling|long|state_session=afternoon + state_vol=mid_vol": "6|2026-11-02T20:00:00+00:00",
+    "SPG|1h|rolling|long|state_session=afternoon + state_vol=mid_vol": "6|2026-11-06T20:00:00+00:00",
     "URA|15m|rolling|long|state_ext=stretched_up + state_slope=uptrend + state_vol=mid_vol": "6|2026-10-06T17:15:00+00:00",
     "XBI|15m|rolling|long|state_volume=vol_surge + state_slope=downtrend": "6|2026-09-09T19:45:00+00:00",
     "XLC|1h|rolling|long|cross_TLT_state_slope=downtrend + state_ext=stretched_down": "6|2026-10-29T18:00:00+00:00",
