@@ -1,5 +1,5 @@
 {
-  "updated_at_utc": "2026-11-08T22:17:08.611588+00:00",
+  "updated_at_utc": "2026-11-09T22:19:17.645836+00:00",
   "symbols": 221,
   "timeframes": [
     "1d",
@@ -632,7 +632,7 @@
       "last_bar": "2026-11-06 05:00:00+00:00"
     },
     "ROKU:1d": {
-      "count": 2290,
+      "count": 4580,
       "last_bar": "2026-11-06 05:00:00+00:00"
     },
     "RTX:1d": {
@@ -1778,9 +1778,11 @@
       "last_bar": "2026-11-02 05:00:00+00:00"
     }
   },
-  "new_daily_bars_since_previous_refresh": 0,
-  "eligible_discovery_symbols": [],
-  "eligible_discovery_symbol_count": 0,
+  "new_daily_bars_since_previous_refresh": 2290,
+  "eligible_discovery_symbols": [
+    "ROKU:1d"
+  ],
+  "eligible_discovery_symbol_count": 1,
   "required_discovery_symbol_count": 110,
   "min_new_daily_bars": 5,
   "discovery_requested": true,
@@ -1796,5 +1798,5 @@
   "monitored_slices_modified": false,
   "automatic_promotion_enabled": false,
   "workflow": "research_refresh",
-  "generated_at_utc": "2026-11-08T22:17:08+00:00"
+  "generated_at_utc": "2026-11-09T22:19:17+00:00"
 }
