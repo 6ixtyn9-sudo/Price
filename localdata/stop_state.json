@@ -1,18 +1,4 @@
 {
-  "PDD": {
-    "symbol": "PDD",
-    "side": "long",
-    "qty": 13.0,
-    "entry_price": 81.496923,
-    "initial_stop_price": 73.75135047500288,
-    "current_stop_price": 73.75135047500288,
-    "r_per_share": 7.745572524997119,
-    "stage": "initial",
-    "extreme_price": 81.496923,
-    "stop_order_id": "7f799a92-b6d0-49b9-b339-1c3933fc2683",
-    "opened_at": "2026-10-15T13:58:52.853996+00:00",
-    "updated_at": "2026-10-15T13:58:52.853996+00:00"
-  },
   "DE": {
     "symbol": "DE",
     "side": "long",
