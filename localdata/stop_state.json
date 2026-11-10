@@ -1,1 +1,16 @@
-{}
+{
+  "PM": {
+    "symbol": "PM",
+    "side": "long",
+    "qty": 12.0,
+    "entry_price": 193.96,
+    "initial_stop_price": 188.8935804905643,
+    "current_stop_price": 188.8935804905643,
+    "r_per_share": 5.066419509435713,
+    "stage": "initial",
+    "extreme_price": 193.96,
+    "stop_order_id": "8ff6bbb6-8d08-4f71-b4c0-132f89af9de7",
+    "opened_at": "2026-11-10T16:24:09.945159+00:00",
+    "updated_at": "2026-11-10T16:24:09.945159+00:00"
+  }
+}
