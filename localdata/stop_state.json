@@ -26,5 +26,19 @@
     "stop_order_id": "565039b9-8700-4812-b3b8-fa2c0d0888fb",
     "opened_at": "2026-11-10T20:24:08.334974+00:00",
     "updated_at": "2026-11-10T20:24:08.334974+00:00"
+  },
+  "AFRM": {
+    "symbol": "AFRM",
+    "side": "long",
+    "qty": 36.0,
+    "entry_price": 68.46,
+    "initial_stop_price": 64.36623738424285,
+    "current_stop_price": 64.36623738424285,
+    "r_per_share": 4.093762615757136,
+    "stage": "initial",
+    "extreme_price": 68.46,
+    "stop_order_id": "ee1ec4df-a618-49f7-af01-37d1da4e4636",
+    "opened_at": "2026-11-11T15:30:40.773774+00:00",
+    "updated_at": "2026-11-11T15:30:40.773774+00:00"
   }
 }
