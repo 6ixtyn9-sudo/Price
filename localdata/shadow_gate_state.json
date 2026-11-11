@@ -1,5 +1,5 @@
 {
-  "cycle_key": "2026-11-11T19:00:00+00:00",
+  "cycle_key": "2026-11-11T19:15:00+00:00",
   "strikes": {},
   "slice_cycles": {
     "XLP|1h|rolling|short|state_volume=vol_quiet + state_slope=uptrend": "66|2026-10-14T19:00:00+00:00",
@@ -40,10 +40,10 @@
     "OIH|1h|rolling|long|state_ext=neutral + state_slope=uptrend + state_vol=high_vol": "16|2026-10-06T19:00:00+00:00",
     "PG|1h|rolling|short|cross_TLT_state_slope=uptrend + state_ext=stretched_up": "16|2026-10-16T15:00:00+00:00",
     "AFRM|1h|rolling|short|state_session=morning + state_ext=neutral + state_slope=flat": "15|2026-08-27T15:00:00+00:00",
+    "BSX|15m|rolling|short|state_session=afternoon + state_slope=uptrend + state_vol=high_vol": "15|2026-11-11T19:15:00+00:00",
     "KLAC|1h|rolling|long|state_ext=neutral + state_ret_1=ret_down": "15|2026-08-28T13:00:00+00:00",
     "KLAC|1h|rolling|long|state_session=lunch + state_ext=neutral": "15|2026-09-03T17:00:00+00:00",
     "TGT|1h|rolling|long|state_ext=neutral + state_slope=downtrend + state_vol=mid_vol": "15|2026-10-28T18:00:00+00:00",
-    "BSX|15m|rolling|short|state_session=afternoon + state_slope=uptrend + state_vol=high_vol": "14|2026-11-11T19:00:00+00:00",
     "DE|1d|rolling|long|state_ext=stretched_down + state_slope=downtrend": "14|2026-10-27T04:00:00+00:00",
     "URA|15m|rolling|long|cross_USO_state_slope=downtrend + cross_TLT_state_slope=uptrend + state_ext=stretched_up": "14|2026-11-02T15:15:00+00:00",
     "VLO|15m|rolling|long|state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol": "14|2026-10-27T17:15:00+00:00",
