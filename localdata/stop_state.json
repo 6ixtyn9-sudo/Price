@@ -5,26 +5,12 @@
     "qty": 12.0,
     "entry_price": 193.96,
     "initial_stop_price": 188.8935804905643,
-    "current_stop_price": 188.8935804905643,
+    "current_stop_price": 196.99287585069087,
     "r_per_share": 5.066419509435713,
-    "stage": "initial",
-    "extreme_price": 193.96,
-    "stop_order_id": "8ff6bbb6-8d08-4f71-b4c0-132f89af9de7",
+    "stage": "trailing",
+    "extreme_price": 199.8,
+    "stop_order_id": "bddb6b60-f497-4485-b584-65c62b728e38",
     "opened_at": "2026-11-10T16:24:09.945159+00:00",
-    "updated_at": "2026-11-10T16:24:09.945159+00:00"
-  },
-  "SPG": {
-    "symbol": "SPG",
-    "side": "long",
-    "qty": 10.0,
-    "entry_price": 234.75,
-    "initial_stop_price": 229.24028596157146,
-    "current_stop_price": 229.24028596157146,
-    "r_per_share": 5.509714038428547,
-    "stage": "initial",
-    "extreme_price": 234.75,
-    "stop_order_id": "565039b9-8700-4812-b3b8-fa2c0d0888fb",
-    "opened_at": "2026-11-10T20:24:08.334974+00:00",
-    "updated_at": "2026-11-10T20:24:08.334974+00:00"
+    "updated_at": "2026-11-12T16:24:35.612263+00:00"
   }
 }
