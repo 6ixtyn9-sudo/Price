@@ -1,5 +1,5 @@
 {
-  "cycle_key": "2026-11-13T14:00:00+00:00",
+  "cycle_key": "2026-11-13T15:00:00+00:00",
   "strikes": {},
   "slice_cycles": {
     "XLP|1h|rolling|short|state_volume=vol_quiet + state_slope=uptrend": "66|2026-10-14T19:00:00+00:00",
@@ -242,6 +242,7 @@
     "HOOD|1h|rolling|long|state_session=afternoon + state_slope=downtrend + state_vol=mid_vol": "4|2026-10-14T19:00:00+00:00",
     "ITA|1d|rolling|long|cross_USO_state_slope=uptrend + state_slope=downtrend": "4|2026-08-28T04:00:00+00:00",
     "IYR|15m|rolling|short|state_session=morning + state_slope=flat + state_vol=low_vol": "4|2026-11-12T15:15:00+00:00",
+    "JPM|15m|rolling|long|state_session=afternoon + state_ret_5=ret_down": "4|2026-11-12T20:45:00+00:00",
     "KLAC|1h|rolling|long|state_ext=stretched_down + state_ret_1=ret_down": "4|2026-07-29T19:00:00+00:00",
     "KLAC|1h|rolling|long|state_session=afternoon + state_ext=stretched_down": "4|2026-07-30T18:00:00+00:00",
     "KLAC|1h|rolling|long|state_session=lunch + state_slope=downtrend + state_vol=mid_vol": "4|2026-07-30T17:00:00+00:00",
@@ -303,7 +304,6 @@
     "HUM|1h|rolling|long|state_volume=vol_quiet + state_ext=stretched_up": "3|2026-07-21T16:00:00+00:00",
     "IBIT|1h|rolling|long|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=neutral": "3|2026-10-28T16:00:00+00:00",
     "JNJ|1h|rolling|long|state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol": "3|2026-08-27T16:00:00+00:00",
-    "JPM|15m|rolling|long|state_session=afternoon + state_ret_5=ret_down": "3|2026-11-12T20:45:00+00:00",
     "KLAC|1d|rolling|long|cross_USO_state_ext=neutral + cross_TLT_state_slope=flat + state_ext=stretched_down": "3|2026-08-26T04:00:00+00:00",
     "KLAC|1h|rolling|long|cross_TLT_state_slope=downtrend + state_ext=stretched_down": "3|2026-07-30T18:00:00+00:00",
     "KLAC|1h|rolling|long|cross_TLT_state_slope=downtrend + state_slope=downtrend": "3|2026-07-30T17:00:00+00:00",
