@@ -1,1 +1,16 @@
-{}
+{
+  "AFRM": {
+    "symbol": "AFRM",
+    "side": "long",
+    "qty": 39.0,
+    "entry_price": 63.22,
+    "initial_stop_price": 60.114168325282144,
+    "current_stop_price": 60.114168325282144,
+    "r_per_share": 3.1058316747178565,
+    "stage": "initial",
+    "extreme_price": 63.22,
+    "stop_order_id": "b63d45ea-771f-414d-a3e6-5bd709096e6a",
+    "opened_at": "2026-11-16T16:31:35.156340+00:00",
+    "updated_at": "2026-11-16T16:31:35.156340+00:00"
+  }
+}
