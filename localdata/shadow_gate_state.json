@@ -1,5 +1,5 @@
 {
-  "cycle_key": "2026-11-17T19:00:00+00:00",
+  "cycle_key": "2026-11-17T20:00:00+00:00",
   "strikes": {},
   "slice_cycles": {
     "XLP|1h|rolling|short|state_volume=vol_quiet + state_slope=uptrend": "66|2026-10-14T19:00:00+00:00",
@@ -50,7 +50,7 @@
     "VLO|15m|rolling|long|state_ext=stretched_down + state_slope=downtrend + state_vol=high_vol": "14|2026-10-27T17:15:00+00:00",
     "XLI|1h|rolling|long|state_ext=neutral + state_ret_5=ret_down": "14|2026-08-19T19:00:00+00:00",
     "ADI|1h|rolling|long|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_down": "13|2026-11-06T20:00:00+00:00",
-    "AFRM|1h|rolling|long|state_slope=downtrend + state_vol=mid_vol": "13|2026-11-17T19:00:00+00:00",
+    "AFRM|1h|rolling|long|state_slope=downtrend + state_vol=mid_vol": "13|2026-11-17T20:00:00+00:00",
     "AVGO|1h|rolling|long|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_up": "13|2026-07-22T19:00:00+00:00",
     "GOOG|1d|rolling|long|state_ext=neutral + state_slope=flat + state_vol=low_vol": "13|2026-10-19T04:00:00+00:00",
     "LRCX|1d|rolling|long|state_volume=vol_normal + state_slope=downtrend": "13|2026-11-02T05:00:00+00:00",
@@ -488,7 +488,7 @@
     "INTC|1h|rolling|long|cross_USO_state_slope=downtrend + cross_TLT_state_slope=flat + state_ext=neutral": "1|2026-10-07T14:00:00+00:00",
     "JPM|1d|rolling|long|cross_TLT_state_slope=downtrend + state_ext=stretched_up": "1|2026-07-23T04:00:00+00:00",
     "JPM|1d|rolling|long|cross_USO_state_vol=high_vol + state_ext=stretched_up": "1|2026-07-23T04:00:00+00:00",
-    "KBE|1h|rolling|long|state_ext=stretched_down + state_vol=mid_vol": "1|2026-11-17T19:00:00+00:00",
+    "KBE|1h|rolling|long|state_ext=stretched_down + state_vol=mid_vol": "1|2026-11-17T20:00:00+00:00",
     "KLAC|1d|rolling|long|state_gap_open=gap_open_flat + state_ext=stretched_down": "1|2026-11-10T05:00:00+00:00",
     "KLAC|1d|rolling|long|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_down": "1|2026-11-10T05:00:00+00:00",
     "KLAC|1h|rolling|long|cross_USO_state_ext=neutral + state_ext=stretched_down": "1|2026-07-30T18:00:00+00:00",
