@@ -1,18 +1,4 @@
 {
-  "KBE": {
-    "symbol": "KBE",
-    "side": "long",
-    "qty": 38.0,
-    "entry_price": 64.781579,
-    "initial_stop_price": 63.389411604349995,
-    "current_stop_price": 63.389411604349995,
-    "r_per_share": 1.3921673956499971,
-    "stage": "initial",
-    "extreme_price": 64.781579,
-    "stop_order_id": "bad31417-7707-45ed-929b-a57b969340f1",
-    "opened_at": "2026-11-17T16:34:00.875993+00:00",
-    "updated_at": "2026-11-17T16:34:00.875993+00:00"
-  },
   "CRWD": {
     "symbol": "CRWD",
     "side": "long",
