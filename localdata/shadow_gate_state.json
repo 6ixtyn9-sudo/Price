@@ -1,5 +1,5 @@
 {
-  "cycle_key": "2026-11-18T20:00:00+00:00",
+  "cycle_key": "2026-11-18T20:45:00+00:00",
   "strikes": {},
   "slice_cycles": {
     "XLP|1h|rolling|short|state_volume=vol_quiet + state_slope=uptrend": "66|2026-10-14T19:00:00+00:00",
@@ -31,7 +31,7 @@
     "PLTR|1h|rolling|long|cross_USO_state_ext=neutral + cross_TLT_state_slope=downtrend + state_ext=neutral": "18|2026-09-28T19:00:00+00:00",
     "VLO|15m|rolling|long|state_ext=stretched_down + state_vol=high_vol": "18|2026-10-27T17:15:00+00:00",
     "VLO|1h|rolling|long|state_volume=vol_quiet + state_slope=downtrend": "18|2026-10-20T18:00:00+00:00",
-    "BSX|15m|rolling|short|state_session=afternoon + state_slope=uptrend + state_vol=high_vol": "17|2026-11-18T20:00:00+00:00",
+    "BSX|15m|rolling|short|state_session=afternoon + state_slope=uptrend + state_vol=high_vol": "17|2026-11-18T20:15:00+00:00",
     "KLAC|1h|rolling|long|state_gap_open=gap_open_flat + state_ext=neutral": "17|2026-08-25T19:00:00+00:00",
     "PSX|1h|rolling|short|state_ext=stretched_up + state_slope=uptrend + state_vol=low_vol": "17|2026-08-19T15:00:00+00:00",
     "PSX|1h|rolling|short|state_ext=stretched_up + state_vol=low_vol": "17|2026-08-19T15:00:00+00:00",
@@ -140,7 +140,7 @@
     "GOOG|1d|rolling|long|state_slope=flat + state_vol=low_vol": "7|2026-09-22T04:00:00+00:00",
     "HON|1h|rolling|long|cross_USO_state_vol=high_vol + state_ext=stretched_down": "7|2026-07-30T17:00:00+00:00",
     "HON|1h|rolling|long|state_volume=vol_quiet + state_ext=stretched_down": "7|2026-07-30T17:00:00+00:00",
-    "JPM|15m|rolling|long|state_session=afternoon + state_ret_5=ret_down": "7|2026-11-18T19:00:00+00:00",
+    "JPM|15m|rolling|long|state_session=afternoon + state_ret_5=ret_down": "7|2026-11-18T20:45:00+00:00",
     "JPM|1h|rolling|long|state_session=afternoon + state_slope=downtrend + state_vol=low_vol": "7|2026-08-19T19:00:00+00:00",
     "KLAC|1d|rolling|long|state_ext=stretched_down + state_slope=downtrend": "7|2026-07-27T04:00:00+00:00",
     "KLAC|1h|rolling|long|state_ext=stretched_down + state_slope=downtrend": "7|2026-07-30T17:00:00+00:00",
@@ -340,7 +340,7 @@
     "PSX|15m|rolling|long|state_session=afternoon + state_volume=vol_surge": "3|2026-11-03T20:45:00+00:00",
     "QQQ|1d|rolling|long|cross_USO_state_ext=neutral + state_ext=neutral": "3|2026-10-12T04:00:00+00:00",
     "SHOP|1d|rolling|long|state_ext=stretched_down + state_ret_5=ret_flat": "3|2026-11-16T05:00:00+00:00",
-    "SHW|1h|rolling|short|state_slope=downtrend + state_vol=low_vol": "3|2026-11-18T19:00:00+00:00",
+    "SHW|1h|rolling|short|state_slope=downtrend + state_vol=low_vol": "3|2026-11-18T20:00:00+00:00",
     "SMCI|15m|rolling|long|state_session=afternoon + state_ext=neutral + state_slope=uptrend": "3|2026-07-31T19:45:00+00:00",
     "SMH|1d|rolling|long|cross_USO_state_ext=stretched_down + state_ext=neutral": "3|2026-08-06T04:00:00+00:00",
     "SMH|1d|rolling|long|state_ext=stretched_up + state_ret_1=ret_down": "3|2026-10-08T04:00:00+00:00",
