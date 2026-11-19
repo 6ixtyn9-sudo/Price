@@ -12,5 +12,33 @@
     "stop_order_id": "a4faa129-ecf4-4caa-bf09-0557d191c04c",
     "opened_at": "2026-11-18T16:24:43.379750+00:00",
     "updated_at": "2026-11-19T15:10:25.862200+00:00"
+  },
+  "SPG": {
+    "symbol": "SPG",
+    "side": "long",
+    "qty": 10.0,
+    "entry_price": 227.87,
+    "initial_stop_price": 222.63078618969286,
+    "current_stop_price": 222.63078618969286,
+    "r_per_share": 5.23921381030714,
+    "stage": "initial",
+    "extreme_price": 227.87,
+    "stop_order_id": "34c0bb9d-5349-4e30-83db-10832859d85c",
+    "opened_at": "2026-11-19T15:32:02.596777+00:00",
+    "updated_at": "2026-11-19T15:32:02.596777+00:00"
+  },
+  "KBE": {
+    "symbol": "KBE",
+    "side": "long",
+    "qty": 39.0,
+    "entry_price": 63.74,
+    "initial_stop_price": 62.22491022650001,
+    "current_stop_price": 62.22491022650001,
+    "r_per_share": 1.515089773499997,
+    "stage": "initial",
+    "extreme_price": 63.74,
+    "stop_order_id": "6d5dec55-4ce3-4b86-90dc-f4de3faff93f",
+    "opened_at": "2026-11-19T16:24:12.458641+00:00",
+    "updated_at": "2026-11-19T16:24:12.458641+00:00"
   }
 }
