@@ -40,5 +40,19 @@
     "stop_order_id": "6d5dec55-4ce3-4b86-90dc-f4de3faff93f",
     "opened_at": "2026-11-19T16:24:12.458641+00:00",
     "updated_at": "2026-11-19T16:24:12.458641+00:00"
+  },
+  "XLY": {
+    "symbol": "XLY",
+    "side": "long",
+    "qty": 21.0,
+    "entry_price": 116.23,
+    "initial_stop_price": 111.71392857142858,
+    "current_stop_price": 111.71392857142858,
+    "r_per_share": 4.516071428571417,
+    "stage": "initial",
+    "extreme_price": 116.23,
+    "stop_order_id": "dfacc145-067a-40e6-9c24-36ed2c65a7a6",
+    "opened_at": "2026-11-19T20:31:37.977816+00:00",
+    "updated_at": "2026-11-19T20:31:37.977816+00:00"
   }
 }
