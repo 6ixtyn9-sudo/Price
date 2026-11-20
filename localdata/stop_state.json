@@ -1,18 +1,4 @@
 {
-  "CRWD": {
-    "symbol": "CRWD",
-    "side": "long",
-    "qty": 10.0,
-    "entry_price": 232.8,
-    "initial_stop_price": 212.2,
-    "current_stop_price": 237.48447572585735,
-    "r_per_share": 20.600000000000023,
-    "stage": "trailing",
-    "extreme_price": 254.69,
-    "stop_order_id": "a4faa129-ecf4-4caa-bf09-0557d191c04c",
-    "opened_at": "2026-11-18T16:24:43.379750+00:00",
-    "updated_at": "2026-11-19T15:10:25.862200+00:00"
-  },
   "SPG": {
     "symbol": "SPG",
     "side": "long",
