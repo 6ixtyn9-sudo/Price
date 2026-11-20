@@ -1,18 +1,4 @@
 {
-  "SPG": {
-    "symbol": "SPG",
-    "side": "long",
-    "qty": 10.0,
-    "entry_price": 227.87,
-    "initial_stop_price": 222.63078618969286,
-    "current_stop_price": 222.63078618969286,
-    "r_per_share": 5.23921381030714,
-    "stage": "initial",
-    "extreme_price": 227.87,
-    "stop_order_id": "34c0bb9d-5349-4e30-83db-10832859d85c",
-    "opened_at": "2026-11-19T15:32:02.596777+00:00",
-    "updated_at": "2026-11-19T15:32:02.596777+00:00"
-  },
   "KBE": {
     "symbol": "KBE",
     "side": "long",
