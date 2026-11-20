@@ -1,18 +1,4 @@
 {
-  "KBE": {
-    "symbol": "KBE",
-    "side": "long",
-    "qty": 39.0,
-    "entry_price": 63.74,
-    "initial_stop_price": 62.22491022650001,
-    "current_stop_price": 62.22491022650001,
-    "r_per_share": 1.515089773499997,
-    "stage": "initial",
-    "extreme_price": 63.74,
-    "stop_order_id": "6d5dec55-4ce3-4b86-90dc-f4de3faff93f",
-    "opened_at": "2026-11-19T16:24:12.458641+00:00",
-    "updated_at": "2026-11-19T16:24:12.458641+00:00"
-  },
   "XLY": {
     "symbol": "XLY",
     "side": "long",
