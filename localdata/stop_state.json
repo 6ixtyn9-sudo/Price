@@ -12,5 +12,19 @@
     "stop_order_id": "dfacc145-067a-40e6-9c24-36ed2c65a7a6",
     "opened_at": "2026-11-19T20:31:37.977816+00:00",
     "updated_at": "2026-11-19T20:31:37.977816+00:00"
+  },
+  "SOFI": {
+    "symbol": "SOFI",
+    "side": "long",
+    "qty": 189.0,
+    "entry_price": 13.27,
+    "initial_stop_price": 11.83525425,
+    "current_stop_price": 11.83525425,
+    "r_per_share": 1.4347457499999994,
+    "stage": "initial",
+    "extreme_price": 13.27,
+    "stop_order_id": "7c7efc02-0c1d-4836-a798-eb24a86150b1",
+    "opened_at": "2026-11-23T18:32:11.089300+00:00",
+    "updated_at": "2026-11-23T18:32:11.089300+00:00"
   }
 }
