@@ -1,15 +1,8 @@
 {
-  "previous_book_count": 114,
+  "previous_book_count": 111,
   "new_book_count": 111,
-  "added_candidates": [
-    "KLAC|1d|cross_USO_state_ext=neutral + state_ext=stretched_down|long|rolling"
-  ],
-  "removed_candidates": [
-    "ADI|1d|state_ext=stretched_down + state_slope=downtrend|long|rolling",
-    "GD|1d|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling",
-    "SHOP|1d|state_ext=stretched_down + state_ret_5=ret_flat|long|rolling",
-    "XYZ|1d|cross_USO_state_slope=downtrend + state_slope=uptrend|long|rolling"
-  ],
+  "added_candidates": [],
+  "removed_candidates": [],
   "retained_candidates": [
     "ABBV|1d|state_ext=stretched_down + state_slope=downtrend + state_vol=low_vol|long|rolling",
     "ADBE|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
@@ -59,6 +52,7 @@
     "ICLN|15m|state_ext=stretched_down + state_vol=mid_vol|long|rolling",
     "ISRG|1d|state_ext=neutral + state_slope=uptrend + state_vol=low_vol|long|rolling",
     "JD|1d|cross_USO_state_slope=downtrend + cross_TLT_state_ext=stretched_up + state_ext=stretched_down|long|rolling",
+    "KLAC|1d|cross_USO_state_ext=neutral + state_ext=stretched_down|long|rolling",
     "KLAC|1d|state_gap_open=gap_open_flat + state_relvol=relvol_normal + state_ext=stretched_down|long|rolling",
     "LCID|1h|cross_USO_state_vol=mid_vol + state_ext=neutral|short|rolling",
     "LNG|15m|cross_USO_state_ext=neutral + cross_TLT_state_slope=uptrend + state_ext=stretched_up|long|rolling",
@@ -123,14 +117,7 @@
     "XYZ|1d|state_ext=stretched_down + state_slope=flat + state_vol=low_vol|long|rolling"
   ],
   "changed_sides_or_slices": [],
-  "removal_reasons": {
-    "ADI|1d|state_ext=stretched_down + state_slope=downtrend|long|rolling": "decaying_suspended",
-    "GD|1d|state_ext=neutral + state_slope=uptrend + state_vol=high_vol|long|rolling": "registry_status:research_only",
-    "SHOP|1d|state_ext=stretched_down + state_ret_5=ret_flat|long|rolling": "decaying_suspended",
-    "XYZ|1d|cross_USO_state_slope=downtrend + state_slope=uptrend|long|rolling": "decaying_suspended"
-  },
-  "promotion_reasons": {
-    "KLAC|1d|cross_USO_state_ext=neutral + state_ext=stretched_down|long|rolling": "paper_proposal"
-  },
+  "removal_reasons": {},
+  "promotion_reasons": {},
   "discovery_run_id": null
 }
