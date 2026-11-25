@@ -1,6 +1,6 @@
 {
-  "cycle_key": "2026-11-25T14:00:00+00:00",
-  "n_signals": 3871,
+  "cycle_key": "2026-11-25T17:00:00+00:00",
+  "n_signals": 3874,
   "n_slices_scored": 619,
   "n_demote_candidates": 0,
   "n_demoted": 0,
@@ -25,7 +25,7 @@
       "timeframe": "1d",
       "side": "long",
       "n_5b": 487,
-      "mean_5b_bps": 10.85610417543521,
+      "mean_5b_bps": 11.416503714157342,
       "n_20b": 153,
       "mean_20b_bps": 132.4931040356457
     },
@@ -51,7 +51,7 @@
       "n_5b": 700,
       "mean_5b_bps": 12.65126909634532,
       "n_20b": 456,
-      "mean_20b_bps": 84.08161006360618
+      "mean_20b_bps": 84.08767360956784
     }
   ],
   "slices": [
@@ -464,7 +464,7 @@
       "mean_5b_bps": 19.183908563627348,
       "win_5b": 0.65,
       "n_20b": 18,
-      "mean_20b_bps": -45.42793351161128,
+      "mean_20b_bps": -45.27432368058206,
       "win_20b": 0.5555555555555556,
       "key": "OXY|1h|rolling|short|state_session=morning + state_slope=downtrend + state_vol=mid_vol",
       "latest_signal_ts_utc": "2026-11-24T16:00:00+00:00",
@@ -955,7 +955,7 @@
       "side": "long",
       "slice_combination": "state_ext=stretched_down + state_ret_5=ret_down",
       "n_5b": 14,
-      "mean_5b_bps": 83.34675469211375,
+      "mean_5b_bps": 96.13133343248923,
       "win_5b": 0.42857142857142855,
       "n_20b": 3,
       "mean_20b_bps": 1527.3957691063329,
@@ -1430,7 +1430,7 @@
       "side": "long",
       "slice_combination": "cross_USO_state_slope=downtrend + state_ext=neutral",
       "n_5b": 11,
-      "mean_5b_bps": 114.32796430750099,
+      "mean_5b_bps": 116.6950949621462,
       "win_5b": 0.8181818181818182,
       "n_20b": 6,
       "mean_20b_bps": -398.76675843278997,
@@ -2101,8 +2101,8 @@
       "mean_20b_bps": 229.33904138712816,
       "win_20b": 0.875,
       "key": "CBOE|15m|rolling|long|cross_TLT_state_vol=high_vol + state_ext=stretched_down",
-      "latest_signal_ts_utc": "2026-11-18T15:15:00+00:00",
-      "cycle_key": "8|2026-11-18T15:15:00+00:00",
+      "latest_signal_ts_utc": "2026-11-25T17:00:00+00:00",
+      "cycle_key": "8|2026-11-25T17:00:00+00:00",
       "verdict": "insufficient",
       "strikes": 0,
       "demoted": false
@@ -5578,8 +5578,8 @@
       "mean_20b_bps": -160.8793557409555,
       "win_20b": 0.0,
       "key": "ADI|1h|rolling|long|cross_USO_state_ext=stretched_up + state_ext=stretched_down",
-      "latest_signal_ts_utc": "2026-11-25T14:00:00+00:00",
-      "cycle_key": "3|2026-11-25T14:00:00+00:00",
+      "latest_signal_ts_utc": "2026-11-25T16:00:00+00:00",
+      "cycle_key": "3|2026-11-25T16:00:00+00:00",
       "verdict": "insufficient",
       "strikes": 0,
       "demoted": false
@@ -8726,7 +8726,7 @@
       "side": "long",
       "slice_combination": "state_volume=vol_surge + state_ext=stretched_down",
       "n_5b": 2,
-      "mean_5b_bps": 48.9740003319145,
+      "mean_5b_bps": 82.9200182275765,
       "win_5b": 1.0,
       "n_20b": 1,
       "mean_20b_bps": -2.393857700772,
