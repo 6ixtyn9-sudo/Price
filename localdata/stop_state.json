@@ -5,12 +5,12 @@
     "qty": 10.0,
     "entry_price": 228.08,
     "initial_stop_price": 222.24397275060716,
-    "current_stop_price": 222.24397275060716,
+    "current_stop_price": 231.29838929367784,
     "r_per_share": 5.836027249392858,
-    "stage": "initial",
-    "extreme_price": 228.08,
-    "stop_order_id": "28736ff3-407e-41fc-86c0-0df0bfbcf147",
+    "stage": "trailing",
+    "extreme_price": 234.11,
+    "stop_order_id": "33e0d7fc-d31d-4db0-b240-7a1f1d41f342",
     "opened_at": "2026-11-24T15:33:38.658136+00:00",
-    "updated_at": "2026-11-24T15:33:38.658136+00:00"
+    "updated_at": "2026-11-25T20:55:21.215588+00:00"
   }
 }
