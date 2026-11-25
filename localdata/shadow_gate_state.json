@@ -1,5 +1,5 @@
 {
-  "cycle_key": "2026-11-25T17:00:00+00:00",
+  "cycle_key": "2026-11-25T17:15:00+00:00",
   "strikes": {},
   "slice_cycles": {
     "LCID|1h|rolling|short|cross_USO_state_vol=mid_vol + state_ext=neutral": "71|2026-11-19T20:00:00+00:00",
@@ -98,6 +98,7 @@
     "ADI|1d|rolling|long|state_relvol=relvol_normal + state_ext=stretched_down": "9|2026-11-16T05:00:00+00:00",
     "ADI|1h|rolling|long|cross_USO_state_ext=stretched_up + cross_TLT_state_slope=flat + state_ext=stretched_down": "9|2026-10-30T18:00:00+00:00",
     "BITO|1h|rolling|long|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down": "9|2026-11-13T20:00:00+00:00",
+    "CBOE|15m|rolling|long|cross_TLT_state_vol=high_vol + state_ext=stretched_down": "9|2026-11-25T17:15:00+00:00",
     "DIS|1h|rolling|long|cross_USO_state_slope=uptrend + state_ext=stretched_down": "9|2026-10-27T13:00:00+00:00",
     "FBTC|1h|rolling|long|cross_USO_state_slope=uptrend + cross_TLT_state_slope=downtrend + state_ext=stretched_down": "9|2026-11-13T20:00:00+00:00",
     "GOOGL|1d|rolling|long|state_ext=neutral + state_slope=flat + state_vol=low_vol": "9|2026-10-20T04:00:00+00:00",
@@ -109,7 +110,6 @@
     "ARKG|1h|rolling|short|state_volume=vol_quiet + state_ext=neutral": "8|2026-07-22T19:00:00+00:00",
     "AVGO|1d|rolling|long|cross_USO_state_vol=high_vol + state_ext=stretched_down": "8|2026-08-26T04:00:00+00:00",
     "BITO|15m|rolling|short|state_session=afternoon + state_slope=uptrend + state_vol=mid_vol": "8|2026-11-10T20:15:00+00:00",
-    "CBOE|15m|rolling|long|cross_TLT_state_vol=high_vol + state_ext=stretched_down": "8|2026-11-25T17:00:00+00:00",
     "CRWD|1h|rolling|long|state_session=morning + state_ext=stretched_up + state_slope=flat": "8|2026-11-18T16:00:00+00:00",
     "EQIX|15m|rolling|long|cross_USO_state_vol=mid_vol + state_ext=stretched_down": "8|2026-11-24T16:15:00+00:00",
     "GDXJ|1h|rolling|long|state_ext=stretched_up + state_ret_5=ret_flat": "8|2026-09-03T19:00:00+00:00",
@@ -292,7 +292,7 @@
     "ADI|1d|rolling|long|cross_USO_state_ext=stretched_down + cross_TLT_state_slope=uptrend + state_ext=stretched_down": "3|2026-11-09T05:00:00+00:00",
     "ADI|1d|rolling|long|cross_USO_state_vol=mid_vol + state_ext=stretched_down": "3|2026-10-23T04:00:00+00:00",
     "ADI|1d|rolling|long|state_volume=vol_normal + state_slope=downtrend": "3|2026-10-26T04:00:00+00:00",
-    "ADI|1h|rolling|long|cross_USO_state_ext=stretched_up + state_ext=stretched_down": "3|2026-11-25T16:00:00+00:00",
+    "ADI|1h|rolling|long|cross_USO_state_ext=stretched_up + state_ext=stretched_down": "3|2026-11-25T17:00:00+00:00",
     "AFRM|1h|rolling|short|state_session=afternoon + state_ext=neutral + state_slope=flat": "3|2026-07-15T19:00:00+00:00",
     "AMD|15m|rolling|long|cross_TLT_state_slope=uptrend + state_ext=stretched_down": "3|2026-10-08T18:15:00+00:00",
     "AVGO|15m|rolling|long|cross_TLT_state_slope=uptrend + state_ext=stretched_down": "3|2026-10-08T19:15:00+00:00",
