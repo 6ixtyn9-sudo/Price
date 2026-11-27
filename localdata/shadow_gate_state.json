@@ -1,8 +1,8 @@
 {
-  "cycle_key": "2026-11-27T16:00:00+00:00",
+  "cycle_key": "2026-11-27T17:00:00+00:00",
   "strikes": {},
   "slice_cycles": {
-    "LCID|1h|rolling|short|cross_USO_state_vol=mid_vol + state_ext=neutral": "71|2026-11-25T20:00:00+00:00",
+    "LCID|1h|rolling|short|cross_USO_state_vol=mid_vol + state_ext=neutral": "71|2026-11-27T17:00:00+00:00",
     "XLP|1h|rolling|short|state_volume=vol_quiet + state_slope=uptrend": "66|2026-10-14T19:00:00+00:00",
     "LOW|1h|rolling|short|cross_TLT_state_slope=uptrend + state_ext=neutral": "65|2026-10-14T19:00:00+00:00",
     "XLP|1h|rolling|short|state_volume=vol_quiet + state_ext=neutral + state_slope=uptrend": "65|2026-10-14T19:00:00+00:00",
